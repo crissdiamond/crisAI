@@ -48,6 +48,20 @@ SUPPORTED_DOC_SUFFIXES = {".docx", ".pdf", ".pptx", ".xlsx"}
 
 TOKEN_INFO_PATH = Path(os.getenv("MS_TOKEN_INFO_PATH", CACHE_DIR / "msal_token_info.json"))
 
+def _acquire_token_silent_only(scopes: list[str] | None = None) -> dict[str, Any] | None:
+    _require_env()
+    scopes = scopes or DEFAULT_SCOPES
+
+    cache = _load_token_cache()
+    app = _build_app(cache)
+
+    accounts = app.get_accounts()
+    if not accounts:
+        return None
+
+    result = app.acquire_token_silent(scopes=scopes, account=accounts[0])
+    _save_token_cache(cache)
+    return result
 
 def _write_token_info(info: dict[str, Any]) -> None:
     TOKEN_INFO_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -129,22 +143,35 @@ def _acquire_token(scopes: list[str] | None = None, force_interactive: bool = Fa
     _require_env()
     scopes = scopes or DEFAULT_SCOPES
 
+    result = _acquire_token_silent_only(scopes=scopes)
+
+    if result and "access_token" in result:
+        granted = result.get("scope")
+        account = result.get("id_token_claims", {}).get("preferred_username")
+        if account or granted:
+            _write_token_info(
+                {
+                    "account": account,
+                    "scope": granted,
+                    "has_access_token": True,
+                }
+            )
+        return str(result["access_token"])
+
+    if not force_interactive:
+        raise RuntimeError(
+            "No valid cached SharePoint token is available. Run login_sharepoint first."
+        )
+
+    log_event(f"interactive_login scopes={scopes}")
     cache = _load_token_cache()
     app = _build_app(cache)
 
-    accounts = app.get_accounts()
-    result: dict[str, Any] | None = None
-
-    if accounts and not force_interactive:
-        result = app.acquire_token_silent(scopes=scopes, account=accounts[0])
-
-    if not result:
-        log_event(f"interactive_login scopes={scopes}")
-        result = app.acquire_token_interactive(
-            scopes=scopes,
-            prompt="select_account",
-            domain_hint="organizations",
-        )
+    result = app.acquire_token_interactive(
+        scopes=scopes,
+        prompt="select_account",
+        domain_hint="organizations",
+    )
 
     _save_token_cache(cache)
 
@@ -334,16 +361,32 @@ def login_sharepoint() -> str:
 
 @mcp.tool()
 def sharepoint_auth_status() -> dict[str, Any]:
-    """Return cached SharePoint auth status without forcing interactive login."""
+    """Return SharePoint auth status without forcing interactive login."""
     log_event("sharepoint_auth_status")
+
     info = _read_token_info()
     cache = _load_token_cache()
-    accounts = _build_app(cache).get_accounts()
+    app = _build_app(cache)
+    accounts = app.get_accounts()
+
+    silent_result = None
+    has_valid_silent_token = False
+    silent_error = None
+
+    if accounts:
+        silent_result = app.acquire_token_silent(scopes=DEFAULT_SCOPES, account=accounts[0])
+        if silent_result and "access_token" in silent_result:
+            has_valid_silent_token = True
+        elif silent_result:
+            silent_error = silent_result.get("error_description") or str(silent_result)
+
     return {
         "has_cached_token_info": bool(info),
         "account": info.get("account"),
         "scopes": info.get("scope"),
         "cached_accounts": [a.get("username") for a in accounts],
+        "has_valid_silent_token": has_valid_silent_token,
+        "silent_error": silent_error,
     }
 
 @mcp.tool()

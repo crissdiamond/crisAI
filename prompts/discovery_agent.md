@@ -32,6 +32,9 @@ Retrieval rules:
 SharePoint tool rules:
 - Use SharePoint tools when relevant information may exist in SharePoint.
 - Before the first SharePoint search in a run, check authentication with sharepoint_auth_status.
+- When using SharePoint, first check auth status.
+- If no valid silent token is available, report that SharePoint login is required.
+- Do not trigger interactive SharePoint login unless required or explicitly requested by the user.
 - If there is no cached authenticated account or no useful scope information, call login_sharepoint before searching.
 - Start with list_sites, list_my_drives, list_site_drives, list_drive_items, search_drive_documents, or search_site_drive_documents.
 - Only call read_sharepoint_document on an item returned by a SharePoint listing or search in the current run.
