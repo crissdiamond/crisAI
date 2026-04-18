@@ -462,7 +462,7 @@ async def _run_peer_pipeline(message: str, verbose: bool, needs_retrieval: bool 
         )
         final_result = await Runner.run(orchestrator_agent, final_prompt)
         final_text = str(final_result.final_output)
-        #append_trace(trace_file, "FINAL OUTPUT", final_text)
+        append_trace(trace_file, "FINAL OUTPUT", final_text)
         #return final_text
         print_final_recommendation(final_text)
         return final_text
@@ -495,9 +495,14 @@ def ask(
     decision = _resolve_route(message, review_enabled=review, mode_override=explicit_mode, agent_override=explicit_agent)
     console.print(_route_display(decision))
 
+    #async def _run() -> None:
+    #    text = await _run_with_routing(message, verbose, review, decision)
+    #    console.print(Markdown(text))
+
     async def _run() -> None:
         text = await _run_with_routing(message, verbose, review, decision)
-        console.print(Markdown(text))
+        if decision.mode != "peer":
+            console.print(Markdown(text))
 
     asyncio.run(_run())
 
@@ -628,15 +633,27 @@ def chat(
         async def _run() -> str:
             return await _run_with_routing(chat_input, verbose, current_review, decision)
 
+
         try:
             text = asyncio.run(_run())
         except Exception as e:
             console.print(f"[red]Error:[/red] {e}")
             continue
 
-        console.print()
-        console.print(Markdown(text))
-        console.print()
+        if decision.mode != "peer":
+            console.print()
+            console.print(Markdown(text))
+            console.print()
+
+#        try:
+#            text = asyncio.run(_run())
+#        except Exception as e:
+#            console.print(f"[red]Error:[/red] {e}")
+#            continue
+#
+#        console.print()
+#        console.print(Markdown(text))
+#        console.print()
 
         history.append(("user", user_input))
         history.append(("assistant", text))
