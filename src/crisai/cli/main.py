@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 import typer
 from agents import Runner
+from prompt_toolkit import prompt
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.history import FileHistory
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -14,14 +17,10 @@ from rich.table import Table
 
 from crisai.agents.factory import AgentFactory
 from crisai.config import load_settings
+from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import append_trace
-
-### cli command history
-from prompt_toolkit import prompt
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
 app = typer.Typer(help="crisAI CLI")
 console = Console()
@@ -57,11 +56,13 @@ def _render_history(history: list[tuple[str, str]]) -> str:
 
     return "\n\n".join(lines)
 
+
 def _cli_history_file() -> Path:
     settings = load_settings()
     path = settings.workspace_dir / ".cli_history"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
+
 
 def _build_chat_input(user_input: str, history: list[tuple[str, str]]) -> str:
     if not history:
@@ -75,6 +76,7 @@ Latest user message:
 {user_input}
 
 Please answer consistently with the conversation so far."""
+
 
 def _session_dir() -> Path:
     settings = load_settings()
@@ -146,7 +148,7 @@ def _agent_icon(agent_id: str) -> str:
         return "⚔"
     if "design_refiner" in aid:
         return "🛠"
-    if "design" in aid:
+    if aid == "design":
         return "🏗"
     if "review" in aid:
         return "🛡"
@@ -192,6 +194,25 @@ def _print_agents_table() -> None:
         table.add_row(_agent_icon(spec.id), spec.id, spec.model, servers)
 
     console.print(table)
+
+
+def _route_display(decision: RoutingDecision) -> str:
+    agent = decision.agent or "-"
+    return f"[dim][router][/dim] {decision.mode} • {agent} • {decision.reason}"
+
+
+def _resolve_route(
+    user_input: str,
+    review_enabled: bool,
+    mode_override: str | None = None,
+    agent_override: str | None = None,
+) -> RoutingDecision:
+    return decide_route(
+        user_input=user_input,
+        review_enabled=review_enabled,
+        current_mode=mode_override,
+        selected_agent=agent_override,
+    )
 
 
 @app.command("list-servers")
@@ -270,8 +291,9 @@ Rules:
 - For supported document formats such as .docx, .pdf, .pptx, .xlsx, use the document-reading tools.
 - For plain text files, use workspace text reads where appropriate.
 - Use SharePoint tools when the relevant information may be in SharePoint.
-- When using SharePoint, first check auth status and authenticate if needed before searching.
-- Never assume SharePoint auth is already warm.
+- When using SharePoint, first check auth status before searching.
+- If no valid silent token is available, report that login is required.
+- Do not trigger interactive SharePoint login unless explicitly requested by the user.
 - Use get_document_metadata or get_sharepoint_document_metadata only if needed, and only with a valid item returned in this run.
 - If a tool fails, report the exact tool name and exact error.
 - Do not claim you inspected or read a source unless a tool call succeeded.
@@ -316,9 +338,7 @@ Rules:
         if verbose:
             console.print(Markdown(f"## Design Agent\n\n{design_text}"))
 
-        run_review = review
-
-        if run_review:
+        if review:
             if verbose:
                 console.print(Panel.fit("Running Review Agent", style="yellow"))
             review_agent = factory.build_agent(review_spec, active_servers)
@@ -359,7 +379,7 @@ Highlight:
                 console.print(Panel.fit("Skipping Review Agent", style="yellow"))
 
         if verbose:
-            console.print(Panel.fit("Running Orchestrator", style="magenta"))
+            console.print(Panel.fit("Running Orchestrator", style="white"))
         orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
         final_prompt = f"""
 User request:
@@ -371,13 +391,16 @@ Discovery findings:
 Draft design response:
 {design_text}
 
-Review feedback:
+Review notes:
 {review_text}
 
 Task:
 Produce the final answer to the user.
-Use the design output as the main body, but improve it using the review feedback where relevant.
-Do not mention internal pipeline stages unless the user explicitly asked for them.
+
+Rules:
+- Use the design response as the main draft.
+- Incorporate justified review improvements if review was enabled.
+- Do not mention internal pipeline stages unless the user explicitly asked for them.
 """
         final_result = await Runner.run(orchestrator_agent, final_prompt)
         final_text = str(final_result.final_output)
@@ -389,20 +412,6 @@ async def _run_peer_pipeline(message: str, verbose: bool, review: bool = False) 
     settings, _, server_specs, agent_specs = _load_registry()
     if not settings.openai_api_key:
         raise typer.BadParameter("OPENAI_API_KEY is not set.")
-
-    required_agents = [
-        "discovery",
-        "design_author",
-        "design_challenger",
-        "design_refiner",
-        "judge",
-        "orchestrator",
-    ]
-    missing = [agent_id for agent_id in required_agents if agent_id not in agent_specs]
-    if missing:
-        raise typer.BadParameter(
-            f"Peer mode requires these agents in registry/agents.yaml: {', '.join(missing)}"
-        )
 
     root_dir = Path.cwd()
     runtime = RuntimeManager(root_dir)
@@ -449,19 +458,11 @@ Rules:
 - For supported document formats such as .docx, .pdf, .pptx, .xlsx, use the document-reading tools.
 - For plain text files, use workspace text reads where appropriate.
 - Use SharePoint tools when the relevant information may be in SharePoint.
-- When using SharePoint, first check auth status and authenticate if needed before searching.
-- Never assume SharePoint auth is already warm.
+- When using SharePoint, first check auth status before searching.
+- If no valid silent token is available, report that login is required.
+- Do not trigger interactive SharePoint login unless explicitly requested by the user.
 - If a tool fails, report the exact tool name and exact error.
 - Do not claim you inspected or read a source unless a tool call succeeded.
-
-Return:
-1. relevant sources with exact paths or identifiers
-2. extracted facts
-3. assumptions
-4. constraints
-5. decisions already present
-6. missing information
-7. exact tool errors, if any
 """
         discovery_result = await Runner.run(discovery_agent, discovery_prompt)
         discovery_text = str(discovery_result.final_output)
@@ -480,12 +481,12 @@ Discovery findings:
 {discovery_text}
 
 Task:
-Produce the best possible first draft for the user's request.
+Draft the strongest practical answer you can from the verified findings.
 
 Rules:
-- Treat discovery findings as the authoritative retrieval result for this run.
-- Do not invent file paths or source content.
-- Where a diagram would help, generate Mermaid.
+- Treat the discovery findings as the only verified retrieval for this run.
+- Do not invent sources, file contents, or SharePoint details.
+- If discovery found gaps, be transparent about them.
 """
         author_result = await Runner.run(author_agent, author_prompt)
         author_text = str(author_result.final_output)
@@ -493,13 +494,11 @@ Rules:
         if verbose:
             console.print(Markdown(f"## Design Author\n\n{author_text}"))
 
-        run_review = review
-
-        challenger_text = ""
+        challenger_text = "Peer challenge skipped because review is disabled."
         refiner_text = author_text
         judge_text = "Judge stage skipped because review is disabled."
 
-        if run_review:
+        if review:
             if verbose:
                 console.print(Panel.fit("Running Design Challenger", style="yellow"))
             challenger_agent = factory.build_agent(challenger_spec, active_servers)
@@ -510,33 +509,23 @@ User request:
 Discovery findings:
 {discovery_text}
 
-Draft:
+Draft design response:
 {author_text}
 
 Task:
-Critique the draft rigorously.
+Challenge the draft and identify its weaknesses.
 
 Rules:
-- Work only from the user request, discovery findings, and the draft.
-- Do not invent evidence or file contents.
-- Do not rewrite the draft directly.
+- Work only from the user request, discovery findings, and draft.
+- Do not invent sources or evidence.
 
-Check for:
-- missing assumptions
-- governance gaps
-- ownership ambiguity
-- unsupported claims
-- NFR or assurance gaps
+Highlight:
+- unclear reasoning
+- weak assumptions
+- missing constraints
 - delivery risks
-- missing options or trade-offs
-- poor structure or unclear recommendation
-
-Output:
-- strengths
-- weaknesses
-- required corrections
-- optional improvements
-- final verdict: revise / acceptable
+- architecture gaps
+- better alternatives if justified
 """
             challenger_result = await Runner.run(challenger_agent, challenger_prompt)
             challenger_text = str(challenger_result.final_output)
@@ -561,7 +550,7 @@ Challenge:
 {challenger_text}
 
 Task:
-Refine the draft using the critique.
+Produce a refined answer.
 
 Rules:
 - Keep the useful parts of the original draft.
@@ -658,6 +647,19 @@ Rules:
         return final_text
 
 
+async def _run_with_routing(
+    message: str,
+    verbose: bool,
+    review: bool,
+    decision: RoutingDecision,
+) -> str:
+    if decision.mode == "peer":
+        return await _run_peer_pipeline(message, verbose, review=review)
+    if decision.mode == "pipeline":
+        return await _run_pipeline(message, verbose, review=review)
+    return await _run_single(message, decision.agent or "orchestrator")
+
+
 @app.command()
 def ask(
     message: str = typer.Option(..., "--message", "-m"),
@@ -667,14 +669,13 @@ def ask(
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    async def _run() -> None:
-        if peer:
-            text = await _run_peer_pipeline(message, verbose, review=review)
-        elif pipeline:
-            text = await _run_pipeline(message, verbose, review=review)
-        else:
-            text = await _run_single(message, agent_id)
+    explicit_mode = "peer" if peer else "pipeline" if pipeline else None
+    explicit_agent = agent_id if agent_id != "orchestrator" else None
+    decision = _resolve_route(message, review_enabled=review, mode_override=explicit_mode, agent_override=explicit_agent)
+    console.print(_route_display(decision))
 
+    async def _run() -> None:
+        text = await _run_with_routing(message, verbose, review, decision)
         console.print(Markdown(text))
 
     asyncio.run(_run())
@@ -689,25 +690,13 @@ def chat(
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """
-    Interactive chat loop for crisAI.
-    Commands:
-      /exit            quit
-      /mode single     use single-agent mode
-      /mode pipeline   use pipeline mode
-      /mode peer       use peer mode
-      /review on       enable review
-      /review off      disable review
-      /clear           clear conversation history
-      /agent <id>      set single-agent target
-      /help            show commands
-    """
-
     current_session = session
     history: list[tuple[str, str]] = _load_history(current_session)
     current_mode = "peer" if peer else "pipeline" if pipeline else "single"
     current_agent = agent_id
     current_review = review
+    mode_pinned = peer or pipeline
+    agent_pinned = agent_id != "orchestrator"
 
     console.print("[bold green]crisAI interactive chat[/bold green]")
     console.print(f"Session: [bold]{current_session}[/bold]")
@@ -716,15 +705,6 @@ def chat(
     console.print(f"Loaded history entries: [bold]{len(history)}[/bold]")
     console.print("Type /help for commands.\n")
 
-    async def _dispatch(user_input: str) -> str:
-        chat_input = _build_chat_input(user_input, history)
-
-        if current_mode == "peer":
-            return await _run_peer_pipeline(chat_input, verbose, review=current_review)
-        if current_mode == "pipeline":
-            return await _run_pipeline(chat_input, verbose, review=current_review)
-        return await _run_single(chat_input, current_agent)
-
     while True:
         try:
             user_input = prompt(
@@ -732,7 +712,6 @@ def chat(
                 history=FileHistory(str(_cli_history_file())),
                 auto_suggest=AutoSuggestFromHistory(),
             ).strip()
-        
         except (EOFError, KeyboardInterrupt):
             console.print("\nExiting.")
             break
@@ -749,9 +728,9 @@ def chat(
                     """
 ### Commands
 - `/exit` or `/quit` — leave chat
-- `/mode single` — use single-agent mode
-- `/mode pipeline` — use pipeline mode
-- `/mode peer` — use peer mode
+- `/mode single` — use single-agent mode and pin the mode
+- `/mode pipeline` — use pipeline mode and pin the mode
+- `/mode peer` — use peer mode and pin the mode
 - `/review on` — enable review
 - `/review off` — disable review
 - `/list servers` — list registered MCP servers
@@ -759,25 +738,25 @@ def chat(
 - `/history` — show saved conversation history in this session
 - `/clear` — clear conversation history for this session
 - `/session <name>` — switch to another persistent session
-- `/agent <id>` — set single-agent target
+- `/agent <id>` — set single-agent target and pin the agent
 - `/help` — show this help
 """
                 )
             )
             continue
 
-        if user_input == "/list servers":
-            _print_servers_table()
-            continue
-
-        if user_input == "/list agents":
-            _print_agents_table()
-            continue
-
         if user_input == "/clear":
             history.clear()
             _save_history(current_session, history)
             console.print(f"[yellow]Conversation history cleared for session '{current_session}'.[/yellow]")
+            continue
+
+        if user_input in {"/list servers", "/list-servers"}:
+            _print_servers_table()
+            continue
+
+        if user_input in {"/list agents", "/list-agents"}:
+            _print_agents_table()
             continue
 
         if user_input == "/history":
@@ -806,6 +785,7 @@ def chat(
             mode = user_input.split(maxsplit=1)[1].strip().lower()
             if mode in {"single", "pipeline", "peer"}:
                 current_mode = mode
+                mode_pinned = True
                 console.print(f"[green]Mode set to {current_mode}[/green]")
             else:
                 console.print("[red]Invalid mode. Use single, pipeline, or peer.[/red]")
@@ -825,11 +805,21 @@ def chat(
 
         if user_input.startswith("/agent "):
             current_agent = user_input.split(maxsplit=1)[1].strip()
+            agent_pinned = True
             console.print(f"[green]Single-agent target set to {current_agent}[/green]")
             continue
 
+        chat_input = _build_chat_input(user_input, history)
+        decision = _resolve_route(
+            chat_input,
+            review_enabled=current_review,
+            mode_override=current_mode if mode_pinned else None,
+            agent_override=current_agent if agent_pinned else None,
+        )
+        console.print(_route_display(decision))
+
         async def _run() -> str:
-            return await _dispatch(user_input)
+            return await _run_with_routing(chat_input, verbose, current_review, decision)
 
         try:
             text = asyncio.run(_run())

@@ -28,7 +28,6 @@ The aim is to create a personal AI workstation that can retrieve source material
   - `peer`
 - Persistent chat sessions
 - Command history in the CLI
-- In-chat slash commands for agent, mode, review, session, history, and registry inspection
 
 ---
 
@@ -38,17 +37,14 @@ crisAI is built around four layers:
 
 1. **CLI and orchestration**
    - `src/crisai/cli/main.py`
-   - `src/crisai/cli/chat_session.py`
-   - `src/crisai/cli/commands.py`
-   - `src/crisai/cli/pipelines.py`
-   - `src/crisai/cli/prompt_builders.py`
-   - `src/crisai/cli/display.py`
    - command routing
    - chat loop
    - mode switching
    - review toggling
    - session history
-   - in-chat slash commands
+   - heuristic routing for intent-based agent selection
+
+   The CLI now uses a lightweight Phase 1 heuristic router before execution when mode or agent have not been explicitly pinned. This helps route retrieval-only prompts to discovery, mixed retrieval-plus-drafting prompts to pipeline, review-heavy prompts to review, and platform debugging prompts to operations.
 
 2. **Agents**
    - configured in `registry/agents.yaml`
@@ -130,11 +126,9 @@ crisAI/
     crisai/
       cli/
         main.py
-        chat_session.py
-        commands.py
-        display.py
-        pipelines.py
-        prompt_builders.py
+      orchestration/
+        __init__.py
+        router.py
       agents/
         factory.py
       servers/
@@ -237,57 +231,45 @@ chmod +x start
 ./start
 ```
 
-This opens the interactive CLI directly.
-
 ---
 
-## What the `start` script does
+## What the `start` script should do
 
 The `start` launcher is expected to:
 
 - activate `.venv`
 - load `.env`
 - set `PYTHONPATH=./src`
-- open the crisAI interactive CLI
+- start a prepared shell or launch the CLI
 
 ---
 
 ## Quick start
 
-Start crisAI:
+Once inside the prepared shell, start the CLI with:
 
 ```bash
 ./start
 ```
 
-Once inside the interactive CLI, you can use slash commands such as:
+Inside the interactive CLI, you can use:
 
 ```text
 /list servers
 /list agents
-/mode pipeline
-/mode peer
-/review on
-/review off
-/session architecture
-/history
-/help
 ```
 
-Then type your prompt directly in the CLI.
+You can also start crisAI directly in a pinned mode when needed:
 
-Example prompts:
-
-```text
-Find the most relevant document for integration strategy and summarise it.
+```bash
+./start --pipeline --verbose
+./start --peer --verbose
 ```
 
-```text
-Use the workspace tools first. Find documents related to integration strategy in inputs and reference, identify the best match, and summarise it.
-```
+For a one-off run through the CLI launcher:
 
-```text
-Use SharePoint tools first. Find the IT Architecture site and identify the most relevant document related to integration strategy.
+```bash
+./start ask -m "Find the most relevant document for integration strategy and summarise it."
 ```
 
 ---
@@ -317,23 +299,43 @@ Runs the peer-style flow:
 
 ---
 
+## Heuristic routing
+
+When mode or agent are not explicitly pinned, crisAI uses a lightweight Phase 1 heuristic router to choose the best starting path for the prompt.
+
+Typical routing outcomes:
+
+- retrieval-only tasks -> `discovery`
+- retrieval + drafting tasks -> `pipeline`
+- critique-heavy tasks -> `review`
+- platform debugging tasks -> `operations`
+- ambiguous tasks -> `orchestrator`
+
+The selected route is shown in the CLI before execution, for example:
+
+```text
+[router] single • discovery • Prompt primarily asks for finding or inspecting sources.
+```
+
+Explicit user instructions still win. If you set `/mode ...`, `/agent ...`, `--pipeline`, `--peer`, or `--agent`, those choices are treated as pinned and the router will respect them.
+
+---
+
 ## Review behaviour
 
 Review is **off by default**.
 
-Inside the CLI:
+Enable it on startup:
+
+```bash
+python -m crisai.cli.main chat --pipeline --review --verbose
+```
+
+Or toggle it inside chat:
 
 ```text
 /review on
 /review off
-```
-
-You can also switch between modes while staying in the same chat session:
-
-```text
-/mode single
-/mode pipeline
-/mode peer
 ```
 
 ---
@@ -344,24 +346,19 @@ Inside the interactive CLI:
 
 ```text
 /help
-/list-servers
-/list-agents
 /mode single
 /mode pipeline
 /mode peer
 /review on
 /review off
+/list servers
+/list agents
 /agent discovery
 /history
 /session architecture
 /clear
 /exit
 ```
-
-Notes:
-- `/list-servers` shows the registered MCP servers available to the platform
-- `/list-agents` shows the registered agents and their configured model/server access
-- these are available directly inside the CLI, without leaving the chat session
 
 ---
 
@@ -373,17 +370,11 @@ crisAI stores chat history by session in:
 workspace/chat_sessions/
 ```
 
-Typical usage is through the interactive CLI started with:
+Examples:
 
 ```bash
-./start
-```
-
-Then switch or create sessions from within chat:
-
-```text
-/session architecture
-/session sharepoint-debug
+./start --pipeline --session architecture
+./start --peer --session sharepoint-debug
 ```
 
 ---
@@ -435,12 +426,6 @@ registry/agents.yaml
 ### Prompts
 
 Agent behaviour is controlled through prompt files in `prompts/`.
-
-For CLI orchestration and mode behaviour, the interactive layer may also use dedicated prompt-building helpers under:
-
-```text
-src/crisai/cli/prompt_builders.py
-```
 
 ### Retrieval discipline
 
