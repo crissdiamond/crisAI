@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import io
+import logging
+import re
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import typer
@@ -9,7 +14,7 @@ from crisai.agents.factory import AgentFactory
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import append_trace
 
-from .display import print_markdown, print_stage
+from .display import create_agent_live, print_agent_output, update_agent_live
 from .prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
@@ -21,6 +26,98 @@ from .prompt_builders import (
     build_refiner_prompt,
     build_review_prompt,
 )
+
+
+_NOISY_LOGGERS = [
+    "mcp",
+    "mcp.server",
+    "mcp.client",
+    "server",
+    "httpx",
+    "httpcore",
+    "openai",
+    "agents",
+    "asyncio",
+    "uvicorn",
+]
+
+
+class _DropListToolsRequestFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        return "Processing request of type ListToolsRequest" not in message
+
+
+_LOG_FILTER = _DropListToolsRequestFilter()
+
+
+def _suppress_noisy_runtime_logs() -> tuple[dict[str, int], int]:
+    previous: dict[str, int] = {}
+    manager_disable = logging.root.manager.disable
+    logging.disable(logging.CRITICAL)
+    for name in _NOISY_LOGGERS:
+        logger = logging.getLogger(name)
+        previous[name] = logger.level
+        logger.setLevel(logging.CRITICAL)
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        handler.addFilter(_LOG_FILTER)
+    return previous, manager_disable
+
+
+def _restore_noisy_runtime_logs(previous: dict[str, int], manager_disable: int) -> None:
+    logging.disable(manager_disable)
+    for name, level in previous.items():
+        logging.getLogger(name).setLevel(level)
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        try:
+            handler.removeFilter(_LOG_FILTER)
+        except Exception:
+            pass
+
+
+async def _run_agent_silently(agent, prompt: str) -> str:
+    previous, manager_disable = _suppress_noisy_runtime_logs()
+    result = None
+    try:
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            result = await Runner.run(agent, prompt)
+    finally:
+        _restore_noisy_runtime_logs(previous, manager_disable)
+    return str(result.final_output)
+
+
+async def _run_agent_with_progress(agent_id: str, agent, prompt: str) -> str:
+    live = create_agent_live(agent_id)
+    tick = 0
+    task = asyncio.create_task(_run_agent_silently(agent, prompt))
+    with live:
+        while not task.done():
+            update_agent_live(live, agent_id, tick)
+            await asyncio.sleep(0.2)
+            tick += 1
+        result = await task
+        update_agent_live(live, agent_id, tick, done=True)
+    return result
+
+
+_FINAL_RECOMMENDATION_PATTERNS = [
+    r"(?:^|\n)#+\s*Final recommendation\s*\n+(.*)$",
+    r"(?:^|\n)\*\*Final recommendation\*\*\s*\n+(.*)$",
+    r"(?:^|\n)Final recommendation\s*\n+(.*)$",
+]
+
+
+def _extract_final_recommendation(text: str) -> str:
+    stripped = text.strip()
+    for pattern in _FINAL_RECOMMENDATION_PATTERNS:
+        match = re.search(pattern, stripped, flags=re.IGNORECASE | re.DOTALL)
+        if match:
+            extracted = match.group(1).strip()
+            if extracted:
+                return extracted
+    return stripped
 
 
 def build_agent_servers(runtime: RuntimeManager, agent_spec, server_specs):
@@ -47,8 +144,7 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
 
     async with MultiServerContext(servers) as active_servers:
         agent = factory.build_agent(agent_spec, active_servers)
-        result = await Runner.run(agent, message)
-        return str(result.final_output)
+        return await _run_agent_silently(agent, message)
 
 
 async def run_pipeline(message: str, verbose: bool, review: bool, *, settings, server_specs, agent_specs) -> str:
@@ -78,47 +174,33 @@ async def run_pipeline(message: str, verbose: bool, review: bool, *, settings, s
     async with MultiServerContext(servers) as active_servers:
         append_trace(trace_file, "USER INPUT", message)
 
-        if verbose:
-            print_stage("Running Discovery Agent", "cyan")
         discovery_agent = factory.build_agent(discovery_spec, active_servers)
-        discovery_result = await Runner.run(discovery_agent, build_discovery_prompt(message))
-        discovery_text = str(discovery_result.final_output)
+        discovery_text = await _run_agent_with_progress("discovery", discovery_agent, build_discovery_prompt(message))
         append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
-        if verbose:
-            print_markdown("Discovery Agent", discovery_text)
+        print_agent_output("discovery", discovery_text, verbose=verbose)
 
-        if verbose:
-            print_stage("Running Design Agent", "green")
         design_agent = factory.build_agent(design_spec, active_servers)
-        design_result = await Runner.run(design_agent, build_design_prompt(message, discovery_text))
-        design_text = str(design_result.final_output)
+        design_text = await _run_agent_with_progress("design", design_agent, build_design_prompt(message, discovery_text))
         append_trace(trace_file, "DESIGN OUTPUT", design_text)
-        if verbose:
-            print_markdown("Design Agent", design_text)
+        print_agent_output("design", design_text, verbose=verbose)
 
         if review:
-            if verbose:
-                print_stage("Running Review Agent", "yellow")
             review_agent = factory.build_agent(review_spec, active_servers)
-            review_result = await Runner.run(review_agent, build_review_prompt(message, discovery_text, design_text))
-            review_text = str(review_result.final_output)
+            review_text = await _run_agent_with_progress(
+                "review", review_agent, build_review_prompt(message, discovery_text, design_text)
+            )
             append_trace(trace_file, "REVIEW OUTPUT", review_text)
-            if verbose:
-                print_markdown("Review Agent", review_text)
+            print_agent_output("review", review_text, verbose=verbose)
         else:
             review_text = "Review stage skipped because review is disabled."
             append_trace(trace_file, "REVIEW OUTPUT", review_text)
-            if verbose:
-                print_stage("Skipping Review Agent", "yellow")
 
-        if verbose:
-            print_stage("Running Orchestrator", "magenta")
         orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_result = await Runner.run(
+        final_text = await _run_agent_with_progress(
+            "orchestrator",
             orchestrator_agent,
             build_pipeline_final_prompt(message, discovery_text, design_text, review_text),
         )
-        final_text = str(final_result.final_output)
         append_trace(trace_file, "FINAL OUTPUT", final_text)
         return final_text
 
@@ -169,66 +251,52 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
 
         discovery_text = ""
         if needs_retrieval:
-            if verbose:
-                print_stage("Running Discovery Agent", "cyan")
             discovery_agent = factory.build_agent(discovery_spec, active_servers)
-            discovery_result = await Runner.run(discovery_agent, build_discovery_prompt(message))
-            discovery_text = str(discovery_result.final_output)
+            discovery_text = await _run_agent_with_progress(
+                "discovery", discovery_agent, build_discovery_prompt(message)
+            )
             append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
-            if verbose:
-                print_markdown("Discovery Agent", discovery_text)
+            print_agent_output("discovery", discovery_text, verbose=verbose)
         else:
             append_trace(trace_file, "DISCOVERY OUTPUT", "Discovery skipped because this peer task does not require retrieval.")
 
-        if verbose:
-            print_stage("Running Design Author", "green")
         author_agent = factory.build_agent(author_spec, active_servers)
-        author_result = await Runner.run(author_agent, build_author_prompt(message, discovery_text or "None."))
-        author_text = str(author_result.final_output)
+        author_text = await _run_agent_with_progress(
+            "design_author", author_agent, build_author_prompt(message, discovery_text or "None.")
+        )
         append_trace(trace_file, "AUTHOR OUTPUT", author_text)
-        if verbose:
-            print_markdown("Design Author", author_text)
+        print_agent_output("design_author", author_text, verbose=verbose)
 
-        if verbose:
-            print_stage("Running Design Challenger", "yellow")
         challenger_agent = factory.build_agent(challenger_spec, active_servers)
-        challenger_result = await Runner.run(
+        challenger_text = await _run_agent_with_progress(
+            "design_challenger",
             challenger_agent,
             build_challenger_prompt(message, discovery_text or "None.", author_text),
         )
-        challenger_text = str(challenger_result.final_output)
         append_trace(trace_file, "CHALLENGER OUTPUT", challenger_text)
-        if verbose:
-            print_markdown("Design Challenger", challenger_text)
+        print_agent_output("design_challenger", challenger_text, verbose=verbose)
 
-        if verbose:
-            print_stage("Running Design Refiner", "blue")
         refiner_agent = factory.build_agent(refiner_spec, active_servers)
-        refiner_result = await Runner.run(
+        refiner_text = await _run_agent_with_progress(
+            "design_refiner",
             refiner_agent,
             build_refiner_prompt(message, discovery_text or "None.", author_text, challenger_text),
         )
-        refiner_text = str(refiner_result.final_output)
         append_trace(trace_file, "REFINER OUTPUT", refiner_text)
-        if verbose:
-            print_markdown("Design Refiner", refiner_text)
+        print_agent_output("design_refiner", refiner_text, verbose=verbose)
 
-        if verbose:
-            print_stage("Running Judge", "magenta")
         judge_agent = factory.build_agent(judge_spec, active_servers)
-        judge_result = await Runner.run(
+        judge_text = await _run_agent_with_progress(
+            "judge",
             judge_agent,
             build_judge_prompt(message, discovery_text or "None.", challenger_text, refiner_text),
         )
-        judge_text = str(judge_result.final_output)
         append_trace(trace_file, "JUDGE OUTPUT", judge_text)
-        if verbose:
-            print_markdown("Judge", judge_text)
+        print_agent_output("judge", judge_text, verbose=verbose)
 
-        if verbose:
-            print_stage("Running Orchestrator", "white")
         orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_result = await Runner.run(
+        final_text = await _run_agent_with_progress(
+            "orchestrator",
             orchestrator_agent,
             build_peer_final_prompt(
                 message,
@@ -239,9 +307,8 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
                 judge_text,
             ),
         )
-        final_text = str(final_result.final_output)
         append_trace(trace_file, "FINAL OUTPUT", final_text)
-        return final_text
+        return _extract_final_recommendation(final_text)
 
 
 from .peer_transcript import PeerRunResult, append_peer_message

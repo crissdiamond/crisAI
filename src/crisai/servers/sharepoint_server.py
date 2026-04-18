@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import csv
 import io
 import json
@@ -72,6 +73,33 @@ def _read_token_info() -> dict[str, Any]:
     if TOKEN_INFO_PATH.exists():
         return json.loads(TOKEN_INFO_PATH.read_text(encoding="utf-8"))
     return {}
+
+
+
+def _configure_mcp_logging() -> None:
+    """Keep MCP framework INFO logs out of the interactive CLI.
+
+    Warnings and errors are still written to this server log file.
+    """
+    logger_names = [
+        "mcp",
+        "mcp.server",
+        "mcp.server.fastmcp",
+        "mcp.server.lowlevel",
+        "mcp.server.lowlevel.server",
+    ]
+
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    file_handler.setLevel(logging.WARNING)
+    file_handler.setFormatter(formatter)
+
+    for name in logger_names:
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.WARNING)
+        logger.handlers.clear()
+        logger.addHandler(file_handler)
+        logger.propagate = False
 
 def log_event(message: str) -> None:
     with LOG_FILE.open("a", encoding="utf-8") as f:
@@ -535,6 +563,8 @@ def read_sharepoint_document(drive_id: str, item_id: str) -> str:
     extracted = _extract_bytes_by_suffix(data, suffix)
     return extracted if extracted.strip() else f"[No readable text extracted from {name}]"
 
+
+_configure_mcp_logging()
 
 if __name__ == "__main__":
     mcp.run()

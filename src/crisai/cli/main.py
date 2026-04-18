@@ -6,26 +6,20 @@ from datetime import datetime
 from pathlib import Path
 
 import typer
-from agents import Runner
 from prompt_toolkit import prompt
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.panel import Panel
 from rich.table import Table
 
-from crisai.agents.factory import AgentFactory
-from crisai.cli.display import print_peer_message
-from crisai.cli.peer_transcript import make_peer_message
+from crisai.cli.display import print_final_recommendation
 from crisai.cli.text_loader import load_cli_text, render_cli_text
 from crisai.config import load_settings
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
-from crisai.runtime import MultiServerContext, RuntimeManager
-from crisai.tracing import append_trace
+from .pipelines import run_peer_pipeline, run_pipeline, run_single
 
-from .display import print_final_recommendation
 
 app = typer.Typer(help="crisAI CLI")
 console = Console()
@@ -37,15 +31,6 @@ def _load_registry():
     server_specs = {s.id: s for s in registry.load_servers() if s.enabled}
     agent_specs = {a.id: a for a in registry.load_agents()}
     return settings, registry, server_specs, agent_specs
-
-
-def _build_agent_servers(runtime: RuntimeManager, agent_spec, server_specs):
-    servers = []
-    for server_id in agent_spec.allowed_servers:
-        spec = server_specs.get(server_id)
-        if spec:
-            servers.append(runtime.build_server(spec))
-    return servers
 
 
 def _render_history(history: list[tuple[str, str]]) -> str:
@@ -228,257 +213,40 @@ def list_agents() -> None:
     _print_agents_table()
 
 
-async def _run_single(message: str, agent_id: str) -> str:
-    settings, _, server_specs, agent_specs = _load_registry()
-    if not settings.openai_api_key:
-        raise typer.BadParameter("OPENAI_API_KEY is not set.")
-
-    if agent_id not in agent_specs:
-        raise typer.BadParameter(f"Unknown agent_id: {agent_id}")
-
-    root_dir = Path.cwd()
-    runtime = RuntimeManager(root_dir)
-    factory = AgentFactory(root_dir)
-    agent_spec = agent_specs[agent_id]
-    servers = _build_agent_servers(runtime, agent_spec, server_specs)
-
-    async with MultiServerContext(servers) as active_servers:
-        agent = factory.build_agent(agent_spec, active_servers)
-        result = await Runner.run(agent, message)
-        return str(result.final_output)
-
-
-async def _run_pipeline(message: str, verbose: bool, review: bool = False) -> str:
-    settings, _, server_specs, agent_specs = _load_registry()
-    if not settings.openai_api_key:
-        raise typer.BadParameter("OPENAI_API_KEY is not set.")
-
-    root_dir = Path.cwd()
-    runtime = RuntimeManager(root_dir)
-    factory = AgentFactory(root_dir)
-    trace_file = settings.log_dir / "agent_trace.log"
-
-    discovery_spec = agent_specs["discovery"]
-    design_spec = agent_specs["design"]
-    review_spec = agent_specs["review"]
-    orchestrator_spec = agent_specs["orchestrator"]
-
-    all_server_ids = sorted(
-        {
-            *discovery_spec.allowed_servers,
-            *design_spec.allowed_servers,
-            *review_spec.allowed_servers,
-            *orchestrator_spec.allowed_servers,
-        }
-    )
-    servers = [runtime.build_server(server_specs[sid]) for sid in all_server_ids if sid in server_specs]
-
-    async with MultiServerContext(servers) as active_servers:
-        append_trace(trace_file, "USER INPUT", message)
-
-        if verbose:
-            console.print(Panel.fit("Running Discovery Agent", style="cyan"))
-        discovery_agent = factory.build_agent(discovery_spec, active_servers)
-        discovery_prompt = render_cli_text(
-            "pipeline/discovery.md",
-            message=message,
-        )
-        discovery_result = await Runner.run(discovery_agent, discovery_prompt)
-        discovery_text = str(discovery_result.final_output)
-        append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
-        if verbose:
-            console.print(Markdown(f"## Discovery Agent\n\n{discovery_text}"))
-
-        if verbose:
-            console.print(Panel.fit("Running Design Agent", style="green"))
-        design_agent = factory.build_agent(design_spec, active_servers)
-        design_prompt = render_cli_text(
-            "pipeline/design.md",
-            message=message,
-            discovery_text=discovery_text,
-        )
-        design_result = await Runner.run(design_agent, design_prompt)
-        design_text = str(design_result.final_output)
-        append_trace(trace_file, "DESIGN OUTPUT", design_text)
-        if verbose:
-            console.print(Markdown(f"## Design Agent\n\n{design_text}"))
-
-        if review:
-            if verbose:
-                console.print(Panel.fit("Running Review Agent", style="yellow"))
-            review_agent = factory.build_agent(review_spec, active_servers)
-            review_prompt = render_cli_text(
-                "pipeline/review.md",
-                message=message,
-                discovery_text=discovery_text,
-                design_text=design_text,
-            )
-            review_result = await Runner.run(review_agent, review_prompt)
-            review_text = str(review_result.final_output)
-            append_trace(trace_file, "REVIEW OUTPUT", review_text)
-            if verbose:
-                console.print(Markdown(f"## Review Agent\n\n{review_text}"))
-        else:
-            review_text = "Review stage skipped because review is disabled."
-            append_trace(trace_file, "REVIEW OUTPUT", review_text)
-            if verbose:
-                console.print(Panel.fit("Skipping Review Agent", style="yellow"))
-
-        if verbose:
-            console.print(Panel.fit("Running Orchestrator", style="white"))
-        orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_prompt = render_cli_text(
-            "pipeline/final.md",
-            message=message,
-            discovery_text=discovery_text,
-            design_text=design_text,
-            review_text=review_text,
-        )
-        final_result = await Runner.run(orchestrator_agent, final_prompt)
-        final_text = str(final_result.final_output)
-        append_trace(trace_file, "FINAL OUTPUT", final_text)
-        return final_text
-
-
-async def _run_peer_pipeline(message: str, verbose: bool, needs_retrieval: bool = True) -> str:
-    settings, _, server_specs, agent_specs = _load_registry()
-    if not settings.openai_api_key:
-        raise typer.BadParameter("OPENAI_API_KEY is not set.")
-
-    root_dir = Path.cwd()
-    runtime = RuntimeManager(root_dir)
-    factory = AgentFactory(root_dir)
-    trace_file = settings.log_dir / "agent_trace.log"
-
-    discovery_spec = agent_specs["discovery"]
-    author_spec = agent_specs["design_author"]
-    challenger_spec = agent_specs["design_challenger"]
-    refiner_spec = agent_specs["design_refiner"]
-    judge_spec = agent_specs["judge"]
-    orchestrator_spec = agent_specs["orchestrator"]
-
-    all_server_ids = set()
-    if needs_retrieval:
-        all_server_ids.update(discovery_spec.allowed_servers)
-    all_server_ids.update(author_spec.allowed_servers)
-    all_server_ids.update(challenger_spec.allowed_servers)
-    all_server_ids.update(refiner_spec.allowed_servers)
-    all_server_ids.update(judge_spec.allowed_servers)
-    all_server_ids.update(orchestrator_spec.allowed_servers)
-    servers = [runtime.build_server(server_specs[sid]) for sid in sorted(all_server_ids) if sid in server_specs]
-
-    async with MultiServerContext(servers) as active_servers:
-        append_trace(trace_file, "USER INPUT", message)
-
-        discovery_text = ""
-        if needs_retrieval:
-            if verbose:
-                console.print(Panel.fit("Running Discovery Agent", style="cyan"))
-            discovery_agent = factory.build_agent(discovery_spec, active_servers)
-            discovery_prompt = render_cli_text(
-                "peer/discovery.md",
-                message=message,
-            )
-            discovery_result = await Runner.run(discovery_agent, discovery_prompt)
-            discovery_text = str(discovery_result.final_output)
-            append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
-            if verbose:
-                print_peer_message(make_peer_message("discovery", discovery_text, step="retrieval"))
-        else:
-            append_trace(trace_file, "DISCOVERY OUTPUT", "Discovery skipped because this peer task does not require retrieval.")
-
-        if verbose:
-            console.print(Panel.fit("Running Design Author", style="green"))
-        author_agent = factory.build_agent(author_spec, active_servers)
-        author_prompt = render_cli_text(
-            "peer/author.md",
-            message=message,
-            discovery_text=discovery_text or "None.",
-        )
-        author_result = await Runner.run(author_agent, author_prompt)
-        author_text = str(author_result.final_output)
-        append_trace(trace_file, "AUTHOR OUTPUT", author_text)
-        if verbose:
-            print_peer_message(make_peer_message("design_author", author_text, step="proposal"))
-
-        if verbose:
-            console.print(Panel.fit("Running Design Challenger", style="yellow"))
-        challenger_agent = factory.build_agent(challenger_spec, active_servers)
-        challenger_prompt = render_cli_text(
-            "peer/challenger.md",
-            message=message,
-            discovery_text=discovery_text or "None.",
-            author_text=author_text,
-        )
-        challenger_result = await Runner.run(challenger_agent, challenger_prompt)
-        challenger_text = str(challenger_result.final_output)
-        append_trace(trace_file, "CHALLENGER OUTPUT", challenger_text)
-        if verbose:
-            print_peer_message(make_peer_message("design_challenger", challenger_text, step="challenge"))
-
-        if verbose:
-            console.print(Panel.fit("Running Design Refiner", style="blue"))
-        refiner_agent = factory.build_agent(refiner_spec, active_servers)
-        refiner_prompt = render_cli_text(
-            "peer/refiner.md",
-            message=message,
-            discovery_text=discovery_text or "None.",
-            author_text=author_text,
-            challenger_text=challenger_text,
-        )
-        refiner_result = await Runner.run(refiner_agent, refiner_prompt)
-        refiner_text = str(refiner_result.final_output)
-        append_trace(trace_file, "REFINER OUTPUT", refiner_text)
-        if verbose:
-            print_peer_message(make_peer_message("design_refiner", refiner_text, step="refinement"))
-
-        if verbose:
-            console.print(Panel.fit("Running Judge", style="magenta"))
-        judge_agent = factory.build_agent(judge_spec, active_servers)
-        judge_prompt = render_cli_text(
-            "peer/judge.md",
-            message=message,
-            discovery_text=discovery_text or "None.",
-            challenger_text=challenger_text,
-            refiner_text=refiner_text,
-        )
-        judge_result = await Runner.run(judge_agent, judge_prompt)
-        judge_text = str(judge_result.final_output)
-        append_trace(trace_file, "JUDGE OUTPUT", judge_text)
-        if verbose:
-            print_peer_message(make_peer_message("judge", judge_text, step="decision"))
-
-        if verbose:
-            console.print(Panel.fit("Running Orchestrator", style="white"))
-        orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_prompt = render_cli_text(
-            "peer/final.md",
-            message=message,
-            discovery_text=discovery_text or "None.",
-            author_text=author_text,
-            challenger_text=challenger_text,
-            refiner_text=refiner_text,
-            judge_text=judge_text,
-        )
-        final_result = await Runner.run(orchestrator_agent, final_prompt)
-        final_text = str(final_result.final_output)
-        append_trace(trace_file, "FINAL OUTPUT", final_text)
-        #return final_text
-        print_final_recommendation(final_text)
-        return final_text
-
-
 async def _run_with_routing(
     message: str,
     verbose: bool,
     review: bool,
     decision: RoutingDecision,
 ) -> str:
+    settings, _, server_specs, agent_specs = _load_registry()
+
     if decision.mode == "peer":
-        return await _run_peer_pipeline(message, verbose, needs_retrieval=decision.needs_retrieval)
+        return await run_peer_pipeline(
+            message,
+            verbose,
+            review,
+            settings=settings,
+            server_specs=server_specs,
+            agent_specs=agent_specs,
+            needs_retrieval=decision.needs_retrieval,
+        )
     if decision.mode == "pipeline":
-        return await _run_pipeline(message, verbose, review=review)
-    return await _run_single(message, decision.agent or "orchestrator")
+        return await run_pipeline(
+            message,
+            verbose,
+            review,
+            settings=settings,
+            server_specs=server_specs,
+            agent_specs=agent_specs,
+        )
+    return await run_single(
+        message,
+        decision.agent or "orchestrator",
+        settings=settings,
+        server_specs=server_specs,
+        agent_specs=agent_specs,
+    )
 
 
 @app.command()
@@ -501,7 +269,9 @@ def ask(
 
     async def _run() -> None:
         text = await _run_with_routing(message, verbose, review, decision)
-        if decision.mode != "peer":
+        if decision.mode == "peer":
+            print_final_recommendation(text)
+        else:
             console.print(Markdown(text))
 
     asyncio.run(_run())
@@ -521,13 +291,14 @@ def chat(
     current_mode = "peer" if peer else "pipeline" if pipeline else "single"
     current_agent = agent_id
     current_review = review
+    current_verbose = verbose
     mode_pinned = True if (peer or pipeline) else False
     agent_pinned = True if (agent_id != "orchestrator") else False
 
     console.print("[bold green]crisAI interactive chat[/bold green]")
     console.print(f"Session: [bold]{current_session}[/bold]")
     console.print(f"Mode: [bold]{current_mode}[/bold] | Agent: [bold]{current_agent}[/bold]")
-    console.print(f"Review: [bold]{'on' if current_review else 'off'}[/bold]")
+    console.print(f"Review: [bold]{'on' if current_review else 'off'}[/bold] | Verbose: [bold]{'on' if current_verbose else 'off'}[/bold]")
     console.print(f"Loaded history entries: [bold]{len(history)}[/bold]")
     console.print("Type /help for commands.\n")
 
@@ -549,7 +320,7 @@ def chat(
             break
 
         if user_input == "/help":
-            console.print(Markdown(_load_cli_text("help.md")))
+            console.print(Markdown(load_cli_text("help.md")))
             continue
 
         if user_input == "/clear":
@@ -610,6 +381,22 @@ def chat(
                 console.print("[red]Invalid review setting. Use /review on or /review off.[/red]")
             continue
 
+        if user_input == "/verbose":
+            console.print(f"[green]Verbose is currently {'on' if current_verbose else 'off'}.[/green]")
+            continue
+
+        if user_input.startswith("/verbose "):
+            value = user_input.split(maxsplit=1)[1].strip().lower()
+            if value in {"on", "true", "yes"}:
+                current_verbose = True
+                console.print("[green]Verbose enabled.[/green]")
+            elif value in {"off", "false", "no"}:
+                current_verbose = False
+                console.print("[green]Verbose disabled.[/green]")
+            else:
+                console.print("[red]Invalid verbose setting. Use /verbose on or /verbose off.[/red]")
+            continue
+
         if user_input.startswith("/agent "):
             current_agent = user_input.split(maxsplit=1)[1].strip()
             agent_pinned = True
@@ -631,7 +418,7 @@ def chat(
         console.print(_route_display(decision))
 
         async def _run() -> str:
-            return await _run_with_routing(chat_input, verbose, current_review, decision)
+            return await _run_with_routing(chat_input, current_verbose, current_review, decision)
 
 
         try:
@@ -640,10 +427,12 @@ def chat(
             console.print(f"[red]Error:[/red] {e}")
             continue
 
-        if decision.mode != "peer":
-            console.print()
+        console.print()
+        if decision.mode == "peer":
+            print_final_recommendation(text)
+        else:
             console.print(Markdown(text))
-            console.print()
+        console.print()
 
 #        try:
 #            text = asyncio.run(_run())

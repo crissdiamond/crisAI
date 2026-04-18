@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import sys
 from datetime import datetime
@@ -13,6 +14,33 @@ ROOT.mkdir(parents=True, exist_ok=True)
 LOG_FILE = ROOT / "diagram_mcp.log"
 
 
+
+
+def _configure_mcp_logging() -> None:
+    """Keep MCP framework INFO logs out of the interactive CLI.
+
+    Warnings and errors are still written to this server log file.
+    """
+    logger_names = [
+        "mcp",
+        "mcp.server",
+        "mcp.server.fastmcp",
+        "mcp.server.lowlevel",
+        "mcp.server.lowlevel.server",
+    ]
+
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    file_handler.setLevel(logging.WARNING)
+    file_handler.setFormatter(formatter)
+
+    for name in logger_names:
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.WARNING)
+        logger.handlers.clear()
+        logger.addHandler(file_handler)
+        logger.propagate = False
+
 def log_event(message: str) -> None:
     with LOG_FILE.open("a", encoding="utf-8") as f:
         f.write(f"{datetime.now().isoformat()} {message}\n")
@@ -21,6 +49,8 @@ def log_event(message: str) -> None:
 def _slugify(value: str) -> str:
     return re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip()).strip("-").lower()
 
+
+_configure_mcp_logging()
 
 log_event(f"diagram_server_started root={ROOT}")
 

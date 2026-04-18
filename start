@@ -13,3 +13,4 @@ if [ -f .env ]; then
 fi
 
 exec python -m crisai.cli.main chat --verbose
+#exec python -m crisai.cli.main chat
