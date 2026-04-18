@@ -1,0 +1,16 @@
+version: 1
+
+policies:
+  approvals:
+    enabled: true
+    default_mode: deny_for_unsafe_writes
+
+  tracing:
+    enabled: true
+    write_agent_trace: true
+    write_tool_trace: true
+    redact_secrets: true
+
+  runtime:
+    auto_start_local_stdio_servers: true
+    health_check_on_boot: false

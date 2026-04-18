@@ -1,0 +1,73 @@
+version: 1
+
+agents:
+  - id: orchestrator
+    name: Orchestrator
+    model: gpt-5.4-mini
+    prompt_file: prompts/orchestrator.md
+    allowed_servers:
+      - workspace
+      - diagrams
+      - documents
+
+  - id: discovery
+    name: Discovery Agent
+    model: gpt-5.4-mini
+    prompt_file: prompts/discovery_agent.md
+    allowed_servers:
+      - workspace
+      - documents
+      - sharepoint_docs
+
+  - id: design
+    name: Design Agent
+    model: gpt-5.4-mini
+    prompt_file: prompts/design_agent.md
+    allowed_servers:
+      - workspace
+      - diagrams
+
+  - id: review
+    name: Review Agent
+    model: gpt-5.4
+    prompt_file: prompts/review_agent.md
+    allowed_servers:
+      - workspace
+      - documents
+
+  - id: operations
+    name: Operations Agent
+    model: gpt-5.4-nano
+    prompt_file: prompts/operations_agent.md
+    allowed_servers:
+      - workspace
+
+  - id: design_author
+    name: Design Author
+    model: gpt-5.4-mini
+    prompt_file: prompts/design_author.md
+    allowed_servers:
+      - workspace
+      - diagrams
+
+  - id: design_challenger
+    name: Design Challenger
+    model: gpt-5.4-mini
+    prompt_file: prompts/design_challenger.md
+    allowed_servers:
+      - workspace
+
+  - id: design_refiner
+    name: Design Refiner
+    model: gpt-5.4-mini
+    prompt_file: prompts/design_refiner.md
+    allowed_servers:
+      - workspace
+      - diagrams
+
+  - id: judge
+    name: Judge
+    model: gpt-5.4
+    prompt_file: prompts/judge.md
+    allowed_servers:
+      - workspace

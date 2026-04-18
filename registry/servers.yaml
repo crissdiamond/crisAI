@@ -1,0 +1,109 @@
+version: 1
+
+servers:
+  - id: workspace
+    name: Workspace Server
+    description: Read and write notes and artefacts inside the local crisAI workspace.
+    enabled: true
+    transport: stdio
+    command: python
+    args:
+      - src/crisai/servers/workspace_server.py
+      - ./workspace
+    working_directory: .
+    tags: [local, workspace, documents]
+    auth:
+      type: none
+    tools:
+      allow:
+        - list_workspace_files
+        - read_workspace_file
+        - write_workspace_file
+        - append_workspace_file
+        - search_workspace_text
+        - make_note_path
+    approval:
+      required_for:
+        - write_workspace_file
+        - append_workspace_file
+      mode: auto_approve_local
+    risk_level: low
+
+  - id: diagrams
+    name: Diagram Server
+    description: Generate and validate Mermaid diagrams for architecture artefacts.
+    enabled: true
+    transport: stdio
+    command: python
+    args:
+      - src/crisai/servers/diagram_server.py
+      - ./workspace
+    working_directory: .
+    tags: [local, diagrams, mermaid]
+    auth:
+      type: none
+    tools:
+      allow:
+        - generate_mermaid
+        - validate_mermaid
+        - save_diagram
+    approval:
+      required_for:
+        - save_diagram
+      mode: auto_approve_local
+    risk_level: low
+
+  - id: documents
+    name: Document Reader Server
+    description: Extract text from supported document formats inside the crisAI workspace.
+    enabled: true
+    transport: stdio
+    command: python
+    args:
+      - src/crisai/servers/document_server.py
+      - ./workspace
+    working_directory: .
+    tags: [local, documents, docx, pdf, pptx, xlsx]
+    auth:
+      type: none
+    tools:
+      allow:
+        - list_supported_document_files
+        - get_document_metadata
+        - read_document
+    approval:
+      required_for: []
+      mode: none
+    risk_level: low
+
+  - id: sharepoint_docs
+    name: SharePoint Docs Server
+    description: Search and read SharePoint documents using delegated Microsoft Graph access.
+    enabled: true
+    transport: stdio
+    command: python
+    args:
+      - src/crisai/servers/sharepoint_server.py
+      - ./workspace
+    working_directory: .
+    tags: [sharepoint, documents, graph]
+    auth:
+      type: delegated_oauth
+      provider: microsoft_graph
+    tools:
+      allow:
+        - login_sharepoint
+        - sharepoint_auth_status
+        - who_am_i
+        - list_sites
+        - list_my_drives
+        - list_site_drives
+        - list_drive_items
+        - search_drive_documents
+        - search_site_drive_documents
+        - get_sharepoint_document_metadata
+        - read_sharepoint_document
+    approval:
+      required_for: []
+      mode: none
+    risk_level: medium
