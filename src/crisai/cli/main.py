@@ -78,6 +78,21 @@ Latest user message:
 Please answer consistently with the conversation so far."""
 
 
+
+
+def _cli_text_dir() -> Path:
+    return Path(__file__).resolve().parent / "text"
+
+
+def _load_cli_text(relative_path: str) -> str:
+    path = _cli_text_dir() / relative_path
+    return path.read_text(encoding="utf-8")
+
+
+def _render_cli_text(relative_path: str, **context: str) -> str:
+    template = _load_cli_text(relative_path)
+    return template.format(**context)
+
 def _session_dir() -> Path:
     settings = load_settings()
     path = settings.workspace_dir / "chat_sessions"
@@ -277,37 +292,10 @@ async def _run_pipeline(message: str, verbose: bool, review: bool = False) -> st
         if verbose:
             console.print(Panel.fit("Running Discovery Agent", style="cyan"))
         discovery_agent = factory.build_agent(discovery_spec, active_servers)
-        discovery_prompt = f"""
-User request:
-{message}
-
-Task:
-Inspect the available sources and retrieve the most relevant material for this request.
-
-Rules:
-- For workspace sources, all paths must be relative to the workspace root.
-- Never guess file paths, site names, drive IDs, item IDs, or document IDs.
-- Always list or search before reading.
-- Only read a path or item returned by a listing/search tool in this run.
-- For supported document formats such as .docx, .pdf, .pptx, .xlsx, use the document-reading tools.
-- For plain text files, use workspace text reads where appropriate.
-- Use SharePoint tools when the relevant information may be in SharePoint.
-- When using SharePoint, first check auth status before searching.
-- If no valid silent token is available, report that login is required.
-- Do not trigger interactive SharePoint login unless explicitly requested by the user.
-- Use get_document_metadata or get_sharepoint_document_metadata only if needed, and only with a valid item returned in this run.
-- If a tool fails, report the exact tool name and exact error.
-- Do not claim you inspected or read a source unless a tool call succeeded.
-
-Return:
-1. relevant sources with exact paths or identifiers
-2. extracted facts
-3. assumptions
-4. constraints
-5. decisions already present
-6. missing information
-7. exact tool errors, if any
-"""
+        discovery_prompt = _render_cli_text(
+            "pipeline/discovery.md",
+            message=message,
+        )
         discovery_result = await Runner.run(discovery_agent, discovery_prompt)
         discovery_text = str(discovery_result.final_output)
         append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
@@ -317,22 +305,11 @@ Return:
         if verbose:
             console.print(Panel.fit("Running Design Agent", style="green"))
         design_agent = factory.build_agent(design_spec, active_servers)
-        design_prompt = f"""
-User request:
-{message}
-
-Discovery findings:
-{discovery_text}
-
-Task:
-Produce the best possible architecture, design, or documentation response for the user's request.
-
-Rules:
-- Treat the discovery findings as the authoritative retrieval result for this run.
-- Do not invent or reopen file paths unless discovery explicitly identified them.
-- If discovery found no reliable sources, say so and work only from the verified findings provided.
-- Where a diagram would help, generate Mermaid.
-"""
+        design_prompt = _render_cli_text(
+            "pipeline/design.md",
+            message=message,
+            discovery_text=discovery_text,
+        )
         design_result = await Runner.run(design_agent, design_prompt)
         design_text = str(design_result.final_output)
         append_trace(trace_file, "DESIGN OUTPUT", design_text)
@@ -343,31 +320,12 @@ Rules:
             if verbose:
                 console.print(Panel.fit("Running Review Agent", style="yellow"))
             review_agent = factory.build_agent(review_spec, active_servers)
-            review_prompt = f"""
-User request:
-{message}
-
-Discovery findings:
-{discovery_text}
-
-Draft design response:
-{design_text}
-
-Task:
-Critically review the draft.
-
-Rules:
-- Treat discovery findings as the factual basis for this review.
-- Do not invent additional files, SharePoint items, or file contents.
-- If discovery reported tool failures or missing retrieval, take that into account.
-
-Highlight:
-- governance gaps
-- ownership gaps
-- NFR or assurance gaps
-- delivery risks
-- suggested improvements
-"""
+            review_prompt = _render_cli_text(
+                "pipeline/review.md",
+                message=message,
+                discovery_text=discovery_text,
+                design_text=design_text,
+            )
             review_result = await Runner.run(review_agent, review_prompt)
             review_text = str(review_result.final_output)
             append_trace(trace_file, "REVIEW OUTPUT", review_text)
@@ -382,27 +340,13 @@ Highlight:
         if verbose:
             console.print(Panel.fit("Running Orchestrator", style="white"))
         orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_prompt = f"""
-User request:
-{message}
-
-Discovery findings:
-{discovery_text}
-
-Draft design response:
-{design_text}
-
-Review notes:
-{review_text}
-
-Task:
-Produce the final answer to the user.
-
-Rules:
-- Use the design response as the main draft.
-- Incorporate justified review improvements if review was enabled.
-- Do not mention internal pipeline stages unless the user explicitly asked for them.
-"""
+        final_prompt = _render_cli_text(
+            "pipeline/final.md",
+            message=message,
+            discovery_text=discovery_text,
+            design_text=design_text,
+            review_text=review_text,
+        )
         final_result = await Runner.run(orchestrator_agent, final_prompt)
         final_text = str(final_result.final_output)
         append_trace(trace_file, "FINAL OUTPUT", final_text)
@@ -444,27 +388,10 @@ async def _run_peer_pipeline(message: str, verbose: bool, review: bool = False) 
         if verbose:
             console.print(Panel.fit("Running Discovery Agent", style="cyan"))
         discovery_agent = factory.build_agent(discovery_spec, active_servers)
-        discovery_prompt = f"""
-User request:
-{message}
-
-Task:
-Inspect the available sources and retrieve the most relevant material for this request.
-
-Rules:
-- For workspace sources, all paths must be relative to the workspace root.
-- Never guess file paths, site names, drive IDs, item IDs, or document IDs.
-- Always list or search before reading.
-- Only read a path or item returned by a listing/search tool in this run.
-- For supported document formats such as .docx, .pdf, .pptx, .xlsx, use the document-reading tools.
-- For plain text files, use workspace text reads where appropriate.
-- Use SharePoint tools when the relevant information may be in SharePoint.
-- When using SharePoint, first check auth status before searching.
-- If no valid silent token is available, report that login is required.
-- Do not trigger interactive SharePoint login unless explicitly requested by the user.
-- If a tool fails, report the exact tool name and exact error.
-- Do not claim you inspected or read a source unless a tool call succeeded.
-"""
+        discovery_prompt = _render_cli_text(
+            "peer/discovery.md",
+            message=message,
+        )
         discovery_result = await Runner.run(discovery_agent, discovery_prompt)
         discovery_text = str(discovery_result.final_output)
         append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
@@ -474,21 +401,11 @@ Rules:
         if verbose:
             console.print(Panel.fit("Running Design Author", style="green"))
         author_agent = factory.build_agent(author_spec, active_servers)
-        author_prompt = f"""
-User request:
-{message}
-
-Discovery findings:
-{discovery_text}
-
-Task:
-Draft the strongest practical answer you can from the verified findings.
-
-Rules:
-- Treat the discovery findings as the only verified retrieval for this run.
-- Do not invent sources, file contents, or SharePoint details.
-- If discovery found gaps, be transparent about them.
-"""
+        author_prompt = _render_cli_text(
+            "peer/author.md",
+            message=message,
+            discovery_text=discovery_text,
+        )
         author_result = await Runner.run(author_agent, author_prompt)
         author_text = str(author_result.final_output)
         append_trace(trace_file, "AUTHOR OUTPUT", author_text)
@@ -503,31 +420,12 @@ Rules:
             if verbose:
                 console.print(Panel.fit("Running Design Challenger", style="yellow"))
             challenger_agent = factory.build_agent(challenger_spec, active_servers)
-            challenger_prompt = f"""
-User request:
-{message}
-
-Discovery findings:
-{discovery_text}
-
-Draft design response:
-{author_text}
-
-Task:
-Challenge the draft and identify its weaknesses.
-
-Rules:
-- Work only from the user request, discovery findings, and draft.
-- Do not invent sources or evidence.
-
-Highlight:
-- unclear reasoning
-- weak assumptions
-- missing constraints
-- delivery risks
-- architecture gaps
-- better alternatives if justified
-"""
+            challenger_prompt = _render_cli_text(
+                "peer/challenger.md",
+                message=message,
+                discovery_text=discovery_text,
+                author_text=author_text,
+            )
             challenger_result = await Runner.run(challenger_agent, challenger_prompt)
             challenger_text = str(challenger_result.final_output)
             append_trace(trace_file, "CHALLENGER OUTPUT", challenger_text)
@@ -537,28 +435,13 @@ Highlight:
             if verbose:
                 console.print(Panel.fit("Running Design Refiner", style="blue"))
             refiner_agent = factory.build_agent(refiner_spec, active_servers)
-            refiner_prompt = f"""
-User request:
-{message}
-
-Discovery findings:
-{discovery_text}
-
-Original draft:
-{author_text}
-
-Challenge:
-{challenger_text}
-
-Task:
-Produce a refined answer.
-
-Rules:
-- Keep the useful parts of the original draft.
-- Correct the weaknesses identified by the challenger.
-- Do not invent evidence or file contents.
-- Keep the answer practical and clear.
-"""
+            refiner_prompt = _render_cli_text(
+                "peer/refiner.md",
+                message=message,
+                discovery_text=discovery_text,
+                author_text=author_text,
+                challenger_text=challenger_text,
+            )
             refiner_result = await Runner.run(refiner_agent, refiner_prompt)
             refiner_text = str(refiner_result.final_output)
             append_trace(trace_file, "REFINER OUTPUT", refiner_text)
@@ -568,38 +451,13 @@ Rules:
             if verbose:
                 console.print(Panel.fit("Running Judge", style="magenta"))
             judge_agent = factory.build_agent(judge_spec, active_servers)
-            judge_prompt = f"""
-User request:
-{message}
-
-Discovery findings:
-{discovery_text}
-
-Challenge:
-{challenger_text}
-
-Refined draft:
-{refiner_text}
-
-Task:
-Decide whether the refined answer is good enough.
-
-Rules:
-- Work only from the user request, discovery findings, critique, and refined answer.
-- Do not invent new evidence.
-- Be decisive.
-
-Check:
-- relevance to the request
-- fidelity to the evidence
-- whether major critique points were addressed
-- whether the answer is clear, useful, and internally consistent
-
-Output:
-- decision: accept / revise
-- reason
-- remaining issues, if any
-"""
+            judge_prompt = _render_cli_text(
+                "peer/judge.md",
+                message=message,
+                discovery_text=discovery_text,
+                challenger_text=challenger_text,
+                refiner_text=refiner_text,
+            )
             judge_result = await Runner.run(judge_agent, judge_prompt)
             judge_text = str(judge_result.final_output)
             append_trace(trace_file, "JUDGE OUTPUT", judge_text)
@@ -615,33 +473,15 @@ Output:
         if verbose:
             console.print(Panel.fit("Running Orchestrator", style="white"))
         orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_prompt = f"""
-User request:
-{message}
-
-Discovery findings:
-{discovery_text}
-
-Original draft:
-{author_text}
-
-Challenge:
-{challenger_text}
-
-Refined draft:
-{refiner_text}
-
-Judge decision:
-{judge_text}
-
-Task:
-Produce the final answer to the user.
-
-Rules:
-- Use the refined draft as the main body.
-- Incorporate only improvements justified by the critique and judge decision.
-- Do not mention internal peer stages unless the user explicitly asked for them.
-"""
+        final_prompt = _render_cli_text(
+            "peer/final.md",
+            message=message,
+            discovery_text=discovery_text,
+            author_text=author_text,
+            challenger_text=challenger_text,
+            refiner_text=refiner_text,
+            judge_text=judge_text,
+        )
         final_result = await Runner.run(orchestrator_agent, final_prompt)
         final_text = str(final_result.final_output)
         append_trace(trace_file, "FINAL OUTPUT", final_text)
@@ -724,26 +564,7 @@ def chat(
             break
 
         if user_input == "/help":
-            console.print(
-                Markdown(
-                    """
-### Commands
-- `/exit` or `/quit` — leave chat
-- `/mode single` — use single-agent mode and pin the mode
-- `/mode pipeline` — use pipeline mode and pin the mode
-- `/mode peer` — use peer mode and pin the mode
-- `/review on` — enable review
-- `/review off` — disable review
-- `/list servers` — list registered MCP servers
-- `/list agents` — list registered agents
-- `/history` — show saved conversation history in this session
-- `/clear` — clear conversation history for this session
-- `/session <name>` — switch to another persistent session
-- `/agent <id>` — set single-agent target and pin the agent
-- `/help` — show this help
-"""
-                )
-            )
+            console.print(Markdown(_load_cli_text("help.md")))
             continue
 
         if user_input == "/clear":

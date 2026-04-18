@@ -1,0 +1,14 @@
+### Commands
+- `/exit` or `/quit` — leave chat
+- `/mode single` — use single-agent mode and pin the mode
+- `/mode pipeline` — use pipeline mode and pin the mode
+- `/mode peer` — use peer mode and pin the mode
+- `/review on` — enable review
+- `/review off` — disable review
+- `/list servers` — list registered MCP servers
+- `/list agents` — list registered agents
+- `/history` — show saved conversation history in this session
+- `/clear` — clear conversation history for this session
+- `/session <name>` — switch to another persistent session
+- `/agent <id>` — set single-agent target and pin the agent
+- `/help` — show this help
