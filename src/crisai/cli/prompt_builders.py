@@ -39,16 +39,16 @@ def build_design_prompt(message: str, discovery_text: str) -> str:
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Task:
 Produce the best possible architecture, design, or documentation response for the user's request.
 
 Rules:
-- Treat the discovery findings as the authoritative retrieval result for this run.
+- Use discovery findings when they exist, but do not assume retrieval is required for every task.
+- If discovery findings are empty or say "None.", answer directly from the user request and sound engineering judgement.
 - Do not invent or reopen file paths unless discovery explicitly identified them.
-- If discovery found no reliable sources, say so and work only from the verified findings provided.
 - Where a diagram would help, generate Mermaid.
 """
 
@@ -58,7 +58,7 @@ def build_review_prompt(message: str, discovery_text: str, design_text: str) -> 
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Draft design response:
@@ -86,7 +86,7 @@ def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: 
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Draft design response:
@@ -107,7 +107,7 @@ def build_author_prompt(message: str, discovery_text: str) -> str:
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Task:
@@ -125,7 +125,7 @@ def build_challenger_prompt(message: str, discovery_text: str, author_text: str)
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Draft:
@@ -163,7 +163,7 @@ def build_refiner_prompt(message: str, discovery_text: str, author_text: str, ch
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Original draft:
@@ -188,7 +188,7 @@ def build_judge_prompt(message: str, discovery_text: str, challenger_text: str, 
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Challenge:
@@ -201,7 +201,7 @@ Task:
 Decide whether the refined answer is good enough.
 
 Rules:
-- Work only from the user request, discovery findings, critique, and refined answer.
+- Work only from the user request, optional discovery findings, critique, and refined answer.
 - Do not invent new evidence.
 - Be decisive.
 
@@ -230,7 +230,7 @@ def build_peer_final_prompt(
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Original draft:

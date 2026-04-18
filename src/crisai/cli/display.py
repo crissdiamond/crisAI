@@ -24,7 +24,7 @@ _LABELS = {
     "design_challenger": "Challenger",
     "design_refiner": "Refiner",
     "judge": "Judge",
-    "orchestrator": "Orchestrator",
+    "orchestrator": "Final recommendation",
 }
 
 _STYLES = {
@@ -77,6 +77,18 @@ def render_peer_message(message: PeerMessage) -> Panel:
         border_style=style,
         padding=(0, 1),
         expand=True,
+    )
+
+def print_final_recommendation(body: str) -> None:
+    title = Text("🧭 Final recommendation", style="bold bright_white")
+    console.print(
+        Panel(
+            Markdown(body.strip() or "_empty_"),
+            title=title,
+            border_style="bright_white",
+            padding=(0, 1),
+            expand=True,
+        )
     )
 
 def print_peer_message(message: PeerMessage) -> None:

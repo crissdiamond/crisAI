@@ -1,7 +1,7 @@
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Original draft:

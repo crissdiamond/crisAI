@@ -1,7 +1,7 @@
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Draft design response:
@@ -11,7 +11,7 @@ Task:
 Challenge the draft and identify its weaknesses.
 
 Rules:
-- Work only from the user request, discovery findings, and draft.
+- Work only from the user request, optional discovery findings, and the draft.
 - Do not invent sources or evidence.
 
 Highlight:

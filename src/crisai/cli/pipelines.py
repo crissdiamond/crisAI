@@ -123,18 +123,19 @@ async def run_pipeline(message: str, verbose: bool, review: bool, *, settings, s
         return final_text
 
 
-async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settings, server_specs, agent_specs) -> str:
+async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settings, server_specs, agent_specs, needs_retrieval: bool = True) -> str:
     if not settings.openai_api_key:
         raise typer.BadParameter("OPENAI_API_KEY is not set.")
 
     required_agents = [
-        "discovery",
         "design_author",
         "design_challenger",
         "design_refiner",
         "judge",
         "orchestrator",
     ]
+    if needs_retrieval:
+        required_agents.insert(0, "discovery")
     missing = [agent_id for agent_id in required_agents if agent_id not in agent_specs]
     if missing:
         raise typer.BadParameter(
@@ -153,85 +154,76 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
     judge_spec = agent_specs["judge"]
     orchestrator_spec = agent_specs["orchestrator"]
 
-    all_server_ids = sorted(
-        {
-            *discovery_spec.allowed_servers,
-            *author_spec.allowed_servers,
-            *challenger_spec.allowed_servers,
-            *refiner_spec.allowed_servers,
-            *judge_spec.allowed_servers,
-            *orchestrator_spec.allowed_servers,
-        }
-    )
-    servers = [runtime.build_server(server_specs[sid]) for sid in all_server_ids if sid in server_specs]
+    all_server_ids = set()
+    if needs_retrieval:
+        all_server_ids.update(discovery_spec.allowed_servers)
+    all_server_ids.update(author_spec.allowed_servers)
+    all_server_ids.update(challenger_spec.allowed_servers)
+    all_server_ids.update(refiner_spec.allowed_servers)
+    all_server_ids.update(judge_spec.allowed_servers)
+    all_server_ids.update(orchestrator_spec.allowed_servers)
+    servers = [runtime.build_server(server_specs[sid]) for sid in sorted(all_server_ids) if sid in server_specs]
 
     async with MultiServerContext(servers) as active_servers:
         append_trace(trace_file, "USER INPUT", message)
 
-        if verbose:
-            print_stage("Running Discovery Agent", "cyan")
-        discovery_agent = factory.build_agent(discovery_spec, active_servers)
-        discovery_result = await Runner.run(discovery_agent, build_discovery_prompt(message))
-        discovery_text = str(discovery_result.final_output)
-        append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
-        if verbose:
-            print_markdown("Discovery Agent", discovery_text)
+        discovery_text = ""
+        if needs_retrieval:
+            if verbose:
+                print_stage("Running Discovery Agent", "cyan")
+            discovery_agent = factory.build_agent(discovery_spec, active_servers)
+            discovery_result = await Runner.run(discovery_agent, build_discovery_prompt(message))
+            discovery_text = str(discovery_result.final_output)
+            append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
+            if verbose:
+                print_markdown("Discovery Agent", discovery_text)
+        else:
+            append_trace(trace_file, "DISCOVERY OUTPUT", "Discovery skipped because this peer task does not require retrieval.")
 
         if verbose:
             print_stage("Running Design Author", "green")
         author_agent = factory.build_agent(author_spec, active_servers)
-        author_result = await Runner.run(author_agent, build_author_prompt(message, discovery_text))
+        author_result = await Runner.run(author_agent, build_author_prompt(message, discovery_text or "None."))
         author_text = str(author_result.final_output)
         append_trace(trace_file, "AUTHOR OUTPUT", author_text)
         if verbose:
             print_markdown("Design Author", author_text)
 
-        challenger_text = ""
-        refiner_text = author_text
-        judge_text = "Judge stage skipped because review is disabled."
+        if verbose:
+            print_stage("Running Design Challenger", "yellow")
+        challenger_agent = factory.build_agent(challenger_spec, active_servers)
+        challenger_result = await Runner.run(
+            challenger_agent,
+            build_challenger_prompt(message, discovery_text or "None.", author_text),
+        )
+        challenger_text = str(challenger_result.final_output)
+        append_trace(trace_file, "CHALLENGER OUTPUT", challenger_text)
+        if verbose:
+            print_markdown("Design Challenger", challenger_text)
 
-        if review:
-            if verbose:
-                print_stage("Running Design Challenger", "yellow")
-            challenger_agent = factory.build_agent(challenger_spec, active_servers)
-            challenger_result = await Runner.run(
-                challenger_agent,
-                build_challenger_prompt(message, discovery_text, author_text),
-            )
-            challenger_text = str(challenger_result.final_output)
-            append_trace(trace_file, "CHALLENGER OUTPUT", challenger_text)
-            if verbose:
-                print_markdown("Design Challenger", challenger_text)
+        if verbose:
+            print_stage("Running Design Refiner", "blue")
+        refiner_agent = factory.build_agent(refiner_spec, active_servers)
+        refiner_result = await Runner.run(
+            refiner_agent,
+            build_refiner_prompt(message, discovery_text or "None.", author_text, challenger_text),
+        )
+        refiner_text = str(refiner_result.final_output)
+        append_trace(trace_file, "REFINER OUTPUT", refiner_text)
+        if verbose:
+            print_markdown("Design Refiner", refiner_text)
 
-            if verbose:
-                print_stage("Running Design Refiner", "blue")
-            refiner_agent = factory.build_agent(refiner_spec, active_servers)
-            refiner_result = await Runner.run(
-                refiner_agent,
-                build_refiner_prompt(message, discovery_text, author_text, challenger_text),
-            )
-            refiner_text = str(refiner_result.final_output)
-            append_trace(trace_file, "REFINER OUTPUT", refiner_text)
-            if verbose:
-                print_markdown("Design Refiner", refiner_text)
-
-            if verbose:
-                print_stage("Running Judge", "magenta")
-            judge_agent = factory.build_agent(judge_spec, active_servers)
-            judge_result = await Runner.run(
-                judge_agent,
-                build_judge_prompt(message, discovery_text, challenger_text, refiner_text),
-            )
-            judge_text = str(judge_result.final_output)
-            append_trace(trace_file, "JUDGE OUTPUT", judge_text)
-            if verbose:
-                print_markdown("Judge", judge_text)
-        else:
-            append_trace(trace_file, "CHALLENGER OUTPUT", "Challenger stage skipped.")
-            append_trace(trace_file, "REFINER OUTPUT", "Refiner stage skipped; author draft used directly.")
-            append_trace(trace_file, "JUDGE OUTPUT", judge_text)
-            if verbose:
-                print_stage("Skipping peer review stages", "yellow")
+        if verbose:
+            print_stage("Running Judge", "magenta")
+        judge_agent = factory.build_agent(judge_spec, active_servers)
+        judge_result = await Runner.run(
+            judge_agent,
+            build_judge_prompt(message, discovery_text or "None.", challenger_text, refiner_text),
+        )
+        judge_text = str(judge_result.final_output)
+        append_trace(trace_file, "JUDGE OUTPUT", judge_text)
+        if verbose:
+            print_markdown("Judge", judge_text)
 
         if verbose:
             print_stage("Running Orchestrator", "white")
@@ -240,7 +232,7 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
             orchestrator_agent,
             build_peer_final_prompt(
                 message,
-                discovery_text,
+                discovery_text or "None.",
                 author_text,
                 challenger_text,
                 refiner_text,

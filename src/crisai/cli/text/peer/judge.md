@@ -1,7 +1,7 @@
 User request:
 {message}
 
-Discovery findings:
+Discovery findings (if any):
 {discovery_text}
 
 Challenge:
@@ -14,7 +14,7 @@ Task:
 Decide whether the refined answer is good enough.
 
 Rules:
-- Work only from the user request, discovery findings, critique, and refined answer.
+- Work only from the user request, optional discovery findings, critique, and refined answer.
 - Do not invent new evidence.
 - Be decisive.
 
