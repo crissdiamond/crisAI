@@ -18,15 +18,6 @@ _ICONS = {
     "orchestrator": "🧭",
 }
 
-_LABELS = {
-    "discovery": "Discovery",
-    "design_author": "Author",
-    "design_challenger": "Challenger",
-    "design_refiner": "Refiner",
-    "judge": "Judge",
-    "orchestrator": "Orchestrator",
-}
-
 _STYLES = {
     "discovery": "cyan",
     "design_author": "bright_blue",
@@ -37,14 +28,11 @@ _STYLES = {
 }
 
 
-def print_stage(title: str, style: str = "cyan") -> None:
-    title_text = Text(title, style=f"bold {style}")
-    console.print(Panel.fit(title_text, border_style=style, padding=(0, 2)))
-
+def print_stage(title: str, style: str) -> None:
+    console.print(Panel.fit(title, style=style))
 
 def print_markdown(title: str, body: str) -> None:
     console.print(Markdown(f"## {title}\n\n{body}"))
-
 
 def print_history(history: list[tuple[str, str]], limit: int = 20) -> None:
     if not history:
@@ -58,26 +46,12 @@ def print_history(history: list[tuple[str, str]], limit: int = 20) -> None:
 
 
 def render_peer_message(message: PeerMessage) -> Panel:
-    speaker = message.speaker
-    icon = _ICONS.get(speaker, "🧠")
-    label = _LABELS.get(speaker, speaker.replace("_", " ").title())
-    style = _STYLES.get(speaker, "white")
+    icon = _ICONS.get(message.speaker, "🧠")
+    style = _STYLES.get(message.speaker, "white")
+    title = Text(f"{icon} {message.speaker}", style=f"bold {style}")
+    body = Text(message.content or "[empty]", style="white")
+    return Panel(body, title=title, border_style=style)
 
-    title = Text(f"{icon} {label}", style=f"bold {style}")
-    subtitle = None
-    if getattr(message, "step", ""):
-        subtitle = Text(str(message.step), style=f"italic {style}")
-
-    content = (message.content or "").strip() or "_empty_"
-
-    return Panel(
-        Markdown(content),
-        title=title,
-        subtitle=subtitle,
-        border_style=style,
-        padding=(0, 1),
-        expand=True,
-    )
 
 def print_peer_message(message: PeerMessage) -> None:
     console.print(render_peer_message(message))

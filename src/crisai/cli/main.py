@@ -620,11 +620,12 @@ def chat(
         explicit_agent_override = current_agent if agent_pinned else None
 
         decision = _resolve_route(
-            chat_input,
+            user_input,
             review_enabled=current_review,
             mode_override=explicit_mode_override,
             agent_override=explicit_agent_override,
         )
+
         console.print(_route_display(decision))
 
         async def _run() -> str:
