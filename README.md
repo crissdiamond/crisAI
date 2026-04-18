@@ -4,7 +4,7 @@
 
 crisAI combines a registry-driven catalogue of MCP servers, a set of specialist agents, an interactive CLI, local and external document retrieval, and optional peer-style critique workflows.
 
-The aim is to create a personal AI workstation that can retrieve source material, reason over it, draft outputs, critique them, and connect to tools such as local files, document readers, diagram generators, and SharePoint.
+The aim is to create a personal AI workstation that can retrieve source material, reason over it, draft outputs, critique them, and connect to tools such as local files, document readers, diagram generators, and SharePoint / OneDrive.
 
 ---
 
@@ -26,14 +26,16 @@ The aim is to create a personal AI workstation that can retrieve source material
   - `single`
   - `pipeline`
   - `peer`
+- Phase 1 heuristic router for more intelligent task-to-agent selection
 - Persistent chat sessions
 - Command history in the CLI
+- In-chat slash commands for agent and server introspection
 
 ---
 
 ## Architecture at a glance
 
-crisAI is built around four layers:
+crisAI is built around five layers:
 
 1. **CLI and orchestration**
    - `src/crisai/cli/main.py`
@@ -42,20 +44,25 @@ crisAI is built around four layers:
    - mode switching
    - review toggling
    - session history
-   - heuristic routing for intent-based agent selection
+   - heuristic task routing
 
-   The CLI now uses a lightweight Phase 1 heuristic router before execution when mode or agent have not been explicitly pinned. This helps route retrieval-only prompts to discovery, mixed retrieval-plus-drafting prompts to pipeline, review-heavy prompts to review, and platform debugging prompts to operations.
+2. **CLI support modules**
+   - `src/crisai/cli/chat_session.py`
+   - `src/crisai/cli/commands.py`
+   - `src/crisai/cli/display.py`
+   - `src/crisai/cli/pipelines.py`
+   - `src/crisai/cli/prompt_builders.py`
 
-2. **Agents**
+3. **Agents**
    - configured in `registry/agents.yaml`
    - prompts stored in `prompts/`
    - created by `src/crisai/agents/factory.py`
 
-3. **MCP servers**
+4. **MCP servers**
    - configured in `registry/servers.yaml`
    - built and managed by `src/crisai/runtime.py`
 
-4. **Sources**
+5. **Sources**
    - local workspace
    - document parser
    - diagram generator
@@ -105,12 +112,14 @@ Typical agent set:
 crisAI/
   start
   README.md
+  DOCUMENTATION.md
   requirements.txt
   .env.example
 
   registry/
     servers.yaml
     agents.yaml
+    policies.yaml
 
   prompts/
     orchestrator.md
@@ -126,11 +135,16 @@ crisAI/
     crisai/
       cli/
         main.py
+        chat_session.py
+        commands.py
+        display.py
+        pipelines.py
+        prompt_builders.py
+      agents/
+        factory.py
       orchestration/
         __init__.py
         router.py
-      agents/
-        factory.py
       servers/
         workspace_server.py
         document_server.py
@@ -240,36 +254,40 @@ The `start` launcher is expected to:
 - activate `.venv`
 - load `.env`
 - set `PYTHONPATH=./src`
-- start a prepared shell or launch the CLI
+- start the interactive CLI
+
+Recommended behaviour:
+- enter chat without forcing `--pipeline`
+- let the heuristic router decide the right initial route unless the user explicitly pins a mode or agent
 
 ---
 
 ## Quick start
 
-Once inside the prepared shell, start the CLI with:
+Once inside the prepared shell or once `./start` opens the interactive CLI, you can use:
+
+```text
+/list servers
+/list agents
+/help
+```
+
+Start crisAI from the project root:
 
 ```bash
 ./start
 ```
 
-Inside the interactive CLI, you can use:
+Typical first prompt:
 
 ```text
-/list servers
-/list agents
+Search my personal OneDrive, not SharePoint sites, and find all documents related to the integration strategy.
 ```
 
-You can also start crisAI directly in a pinned mode when needed:
+Example one-off invocation through the CLI entrypoint when needed:
 
 ```bash
-./start --pipeline --verbose
-./start --peer --verbose
-```
-
-For a one-off run through the CLI launcher:
-
-```bash
-./start ask -m "Find the most relevant document for integration strategy and summarise it."
+python -m crisai.cli.main ask -m "Find the most relevant document for integration strategy and summarise it."
 ```
 
 ---
@@ -301,23 +319,24 @@ Runs the peer-style flow:
 
 ## Heuristic routing
 
-When mode or agent are not explicitly pinned, crisAI uses a lightweight Phase 1 heuristic router to choose the best starting path for the prompt.
+crisAI includes a Phase 1 heuristic router.
 
-Typical routing outcomes:
+Its job is to route a prompt to the most sensible starting mode and agent when the user has **not** explicitly pinned one.
 
-- retrieval-only tasks -> `discovery`
-- retrieval + drafting tasks -> `pipeline`
-- critique-heavy tasks -> `review`
-- platform debugging tasks -> `operations`
-- ambiguous tasks -> `orchestrator`
+Typical behaviour:
 
-The selected route is shown in the CLI before execution, for example:
+- pure retrieval task → `single` + `discovery`
+- retrieval + drafting task → `pipeline`
+- critique task → `single` + `review`
+- platform/debug task → `single` + `operations`
+- vague or mixed task → `single` + `orchestrator`
 
-```text
-[router] single • discovery • Prompt primarily asks for finding or inspecting sources.
-```
+Important principles:
 
-Explicit user instructions still win. If you set `/mode ...`, `/agent ...`, `--pipeline`, `--peer`, or `--agent`, those choices are treated as pinned and the router will respect them.
+- explicit user instructions always win
+- `/mode ...` and `/agent ...` pin behaviour
+- the router should not override a real user choice
+- the default startup should not itself count as an explicit mode selection
 
 ---
 
@@ -328,7 +347,7 @@ Review is **off by default**.
 Enable it on startup:
 
 ```bash
-python -m crisai.cli.main chat --pipeline --review --verbose
+python -m crisai.cli.main chat --review --verbose
 ```
 
 Or toggle it inside chat:
@@ -346,19 +365,24 @@ Inside the interactive CLI:
 
 ```text
 /help
+/list servers
+/list agents
 /mode single
 /mode pipeline
 /mode peer
 /review on
 /review off
-/list servers
-/list agents
 /agent discovery
 /history
 /session architecture
 /clear
 /exit
 ```
+
+Notes:
+- `/list servers` shows the registered MCP servers in a coloured table
+- `/list agents` shows the registered agents in a coloured table
+- legacy hyphenated forms may still exist for compatibility, but the preferred form is the spaced command style
 
 ---
 
@@ -373,8 +397,8 @@ workspace/chat_sessions/
 Examples:
 
 ```bash
-./start --pipeline --session architecture
-./start --peer --session sharepoint-debug
+python -m crisai.cli.main chat --session architecture
+python -m crisai.cli.main chat --peer --session sharepoint-debug
 ```
 
 ---
@@ -449,6 +473,11 @@ The expected flow is:
 3. MSAL token caching
 4. Graph access through `sharepoint_server.py`
 
+Operational recommendation:
+- check auth status before search
+- avoid triggering interactive login unless explicitly required
+- prefer predictable auth checks over surprise browser popups during discovery
+
 ---
 
 ## Logs
@@ -470,9 +499,9 @@ workspace/sharepoint_mcp.log
 
 > Use the workspace tools first. Find documents related to integration strategy in inputs and reference, identify the best match, and summarise it.
 
-### SharePoint retrieval
+### SharePoint / OneDrive retrieval
 
-> Use SharePoint tools first. Find the IT Architecture site and identify the most relevant document related to integration strategy.
+> Search my personal OneDrive, not SharePoint sites, and find all documents related to the integration strategy.
 
 ### Design task
 

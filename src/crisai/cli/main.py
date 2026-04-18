@@ -198,7 +198,8 @@ def _print_agents_table() -> None:
 
 def _route_display(decision: RoutingDecision) -> str:
     agent = decision.agent or "-"
-    return f"[dim][router][/dim] {decision.mode} • {agent} • {decision.reason}"
+    label = "pinned" if decision.intent == "explicit" else "auto"
+    return f"[dim][router:{label}][/dim] {decision.mode} • {agent} • {decision.reason}"
 
 
 def _resolve_route(
@@ -695,8 +696,8 @@ def chat(
     current_mode = "peer" if peer else "pipeline" if pipeline else "single"
     current_agent = agent_id
     current_review = review
-    mode_pinned = peer or pipeline
-    agent_pinned = agent_id != "orchestrator"
+    mode_pinned = True if (peer or pipeline) else False
+    agent_pinned = True if (agent_id != "orchestrator") else False
 
     console.print("[bold green]crisAI interactive chat[/bold green]")
     console.print(f"Session: [bold]{current_session}[/bold]")
@@ -810,11 +811,15 @@ def chat(
             continue
 
         chat_input = _build_chat_input(user_input, history)
+
+        explicit_mode_override = current_mode if mode_pinned else None
+        explicit_agent_override = current_agent if agent_pinned else None
+
         decision = _resolve_route(
             chat_input,
             review_enabled=current_review,
-            mode_override=current_mode if mode_pinned else None,
-            agent_override=current_agent if agent_pinned else None,
+            mode_override=explicit_mode_override,
+            agent_override=explicit_agent_override,
         )
         console.print(_route_display(decision))
 

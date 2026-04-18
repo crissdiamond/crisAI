@@ -12,4 +12,4 @@ if [ -f .env ]; then
   set +a
 fi
 
-exec python -m crisai.cli.main chat --pipeline --verbose
+exec python -m crisai.cli.main chat --verbose

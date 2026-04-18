@@ -76,7 +76,7 @@ def decide_route(
 ) -> RoutingDecision:
     text = _normalise(user_input)
 
-    if current_mode or selected_agent:
+    if current_mode is not None or selected_agent is not None:
         return RoutingDecision(
             intent="explicit",
             mode=current_mode or "single",
