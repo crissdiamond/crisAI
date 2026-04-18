@@ -15,7 +15,7 @@ class RoutingDecision:
 
 
 DISCOVERY_TERMS = {
-    "find", "search", "locate", "identify", "list",
+    "find", "search", "locate", "identify", "list", "show",
     "documents", "sources", "files", "inspect", "onedrive",
     "sharepoint", "drive", "site", "path", "read",
 }
@@ -24,7 +24,6 @@ DESIGN_TERMS = {
     "design", "draft", "architecture", "hld", "lld", "proposal",
     "option", "options", "recommendation", "target state",
     "operating model", "blueprint", "solution", "summarise", "summary",
-    "propose",
 }
 
 REVIEW_TERMS = {
@@ -36,16 +35,6 @@ OPERATIONS_TERMS = {
     "debug", "fix", "error", "issue", "broken", "failing",
     "logs", "auth", "token", "login", "timeout", "exception",
     "not working", "keeps prompting", "prompting",
-}
-
-PEER_TERMS = {
-    "peer mode",
-    "peer conversation",
-    "author",
-    "challenger",
-    "refiner",
-    "judge",
-    "debate",
 }
 
 EXPLICIT_DISCOVERY_PATTERNS = {
@@ -61,17 +50,9 @@ EXPLICIT_DISCOVERY_PATTERNS = {
 }
 
 EXPLICIT_PEER_PATTERNS = {
-    "use peer mode",
-    "peer mode",
     "peer review",
-    "peer conversation",
-    "show the peer conversation",
     "debate this",
     "challenge and refine",
-    "author should propose",
-    "challenger should",
-    "refiner should",
-    "judge should",
 }
 
 
@@ -124,19 +105,16 @@ def decide_route(
             agent="design_author",
             needs_retrieval=False,
             needs_review=True,
-            confidence=0.99,
-            reason="Prompt explicitly requests peer workflow.",
+            confidence=0.95,
+            reason="Prompt explicitly requests multi-agent critique/refinement.",
         )
 
     discovery_score = _score_terms(text, DISCOVERY_TERMS)
     design_score = _score_terms(text, DESIGN_TERMS)
     review_score = _score_terms(text, REVIEW_TERMS)
     operations_score = _score_terms(text, OPERATIONS_TERMS)
-    peer_score = _score_terms(text, PEER_TERMS)
 
-    retrieval_context = any(
-        t in text for t in {"onedrive", "sharepoint", "documents", "files", "sources"}
-    )
+    retrieval_context = any(t in text for t in {"onedrive", "sharepoint", "documents", "files", "sources"})
 
     if operations_score >= 2:
         return RoutingDecision(
@@ -147,17 +125,6 @@ def decide_route(
             needs_review=False,
             confidence=0.85,
             reason="Prompt looks like debugging or platform troubleshooting.",
-        )
-
-    if peer_score >= 2 and (design_score >= 1 or review_score >= 1):
-        return RoutingDecision(
-            intent="peer_review",
-            mode="peer",
-            agent="design_author",
-            needs_retrieval=False,
-            needs_review=True,
-            confidence=0.93,
-            reason="Prompt strongly indicates peer-style debate and refinement.",
         )
 
     if discovery_score >= 2 and design_score >= 1:

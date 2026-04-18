@@ -80,7 +80,7 @@ def patch_peer_runtime(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_peer_mode_runs_expected_stage_order_when_review_on(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
+async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
@@ -97,6 +97,7 @@ async def test_peer_mode_runs_expected_stage_order_when_review_on(monkeypatch, f
         settings=fake_settings,
         server_specs=server_specs,
         agent_specs=agent_specs,
+        needs_retrieval=True,
     )
 
     assert calls == [
@@ -111,7 +112,7 @@ async def test_peer_mode_runs_expected_stage_order_when_review_on(monkeypatch, f
 
 
 @pytest.mark.anyio
-async def test_peer_mode_skips_challenger_refiner_judge_when_review_off(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
+async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
@@ -128,9 +129,48 @@ async def test_peer_mode_skips_challenger_refiner_judge_when_review_off(monkeypa
         settings=fake_settings,
         server_specs=server_specs,
         agent_specs=agent_specs,
+        needs_retrieval=True,
     )
 
-    assert calls == ["discovery", "design_author", "orchestrator"]
+    assert calls == [
+        "discovery",
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "orchestrator",
+    ]
+    assert result == "ORCHESTRATOR OUTPUT"
+
+
+@pytest.mark.anyio
+async def test_peer_mode_skips_discovery_when_retrieval_not_needed(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
+    server_specs, agent_specs = fake_specs
+    calls: list[str] = []
+
+    async def fake_run(agent, message):
+        calls.append(agent.id)
+        return FakeResult(f"{agent.id.upper()} OUTPUT")
+
+    monkeypatch.setattr(pipelines.Runner, "run", fake_run)
+
+    result = await pipelines.run_peer_pipeline(
+        "propose a simple CLI design",
+        verbose=False,
+        review=False,
+        settings=fake_settings,
+        server_specs=server_specs,
+        agent_specs=agent_specs,
+        needs_retrieval=False,
+    )
+
+    assert calls == [
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "orchestrator",
+    ]
     assert result == "ORCHESTRATOR OUTPUT"
 
 
