@@ -250,3 +250,24 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
         final_text = str(final_result.final_output)
         append_trace(trace_file, "FINAL OUTPUT", final_text)
         return final_text
+
+
+from .peer_transcript import PeerRunResult, append_peer_message
+
+
+def build_peer_run_result(
+    discovery_text: str,
+    author_text: str,
+    challenger_text: str,
+    refiner_text: str,
+    judge_text: str,
+    final_text: str,
+) -> PeerRunResult:
+    transcript = []
+    append_peer_message(transcript, "discovery", discovery_text)
+    append_peer_message(transcript, "design_author", author_text)
+    append_peer_message(transcript, "design_challenger", challenger_text)
+    append_peer_message(transcript, "design_refiner", refiner_text)
+    append_peer_message(transcript, "judge", judge_text)
+    append_peer_message(transcript, "orchestrator", final_text)
+    return PeerRunResult(final_text=final_text, transcript=transcript)
