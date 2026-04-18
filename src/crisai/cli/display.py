@@ -75,40 +75,180 @@ def _strip_markdown(text: str) -> str:
     return stripped.strip()
 
 
-def _two_line_summary(body: str, width: int = 118) -> str:
-    clean = _strip_markdown(body)
-    if not clean:
-        return "No summary available."
+def _clean_agent_text(text: str) -> str:
+    clean = _strip_markdown(text)
 
-    sentences = re.split(r"(?<=[.!?])\s+", clean)
-    summary = " ".join(sentences[:2]).strip() or clean
+    boilerplate_patterns = [
+        r"^peer conversation\s+",
+        r"^(author|challenger|refiner|judge|final recommendation)\s+",
+        r"^(peer mode conversation)\s+",
+        r"^(strengths|weaknesses|decision|reason)\s*[:\-]?\s+",
+    ]
+    changed = True
+    while changed:
+        changed = False
+        for pattern in boilerplate_patterns:
+            new_clean = re.sub(pattern, "", clean, flags=re.IGNORECASE).strip()
+            if new_clean != clean:
+                clean = new_clean
+                changed = True
+
+    clean = re.sub(r"\b(author|challenger|refiner|judge)\b\s*", "", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    return clean
+
+
+def _sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    return [p.strip(" \n\t-•") for p in parts if p.strip(" \n\t-•")]
+
+
+def _pick_first_substantive_sentence(text: str) -> str:
+    for sentence in _sentences(text):
+        if len(sentence) >= 30:
+            return sentence
+    return text.strip()
+
+
+def _normalise_fragment(text: str) -> str:
+    fragment = text.strip()
+    fragment = fragment.rstrip(" .!?:;,-")
+    if fragment and fragment[0].isupper():
+        fragment = fragment[:1].lower() + fragment[1:]
+    return fragment
+
+
+def _author_like_summary(agent_id: str, text: str) -> str:
+    clean = _clean_agent_text(text)
+    sentence = _pick_first_substantive_sentence(clean)
+
+    leading_verbs = [
+        "use ", "keep ", "add ", "introduce ", "create ", "split ", "move ",
+        "make ", "treat ", "store ", "validate ", "separate ", "route ",
+    ]
+    lowered = sentence.lower()
+    for verb in leading_verbs:
+        if lowered.startswith(verb):
+            action = _normalise_fragment(sentence)
+            if agent_id == "design_refiner":
+                return f"The Refiner suggests we {action}."
+            if agent_id in {"design", "design_author"}:
+                return f"The Author proposes we {action}."
+
+    action = _normalise_fragment(sentence)
+    if agent_id == "design_refiner":
+        return f"The Refiner suggests {action}."
+    return f"The Author proposes {action}."
+
+
+def _challenger_summary(text: str) -> str:
+    clean = _clean_agent_text(text)
+
+    weakness_match = re.search(
+        r"(weakness(?:es)?|concerns?|gaps?)\s*[:\-]?\s*(.*)",
+        clean,
+        flags=re.IGNORECASE,
+    )
+    if weakness_match and weakness_match.group(2).strip():
+        fragment = _pick_first_substantive_sentence(weakness_match.group(2).strip())
+        return f"The Challenger highlights that { _normalise_fragment(fragment) }."
+
+    fragment = _pick_first_substantive_sentence(clean)
+    return f"The Challenger highlights that { _normalise_fragment(fragment) }."
+
+
+def _judge_summary(text: str) -> str:
+    clean = _clean_agent_text(text)
+
+    decision_match = re.search(r"\bdecision\s*[:\-]?\s*(accept|acceptable|revise|reject)\b", clean, flags=re.IGNORECASE)
+    reason_match = re.search(r"\breason\s*[:\-]?\s*(.*)", clean, flags=re.IGNORECASE)
+
+    if decision_match:
+        decision = decision_match.group(1).lower()
+        if decision in {"accept", "acceptable"}:
+            if reason_match and reason_match.group(1).strip():
+                reason = _normalise_fragment(_pick_first_substantive_sentence(reason_match.group(1).strip()))
+                return f"The Judge concludes that the proposal is acceptable because {reason}."
+            return "The Judge concludes that the proposal is acceptable."
+        if decision == "revise":
+            if reason_match and reason_match.group(1).strip():
+                reason = _normalise_fragment(_pick_first_substantive_sentence(reason_match.group(1).strip()))
+                return f"The Judge concludes that the proposal needs revision because {reason}."
+            return "The Judge concludes that the proposal needs revision."
+        if decision == "reject":
+            if reason_match and reason_match.group(1).strip():
+                reason = _normalise_fragment(_pick_first_substantive_sentence(reason_match.group(1).strip()))
+                return f"The Judge concludes that the proposal should be rejected because {reason}."
+            return "The Judge concludes that the proposal should be rejected."
+
+    fragment = _pick_first_substantive_sentence(clean)
+    return f"The Judge concludes that { _normalise_fragment(fragment) }."
+
+
+def _discovery_summary(text: str) -> str:
+    clean = _clean_agent_text(text)
+    fragment = _pick_first_substantive_sentence(clean)
+    return f"Discovery finds that { _normalise_fragment(fragment) }."
+
+
+def _review_summary(text: str) -> str:
+    clean = _clean_agent_text(text)
+    fragment = _pick_first_substantive_sentence(clean)
+    return f"The Review notes that { _normalise_fragment(fragment) }."
+
+
+def _operations_summary(text: str) -> str:
+    clean = _clean_agent_text(text)
+    fragment = _pick_first_substantive_sentence(clean)
+    return f"Operations suggests that { _normalise_fragment(fragment) }."
+
+
+def _orchestrator_summary(text: str) -> str:
+    clean = _clean_agent_text(text)
+    fragment = _pick_first_substantive_sentence(clean)
+    return f"The Orchestrator recommends { _normalise_fragment(fragment) }."
+
+
+def _role_led_summary(agent_id: str, body: str, width: int = 118) -> str:
+    if agent_id in {"design", "design_author", "design_refiner"}:
+        summary = _author_like_summary(agent_id, body) if agent_id != "design_refiner" else _author_like_summary("design_refiner", body)
+    elif agent_id == "design_challenger":
+        summary = _challenger_summary(body)
+    elif agent_id == "judge":
+        summary = _judge_summary(body)
+    elif agent_id == "discovery":
+        summary = _discovery_summary(body)
+    elif agent_id == "review":
+        summary = _review_summary(body)
+    elif agent_id == "operations":
+        summary = _operations_summary(body)
+    elif agent_id == "orchestrator":
+        summary = _orchestrator_summary(body)
+    else:
+        clean = _clean_agent_text(body)
+        fragment = _pick_first_substantive_sentence(clean)
+        summary = f"The {_label(agent_id)} says { _normalise_fragment(fragment) }."
+
     wrapped = textwrap.wrap(summary, width=width)
-    if not wrapped:
-        return summary
-    if len(wrapped) <= 2:
+    if len(wrapped) <= 3:
         return "\n".join(wrapped)
-    trimmed = wrapped[:2]
-    trimmed[-1] = trimmed[-1].rstrip(" .") + "…"
+
+    trimmed = wrapped[:3]
+    last = trimmed[-1].rstrip(" .")
+    if not last.endswith(("…", "...")):
+        last += "…"
+    trimmed[-1] = last
     return "\n".join(trimmed)
 
 
-def _running_status(agent_id: str, tick: int, done: bool = False) -> Text:
-    if done:
-        body = f"agent: {agent_id}........ done"
-        return Text(body, style="dim")
-    dot_count = (tick % 8) + 1
-    dots = "." * dot_count
-    body = f"agent: {agent_id}{dots}"
-    return Text(body, style="dim")
-
-
-def render_running_panel(agent_id: str, tick: int = 0, *, done: bool = False) -> Panel:
+def render_running_panel(agent_id: str) -> Panel:
     icon = _icon(agent_id)
     label = _label(agent_id)
     style = _style(agent_id)
     title = Text(f"{icon} {label}", style=f"bold {style}")
+    body = Text(f"agent: {agent_id} running", style="dim")
     return Panel(
-        _running_status(agent_id, tick, done=done),
+        body,
         title=title,
         border_style=style,
         padding=(0, 1),
@@ -118,15 +258,11 @@ def render_running_panel(agent_id: str, tick: int = 0, *, done: bool = False) ->
 
 def create_agent_live(agent_id: str) -> Live:
     return Live(
-        render_running_panel(agent_id, 0),
+        render_running_panel(agent_id),
         console=console,
-        refresh_per_second=8,
-        transient=False,
+        refresh_per_second=4,
+        transient=True,
     )
-
-
-def update_agent_live(live: Live, agent_id: str, tick: int, *, done: bool = False) -> None:
-    live.update(render_running_panel(agent_id, tick, done=done), refresh=True)
 
 
 def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
@@ -135,7 +271,7 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
     style = _style(agent_id)
     title = Text(f"{icon} {label}", style=f"bold {style}")
 
-    rendered_body = Markdown(body.strip() or "_empty_") if verbose else _two_line_summary(body)
+    rendered_body = Markdown(body.strip() or "_empty_") if verbose else _role_led_summary(agent_id, body)
     console.print(
         Panel(
             rendered_body,

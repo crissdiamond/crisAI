@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import io
 import logging
 import re
@@ -14,7 +13,7 @@ from crisai.agents.factory import AgentFactory
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import append_trace
 
-from .display import create_agent_live, print_agent_output, update_agent_live
+from .display import create_agent_live, print_agent_output
 from .prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
@@ -88,24 +87,17 @@ async def _run_agent_silently(agent, prompt: str) -> str:
     return str(result.final_output)
 
 
-async def _run_agent_with_progress(agent_id: str, agent, prompt: str) -> str:
+async def _run_agent_with_transient_box(agent_id: str, agent, prompt: str) -> str:
     live = create_agent_live(agent_id)
-    tick = 0
-    task = asyncio.create_task(_run_agent_silently(agent, prompt))
     with live:
-        while not task.done():
-            update_agent_live(live, agent_id, tick)
-            await asyncio.sleep(0.2)
-            tick += 1
-        result = await task
-        update_agent_live(live, agent_id, tick, done=True)
+        result = await _run_agent_silently(agent, prompt)
     return result
 
 
 _FINAL_RECOMMENDATION_PATTERNS = [
-    r"(?:^|\n)#+\s*Final recommendation\s*\n+(.*)$",
-    r"(?:^|\n)\*\*Final recommendation\*\*\s*\n+(.*)$",
-    r"(?:^|\n)Final recommendation\s*\n+(.*)$",
+    r"(?:^|\n)(#+\s*Final recommendation\s*\n+.*)$",
+    r"(?:^|\n)(\*\*Final recommendation\*\*\s*\n+.*)$",
+    r"(?:^|\n)(Final recommendation\s*\n+.*)$",
 ]
 
 
@@ -175,18 +167,18 @@ async def run_pipeline(message: str, verbose: bool, review: bool, *, settings, s
         append_trace(trace_file, "USER INPUT", message)
 
         discovery_agent = factory.build_agent(discovery_spec, active_servers)
-        discovery_text = await _run_agent_with_progress("discovery", discovery_agent, build_discovery_prompt(message))
+        discovery_text = await _run_agent_with_transient_box("discovery", discovery_agent, build_discovery_prompt(message))
         append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
         print_agent_output("discovery", discovery_text, verbose=verbose)
 
         design_agent = factory.build_agent(design_spec, active_servers)
-        design_text = await _run_agent_with_progress("design", design_agent, build_design_prompt(message, discovery_text))
+        design_text = await _run_agent_with_transient_box("design", design_agent, build_design_prompt(message, discovery_text))
         append_trace(trace_file, "DESIGN OUTPUT", design_text)
         print_agent_output("design", design_text, verbose=verbose)
 
         if review:
             review_agent = factory.build_agent(review_spec, active_servers)
-            review_text = await _run_agent_with_progress(
+            review_text = await _run_agent_with_transient_box(
                 "review", review_agent, build_review_prompt(message, discovery_text, design_text)
             )
             append_trace(trace_file, "REVIEW OUTPUT", review_text)
@@ -196,7 +188,7 @@ async def run_pipeline(message: str, verbose: bool, review: bool, *, settings, s
             append_trace(trace_file, "REVIEW OUTPUT", review_text)
 
         orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_text = await _run_agent_with_progress(
+        final_text = await _run_agent_with_transient_box(
             "orchestrator",
             orchestrator_agent,
             build_pipeline_final_prompt(message, discovery_text, design_text, review_text),
@@ -252,7 +244,7 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
         discovery_text = ""
         if needs_retrieval:
             discovery_agent = factory.build_agent(discovery_spec, active_servers)
-            discovery_text = await _run_agent_with_progress(
+            discovery_text = await _run_agent_with_transient_box(
                 "discovery", discovery_agent, build_discovery_prompt(message)
             )
             append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
@@ -261,14 +253,14 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
             append_trace(trace_file, "DISCOVERY OUTPUT", "Discovery skipped because this peer task does not require retrieval.")
 
         author_agent = factory.build_agent(author_spec, active_servers)
-        author_text = await _run_agent_with_progress(
+        author_text = await _run_agent_with_transient_box(
             "design_author", author_agent, build_author_prompt(message, discovery_text or "None.")
         )
         append_trace(trace_file, "AUTHOR OUTPUT", author_text)
         print_agent_output("design_author", author_text, verbose=verbose)
 
         challenger_agent = factory.build_agent(challenger_spec, active_servers)
-        challenger_text = await _run_agent_with_progress(
+        challenger_text = await _run_agent_with_transient_box(
             "design_challenger",
             challenger_agent,
             build_challenger_prompt(message, discovery_text or "None.", author_text),
@@ -277,7 +269,7 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
         print_agent_output("design_challenger", challenger_text, verbose=verbose)
 
         refiner_agent = factory.build_agent(refiner_spec, active_servers)
-        refiner_text = await _run_agent_with_progress(
+        refiner_text = await _run_agent_with_transient_box(
             "design_refiner",
             refiner_agent,
             build_refiner_prompt(message, discovery_text or "None.", author_text, challenger_text),
@@ -286,7 +278,7 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
         print_agent_output("design_refiner", refiner_text, verbose=verbose)
 
         judge_agent = factory.build_agent(judge_spec, active_servers)
-        judge_text = await _run_agent_with_progress(
+        judge_text = await _run_agent_with_transient_box(
             "judge",
             judge_agent,
             build_judge_prompt(message, discovery_text or "None.", challenger_text, refiner_text),
@@ -295,7 +287,7 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
         print_agent_output("judge", judge_text, verbose=verbose)
 
         orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_text = await _run_agent_with_progress(
+        final_text = await _run_agent_with_transient_box(
             "orchestrator",
             orchestrator_agent,
             build_peer_final_prompt(
