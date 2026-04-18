@@ -24,3 +24,6 @@ chat_session/
 workspace/.auth/
 *.token
 *token_cache*
+*Zone.Identifier
+*.Zone.Identifier
+*zone.identifier
