@@ -754,8 +754,8 @@ def chat(
 - `/mode peer` — use peer mode
 - `/review on` — enable review
 - `/review off` — disable review
-- `/list-servers` — list registered MCP servers
-- `/list-agents` — list registered agents
+- `/list servers` — list registered MCP servers
+- `/list agents` — list registered agents
 - `/history` — show saved conversation history in this session
 - `/clear` — clear conversation history for this session
 - `/session <name>` — switch to another persistent session
@@ -766,11 +766,11 @@ def chat(
             )
             continue
 
-        if user_input == "/list-servers":
+        if user_input == "/list servers":
             _print_servers_table()
             continue
 
-        if user_input == "/list-agents":
+        if user_input == "/list agents":
             _print_agents_table()
             continue
 

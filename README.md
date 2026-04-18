@@ -241,7 +241,7 @@ This opens the interactive CLI directly.
 
 ---
 
-## What the `start` script should do
+## What the `start` script does
 
 The `start` launcher is expected to:
 
@@ -263,8 +263,8 @@ Start crisAI:
 Once inside the interactive CLI, you can use slash commands such as:
 
 ```text
-/list-servers
-/list-agents
+/list servers
+/list agents
 /mode pipeline
 /mode peer
 /review on
