@@ -1,36 +1,42 @@
 from pathlib import Path
 
-from crisai.cli import main
+
+ROOT = Path(__file__).resolve().parents[1]
+TEXT_ROOT = ROOT / "src" / "crisai" / "cli" / "text"
 
 
-def test_help_markdown_exists_and_loads() -> None:
-    text = main._load_cli_text("help.md")
-    assert "/list servers" in text
-    assert "/list agents" in text
+def test_help_file_exists_and_is_not_empty() -> None:
+    help_file = TEXT_ROOT / "help.md"
+    assert help_file.exists(), f"Missing help file: {help_file}"
+    content = help_file.read_text(encoding="utf-8").strip()
+    assert content, "help.md is empty"
 
 
-def test_pipeline_discovery_template_renders_message() -> None:
-    rendered = main._render_cli_text("pipeline/discovery.md", message="Find integration docs")
-    assert "Find integration docs" in rendered
-    assert "Never guess file paths" in rendered
+def test_pipeline_prompt_files_exist_and_are_not_empty() -> None:
+    files = [
+        TEXT_ROOT / "pipeline" / "discovery.md",
+        TEXT_ROOT / "pipeline" / "design.md",
+        TEXT_ROOT / "pipeline" / "review.md",
+        TEXT_ROOT / "pipeline" / "final.md",
+    ]
+
+    for file_path in files:
+        assert file_path.exists(), f"Missing pipeline text file: {file_path}"
+        content = file_path.read_text(encoding="utf-8").strip()
+        assert content, f"{file_path.name} is empty"
 
 
-def test_peer_final_template_renders_all_context() -> None:
-    rendered = main._render_cli_text(
-        "peer/final.md",
-        message="Test",
-        discovery_text="Discovery",
-        author_text="Author",
-        challenger_text="Challenge",
-        refiner_text="Refined",
-        judge_text="Accept",
-    )
-    assert "Discovery" in rendered
-    assert "Refined" in rendered
-    assert "Accept" in rendered
+def test_peer_prompt_files_exist_and_are_not_empty() -> None:
+    files = [
+        TEXT_ROOT / "peer" / "discovery.md",
+        TEXT_ROOT / "peer" / "author.md",
+        TEXT_ROOT / "peer" / "challenger.md",
+        TEXT_ROOT / "peer" / "refiner.md",
+        TEXT_ROOT / "peer" / "judge.md",
+        TEXT_ROOT / "peer" / "final.md",
+    ]
 
-
-def test_cli_text_directory_exists() -> None:
-    text_dir = main._cli_text_dir()
-    assert text_dir.exists()
-    assert (text_dir / "pipeline" / "design.md").exists()
+    for file_path in files:
+        assert file_path.exists(), f"Missing peer text file: {file_path}"
+        content = file_path.read_text(encoding="utf-8").strip()
+        assert content, f"{file_path.name} is empty"

@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from crisai.agents.factory import AgentFactory
+from crisai.cli.text_loader import load_cli_text, render_cli_text
 from crisai.config import load_settings
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
@@ -69,29 +70,11 @@ def _build_chat_input(user_input: str, history: list[tuple[str, str]]) -> str:
         return user_input
 
     transcript = _render_history(history[-12:])
-    return f"""Conversation so far:
-{transcript}
-
-Latest user message:
-{user_input}
-
-Please answer consistently with the conversation so far."""
-
-
-
-
-def _cli_text_dir() -> Path:
-    return Path(__file__).resolve().parent / "text"
-
-
-def _load_cli_text(relative_path: str) -> str:
-    path = _cli_text_dir() / relative_path
-    return path.read_text(encoding="utf-8")
-
-
-def _render_cli_text(relative_path: str, **context: str) -> str:
-    template = _load_cli_text(relative_path)
-    return template.format(**context)
+    return render_cli_text(
+        "chat/history_wrapper.md",
+        transcript=transcript,
+        user_input=user_input,
+    )
 
 def _session_dir() -> Path:
     settings = load_settings()
