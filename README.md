@@ -37,11 +37,26 @@ crisAI is built around four layers:
 
 1. **CLI and orchestration**
    - `src/crisai/cli/main.py`
-   - command routing
-   - chat loop
-   - mode switching
+   - CLI entry points and top-level wiring
+   - chat loop bootstrap
+   - mode selection
    - review toggling
-   - session history
+   - session selection
+   - delegates chat state, commands, prompts, display, and pipeline execution to the CLI modules below
+
+   Supporting CLI modules:
+   - `src/crisai/cli/chat_session.py`
+     - session history load/save
+     - persistent session management
+     - conversation state assembly
+   - `src/crisai/cli/commands.py`
+     - slash command parsing and handling
+   - `src/crisai/cli/pipelines.py`
+     - `single`, `pipeline`, and `peer` execution flows
+   - `src/crisai/cli/prompt_builders.py`
+     - orchestration prompts and handoff prompts
+   - `src/crisai/cli/display.py`
+     - CLI output helpers and formatting
 
 2. **Agents**
    - configured in `registry/agents.yaml`
@@ -123,6 +138,11 @@ crisAI/
     crisai/
       cli/
         main.py
+        chat_session.py
+        commands.py
+        pipelines.py
+        prompt_builders.py
+        display.py
       agents/
         factory.py
       servers/
@@ -240,29 +260,31 @@ The `start` launcher is expected to:
 
 ## Quick start
 
-Once inside the prepared shell, you can run:
+Once inside the prepared shell started by `./start`, use the CLI commands rather than calling Python modules directly.
+
+List configured servers and agents:
 
 ```bash
-python -m crisai.cli.main list-servers
-python -m crisai.cli.main list-agents
+crisai list-servers
+crisai list-agents
 ```
 
 Start interactive chat in **pipeline** mode:
 
 ```bash
-python -m crisai.cli.main chat --pipeline --verbose
+crisai chat --pipeline --verbose
 ```
 
 Or **peer** mode:
 
 ```bash
-python -m crisai.cli.main chat --peer --verbose
+crisai chat --peer --verbose
 ```
 
 Ask a one-off question:
 
 ```bash
-python -m crisai.cli.main ask --pipeline --verbose -m "Find the most relevant document for integration strategy and summarise it."
+crisai ask --pipeline --verbose -m "Find the most relevant document for integration strategy and summarise it."
 ```
 
 ---
@@ -299,7 +321,7 @@ Review is **off by default**.
 Enable it on startup:
 
 ```bash
-python -m crisai.cli.main chat --pipeline --review --verbose
+crisai chat --pipeline --review --verbose
 ```
 
 Or toggle it inside chat:
@@ -342,8 +364,8 @@ workspace/chat_sessions/
 Examples:
 
 ```bash
-python -m crisai.cli.main chat --pipeline --session architecture
-python -m crisai.cli.main chat --peer --session sharepoint-debug
+crisai chat --pipeline --session architecture
+crisai chat --peer --session sharepoint-debug
 ```
 
 ---
