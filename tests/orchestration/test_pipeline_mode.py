@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import types
 from pathlib import Path
 
@@ -87,7 +89,7 @@ def patch_pipeline_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "build_peer_final_prompt", lambda message, discovery, author, challenger, refiner, judge: f"PEER_FINAL::{message}")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_run_single_uses_selected_agent(monkeypatch, fake_specs, fake_settings, patch_pipeline_runtime):
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
@@ -110,7 +112,7 @@ async def test_run_single_uses_selected_agent(monkeypatch, fake_specs, fake_sett
     assert calls == ["design"]
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_run_single_raises_for_unknown_agent(fake_specs, fake_settings, patch_pipeline_runtime):
     server_specs, agent_specs = fake_specs
     with pytest.raises(typer.BadParameter):
@@ -123,7 +125,7 @@ async def test_run_single_raises_for_unknown_agent(fake_specs, fake_settings, pa
         )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_pipeline_runs_expected_stage_order_when_review_off(monkeypatch, fake_specs, fake_settings, patch_pipeline_runtime):
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
@@ -147,7 +149,7 @@ async def test_pipeline_runs_expected_stage_order_when_review_off(monkeypatch, f
     assert result == "ORCHESTRATOR OUTPUT"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_pipeline_runs_expected_stage_order_when_review_on(monkeypatch, fake_specs, fake_settings, patch_pipeline_runtime):
     server_specs, agent_specs = fake_specs
     calls: list[str] = []

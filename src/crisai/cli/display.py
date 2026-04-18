@@ -31,12 +31,8 @@ _STYLES = {
 def print_stage(title: str, style: str) -> None:
     console.print(Panel.fit(title, style=style))
 
-
 def print_markdown(title: str, body: str) -> None:
-    console.print(Markdown(f"## {title}
-
-{body}"))
-
+    console.print(Markdown(f"## {title}\n\n{body}"))
 
 def print_history(history: list[tuple[str, str]], limit: int = 20) -> None:
     if not history:

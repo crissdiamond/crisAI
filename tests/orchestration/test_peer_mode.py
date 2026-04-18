@@ -79,7 +79,7 @@ def patch_peer_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "build_peer_final_prompt", lambda message, discovery, author, challenger, refiner, judge: f"PEER_FINAL::{message}")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_peer_mode_runs_expected_stage_order_when_review_on(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
@@ -110,7 +110,7 @@ async def test_peer_mode_runs_expected_stage_order_when_review_on(monkeypatch, f
     assert result == "ORCHESTRATOR OUTPUT"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_peer_mode_skips_challenger_refiner_judge_when_review_off(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
