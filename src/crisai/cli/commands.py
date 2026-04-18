@@ -39,6 +39,12 @@ def parse_chat_command(user_input: str) -> CommandResult:
     if text == "/clear":
         return CommandResult(handled=True, action="clear")
 
+    if text == "/list-servers":
+        return CommandResult(handled=True, action="list-servers")
+    
+    if text == "/list-agents":
+        return CommandResult(handled=True, action="list-agents")
+    
     if text == "/history":
         return CommandResult(handled=True, action="history")
 
