@@ -42,6 +42,15 @@ agents:
     allowed_servers:
       - workspace
 
+  - id: publisher
+    name: Publisher
+    model: gpt-5.4-mini
+    prompt_file: prompts/publisher.md
+    allowed_servers:
+      - workspace
+      - documents
+      - diagrams
+
   - id: design_author
     name: Design Author
     model: gpt-5.4-mini

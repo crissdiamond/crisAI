@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
-
 
 @dataclass
 class RoutingDecision:
@@ -67,6 +65,51 @@ PEER_TERMS = {
     "refiner",
     "giudice",
     "dibattito",
+}
+
+PUBLICATION_TERMS = {
+    "template",
+    "templates",
+    "document this",
+    "document the outcome",
+    "turn this into",
+    "convert this into",
+    "create a document",
+    "create the document",
+    "create a report",
+    "create slides",
+    "create a slide deck",
+    "create a powerpoint",
+    "create a spreadsheet",
+    "create an excel",
+    "write this up",
+    "package this",
+    "publish this",
+    "prepare the artefact",
+    "prepare a document",
+    ".doc",
+    ".docx",
+    ".ppt",
+    ".pptx",
+    ".xls",
+    ".xlsx",
+    ".txt",
+    ".md",
+    "template in workspace",
+    "using the template",
+    "usa il template",
+    "usa i template",
+    "trasforma questo in",
+    "crea un documento",
+    "crea il documento",
+    "crea delle slide",
+    "crea una presentazione",
+    "crea un powerpoint",
+    "crea un foglio excel",
+    "crea un file excel",
+    "documenta questo",
+    "documenta l'esito",
+    "impacchetta questo",
 }
 
 EXPLICIT_DISCOVERY_PATTERNS = {
@@ -146,6 +189,7 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
     review_score = _score_terms(text, REVIEW_TERMS)
     operations_score = _score_terms(text, OPERATIONS_TERMS)
     peer_score = _score_terms(text, PEER_TERMS)
+    publication_score = _score_terms(text, PUBLICATION_TERMS)
 
     has_source_signal = _has_source_signal(text, discovery_score)
     has_design_signal = design_score >= 2
@@ -153,6 +197,7 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
     has_peer_signal = _contains_any(text, EXPLICIT_PEER_PATTERNS) or (
         peer_score >= 2 and (design_score >= 1 or review_score >= 1)
     )
+    has_publication_signal = publication_score >= 1
 
     if operations_score >= 2:
         return RoutingDecision(
@@ -163,6 +208,17 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
             needs_review=False,
             confidence=0.90,
             reason="Prompt looks like debugging or platform troubleshooting.",
+        )
+
+    if has_publication_signal:
+        return RoutingDecision(
+            intent="publication",
+            mode="single",
+            agent="publisher",
+            needs_retrieval=True,
+            needs_review=False,
+            confidence=0.93,
+            reason="Prompt asks to package output into a formal artefact using templates or a requested document format.",
         )
 
     if has_peer_signal:
@@ -254,7 +310,7 @@ def _apply_explicit_overrides(
             intent="explicit",
             mode="single",
             agent=selected_agent,
-            needs_retrieval=selected_agent == "discovery",
+            needs_retrieval=selected_agent in {"discovery", "publisher"},
             needs_review=selected_agent == "review",
             confidence=1.0,
             reason="Agent explicitly selected by user.",
@@ -289,7 +345,7 @@ def _apply_explicit_overrides(
         intent="explicit",
         mode="single",
         agent=base.agent,
-        needs_retrieval=base.agent == "discovery",
+        needs_retrieval=base.agent in {"discovery", "publisher"},
         needs_review=base.agent == "review",
         confidence=1.0,
         reason="Mode explicitly set to single by user.",
