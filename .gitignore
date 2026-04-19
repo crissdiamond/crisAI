@@ -27,3 +27,8 @@ workspace/.auth/
 *Zone.Identifier
 *.Zone.Identifier
 *zone.identifier
+*.old?
+*.old
+**/*.old
+**/*.old?
+

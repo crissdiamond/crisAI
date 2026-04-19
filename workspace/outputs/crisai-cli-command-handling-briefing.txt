@@ -1,0 +1,22 @@
+Title: crisAI CLI command handling briefing
+
+Short summary:
+The peer-mode discussion converged on a refined simple command pipeline for improving crisAI command handling in the CLI. The design keeps parsing, routing, policy, execution, and rendering separate, and it uses startup validation to catch registry problems early.
+
+Key points:
+- Use a parser to split raw CLI input into command, args, and flags.
+- Keep a small declarative registry of commands and aliases.
+- Validate startup data before serving commands.
+- Resolve commands in a deterministic order: exact match, alias match, then suggestion-only fallback.
+- Use a policy gate to return allowed, confirm, or blocked.
+- Run execution separately and isolate runtime failures.
+- Preserve the session after recoverable handler errors.
+- Treat near-match output as guidance only, not as automatic execution.
+- The agreed outcomes are: matched, not_found, ambiguous, confirm, blocked, and error.
+
+Next steps:
+- Validate the command registry before release.
+- Keep routing and policy testing separate.
+- Confirm compatibility for any alias changes.
+- Maintain existing command behaviour unless a command is explicitly retired.
+- Use the finalized command pipeline as the basis for CLI implementation and rollout.
