@@ -27,6 +27,7 @@ The aim is to create a personal AI workstation that can retrieve source material
   - `pipeline`
   - `peer`
 - Phase 1 heuristic router for more intelligent task-to-agent selection
+- Explicit chat-state visibility for routing and agent pinning
 - Persistent chat sessions
 - Command history in the CLI
 - In-chat slash commands for agent and server introspection
@@ -267,6 +268,7 @@ Recommended behaviour:
 Once inside the prepared shell or once `./start` opens the interactive CLI, you can use:
 
 ```text
+/status
 /list servers
 /list agents
 /help
@@ -302,17 +304,17 @@ Runs the main structured flow:
 
 1. Discovery
 2. Design
-3. optional Review
+3. optional Review, when the routing decision says it is needed
 4. Orchestrator
 
 ### `peer`
 Runs the peer-style flow:
 
-1. Discovery
+1. Discovery, when retrieval is needed
 2. Design Author
-3. optional Challenger
-4. optional Refiner
-5. optional Judge
+3. Challenger
+4. Refiner
+5. Judge
 6. Orchestrator
 
 ---
@@ -327,14 +329,17 @@ Typical behaviour:
 
 - pure retrieval task → `single` + `discovery`
 - retrieval + drafting task → `pipeline`
-- critique task → `single` + `review`
+- proposal + critique task → `pipeline` with review
+- critique-only task → `single` + `review`
 - platform/debug task → `single` + `operations`
+- peer-style debate request → `peer`
 - vague or mixed task → `single` + `orchestrator`
 
 Important principles:
 
 - explicit user instructions always win
 - `/mode ...` and `/agent ...` pin behaviour
+- `/mode auto` and `/agent auto` clear pins
 - the router should not override a real user choice
 - the default startup should not itself count as an explicit mode selection
 
@@ -342,9 +347,9 @@ Important principles:
 
 ## Review behaviour
 
-Review is **off by default**.
+Review is **off by default** as a user preference, but pipeline review is now executed from the routing decision rather than from the raw CLI toggle alone.
 
-Enable it on startup:
+Enable the preference on startup:
 
 ```bash
 python -m crisai.cli.main chat --review --verbose
@@ -365,14 +370,23 @@ Inside the interactive CLI:
 
 ```text
 /help
+/status
 /list servers
 /list agents
+/mode auto
 /mode single
 /mode pipeline
 /mode peer
 /review on
 /review off
+/verbose on
+/verbose off
+/agent auto
 /agent discovery
+/agent design
+/agent review
+/agent operations
+/agent orchestrator
 /history
 /session architecture
 /clear
@@ -380,6 +394,9 @@ Inside the interactive CLI:
 ```
 
 Notes:
+- `/status` shows the current session state, including whether routing and agent selection are auto or pinned
+- `/mode auto` clears a pinned mode and returns control to the router
+- `/agent auto` clears a pinned agent and returns control to the router
 - `/list servers` shows the registered MCP servers in a coloured table
 - `/list agents` shows the registered agents in a coloured table
 - legacy hyphenated forms may still exist for compatibility, but the preferred form is the spaced command style

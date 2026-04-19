@@ -25,9 +25,10 @@ That means:
 - you can inspect the available agents
 - you can inspect the available servers
 - you can control the mode
-- you can pin the agent
+- you can pin or unpin the agent
 - you can keep persistent session histories
-- you can decide when review should run
+- you can decide your review preference
+- you can see when routing is automatic versus pinned
 
 ---
 
@@ -58,6 +59,13 @@ Typical examples:
 ### 2.4 Router
 A lightweight heuristic layer that decides which agent or mode makes the most sense when you have not explicitly chosen one.
 
+The router now distinguishes more clearly between:
+- **auto routing**
+- **pinned mode**
+- **pinned agent**
+
+This matters because a pinned choice should be visible and intentional.
+
 ---
 
 ## 3. Starting crisAI
@@ -70,7 +78,7 @@ From the project root:
 
 Recommended startup behaviour:
 - do **not** force `--pipeline` in the `start` script
-- let the router decide unless you explicitly pin a mode later
+- let the router decide unless you explicitly pin a mode or agent later
 
 When crisAI opens, you are inside the interactive CLI.
 
@@ -82,6 +90,7 @@ Inside the CLI:
 
 ```text
 /help
+/status
 /list servers
 /list agents
 ```
@@ -89,6 +98,7 @@ Inside the CLI:
 These are the best first commands because they show you:
 - what tooling is available
 - what specialist reasoning roles exist
+- whether routing is currently auto or pinned
 
 ---
 
@@ -98,6 +108,7 @@ These are the best first commands because they show you:
 
 ```text
 /help
+/status
 /list servers
 /list agents
 /history
@@ -109,6 +120,7 @@ These are the best first commands because they show you:
 ### Mode controls
 
 ```text
+/mode auto
 /mode single
 /mode pipeline
 /mode peer
@@ -121,9 +133,17 @@ These are the best first commands because they show you:
 /review off
 ```
 
+### Verbose controls
+
+```text
+/verbose on
+/verbose off
+```
+
 ### Agent controls
 
 ```text
+/agent auto
 /agent discovery
 /agent design
 /agent review
@@ -133,16 +153,56 @@ These are the best first commands because they show you:
 
 ### Important behaviour
 
-- `/mode ...` pins the mode
+- `/mode ...` pins the mode when you choose `single`, `pipeline`, or `peer`
+- `/mode auto` clears the mode pin and returns control to the router
 - `/agent ...` pins the agent
-- once pinned, the router should stop auto-selecting for that dimension
-- if you want the router to choose again, remove the pinned behaviour in your workflow or switch back to your preferred neutral/default setup
+- `/agent auto` clears the agent pin and returns agent choice to the router
+- `/status` prints the current chat state, including:
+  - session
+  - routing mode state
+  - agent state
+  - review preference
+  - verbose setting
+  - history count
 
 ---
 
-## 6. Modes
+## 6. Reading chat state
 
-### 6.1 `single`
+crisAI now makes pinned state visible in chat.
+
+Typical examples:
+
+```text
+Routing: auto | Agent: auto
+```
+
+Meaning:
+- the router is free to decide the most suitable mode and agent
+
+```text
+Routing: pinned:peer | Agent: auto
+```
+
+Meaning:
+- mode is explicitly pinned to `peer`
+- the router is still free to infer details such as retrieval need
+
+```text
+Routing: auto | Agent: pinned:design
+```
+
+Meaning:
+- agent is explicitly pinned to `design`
+- the router should not auto-select a different agent
+
+This distinction is important because previously the chat state could show a mode or agent value without making it clear whether it was truly pinned or simply the current default.
+
+---
+
+## 7. Modes
+
+### 7.1 `single`
 Use one agent directly.
 
 Best for:
@@ -151,7 +211,7 @@ Best for:
 - review only
 - operations/debug
 
-### 6.2 `pipeline`
+### 7.2 `pipeline`
 Structured flow:
 
 ```text
@@ -161,9 +221,9 @@ discovery -> design -> optional review -> orchestrator
 Best for:
 - find source material
 - turn source material into a draft
-- optionally critique and polish the draft
+- critique and polish the draft when the routing decision says review is needed
 
-### 6.3 `peer`
+### 7.3 `peer`
 Collaborative critique flow:
 
 ```text
@@ -177,7 +237,7 @@ Best for:
 
 ---
 
-## 7. Agents
+## 8. Agents
 
 ### `orchestrator`
 General coordinator and safe fallback.
@@ -232,7 +292,7 @@ These are mainly for the `peer` workflow.
 
 ---
 
-## 8. Heuristic router
+## 9. Heuristic router
 
 crisAI includes a Phase 1 heuristic router.
 
@@ -245,9 +305,11 @@ Its purpose is simple:
 |---|---|
 | Find documents only | `single` + `discovery` |
 | Find documents and draft a note | `pipeline` |
+| Propose and critique a design | `pipeline` with review |
 | Review this draft | `single` + `review` |
 | Why is SharePoint login popping up? | `single` + `operations` |
 | Broad mixed request | `single` + `orchestrator` |
+| Ask for author/challenger/refiner/judge debate | `peer` |
 
 ### Good routing behaviour
 
@@ -265,6 +327,20 @@ single • discovery
 
 not pipeline.
 
+For this prompt:
+
+```text
+Find the best documents related to integration strategy and draft a short architecture note.
+```
+
+The router should normally pick:
+
+```text
+pipeline
+```
+
+because the request combines retrieval and drafting.
+
 ### Important rule
 
 A default startup state should **not** count as a user-explicit mode selection.
@@ -272,14 +348,44 @@ A default startup state should **not** count as a user-explicit mode selection.
 If the router says something like:
 
 ```text
-pipeline • - • Mode or agent explicitly selected by user.
+[router:pinned] pipeline • design • review:on • retrieval:off • Mode explicitly set to pipeline by user.
 ```
 
-without you having actually pinned one, then something in startup or session state is still forcing a mode.
+without you having actually pinned one, then something in startup or session handling is still forcing a mode.
 
 ---
 
-## 9. Retrieval discipline
+## 10. Reading router output
+
+You may see messages such as:
+
+```text
+[router:auto] single • discovery • review:off • retrieval:on • Prompt primarily asks for finding or inspecting sources.
+```
+
+Meaning:
+- router chose automatically
+- mode is `single`
+- agent is `discovery`
+- review is not needed
+- retrieval is needed
+
+Or:
+
+```text
+[router:pinned] peer • design_author • review:on • retrieval:on • Mode explicitly set to peer by user.
+```
+
+Meaning:
+- peer mode was pinned explicitly
+- peer workflow will run
+- retrieval is still required for this task
+
+This is useful because you can now see not just the selected mode and agent, but also the review and retrieval intent behind the decision.
+
+---
+
+## 11. Retrieval discipline
 
 This is one of the most important parts of crisAI.
 
@@ -301,7 +407,7 @@ For architecture and documentation work, trustworthy retrieval is more important
 
 ---
 
-## 10. Workspace usage
+## 12. Workspace usage
 
 Recommended folders:
 
@@ -330,7 +436,7 @@ Agents should work with paths relative to the workspace root.
 
 ---
 
-## 11. SharePoint / OneDrive usage
+## 13. SharePoint / OneDrive usage
 
 crisAI supports delegated Microsoft Graph access for:
 - SharePoint sites
@@ -354,11 +460,11 @@ A good operational pattern is:
 
 ---
 
-## 12. Prompting patterns
+## 14. Prompting patterns
 
 Below are prompt patterns that work well in crisAI.
 
-### 12.1 Discovery only
+### 14.1 Discovery only
 
 ```text
 Use discovery only.
@@ -376,25 +482,25 @@ Return the final result as a markdown table with these columns:
 | File name | Path / Location | Last modified | Why relevant |
 ```
 
-### 12.2 Discovery + design
+### 14.2 Discovery + design
 
 ```text
 Find the most relevant source material on federated data architecture operating models, then draft a one-page HLD skeleton based on the strongest sources.
 ```
 
-### 12.3 Review only
+### 14.3 Review only
 
 ```text
 Use review only. Critique this architecture note, identify weak assumptions, and suggest specific improvements.
 ```
 
-### 12.4 Operations / debugging
+### 14.4 Operations / debugging
 
 ```text
 Use operations only. Investigate why SharePoint discovery is triggering interactive web authentication even when a cached token should already exist.
 ```
 
-### 12.5 Peer critique
+### 14.5 Peer critique
 
 ```text
 Use peer mode. Produce a debated and refined architecture recommendation for a registry-driven local AI workstation with controlled MCP access.
@@ -402,7 +508,7 @@ Use peer mode. Produce a debated and refined architecture recommendation for a r
 
 ---
 
-## 13. Prompting tips
+## 15. Prompting tips
 
 ### Be explicit about the target source
 Good:
@@ -441,7 +547,7 @@ If you want better control, do this in two steps:
 
 ---
 
-## 14. Example workflows
+## 16. Example workflows
 
 ### Workflow A — find source material only
 
@@ -463,7 +569,17 @@ Find the best documents related to integration strategy, inspect the strongest o
 Expected route:
 - `pipeline`
 
-### Workflow C — critique an existing draft
+### Workflow C — propose and challenge a design
+
+```text
+Propose a simple CLI design and critique the main weaknesses.
+```
+
+Expected route:
+- `pipeline`
+- review enabled by routing decision
+
+### Workflow D — critique an existing draft
 
 ```text
 Use review only. Review this draft and identify gaps, risks, and ambiguities.
@@ -473,7 +589,7 @@ Expected route:
 - `single`
 - `review`
 
-### Workflow D — debug the platform
+### Workflow E — debug the platform
 
 ```text
 Use operations only. Investigate why the router is treating the startup mode as an explicit user selection.
@@ -485,47 +601,23 @@ Expected route:
 
 ---
 
-## 15. Reading router output
-
-You may see messages such as:
-
-```text
-[router:auto] single • discovery • Prompt primarily asks for finding or inspecting sources.
-```
-
-Meaning:
-- router chose automatically
-- mode is `single`
-- agent is `discovery`
-
-Or:
-
-```text
-[router:pinned] pipeline • - • Mode or agent explicitly selected by user.
-```
-
-Meaning:
-- a mode or agent was pinned by the user or startup path
-- the router is intentionally not auto-selecting
-
----
-
-## 16. Suggested operator habits
+## 17. Suggested operator habits
 
 A good way to use crisAI in practice:
 
-1. start with `/list servers`
-2. check `/list agents`
-3. begin in an unpinned state when possible
-4. use `discovery` for source finding
-5. use `design` only when you want drafting
-6. keep review off unless you actually want it
-7. use `peer` for more serious challenge and refinement
-8. inspect logs when behaviour looks wrong
+1. start with `/status`
+2. check `/list servers`
+3. check `/list agents`
+4. begin in an unpinned state when possible
+5. use `discovery` for source finding
+6. use `design` only when you want drafting
+7. let review follow the routing decision unless you have a reason to pin behaviour
+8. use `peer` for more serious challenge and refinement
+9. inspect logs when behaviour looks wrong
 
 ---
 
-## 17. Logs and troubleshooting
+## 18. Logs and troubleshooting
 
 Useful logs:
 
@@ -541,6 +633,7 @@ Check:
 - whether startup is forcing `--pipeline`
 - whether a session already pinned `/mode pipeline`
 - whether `/agent ...` is still pinned
+- what `/status` shows for current pin state
 
 ### If SharePoint behaves oddly
 Check:
@@ -550,7 +643,7 @@ Check:
 
 ---
 
-## 18. Suggested prompts library
+## 19. Suggested prompts library
 
 ### Local architecture retrieval
 
@@ -586,7 +679,7 @@ Use review only. Challenge this design for hidden assumptions, weak boundaries, 
 
 ---
 
-## 19. Closing note
+## 20. Closing note
 
 crisAI works best when it is:
 - retrieval-disciplined
