@@ -205,6 +205,10 @@ def _resolve_route(
     )
 
 
+def _effective_pipeline_review(decision: RoutingDecision) -> bool:
+    return decision.mode == "pipeline" and decision.needs_review
+
+
 @app.command("list-servers")
 def list_servers() -> None:
     _print_servers_table()
@@ -222,12 +226,13 @@ async def _run_with_routing(
     decision: RoutingDecision,
 ) -> str:
     settings, _, server_specs, agent_specs = _load_registry()
+    effective_review = _effective_pipeline_review(decision)
 
     if decision.mode == "peer":
         return await run_peer_pipeline(
             message,
             verbose,
-            review,
+            False,
             settings=settings,
             server_specs=server_specs,
             agent_specs=agent_specs,
@@ -237,7 +242,7 @@ async def _run_with_routing(
         return await run_pipeline(
             message,
             verbose,
-            review,
+            effective_review,
             settings=settings,
             server_specs=server_specs,
             agent_specs=agent_specs,
