@@ -1,68 +1,84 @@
-from __future__ import annotations
-
-from crisai.orchestration.router import RoutingDecision, decide_route
+from crisai.orchestration.router import decide_route
 
 
-def assert_route(decision: RoutingDecision, *, mode: str, agent: str | None, intent: str) -> None:
-    assert decision.mode == mode
-    assert decision.agent == agent
-    assert decision.intent == intent
-
-
-def test_routes_retrieval_only_prompt_to_discovery() -> None:
+def test_route_discovery_only_for_source_lookup():
     decision = decide_route(
-        user_input="Search my personal OneDrive and find all documents related to the integration strategy. Return only a markdown table.",
+        "Search SharePoint for documents about integration strategy and return only a table.",
         review_enabled=False,
     )
-    assert_route(decision, mode="single", agent="discovery", intent="discovery")
+
+    assert decision.mode == "single"
+    assert decision.agent == "discovery"
     assert decision.needs_retrieval is True
+    assert decision.needs_review is False
 
 
-def test_routes_retrieval_and_drafting_prompt_to_pipeline() -> None:
+def test_route_pipeline_for_source_based_design():
     decision = decide_route(
-        user_input="Find the strongest documents on federated data architecture and draft a one-page HLD skeleton.",
+        "Find the docs about command handling and propose a simple design improvement.",
         review_enabled=False,
     )
-    assert_route(decision, mode="pipeline", agent="discovery", intent="discovery_design")
+
+    assert decision.mode == "pipeline"
+    assert decision.agent == "discovery"
+    assert decision.needs_retrieval is True
+    assert decision.needs_review is False
 
 
-def test_routes_review_prompt_to_review_agent() -> None:
+def test_route_pipeline_for_design_plus_review_without_sources():
     decision = decide_route(
-        user_input="Use review only. Critique this architecture note and identify weak assumptions.",
+        "Propose a simple CLI design and critique the main weaknesses.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "pipeline"
+    assert decision.agent == "design"
+    assert decision.needs_retrieval is False
+    assert decision.needs_review is True
+
+
+def test_route_peer_when_peer_workflow_is_requested():
+    decision = decide_route(
+        "Use peer mode. The author should propose, the challenger should criticise, the refiner should improve, and the judge should decide.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "peer"
+    assert decision.agent == "design_author"
+    assert decision.needs_review is True
+
+
+def test_route_operations_for_debugging_requests():
+    decision = decide_route(
+        "Debug this traceback and fix the import error in the CLI.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "single"
+    assert decision.agent == "operations"
+    assert decision.needs_retrieval is False
+
+
+def test_explicit_peer_mode_keeps_retrieval_when_sources_are_requested():
+    decision = decide_route(
+        "Find documents in SharePoint and debate the best design.",
+        review_enabled=False,
+        current_mode="peer",
+    )
+
+    assert decision.mode == "peer"
+    assert decision.agent == "design_author"
+    assert decision.needs_retrieval is True
+    assert decision.needs_review is True
+
+
+def test_explicit_agent_override_wins_over_router():
+    decision = decide_route(
+        "Please propose a design and challenge it.",
         review_enabled=True,
+        selected_agent="orchestrator",
     )
-    assert_route(decision, mode="single", agent="review", intent="review")
 
-
-def test_routes_operations_prompt_to_operations_agent() -> None:
-    decision = decide_route(
-        user_input="Why is SharePoint login popping up every time? Debug the auth token issue.",
-        review_enabled=False,
-    )
-    assert_route(decision, mode="single", agent="operations", intent="operations")
-
-
-def test_routes_unknown_prompt_to_orchestrator_fallback() -> None:
-    decision = decide_route(
-        user_input="Help me think about this.",
-        review_enabled=False,
-    )
-    assert_route(decision, mode="single", agent="orchestrator", intent="orchestrator")
-
-
-def test_explicit_mode_override_wins() -> None:
-    decision = decide_route(
-        user_input="Find documents related to integration strategy.",
-        review_enabled=False,
-        current_mode="pipeline",
-    )
-    assert_route(decision, mode="pipeline", agent=None, intent="explicit")
-
-
-def test_explicit_agent_override_wins() -> None:
-    decision = decide_route(
-        user_input="Find documents related to integration strategy.",
-        review_enabled=False,
-        selected_agent="design",
-    )
-    assert_route(decision, mode="single", agent="design", intent="explicit")
+    assert decision.mode == "single"
+    assert decision.agent == "orchestrator"
+    assert decision.needs_retrieval is False

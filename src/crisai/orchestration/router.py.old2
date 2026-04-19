@@ -16,11 +16,11 @@ class RoutingDecision:
 
 DISCOVERY_TERMS = {
     "find", "search", "locate", "identify", "list",
-    "documents", "document", "docs", "sources", "files", "inspect", "onedrive",
+    "documents", "sources", "files", "inspect", "onedrive",
     "sharepoint", "drive", "site", "path", "read",
     "find me", "look up", "look for",
     "trova", "cerca", "individua", "elenca",
-    "documenti", "documento", "sorgenti", "fonti", "file", "leggi",
+    "documenti", "sorgenti", "fonti", "file", "leggi",
 }
 
 DESIGN_TERMS = {
@@ -123,8 +123,8 @@ def _has_source_signal(text: str, discovery_score: int) -> bool:
     if discovery_score >= 2:
         return True
     source_markers = {
-        "onedrive", "sharepoint", "documents", "document", "docs", "documenti",
-        "files", "file", "sources", "fonti", "sorgenti", "site", "drive", "path", "read",
+        "onedrive", "sharepoint", "documents", "documenti", "files", "file",
+        "sources", "fonti", "sorgenti", "site", "drive", "path", "read",
     }
     return any(marker in text for marker in source_markers)
 
