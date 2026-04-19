@@ -29,43 +29,36 @@ class CommandResult:
 
 
 def parse_chat_command(user_input: str) -> CommandResult:
-    raw = user_input.strip()
-    if not raw.startswith("/"):
+    text = user_input.strip()
+    if not text.startswith("/"):
         return CommandResult(handled=False)
 
-    if raw in {"/exit", "/quit"}:
+    if text in {"/exit", "/quit"}:
         return CommandResult(handled=True, action="exit")
 
-    if raw == "/help":
+    if text == "/help":
         return CommandResult(handled=True, action="help")
 
-    if raw == "/clear":
+    if text == "/clear":
         return CommandResult(handled=True, action="clear")
 
-    if raw in {"/list servers", "/list-servers"}:
+    if text in {"/list servers", "/list-servers"}:
         return CommandResult(handled=True, action="list_servers")
 
-    if raw in {"/list agents", "/list-agents"}:
+    if text in {"/list agents", "/list-agents"}:
         return CommandResult(handled=True, action="list_agents")
 
-    if raw == "/history":
+    if text == "/history":
         return CommandResult(handled=True, action="history")
 
-    if raw.startswith("/session"):
-        parts = raw.split(maxsplit=1)
-        if len(parts) == 1 or not parts[1].strip():
+    if text.startswith("/session "):
+        value = text.split(maxsplit=1)[1].strip()
+        if not value:
             return CommandResult(handled=True, action="invalid", message="Please provide a session name.")
-        return CommandResult(handled=True, action="switch_session", value=parts[1].strip())
+        return CommandResult(handled=True, action="switch_session", value=value)
 
-    if raw.startswith("/mode"):
-        parts = raw.split(maxsplit=1)
-        if len(parts) == 1 or not parts[1].strip():
-            return CommandResult(
-                handled=True,
-                action="invalid",
-                message="Invalid mode. Use single, pipeline, or peer.",
-            )
-        value = parts[1].strip().lower()
+    if text.startswith("/mode "):
+        value = text.split(maxsplit=1)[1].strip().lower()
         if value not in {"single", "pipeline", "peer"}:
             return CommandResult(
                 handled=True,
@@ -74,22 +67,15 @@ def parse_chat_command(user_input: str) -> CommandResult:
             )
         return CommandResult(handled=True, action="set_mode", value=value)
 
-    if raw == "/verbose":
+    if text == "/verbose":
         return CommandResult(
             handled=True,
             action="noop",
             message="Verbose command requires a value. Use /verbose on or /verbose off.",
         )
 
-    if raw.startswith("/verbose"):
-        parts = raw.split(maxsplit=1)
-        if len(parts) == 1 or not parts[1].strip():
-            return CommandResult(
-                handled=True,
-                action="invalid",
-                message="Invalid verbose setting. Use /verbose on or /verbose off.",
-            )
-        value = parts[1].strip().lower()
+    if text.startswith("/verbose "):
+        value = text.split(maxsplit=1)[1].strip().lower()
         if value in {"on", "true", "yes"}:
             return CommandResult(handled=True, action="set_verbose", value=True)
         if value in {"off", "false", "no"}:
@@ -100,15 +86,8 @@ def parse_chat_command(user_input: str) -> CommandResult:
             message="Invalid verbose setting. Use /verbose on or /verbose off.",
         )
 
-    if raw.startswith("/review"):
-        parts = raw.split(maxsplit=1)
-        if len(parts) == 1 or not parts[1].strip():
-            return CommandResult(
-                handled=True,
-                action="invalid",
-                message="Invalid review setting. Use /review on or /review off.",
-            )
-        value = parts[1].strip().lower()
+    if text.startswith("/review "):
+        value = text.split(maxsplit=1)[1].strip().lower()
         if value in {"on", "true", "yes"}:
             return CommandResult(handled=True, action="set_review", value=True)
         if value in {"off", "false", "no"}:
@@ -119,10 +98,10 @@ def parse_chat_command(user_input: str) -> CommandResult:
             message="Invalid review setting. Use /review on or /review off.",
         )
 
-    if raw.startswith("/agent"):
-        parts = raw.split(maxsplit=1)
-        if len(parts) == 1 or not parts[1].strip():
+    if text.startswith("/agent "):
+        value = text.split(maxsplit=1)[1].strip()
+        if not value:
             return CommandResult(handled=True, action="invalid", message="Please provide an agent id.")
-        return CommandResult(handled=True, action="set_agent", value=parts[1].strip())
+        return CommandResult(handled=True, action="set_agent", value=value)
 
     return CommandResult(handled=True, action="invalid", message="Unknown command. Type /help for commands.")
