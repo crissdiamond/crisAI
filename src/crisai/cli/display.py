@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import textwrap
+from typing import Literal
 
 from rich.console import Console
 from rich.live import Live
@@ -12,6 +13,8 @@ from rich.text import Text
 from .peer_transcript import PeerMessage
 
 console = Console()
+
+RenderKind = Literal["status", "stage", "final"]
 
 _ICONS = {
     "discovery": "🔎",
@@ -47,6 +50,18 @@ _STYLES = {
     "judge": "white",
     "orchestrator": "bright_black",
     "operations": "blue",
+}
+
+_RENDER_TITLES = {
+    "status": "ℹ Status",
+    "stage": "🧩 Stage output",
+    "final": "🧭 Final answer",
+}
+
+_RENDER_STYLES = {
+    "status": "cyan",
+    "stage": "bright_black",
+    "final": "bright_black",
 }
 
 
@@ -151,10 +166,10 @@ def _challenger_summary(text: str) -> str:
     )
     if weakness_match and weakness_match.group(2).strip():
         fragment = _pick_first_substantive_sentence(weakness_match.group(2).strip())
-        return f"The Challenger highlights that { _normalise_fragment(fragment) }."
+        return f"The Challenger highlights that {_normalise_fragment(fragment)}."
 
     fragment = _pick_first_substantive_sentence(clean)
-    return f"The Challenger highlights that { _normalise_fragment(fragment) }."
+    return f"The Challenger highlights that {_normalise_fragment(fragment)}."
 
 
 def _judge_summary(text: str) -> str:
@@ -182,31 +197,31 @@ def _judge_summary(text: str) -> str:
             return "The Judge concludes that the proposal should be rejected."
 
     fragment = _pick_first_substantive_sentence(clean)
-    return f"The Judge concludes that { _normalise_fragment(fragment) }."
+    return f"The Judge concludes that {_normalise_fragment(fragment)}."
 
 
 def _discovery_summary(text: str) -> str:
     clean = _clean_agent_text(text)
     fragment = _pick_first_substantive_sentence(clean)
-    return f"Discovery finds that { _normalise_fragment(fragment) }."
+    return f"Discovery finds that {_normalise_fragment(fragment)}."
 
 
 def _review_summary(text: str) -> str:
     clean = _clean_agent_text(text)
     fragment = _pick_first_substantive_sentence(clean)
-    return f"The Review notes that { _normalise_fragment(fragment) }."
+    return f"The Review notes that {_normalise_fragment(fragment)}."
 
 
 def _operations_summary(text: str) -> str:
     clean = _clean_agent_text(text)
     fragment = _pick_first_substantive_sentence(clean)
-    return f"Operations suggests that { _normalise_fragment(fragment) }."
+    return f"Operations suggests that {_normalise_fragment(fragment)}."
 
 
 def _orchestrator_summary(text: str) -> str:
     clean = _clean_agent_text(text)
     fragment = _pick_first_substantive_sentence(clean)
-    return f"The Orchestrator recommends { _normalise_fragment(fragment) }."
+    return f"The Orchestrator recommends {_normalise_fragment(fragment)}."
 
 
 def _role_led_summary(agent_id: str, body: str, width: int = 118) -> str:
@@ -227,7 +242,7 @@ def _role_led_summary(agent_id: str, body: str, width: int = 118) -> str:
     else:
         clean = _clean_agent_text(body)
         fragment = _pick_first_substantive_sentence(clean)
-        summary = f"The {_label(agent_id)} says { _normalise_fragment(fragment) }."
+        summary = f"The {_label(agent_id)} says {_normalise_fragment(fragment)}."
 
     wrapped = textwrap.wrap(summary, width=width)
     if len(wrapped) <= 3:
@@ -265,6 +280,19 @@ def create_agent_live(agent_id: str) -> Live:
     )
 
 
+def print_status_message(body: str, *, title: str | None = None) -> None:
+    panel_title = Text(title or _RENDER_TITLES["status"], style=f"bold {_RENDER_STYLES['status']}")
+    console.print(
+        Panel(
+            body.strip() or "_empty_",
+            title=panel_title,
+            border_style=_RENDER_STYLES["status"],
+            padding=(0, 1),
+            expand=True,
+        )
+    )
+
+
 def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
     icon = _icon(agent_id)
     label = _label(agent_id)
@@ -276,6 +304,7 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
         Panel(
             rendered_body,
             title=title,
+            subtitle=Text(_RENDER_TITLES["stage"], style=f"italic {_RENDER_STYLES['stage']}"),
             border_style=style,
             padding=(0, 1),
             expand=True,
@@ -286,9 +315,9 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
 def render_peer_message(message: PeerMessage) -> Panel:
     speaker = message.speaker
     title = Text(f"{_icon(speaker)} {_label(speaker)}", style=f"bold {_style(speaker)}")
-    subtitle = None
+    subtitle = Text(_RENDER_TITLES["stage"], style=f"italic {_RENDER_STYLES['stage']}")
     if getattr(message, "step", ""):
-        subtitle = Text(str(message.step), style=f"italic {_style(speaker)}")
+        subtitle = Text(f"{_RENDER_TITLES['stage']} • {message.step}", style=f"italic {_style(speaker)}")
 
     content = (message.content or "").strip() or "_empty_"
 
@@ -302,17 +331,21 @@ def render_peer_message(message: PeerMessage) -> Panel:
     )
 
 
-def print_final_recommendation(body: str) -> None:
-    title = Text("🧭 Final recommendation", style="bold bright_black")
+def print_final_answer(body: str, *, title: str | None = None) -> None:
+    panel_title = Text(title or _RENDER_TITLES["final"], style=f"bold {_RENDER_STYLES['final']}")
     console.print(
         Panel(
             Markdown(body.strip() or "_empty_"),
-            title=title,
-            border_style="bright_black",
+            title=panel_title,
+            border_style=_RENDER_STYLES["final"],
             padding=(0, 1),
             expand=True,
         )
     )
+
+
+def print_final_recommendation(body: str) -> None:
+    print_final_answer(body, title="🧭 Final recommendation")
 
 
 def print_peer_message(message: PeerMessage) -> None:

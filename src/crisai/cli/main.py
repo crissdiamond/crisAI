@@ -9,12 +9,10 @@ import typer
 from prompt_toolkit import prompt
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
-from rich.console import Console
-from rich.markdown import Markdown
 from rich.table import Table
 
 from crisai.cli.commands import parse_chat_command
-from crisai.cli.display import print_final_recommendation
+from crisai.cli.display import print_final_answer, print_final_recommendation, print_status_message
 from crisai.cli.text_loader import load_cli_text, render_cli_text
 from crisai.config import load_settings
 from crisai.orchestration.router import RoutingDecision, decide_route
@@ -23,7 +21,6 @@ from .pipelines import run_peer_pipeline, run_pipeline, run_single
 
 
 app = typer.Typer(help="crisAI CLI")
-console = Console()
 
 
 def _load_registry():
@@ -149,6 +146,8 @@ def _agent_icon(agent_id: str) -> str:
 
 
 def _print_servers_table() -> None:
+    from rich.console import Console
+    console = Console()
     settings = load_settings()
     registry = Registry(settings.registry_dir)
     servers = registry.load_servers()
@@ -170,6 +169,8 @@ def _print_servers_table() -> None:
 
 
 def _print_agents_table() -> None:
+    from rich.console import Console
+    console = Console()
     _, _, _, agent_specs = _load_registry()
 
     table = Table(title="🧠 Agents", header_style="bold bright_white")
@@ -190,7 +191,7 @@ def _route_display(decision: RoutingDecision) -> str:
     label = "pinned" if decision.intent == "explicit" else "auto"
     review_label = "review:on" if decision.needs_review else "review:off"
     retrieval_label = "retrieval:on" if decision.needs_retrieval else "retrieval:off"
-    return f"[dim][router:{label}][/dim] {decision.mode} • {agent} • {review_label} • {retrieval_label} • {decision.reason}"
+    return f"[router:{label}] {decision.mode} • {agent} • {review_label} • {retrieval_label} • {decision.reason}"
 
 
 def _resolve_route(
@@ -234,18 +235,23 @@ def _print_chat_state(
     agent_pinned: bool,
     history_count: int,
 ) -> None:
-    console.print("[bold green]crisAI interactive chat[/bold green]")
-    console.print(f"Session: [bold]{current_session}[/bold]")
-    console.print(
-        f"Routing: [bold]{_mode_status(current_mode, mode_pinned)}[/bold] | "
-        f"Agent: [bold]{_agent_status(current_agent, agent_pinned)}[/bold]"
-    )
-    console.print(
-        f"Review preference: [bold]{'on' if current_review else 'off'}[/bold] | "
-        f"Verbose: [bold]{'on' if current_verbose else 'off'}[/bold]"
-    )
-    console.print(f"Loaded history entries: [bold]{history_count}[/bold]")
-    console.print("Commands: /mode auto|single|pipeline|peer • /agent auto|<agent_id> • /status • /help\n")
+    lines = [
+        f"Session: {current_session}",
+        f"Routing: {_mode_status(current_mode, mode_pinned)}",
+        f"Agent: {_agent_status(current_agent, agent_pinned)}",
+        f"Review preference: {'on' if current_review else 'off'}",
+        f"Verbose: {'on' if current_verbose else 'off'}",
+        f"Loaded history entries: {history_count}",
+        "Commands: /mode auto|single|pipeline|peer • /agent auto|<agent_id> • /status • /help",
+    ]
+    print_status_message("\n".join(lines), title="💬 Chat state")
+
+
+def _render_final_output(decision: RoutingDecision, body: str) -> None:
+    if decision.mode == "peer":
+        print_final_recommendation(body)
+        return
+    print_final_answer(body)
 
 
 @app.command("list-servers")
@@ -297,13 +303,14 @@ async def _run_with_routing(
 
 def _print_session_history(history: list[tuple[str, str]]) -> None:
     if not history:
-        console.print("[yellow]No history in this session.[/yellow]")
+        print_status_message("No history in this session.", title="📜 Session history")
         return
 
-    console.print(Markdown("### Session history"))
+    lines = []
     for idx, (role, content) in enumerate(history[-20:], start=1):
         label = "User" if role == "user" else "Assistant"
-        console.print(f"[bold]{idx}. {label}[/bold]: {content[:500]}")
+        lines.append(f"{idx}. {label}: {content[:500]}")
+    print_status_message("\n".join(lines), title="📜 Session history")
 
 
 def _handle_chat_command(
@@ -329,11 +336,11 @@ def _handle_chat_command(
         raise EOFError
 
     if action == "help":
-        console.print(Markdown(load_cli_text("help.md")))
+        print_final_answer(load_cli_text("help.md"), title="📘 CLI help")
     elif action == "clear":
         history.clear()
         _save_history(current_session, history)
-        console.print(f"[yellow]Conversation history cleared for session '{current_session}'.[/yellow]")
+        print_status_message(f"Conversation history cleared for session '{current_session}'.", title="🧹 Session cleared")
     elif action == "list_servers":
         _print_servers_table()
     elif action == "list_agents":
@@ -343,8 +350,7 @@ def _handle_chat_command(
     elif action == "switch_session":
         current_session = str(command.value)
         history = _load_history(current_session)
-        console.print(f"[green]Switched to session '{current_session}'.[/green]")
-        console.print(f"[green]Loaded history entries: {len(history)}[/green]")
+        print_status_message(f"Switched to session '{current_session}'.\nLoaded history entries: {len(history)}", title="🔁 Session switched")
         _print_chat_state(
             current_session=current_session,
             current_mode=current_mode,
@@ -360,11 +366,11 @@ def _handle_chat_command(
         if value == "auto":
             current_mode = "single"
             mode_pinned = False
-            console.print("[green]Mode pin cleared. Router is back to auto mode selection.[/green]")
+            print_status_message("Mode pin cleared. Router is back to auto mode selection.", title="🧭 Routing mode")
         else:
             current_mode = value
             mode_pinned = True
-            console.print(f"[green]Mode pinned to {current_mode}[/green]")
+            print_status_message(f"Mode pinned to {current_mode}", title="🧭 Routing mode")
         _print_chat_state(
             current_session=current_session,
             current_mode=current_mode,
@@ -377,7 +383,7 @@ def _handle_chat_command(
         )
     elif action == "set_review":
         current_review = bool(command.value)
-        console.print(f"[green]Review preference {'enabled' if current_review else 'disabled'}.[/green]")
+        print_status_message(f"Review preference {'enabled' if current_review else 'disabled'}.", title="🛡 Review preference")
         _print_chat_state(
             current_session=current_session,
             current_mode=current_mode,
@@ -390,7 +396,7 @@ def _handle_chat_command(
         )
     elif action == "set_verbose":
         current_verbose = bool(command.value)
-        console.print(f"[green]Verbose {'enabled' if current_verbose else 'disabled'}.[/green]")
+        print_status_message(f"Verbose {'enabled' if current_verbose else 'disabled'}.", title="📝 Verbose output")
         _print_chat_state(
             current_session=current_session,
             current_mode=current_mode,
@@ -406,11 +412,11 @@ def _handle_chat_command(
         if value.lower() == "auto":
             current_agent = "orchestrator"
             agent_pinned = False
-            console.print("[green]Agent pin cleared. Router is back to auto agent selection.[/green]")
+            print_status_message("Agent pin cleared. Router is back to auto agent selection.", title="🤖 Agent selection")
         else:
             current_agent = value
             agent_pinned = True
-            console.print(f"[green]Single-agent target pinned to {current_agent}[/green]")
+            print_status_message(f"Single-agent target pinned to {current_agent}", title="🤖 Agent selection")
         _print_chat_state(
             current_session=current_session,
             current_mode=current_mode,
@@ -433,7 +439,7 @@ def _handle_chat_command(
             history_count=len(history),
         )
     elif action in {"invalid", "noop"} and command.message:
-        console.print(f"[yellow]{command.message}[/yellow]")
+        print_status_message(command.message, title="⚠ Command notice")
 
     return True, current_session, history, current_mode, current_agent, current_review, current_verbose, mode_pinned, agent_pinned
 
@@ -447,17 +453,17 @@ def ask(
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    explicit_mode = "peer" if peer else "pipeline" if pipeline else None
-    explicit_agent = agent_id if agent_id != "orchestrator" else None
-    decision = _resolve_route(message, review_enabled=review, mode_override=explicit_mode, agent_override=explicit_agent)
-    console.print(_route_display(decision))
+    decision = _resolve_route(
+        message,
+        review_enabled=review,
+        mode_override="peer" if peer else "pipeline" if pipeline else None,
+        agent_override=agent_id if agent_id != "orchestrator" else None,
+    )
+    print_status_message(_route_display(decision), title="🧭 Routing decision")
 
     async def _run() -> None:
         text = await _run_with_routing(message, verbose, review, decision)
-        if decision.mode == "peer":
-            print_final_recommendation(text)
-        else:
-            console.print(Markdown(text))
+        _render_final_output(decision, text)
 
     asyncio.run(_run())
 
@@ -499,7 +505,7 @@ def chat(
                 auto_suggest=AutoSuggestFromHistory(),
             ).strip()
         except (EOFError, KeyboardInterrupt):
-            console.print("\nExiting.")
+            print_status_message("Exiting.", title="👋 Session closed")
             break
 
         if not user_input:
@@ -524,18 +530,14 @@ def chat(
             continue
 
         chat_input = _build_chat_input(user_input, history)
-
-        explicit_mode_override = current_mode if mode_pinned else None
-        explicit_agent_override = current_agent if agent_pinned else None
-
         decision = _resolve_route(
             user_input,
             review_enabled=current_review,
-            mode_override=explicit_mode_override,
-            agent_override=explicit_agent_override,
+            mode_override=current_mode if mode_pinned else None,
+            agent_override=current_agent if agent_pinned else None,
         )
 
-        console.print(_route_display(decision))
+        print_status_message(_route_display(decision), title="🧭 Routing decision")
 
         async def _run() -> str:
             return await _run_with_routing(chat_input, current_verbose, current_review, decision)
@@ -543,15 +545,10 @@ def chat(
         try:
             text = asyncio.run(_run())
         except Exception as e:
-            console.print(f"[red]Error:[/red] {e}")
+            print_status_message(str(e), title="❌ Error")
             continue
 
-        console.print()
-        if decision.mode == "peer":
-            print_final_recommendation(text)
-        else:
-            console.print(Markdown(text))
-        console.print()
+        _render_final_output(decision, text)
 
         history.append(("user", user_input))
         history.append(("assistant", text))
