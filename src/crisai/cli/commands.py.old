@@ -8,12 +8,9 @@ CommandAction = Literal[
     "help",
     "clear",
     "history",
-    "list_servers",
-    "list_agents",
     "switch_session",
     "set_mode",
     "set_review",
-    "set_verbose",
     "set_agent",
     "invalid",
     "noop",
@@ -42,12 +39,12 @@ def parse_chat_command(user_input: str) -> CommandResult:
     if text == "/clear":
         return CommandResult(handled=True, action="clear")
 
-    if text in {"/list servers", "/list-servers"}:
-        return CommandResult(handled=True, action="list_servers")
-
-    if text in {"/list agents", "/list-agents"}:
-        return CommandResult(handled=True, action="list_agents")
-
+    if text == "/list-servers":
+        return CommandResult(handled=True, action="list-servers")
+    
+    if text == "/list-agents":
+        return CommandResult(handled=True, action="list-agents")
+    
     if text == "/history":
         return CommandResult(handled=True, action="history")
 
@@ -66,25 +63,6 @@ def parse_chat_command(user_input: str) -> CommandResult:
                 message="Invalid mode. Use single, pipeline, or peer.",
             )
         return CommandResult(handled=True, action="set_mode", value=value)
-
-    if text == "/verbose":
-        return CommandResult(
-            handled=True,
-            action="noop",
-            message="Verbose command requires a value. Use /verbose on or /verbose off.",
-        )
-
-    if text.startswith("/verbose "):
-        value = text.split(maxsplit=1)[1].strip().lower()
-        if value in {"on", "true", "yes"}:
-            return CommandResult(handled=True, action="set_verbose", value=True)
-        if value in {"off", "false", "no"}:
-            return CommandResult(handled=True, action="set_verbose", value=False)
-        return CommandResult(
-            handled=True,
-            action="invalid",
-            message="Invalid verbose setting. Use /verbose on or /verbose off.",
-        )
 
     if text.startswith("/review "):
         value = text.split(maxsplit=1)[1].strip().lower()

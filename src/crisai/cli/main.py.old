@@ -13,7 +13,6 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 
-from crisai.cli.commands import parse_chat_command
 from crisai.cli.display import print_final_recommendation
 from crisai.cli.text_loader import load_cli_text, render_cli_text
 from crisai.config import load_settings
@@ -65,7 +64,6 @@ def _build_chat_input(user_input: str, history: list[tuple[str, str]]) -> str:
         transcript=transcript,
         user_input=user_input,
     )
-
 
 def _session_dir() -> Path:
     settings = load_settings()
@@ -251,76 +249,6 @@ async def _run_with_routing(
     )
 
 
-def _print_session_history(history: list[tuple[str, str]]) -> None:
-    if not history:
-        console.print("[yellow]No history in this session.[/yellow]")
-        return
-
-    console.print(Markdown("### Session history"))
-    for idx, (role, content) in enumerate(history[-20:], start=1):
-        label = "User" if role == "user" else "Assistant"
-        console.print(f"[bold]{idx}. {label}[/bold]: {content[:500]}")
-
-
-def _handle_chat_command(
-    user_input: str,
-    *,
-    history: list[tuple[str, str]],
-    current_session: str,
-    current_mode: str,
-    current_agent: str,
-    current_review: bool,
-    current_verbose: bool,
-    mode_pinned: bool,
-    agent_pinned: bool,
-) -> tuple[bool, str, list[tuple[str, str]], str, str, bool, bool, bool, bool]:
-    command = parse_chat_command(user_input)
-
-    if not command.handled:
-        return False, current_session, history, current_mode, current_agent, current_review, current_verbose, mode_pinned, agent_pinned
-
-    action = command.action
-
-    if action == "exit":
-        raise EOFError
-
-    if action == "help":
-        console.print(Markdown(load_cli_text("help.md")))
-    elif action == "clear":
-        history.clear()
-        _save_history(current_session, history)
-        console.print(f"[yellow]Conversation history cleared for session '{current_session}'.[/yellow]")
-    elif action == "list_servers":
-        _print_servers_table()
-    elif action == "list_agents":
-        _print_agents_table()
-    elif action == "history":
-        _print_session_history(history)
-    elif action == "switch_session":
-        current_session = str(command.value)
-        history = _load_history(current_session)
-        console.print(f"[green]Switched to session '{current_session}'.[/green]")
-        console.print(f"[green]Loaded history entries: {len(history)}[/green]")
-    elif action == "set_mode":
-        current_mode = str(command.value)
-        mode_pinned = True
-        console.print(f"[green]Mode set to {current_mode}[/green]")
-    elif action == "set_review":
-        current_review = bool(command.value)
-        console.print(f"[green]Review {'enabled' if current_review else 'disabled'}.[/green]")
-    elif action == "set_verbose":
-        current_verbose = bool(command.value)
-        console.print(f"[green]Verbose {'enabled' if current_verbose else 'disabled'}.[/green]")
-    elif action == "set_agent":
-        current_agent = str(command.value)
-        agent_pinned = True
-        console.print(f"[green]Single-agent target set to {current_agent}[/green]")
-    elif action in {"invalid", "noop"} and command.message:
-        console.print(f"[yellow]{command.message}[/yellow]")
-
-    return True, current_session, history, current_mode, current_agent, current_review, current_verbose, mode_pinned, agent_pinned
-
-
 @app.command()
 def ask(
     message: str = typer.Option(..., "--message", "-m"),
@@ -334,6 +262,10 @@ def ask(
     explicit_agent = agent_id if agent_id != "orchestrator" else None
     decision = _resolve_route(message, review_enabled=review, mode_override=explicit_mode, agent_override=explicit_agent)
     console.print(_route_display(decision))
+
+    #async def _run() -> None:
+    #    text = await _run_with_routing(message, verbose, review, decision)
+    #    console.print(Markdown(text))
 
     async def _run() -> None:
         text = await _run_with_routing(message, verbose, review, decision)
@@ -384,22 +316,91 @@ def chat(
         if not user_input:
             continue
 
-        try:
-            handled, current_session, history, current_mode, current_agent, current_review, current_verbose, mode_pinned, agent_pinned = _handle_chat_command(
-                user_input,
-                history=history,
-                current_session=current_session,
-                current_mode=current_mode,
-                current_agent=current_agent,
-                current_review=current_review,
-                current_verbose=current_verbose,
-                mode_pinned=mode_pinned,
-                agent_pinned=agent_pinned,
-            )
-        except EOFError:
+        if user_input in {"/exit", "/quit"}:
             break
 
-        if handled:
+        if user_input == "/help":
+            console.print(Markdown(load_cli_text("help.md")))
+            continue
+
+        if user_input == "/clear":
+            history.clear()
+            _save_history(current_session, history)
+            console.print(f"[yellow]Conversation history cleared for session '{current_session}'.[/yellow]")
+            continue
+
+        if user_input in {"/list servers", "/list-servers"}:
+            _print_servers_table()
+            continue
+
+        if user_input in {"/list agents", "/list-agents"}:
+            _print_agents_table()
+            continue
+
+        if user_input == "/history":
+            if not history:
+                console.print("[yellow]No history in this session.[/yellow]")
+            else:
+                console.print(Markdown("### Session history"))
+                for idx, (role, content) in enumerate(history[-20:], start=1):
+                    label = "User" if role == "user" else "Assistant"
+                    console.print(f"[bold]{idx}. {label}[/bold]: {content[:500]}")
+            continue
+
+        if user_input.startswith("/session "):
+            new_session = user_input.split(maxsplit=1)[1].strip()
+            if not new_session:
+                console.print("[red]Please provide a session name.[/red]")
+                continue
+
+            current_session = new_session
+            history = _load_history(current_session)
+            console.print(f"[green]Switched to session '{current_session}'.[/green]")
+            console.print(f"[green]Loaded history entries: {len(history)}[/green]")
+            continue
+
+        if user_input.startswith("/mode "):
+            mode = user_input.split(maxsplit=1)[1].strip().lower()
+            if mode in {"single", "pipeline", "peer"}:
+                current_mode = mode
+                mode_pinned = True
+                console.print(f"[green]Mode set to {current_mode}[/green]")
+            else:
+                console.print("[red]Invalid mode. Use single, pipeline, or peer.[/red]")
+            continue
+
+        if user_input.startswith("/review "):
+            value = user_input.split(maxsplit=1)[1].strip().lower()
+            if value in {"on", "true", "yes"}:
+                current_review = True
+                console.print("[green]Review enabled.[/green]")
+            elif value in {"off", "false", "no"}:
+                current_review = False
+                console.print("[green]Review disabled.[/green]")
+            else:
+                console.print("[red]Invalid review setting. Use /review on or /review off.[/red]")
+            continue
+
+        if user_input == "/verbose":
+            console.print(f"[green]Verbose is currently {'on' if current_verbose else 'off'}.[/green]")
+            continue
+
+        if user_input.startswith("/verbose "):
+            value = user_input.split(maxsplit=1)[1].strip().lower()
+            if value in {"on", "true", "yes"}:
+                current_verbose = True
+                console.print("[green]Verbose enabled.[/green]")
+            elif value in {"off", "false", "no"}:
+                current_verbose = False
+                console.print("[green]Verbose disabled.[/green]")
+            else:
+                console.print("[red]Invalid verbose setting. Use /verbose on or /verbose off.[/red]")
+            continue
+
+        if user_input.startswith("/agent "):
+            current_agent = user_input.split(maxsplit=1)[1].strip()
+            agent_pinned = True
+            console.print(f"[green]Single-agent target set to {current_agent}[/green]")
             continue
 
         chat_input = _build_chat_input(user_input, history)
@@ -419,6 +420,7 @@ def chat(
         async def _run() -> str:
             return await _run_with_routing(chat_input, current_verbose, current_review, decision)
 
+
         try:
             text = asyncio.run(_run())
         except Exception as e:
@@ -431,6 +433,16 @@ def chat(
         else:
             console.print(Markdown(text))
         console.print()
+
+#        try:
+#            text = asyncio.run(_run())
+#        except Exception as e:
+#            console.print(f"[red]Error:[/red] {e}")
+#            continue
+#
+#        console.print()
+#        console.print(Markdown(text))
+#        console.print()
 
         history.append(("user", user_input))
         history.append(("assistant", text))
