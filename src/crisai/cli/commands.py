@@ -51,6 +51,9 @@ def parse_chat_command(user_input: str) -> CommandResult:
     if raw == "/history":
         return CommandResult(handled=True, action="history")
 
+    if raw == "/status":
+        return CommandResult(handled=True, action="noop", message="status")
+
     if raw.startswith("/session"):
         parts = raw.split(maxsplit=1)
         if len(parts) == 1 or not parts[1].strip():
@@ -63,14 +66,14 @@ def parse_chat_command(user_input: str) -> CommandResult:
             return CommandResult(
                 handled=True,
                 action="invalid",
-                message="Invalid mode. Use single, pipeline, or peer.",
+                message="Invalid mode. Use /mode auto, /mode single, /mode pipeline, or /mode peer.",
             )
         value = parts[1].strip().lower()
-        if value not in {"single", "pipeline", "peer"}:
+        if value not in {"auto", "single", "pipeline", "peer"}:
             return CommandResult(
                 handled=True,
                 action="invalid",
-                message="Invalid mode. Use single, pipeline, or peer.",
+                message="Invalid mode. Use /mode auto, /mode single, /mode pipeline, or /mode peer.",
             )
         return CommandResult(handled=True, action="set_mode", value=value)
 
@@ -122,7 +125,8 @@ def parse_chat_command(user_input: str) -> CommandResult:
     if raw.startswith("/agent"):
         parts = raw.split(maxsplit=1)
         if len(parts) == 1 or not parts[1].strip():
-            return CommandResult(handled=True, action="invalid", message="Please provide an agent id.")
-        return CommandResult(handled=True, action="set_agent", value=parts[1].strip())
+            return CommandResult(handled=True, action="invalid", message="Please provide an agent id, or use /agent auto.")
+        value = parts[1].strip()
+        return CommandResult(handled=True, action="set_agent", value=value)
 
     return CommandResult(handled=True, action="invalid", message="Unknown command. Type /help for commands.")

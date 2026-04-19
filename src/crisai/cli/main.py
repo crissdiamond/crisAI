@@ -188,7 +188,9 @@ def _print_agents_table() -> None:
 def _route_display(decision: RoutingDecision) -> str:
     agent = decision.agent or "-"
     label = "pinned" if decision.intent == "explicit" else "auto"
-    return f"[dim][router:{label}][/dim] {decision.mode} • {agent} • {decision.reason}"
+    review_label = "review:on" if decision.needs_review else "review:off"
+    retrieval_label = "retrieval:on" if decision.needs_retrieval else "retrieval:off"
+    return f"[dim][router:{label}][/dim] {decision.mode} • {agent} • {review_label} • {retrieval_label} • {decision.reason}"
 
 
 def _resolve_route(
@@ -207,6 +209,43 @@ def _resolve_route(
 
 def _effective_pipeline_review(decision: RoutingDecision) -> bool:
     return decision.mode == "pipeline" and decision.needs_review
+
+
+def _mode_status(current_mode: str, mode_pinned: bool) -> str:
+    if not mode_pinned:
+        return "auto"
+    return f"pinned:{current_mode}"
+
+
+def _agent_status(current_agent: str, agent_pinned: bool) -> str:
+    if not agent_pinned:
+        return "auto"
+    return f"pinned:{current_agent}"
+
+
+def _print_chat_state(
+    *,
+    current_session: str,
+    current_mode: str,
+    current_agent: str,
+    current_review: bool,
+    current_verbose: bool,
+    mode_pinned: bool,
+    agent_pinned: bool,
+    history_count: int,
+) -> None:
+    console.print("[bold green]crisAI interactive chat[/bold green]")
+    console.print(f"Session: [bold]{current_session}[/bold]")
+    console.print(
+        f"Routing: [bold]{_mode_status(current_mode, mode_pinned)}[/bold] | "
+        f"Agent: [bold]{_agent_status(current_agent, agent_pinned)}[/bold]"
+    )
+    console.print(
+        f"Review preference: [bold]{'on' if current_review else 'off'}[/bold] | "
+        f"Verbose: [bold]{'on' if current_verbose else 'off'}[/bold]"
+    )
+    console.print(f"Loaded history entries: [bold]{history_count}[/bold]")
+    console.print("Commands: /mode auto|single|pipeline|peer • /agent auto|<agent_id> • /status • /help\n")
 
 
 @app.command("list-servers")
@@ -306,20 +345,93 @@ def _handle_chat_command(
         history = _load_history(current_session)
         console.print(f"[green]Switched to session '{current_session}'.[/green]")
         console.print(f"[green]Loaded history entries: {len(history)}[/green]")
+        _print_chat_state(
+            current_session=current_session,
+            current_mode=current_mode,
+            current_agent=current_agent,
+            current_review=current_review,
+            current_verbose=current_verbose,
+            mode_pinned=mode_pinned,
+            agent_pinned=agent_pinned,
+            history_count=len(history),
+        )
     elif action == "set_mode":
-        current_mode = str(command.value)
-        mode_pinned = True
-        console.print(f"[green]Mode set to {current_mode}[/green]")
+        value = str(command.value)
+        if value == "auto":
+            current_mode = "single"
+            mode_pinned = False
+            console.print("[green]Mode pin cleared. Router is back to auto mode selection.[/green]")
+        else:
+            current_mode = value
+            mode_pinned = True
+            console.print(f"[green]Mode pinned to {current_mode}[/green]")
+        _print_chat_state(
+            current_session=current_session,
+            current_mode=current_mode,
+            current_agent=current_agent,
+            current_review=current_review,
+            current_verbose=current_verbose,
+            mode_pinned=mode_pinned,
+            agent_pinned=agent_pinned,
+            history_count=len(history),
+        )
     elif action == "set_review":
         current_review = bool(command.value)
-        console.print(f"[green]Review {'enabled' if current_review else 'disabled'}.[/green]")
+        console.print(f"[green]Review preference {'enabled' if current_review else 'disabled'}.[/green]")
+        _print_chat_state(
+            current_session=current_session,
+            current_mode=current_mode,
+            current_agent=current_agent,
+            current_review=current_review,
+            current_verbose=current_verbose,
+            mode_pinned=mode_pinned,
+            agent_pinned=agent_pinned,
+            history_count=len(history),
+        )
     elif action == "set_verbose":
         current_verbose = bool(command.value)
         console.print(f"[green]Verbose {'enabled' if current_verbose else 'disabled'}.[/green]")
+        _print_chat_state(
+            current_session=current_session,
+            current_mode=current_mode,
+            current_agent=current_agent,
+            current_review=current_review,
+            current_verbose=current_verbose,
+            mode_pinned=mode_pinned,
+            agent_pinned=agent_pinned,
+            history_count=len(history),
+        )
     elif action == "set_agent":
-        current_agent = str(command.value)
-        agent_pinned = True
-        console.print(f"[green]Single-agent target set to {current_agent}[/green]")
+        value = str(command.value)
+        if value.lower() == "auto":
+            current_agent = "orchestrator"
+            agent_pinned = False
+            console.print("[green]Agent pin cleared. Router is back to auto agent selection.[/green]")
+        else:
+            current_agent = value
+            agent_pinned = True
+            console.print(f"[green]Single-agent target pinned to {current_agent}[/green]")
+        _print_chat_state(
+            current_session=current_session,
+            current_mode=current_mode,
+            current_agent=current_agent,
+            current_review=current_review,
+            current_verbose=current_verbose,
+            mode_pinned=mode_pinned,
+            agent_pinned=agent_pinned,
+            history_count=len(history),
+        )
+    elif action == "noop" and command.message == "status":
+        _print_chat_state(
+            current_session=current_session,
+            current_mode=current_mode,
+            current_agent=current_agent,
+            current_review=current_review,
+            current_verbose=current_verbose,
+            mode_pinned=mode_pinned,
+            agent_pinned=agent_pinned,
+            history_count=len(history),
+        )
     elif action in {"invalid", "noop"} and command.message:
         console.print(f"[yellow]{command.message}[/yellow]")
 
@@ -368,12 +480,16 @@ def chat(
     mode_pinned = True if (peer or pipeline) else False
     agent_pinned = True if (agent_id != "orchestrator") else False
 
-    console.print("[bold green]crisAI interactive chat[/bold green]")
-    console.print(f"Session: [bold]{current_session}[/bold]")
-    console.print(f"Mode: [bold]{current_mode}[/bold] | Agent: [bold]{current_agent}[/bold]")
-    console.print(f"Review: [bold]{'on' if current_review else 'off'}[/bold] | Verbose: [bold]{'on' if current_verbose else 'off'}[/bold]")
-    console.print(f"Loaded history entries: [bold]{len(history)}[/bold]")
-    console.print("Type /help for commands.\n")
+    _print_chat_state(
+        current_session=current_session,
+        current_mode=current_mode,
+        current_agent=current_agent,
+        current_review=current_review,
+        current_verbose=current_verbose,
+        mode_pinned=mode_pinned,
+        agent_pinned=agent_pinned,
+        history_count=len(history),
+    )
 
     while True:
         try:
