@@ -37,11 +37,6 @@ class FakeRuntimeManager:
         return f"server:{spec.id}"
 
 
-class FakeResult:
-    def __init__(self, text: str) -> None:
-        self.final_output = text
-
-
 @pytest.fixture
 def fake_specs():
     server_specs = {"workspace": types.SimpleNamespace(id="workspace")}
@@ -69,8 +64,7 @@ def patch_peer_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "AgentFactory", FakeFactory)
     monkeypatch.setattr(pipelines, "MultiServerContext", DummyAsyncContext)
     monkeypatch.setattr(pipelines, "append_trace", lambda *args, **kwargs: None)
-    monkeypatch.setattr(pipelines, "print_stage", lambda *args, **kwargs: None)
-    monkeypatch.setattr(pipelines, "print_markdown", lambda *args, **kwargs: None)
+    monkeypatch.setattr(pipelines, "print_agent_output", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "build_discovery_prompt", lambda message: f"DISCOVERY::{message}")
     monkeypatch.setattr(pipelines, "build_author_prompt", lambda message, discovery: f"AUTHOR::{message}")
     monkeypatch.setattr(pipelines, "build_challenger_prompt", lambda message, discovery, author: f"CHALLENGER::{message}")
@@ -84,11 +78,13 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
-    async def fake_run(agent, message):
+    async def fake_run_with_transient_box(agent_id, agent, prompt):
         calls.append(agent.id)
-        return FakeResult(f"{agent.id.upper()} OUTPUT")
+        if agent.id == "orchestrator":
+            return "Final recommendation\nORCHESTRATOR OUTPUT"
+        return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines.Runner, "run", fake_run)
+    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
 
     result = await pipelines.run_peer_pipeline(
         "debate this design",
@@ -108,7 +104,7 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
         "judge",
         "orchestrator",
     ]
-    assert result == "ORCHESTRATOR OUTPUT"
+    assert result == "Final recommendation\nORCHESTRATOR OUTPUT"
 
 
 @pytest.mark.anyio
@@ -116,11 +112,13 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
-    async def fake_run(agent, message):
+    async def fake_run_with_transient_box(agent_id, agent, prompt):
         calls.append(agent.id)
-        return FakeResult(f"{agent.id.upper()} OUTPUT")
+        if agent.id == "orchestrator":
+            return "Final recommendation\nORCHESTRATOR OUTPUT"
+        return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines.Runner, "run", fake_run)
+    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
 
     result = await pipelines.run_peer_pipeline(
         "debate this design",
@@ -140,7 +138,7 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
         "judge",
         "orchestrator",
     ]
-    assert result == "ORCHESTRATOR OUTPUT"
+    assert result == "Final recommendation\nORCHESTRATOR OUTPUT"
 
 
 @pytest.mark.anyio
@@ -148,11 +146,13 @@ async def test_peer_mode_skips_discovery_when_retrieval_not_needed(monkeypatch, 
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
-    async def fake_run(agent, message):
+    async def fake_run_with_transient_box(agent_id, agent, prompt):
         calls.append(agent.id)
-        return FakeResult(f"{agent.id.upper()} OUTPUT")
+        if agent.id == "orchestrator":
+            return "Final recommendation\nORCHESTRATOR OUTPUT"
+        return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines.Runner, "run", fake_run)
+    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
 
     result = await pipelines.run_peer_pipeline(
         "propose a simple CLI design",
@@ -171,7 +171,7 @@ async def test_peer_mode_skips_discovery_when_retrieval_not_needed(monkeypatch, 
         "judge",
         "orchestrator",
     ]
-    assert result == "ORCHESTRATOR OUTPUT"
+    assert result == "Final recommendation\nORCHESTRATOR OUTPUT"
 
 
 def test_build_peer_run_result_contains_expected_speakers() -> None:
