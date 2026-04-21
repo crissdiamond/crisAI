@@ -49,10 +49,9 @@ def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: 
             _section("Draft design response", design_text),
             _section("Review feedback", review_text),
             "Task:\nProduce the final answer to the user.",
-            "Final-stage guidance:\n"
+            "Handoff guidance:\n"
             "- Use the design output as the main body.\n"
-            "- Incorporate review feedback only where it improves the answer.\n"
-            "- Do not mention internal pipeline stages unless the user explicitly asked to see them.",
+            "- Incorporate review feedback only where it improves the answer.",
         ]
     )
 
@@ -86,7 +85,7 @@ def build_challenger_prompt(message: str, discovery_text: str, author_text: str)
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
-            _section("Author draft", author_text),
+            _section("Draft", author_text),
             "Task:\nCritique the draft rigorously.",
             "Stage boundary:\n"
             "- You are only the challenger stage in a peer workflow.\n"
@@ -153,7 +152,7 @@ def build_peer_final_prompt(
             _section("Refined draft", refiner_text),
             _section("Judge decision", judge_text),
             "Task:\nProduce the final answer to the user.",
-            "Final-stage guidance:\n"
+            "Handoff guidance:\n"
             "- Use the refined draft as the main body.\n"
             "- Incorporate only improvements justified by the critique and judge decision.\n"
             "- Show the peer conversation only if the user explicitly asked to see it.\n"
