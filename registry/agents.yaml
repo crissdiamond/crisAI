@@ -3,7 +3,7 @@ version: 1
 agents:
   - id: orchestrator
     name: Orchestrator
-    model: gpt-5.4-mini
+    model_ref: openai_fast
     prompt_file: prompts/orchestrator.md
     allowed_servers:
       - workspace
@@ -12,7 +12,7 @@ agents:
 
   - id: discovery
     name: Discovery Agent
-    model: gpt-5.4-mini
+    model_ref: openai_fast
     prompt_file: prompts/discovery_agent.md
     allowed_servers:
       - workspace
@@ -21,7 +21,7 @@ agents:
 
   - id: design
     name: Design Agent
-    model: gpt-5.4-mini
+    model_ref: openai_fast
     prompt_file: prompts/design_agent.md
     allowed_servers:
       - workspace
@@ -29,7 +29,7 @@ agents:
 
   - id: review
     name: Review Agent
-    model: gpt-5.4
+    model_ref: openai_strong
     prompt_file: prompts/review_agent.md
     allowed_servers:
       - workspace
@@ -37,14 +37,14 @@ agents:
 
   - id: operations
     name: Operations Agent
-    model: gpt-5.4-nano
+    model_ref: openai_nano
     prompt_file: prompts/operations_agent.md
     allowed_servers:
       - workspace
 
   - id: publisher
     name: Publisher
-    model: gpt-5.4-mini
+    model_ref: openai_fast
     prompt_file: prompts/publisher.md
     allowed_servers:
       - workspace
@@ -53,7 +53,7 @@ agents:
 
   - id: design_author
     name: Design Author
-    model: gpt-5.4-mini
+    model_ref: openai_fast
     prompt_file: prompts/design_author.md
     allowed_servers:
       - workspace
@@ -61,14 +61,14 @@ agents:
 
   - id: design_challenger
     name: Design Challenger
-    model: gpt-5.4-mini
+    model_ref: openai_fast
     prompt_file: prompts/design_challenger.md
     allowed_servers:
       - workspace
 
   - id: design_refiner
     name: Design Refiner
-    model: gpt-5.4-mini
+    model_ref: openai_fast
     prompt_file: prompts/design_refiner.md
     allowed_servers:
       - workspace
@@ -76,7 +76,7 @@ agents:
 
   - id: judge
     name: Judge
-    model: gpt-5.4
+    model_ref: openai_strong
     prompt_file: prompts/judge.md
     allowed_servers:
       - workspace

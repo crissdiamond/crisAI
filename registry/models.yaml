@@ -1,0 +1,37 @@
+version: 1
+
+models:
+  - id: openai_fast
+    provider: openai
+    model_name: gpt-5.4-mini
+    api_key_env: OPENAI_API_KEY
+
+  - id: openai_strong
+    provider: openai
+    model_name: gpt-5.4
+    api_key_env: OPENAI_API_KEY
+
+  - id: openai_nano
+    provider: openai
+    model_name: gpt-5.4-nano
+    api_key_env: OPENAI_API_KEY
+
+  - id: gemini_fast
+    provider: gemini
+    model_name: gemini/gemini-2.5-flash
+    api_key_env: GEMINI_API_KEY
+
+  - id: gemini_strong
+    provider: gemini
+    model_name: gemini/gemini-2.5-pro
+    api_key_env: GEMINI_API_KEY
+
+  - id: anthropic_fast
+    provider: anthropic
+    model_name: anthropic/claude-3-5-haiku-latest
+    api_key_env: ANTHROPIC_API_KEY
+
+  - id: anthropic_reasoning
+    provider: anthropic
+    model_name: anthropic/claude-sonnet-4-5
+    api_key_env: ANTHROPIC_API_KEY

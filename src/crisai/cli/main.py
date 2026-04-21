@@ -21,12 +21,18 @@ app = typer.Typer(help="crisAI CLI")
 
 
 def _load_registry():
-    """Loads runtime settings and enabled registry entries."""
+    """Loads runtime settings and enabled registry entries.
+
+    Returns:
+        Tuple containing settings, registry, enabled server specs, agent specs,
+        and model specs loaded from the active registry directory.
+    """
     settings = load_settings()
     registry = Registry(settings.registry_dir)
     server_specs = {s.id: s for s in registry.load_servers() if s.enabled}
     agent_specs = {a.id: a for a in registry.load_agents()}
-    return settings, registry, server_specs, agent_specs
+    model_specs = registry.load_models()
+    return settings, registry, server_specs, agent_specs, model_specs
 
 
 def _resolve_route(
@@ -76,7 +82,7 @@ async def _run_with_routing(
     decision: RoutingDecision,
 ) -> str:
     """Executes the selected runtime path for a routed request."""
-    settings, _, server_specs, agent_specs = _load_registry()
+    settings, _, server_specs, agent_specs, model_specs = _load_registry()
     effective_review = _effective_pipeline_review(decision)
 
     if decision.mode == "peer":
@@ -87,6 +93,7 @@ async def _run_with_routing(
             settings=settings,
             server_specs=server_specs,
             agent_specs=agent_specs,
+            model_specs=model_specs,
             needs_retrieval=decision.needs_retrieval,
         )
     if decision.mode == "pipeline":
@@ -97,6 +104,7 @@ async def _run_with_routing(
             settings=settings,
             server_specs=server_specs,
             agent_specs=agent_specs,
+            model_specs=model_specs,
         )
     return await run_single(
         message,
@@ -104,6 +112,7 @@ async def _run_with_routing(
         settings=settings,
         server_specs=server_specs,
         agent_specs=agent_specs,
+        model_specs=model_specs,
     )
 
 

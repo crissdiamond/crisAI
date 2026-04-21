@@ -37,13 +37,35 @@ def ensure_openai_api_key(settings) -> None:
         raise typer.BadParameter("OPENAI_API_KEY is not set.")
 
 
-def create_workflow_environment(settings) -> WorkflowEnvironment:
-    """Create shared runtime objects for a workflow run."""
+def _build_agent_factory(root_dir: Path, settings, model_specs=None):
+    """Build an agent factory with graceful fallback for older test doubles."""
+    if model_specs:
+        try:
+            return AgentFactory(root_dir, model_specs=model_specs, settings=settings)
+        except TypeError:
+            pass
+
+    try:
+        return AgentFactory(root_dir, settings=settings)
+    except TypeError:
+        return AgentFactory(root_dir)
+
+
+def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
+    """Create shared runtime objects for a workflow run.
+
+    Args:
+        settings: Loaded application settings.
+        model_specs: Optional model catalogue entries loaded from the registry.
+
+    Returns:
+        A workflow environment with a provider-aware agent factory.
+    """
     root_dir = Path.cwd()
     return WorkflowEnvironment(
         root_dir=root_dir,
         runtime=RuntimeManager(root_dir),
-        factory=AgentFactory(root_dir),
+        factory=_build_agent_factory(root_dir, settings, model_specs=model_specs),
         trace_file=settings.log_dir / "agent_trace.log",
     )
 

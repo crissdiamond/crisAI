@@ -12,6 +12,8 @@ load_dotenv()
 @dataclass(slots=True)
 class Settings:
     openai_api_key: str
+    gemini_api_key: str
+    anthropic_api_key: str
     default_model: str
     workspace_dir: Path
     log_dir: Path
@@ -30,6 +32,8 @@ def load_settings() -> Settings:
 
     return Settings(
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+        gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
         default_model=os.getenv("CRISAI_DEFAULT_MODEL", "gpt-5.4-mini"),
         workspace_dir=workspace_dir,
         log_dir=log_dir,

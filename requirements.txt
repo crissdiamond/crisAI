@@ -13,3 +13,4 @@ python-dotenv
 msal
 requests
 prompt_toolkit
+openai-agents[litellm]

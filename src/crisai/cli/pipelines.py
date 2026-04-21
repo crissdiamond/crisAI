@@ -101,17 +101,38 @@ async def _run_agent_with_transient_box(agent_id: str, agent, prompt: str) -> st
     return result
 
 
-def create_workflow_environment(settings) -> WorkflowEnvironment:
+def _build_agent_factory(root_dir: Path, settings, model_specs=None):
+    """Build an agent factory with graceful fallback for older test doubles."""
+    if model_specs:
+        try:
+            return AgentFactory(root_dir, model_specs=model_specs, settings=settings)
+        except TypeError:
+            pass
+
+    try:
+        return AgentFactory(root_dir, settings=settings)
+    except TypeError:
+        return AgentFactory(root_dir)
+
+
+def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
     """Create workflow runtime objects using local module dependencies.
 
     This wrapper intentionally lives in pipelines.py so existing tests that
     monkeypatch RuntimeManager or AgentFactory on this module continue to work.
+
+    Args:
+        settings: Loaded application settings.
+        model_specs: Optional model catalogue entries loaded from the registry.
+
+    Returns:
+        Workflow environment with provider-aware agent factory support.
     """
     root_dir = Path.cwd()
     return WorkflowEnvironment(
         root_dir=root_dir,
         runtime=RuntimeManager(root_dir),
-        factory=AgentFactory(root_dir),
+        factory=_build_agent_factory(root_dir, settings, model_specs=model_specs),
         trace_file=settings.log_dir / "agent_trace.log",
     )
 
@@ -186,13 +207,24 @@ def build_agent_servers(runtime, agent_spec, server_specs):
     return servers
 
 
-async def run_single(message: str, agent_id: str, *, settings, server_specs, agent_specs) -> str:
+def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
+    """Create a workflow environment while preserving older monkeypatch seams."""
+    if model_specs is not None:
+        try:
+            return create_workflow_environment(settings, model_specs=model_specs)
+        except TypeError:
+            pass
+    return create_workflow_environment(settings)
+
+
+async def run_single(message: str, agent_id: str, *, settings, server_specs, agent_specs, model_specs=None) -> str:
+    """Run a single agent directly."""
     ensure_openai_api_key(settings)
 
     if agent_id not in agent_specs:
         raise typer.BadParameter(f"Unknown agent_id: {agent_id}")
 
-    environment = create_workflow_environment(settings)
+    environment = _create_environment(settings, model_specs=model_specs)
     agent_spec = agent_specs[agent_id]
 
     async with workflow_server_context(environment, [agent_spec], server_specs) as active_servers:
@@ -200,9 +232,19 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
         return await _run_agent_silently(agent, message)
 
 
-async def run_pipeline(message: str, verbose: bool, review: bool, *, settings, server_specs, agent_specs) -> str:
+async def run_pipeline(
+    message: str,
+    verbose: bool,
+    review: bool,
+    *,
+    settings,
+    server_specs,
+    agent_specs,
+    model_specs=None,
+) -> str:
+    """Run the standard discovery → design → review → final pipeline."""
     ensure_openai_api_key(settings)
-    environment = create_workflow_environment(settings)
+    environment = _create_environment(settings, model_specs=model_specs)
 
     specs = resolve_required_agents(
         agent_specs,
@@ -264,10 +306,21 @@ async def run_pipeline(message: str, verbose: bool, review: bool, *, settings, s
         return final_text
 
 
-async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settings, server_specs, agent_specs, needs_retrieval: bool = True) -> str:
+async def run_peer_pipeline(
+    message: str,
+    verbose: bool,
+    review: bool,
+    *,
+    settings,
+    server_specs,
+    agent_specs,
+    model_specs=None,
+    needs_retrieval: bool = True,
+) -> str:
+    """Run the peer workflow with optional discovery and final recommendation."""
     del review  # Unused in peer mode today; kept for API compatibility.
     ensure_openai_api_key(settings)
-    environment = create_workflow_environment(settings)
+    environment = _create_environment(settings, model_specs=model_specs)
 
     required_agents = [
         "design_author",
