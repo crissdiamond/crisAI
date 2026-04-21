@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+
 import typer
 from prompt_toolkit import prompt
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -12,27 +13,42 @@ from crisai.cli.display import print_final_answer, print_final_recommendation, p
 from crisai.cli.session_store import cli_history_file, load_history, save_history
 from crisai.cli.status_views import print_agents_table, print_chat_state, print_servers_table, route_display
 from crisai.config import load_settings
+from crisai.logging_utils import configure_logging, get_logger
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
+
 from .pipelines import run_peer_pipeline, run_pipeline, run_single
 
-
 app = typer.Typer(help="crisAI CLI")
+logger = get_logger(__name__)
+
 
 
 def _load_registry():
-    """Loads runtime settings and enabled registry entries.
+    """Load runtime settings and enabled registry entries.
 
     Returns:
         Tuple containing settings, registry, enabled server specs, agent specs,
         and model specs loaded from the active registry directory.
     """
     settings = load_settings()
+    configure_logging(settings)
+
     registry = Registry(settings.registry_dir)
     server_specs = {s.id: s for s in registry.load_servers() if s.enabled}
     agent_specs = {a.id: a for a in registry.load_agents()}
     model_specs = registry.load_models()
+
+    logger.debug(
+        "Registry loaded.",
+        extra={
+            "server_count": len(server_specs),
+            "agent_count": len(agent_specs),
+            "model_count": len(model_specs),
+        },
+    )
     return settings, registry, server_specs, agent_specs, model_specs
+
 
 
 def _resolve_route(
@@ -41,7 +57,7 @@ def _resolve_route(
     mode_override: str | None = None,
     agent_override: str | None = None,
 ) -> RoutingDecision:
-    """Delegates routing decisions to the router."""
+    """Delegate routing decisions to the router."""
     return decide_route(
         user_input=user_input,
         review_enabled=review_enabled,
@@ -50,13 +66,15 @@ def _resolve_route(
     )
 
 
+
 def _effective_pipeline_review(decision: RoutingDecision) -> bool:
-    """Returns whether pipeline review should execute for this decision."""
+    """Return whether pipeline review should execute for this decision."""
     return decision.mode == "pipeline" and decision.needs_review
 
 
+
 def _render_final_output(decision: RoutingDecision, body: str) -> None:
-    """Renders the final output according to the chosen mode."""
+    """Render the final output according to the chosen mode."""
     if decision.mode == "peer":
         print_final_recommendation(body)
         return
@@ -65,13 +83,17 @@ def _render_final_output(decision: RoutingDecision, body: str) -> None:
 
 @app.command("list-servers")
 def list_servers() -> None:
-    """Lists registered MCP servers."""
+    """List registered MCP servers."""
+    settings = load_settings()
+    configure_logging(settings)
     print_servers_table()
 
 
 @app.command("list-agents")
 def list_agents() -> None:
-    """Lists registered agents."""
+    """List registered agents."""
+    settings = load_settings()
+    configure_logging(settings)
     print_agents_table()
 
 
@@ -81,9 +103,20 @@ async def _run_with_routing(
     review: bool,
     decision: RoutingDecision,
 ) -> str:
-    """Executes the selected runtime path for a routed request."""
+    """Execute the selected runtime path for a routed request."""
     settings, _, server_specs, agent_specs, model_specs = _load_registry()
     effective_review = _effective_pipeline_review(decision)
+
+    logger.info(
+        "Executing request.",
+        extra={
+            "mode": decision.mode,
+            "review_enabled": review,
+            "effective_review": effective_review,
+            "needs_retrieval": getattr(decision, "needs_retrieval", None),
+            "selected_agent": decision.agent,
+        },
+    )
 
     if decision.mode == "peer":
         return await run_peer_pipeline(
@@ -125,7 +158,7 @@ def ask(
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Runs a single non-interactive crisAI request."""
+    """Run a single non-interactive crisAI request."""
     decision = _resolve_route(
         message,
         review_enabled=review,
@@ -150,7 +183,10 @@ def chat(
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Starts the interactive crisAI chat session."""
+    """Start the interactive crisAI chat session."""
+    settings = load_settings()
+    configure_logging(settings)
+
     state = ChatRuntimeState(
         current_session=session,
         history=load_history(session),
@@ -210,8 +246,9 @@ def chat(
 
         try:
             text = asyncio.run(_run())
-        except Exception as e:
-            print_status_message(str(e), title="❌ Error")
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Chat execution failed.")
+            print_status_message(str(exc), title="❌ Error")
             continue
 
         _render_final_output(decision, text)

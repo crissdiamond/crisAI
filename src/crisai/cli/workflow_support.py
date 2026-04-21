@@ -4,12 +4,13 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
+from uuid import uuid4
 
 import typer
 
 from crisai.agents.factory import AgentFactory
 from crisai.runtime import MultiServerContext, RuntimeManager
-from crisai.tracing import append_trace
+from crisai.tracing import TRACE_FILE_NAME, append_trace
 
 from .display import print_agent_output
 
@@ -23,18 +24,22 @@ class WorkflowEnvironment:
         runtime: Builds MCP server instances from server specs.
         factory: Builds agent instances from agent specs.
         trace_file: Destination file for workflow stage traces.
+        run_id: Correlation id shared across all workflow events.
     """
 
     root_dir: Path
     runtime: RuntimeManager
     factory: AgentFactory
     trace_file: Path
+    run_id: str
+
 
 
 def ensure_openai_api_key(settings) -> None:
     """Raise when the OpenAI API key is missing."""
     if not settings.openai_api_key:
         raise typer.BadParameter("OPENAI_API_KEY is not set.")
+
 
 
 def _build_agent_factory(root_dir: Path, settings, model_specs=None):
@@ -49,6 +54,7 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
         return AgentFactory(root_dir, settings=settings)
     except TypeError:
         return AgentFactory(root_dir)
+
 
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
@@ -66,8 +72,10 @@ def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironme
         root_dir=root_dir,
         runtime=RuntimeManager(root_dir),
         factory=_build_agent_factory(root_dir, settings, model_specs=model_specs),
-        trace_file=settings.log_dir / "agent_trace.log",
+        trace_file=settings.log_dir / TRACE_FILE_NAME,
+        run_id=str(uuid4()),
     )
+
 
 
 def resolve_required_agents(
@@ -87,6 +95,7 @@ def resolve_required_agents(
             f"Missing required agents in registry/agents.yaml: {', '.join(missing)}"
         )
     return {agent_id: agent_specs[agent_id] for agent_id in required_ids}
+
 
 
 def collect_server_ids(agent_specs: Sequence[object]) -> list[str]:
@@ -125,12 +134,36 @@ async def run_traced_stage(
     """Run a workflow stage, trace it, and optionally print its output."""
     agent = environment.factory.build_agent(spec, active_servers)
     result = await runner(ui_agent_id, agent, prompt)
-    append_trace(environment.trace_file, trace_label, result)
+    append_trace(
+        environment.trace_file,
+        trace_label,
+        result,
+        run_id=environment.run_id,
+        agent_id=ui_agent_id,
+        event_type="stage_output",
+    )
     if print_output:
         print_agent_output(ui_agent_id, result, verbose=verbose)
     return result
 
 
-def append_trace_entry(environment: WorkflowEnvironment, stage: str, content: str) -> None:
-    """Append a trace entry using the workflow environment trace file."""
-    append_trace(environment.trace_file, stage, content)
+
+def append_trace_entry(
+    environment: WorkflowEnvironment,
+    stage: str,
+    content: str,
+    *,
+    event_type: str = "workflow_event",
+    agent_id: str | None = None,
+    metadata: dict | None = None,
+) -> None:
+    """Append a structured trace event using the workflow environment trace file."""
+    append_trace(
+        environment.trace_file,
+        stage,
+        content,
+        run_id=environment.run_id,
+        event_type=event_type,
+        agent_id=agent_id,
+        metadata=metadata,
+    )

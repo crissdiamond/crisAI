@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import io
-import logging
 import re
 from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import typer
 from agents import Runner
+from uuid import uuid4
 
 from crisai.agents.factory import AgentFactory
+from crisai.logging_utils import get_logger
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import append_trace
 
@@ -33,72 +34,31 @@ from .workflow_support import (
     resolve_required_agents,
 )
 
-
-_NOISY_LOGGERS = [
-    "mcp",
-    "mcp.server",
-    "mcp.client",
-    "server",
-    "httpx",
-    "httpcore",
-    "openai",
-    "agents",
-    "asyncio",
-    "uvicorn",
-]
-
-
-class _DropListToolsRequestFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        message = record.getMessage()
-        return "Processing request of type ListToolsRequest" not in message
-
-
-_LOG_FILTER = _DropListToolsRequestFilter()
-
-
-def _suppress_noisy_runtime_logs() -> tuple[dict[str, int], int]:
-    previous: dict[str, int] = {}
-    manager_disable = logging.root.manager.disable
-    logging.disable(logging.CRITICAL)
-    for name in _NOISY_LOGGERS:
-        logger = logging.getLogger(name)
-        previous[name] = logger.level
-        logger.setLevel(logging.CRITICAL)
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers:
-        handler.addFilter(_LOG_FILTER)
-    return previous, manager_disable
-
-
-def _restore_noisy_runtime_logs(previous: dict[str, int], manager_disable: int) -> None:
-    logging.disable(manager_disable)
-    for name, level in previous.items():
-        logging.getLogger(name).setLevel(level)
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers:
-        try:
-            handler.removeFilter(_LOG_FILTER)
-        except Exception:
-            pass
+logger = get_logger(__name__)
 
 
 async def _run_agent_silently(agent, prompt: str) -> str:
-    previous, manager_disable = _suppress_noisy_runtime_logs()
+    """Run an agent while suppressing direct stdout/stderr noise only.
+
+    Logging is handled centrally by the application logging configuration.
+    """
     result = None
     try:
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             result = await Runner.run(agent, prompt)
-    finally:
-        _restore_noisy_runtime_logs(previous, manager_disable)
+    except Exception:
+        logger.exception("Agent execution failed.")
+        raise
     return str(result.final_output)
 
 
 async def _run_agent_with_transient_box(agent_id: str, agent, prompt: str) -> str:
+    """Run an agent and render its transient progress box."""
     live = create_agent_live(agent_id)
     with live:
         result = await _run_agent_silently(agent, prompt)
     return result
+
 
 
 def _build_agent_factory(root_dir: Path, settings, model_specs=None):
@@ -113,6 +73,7 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
         return AgentFactory(root_dir, settings=settings)
     except TypeError:
         return AgentFactory(root_dir)
+
 
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
@@ -133,7 +94,8 @@ def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironme
         root_dir=root_dir,
         runtime=RuntimeManager(root_dir),
         factory=_build_agent_factory(root_dir, settings, model_specs=model_specs),
-        trace_file=settings.log_dir / "agent_trace.log",
+        trace_file=settings.log_dir / "agent_trace.jsonl",
+        run_id=uuid4().hex,
     )
 
 
@@ -150,13 +112,30 @@ async def workflow_server_context(environment: WorkflowEnvironment, agent_specs,
         yield active_servers
 
 
-def append_trace_entry(environment: WorkflowEnvironment, stage: str, content: str) -> None:
-    """Append a trace entry to the workflow trace file.
+
+def append_trace_entry(
+    environment: WorkflowEnvironment,
+    stage: str,
+    content: str,
+    *,
+    event_type: str = "workflow_event",
+    agent_id: str | None = None,
+    metadata: dict | None = None,
+) -> None:
+    """Append a structured trace entry.
 
     This wrapper keeps append_trace patchable from tests through the pipelines
     module surface.
     """
-    append_trace(environment.trace_file, stage, content)
+    append_trace(
+        environment.trace_file,
+        stage,
+        content,
+        run_id=environment.run_id,
+        event_type=event_type,
+        agent_id=agent_id,
+        metadata=metadata,
+    )
 
 
 async def run_traced_stage(
@@ -173,8 +152,29 @@ async def run_traced_stage(
 ) -> str:
     """Run a workflow stage, trace it, and optionally print stage output."""
     agent = environment.factory.build_agent(spec, active_servers)
+    append_trace_entry(
+        environment,
+        f"{trace_label}_START",
+        f"Starting stage for {ui_agent_id}.",
+        event_type="stage_start",
+        agent_id=ui_agent_id,
+    )
     result = await runner(ui_agent_id, agent, prompt)
-    append_trace(environment.trace_file, trace_label, result)
+    append_trace(
+        environment.trace_file,
+        trace_label,
+        result,
+        run_id=environment.run_id,
+        event_type="stage_output",
+        agent_id=ui_agent_id,
+    )
+    append_trace_entry(
+        environment,
+        f"{trace_label}_END",
+        f"Completed stage for {ui_agent_id}.",
+        event_type="stage_end",
+        agent_id=ui_agent_id,
+    )
     if print_output:
         print_agent_output(ui_agent_id, result, verbose=verbose)
     return result
@@ -185,6 +185,7 @@ _FINAL_RECOMMENDATION_PATTERNS = [
     r"(?:^|\n)(\*\*Final recommendation\*\*\s*\n+.*)$",
     r"(?:^|\n)(Final recommendation\s*\n+.*)$",
 ]
+
 
 
 def _extract_final_recommendation(text: str) -> str:
@@ -198,6 +199,7 @@ def _extract_final_recommendation(text: str) -> str:
     return stripped
 
 
+
 def build_agent_servers(runtime, agent_spec, server_specs):
     servers = []
     for server_id in agent_spec.allowed_servers:
@@ -205,6 +207,7 @@ def build_agent_servers(runtime, agent_spec, server_specs):
         if spec:
             servers.append(runtime.build_server(spec))
     return servers
+
 
 
 def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
@@ -227,9 +230,27 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
     environment = _create_environment(settings, model_specs=model_specs)
     agent_spec = agent_specs[agent_id]
 
+    logger.info("Running single agent request.", extra={"agent_id": agent_id, "run_id": environment.run_id})
+
     async with workflow_server_context(environment, [agent_spec], server_specs) as active_servers:
+        append_trace_entry(
+            environment,
+            "USER_INPUT",
+            message,
+            event_type="workflow_input",
+            metadata={"mode": "single", "agent_id": agent_id},
+        )
         agent = environment.factory.build_agent(agent_spec, active_servers)
-        return await _run_agent_silently(agent, message)
+        result = await _run_agent_silently(agent, message)
+        append_trace_entry(
+            environment,
+            "FINAL_OUTPUT",
+            result,
+            event_type="workflow_output",
+            agent_id=agent_id,
+            metadata={"mode": "single"},
+        )
+        return result
 
 
 async def run_pipeline(
@@ -246,6 +267,8 @@ async def run_pipeline(
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
 
+    logger.info("Running pipeline workflow.", extra={"run_id": environment.run_id, "review": review})
+
     specs = resolve_required_agents(
         agent_specs,
         ["discovery", "design", "review", "orchestrator"],
@@ -253,7 +276,13 @@ async def run_pipeline(
     )
 
     async with workflow_server_context(environment, specs.values(), server_specs) as active_servers:
-        append_trace_entry(environment, "USER INPUT", message)
+        append_trace_entry(
+            environment,
+            "WORKFLOW_START",
+            "Starting pipeline workflow.",
+            metadata={"mode": "pipeline", "review": review},
+        )
+        append_trace_entry(environment, "USER_INPUT", message, event_type="workflow_input")
 
         discovery_text = await run_traced_stage(
             environment=environment,
@@ -261,7 +290,7 @@ async def run_pipeline(
             spec=specs["discovery"],
             ui_agent_id="discovery",
             prompt=build_discovery_prompt(message),
-            trace_label="DISCOVERY OUTPUT",
+            trace_label="DISCOVERY_OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
         )
@@ -272,7 +301,7 @@ async def run_pipeline(
             spec=specs["design"],
             ui_agent_id="design",
             prompt=build_design_prompt(message, discovery_text),
-            trace_label="DESIGN OUTPUT",
+            trace_label="DESIGN_OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
         )
@@ -284,13 +313,19 @@ async def run_pipeline(
                 spec=specs["review"],
                 ui_agent_id="review",
                 prompt=build_review_prompt(message, discovery_text, design_text),
-                trace_label="REVIEW OUTPUT",
+                trace_label="REVIEW_OUTPUT",
                 verbose=verbose,
                 runner=_run_agent_with_transient_box,
             )
         else:
             review_text = "Review stage skipped because review is disabled."
-            append_trace_entry(environment, "REVIEW OUTPUT", review_text)
+            append_trace_entry(
+                environment,
+                "REVIEW_OUTPUT",
+                review_text,
+                event_type="stage_skipped",
+                metadata={"reason": "review_disabled"},
+            )
 
         final_text = await run_traced_stage(
             environment=environment,
@@ -298,11 +333,12 @@ async def run_pipeline(
             spec=specs["orchestrator"],
             ui_agent_id="orchestrator",
             prompt=build_pipeline_final_prompt(message, discovery_text, design_text, review_text),
-            trace_label="FINAL OUTPUT",
+            trace_label="FINAL_OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
             print_output=False,
         )
+        append_trace_entry(environment, "WORKFLOW_END", "Completed pipeline workflow.")
         return final_text
 
 
@@ -322,6 +358,11 @@ async def run_peer_pipeline(
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
 
+    logger.info(
+        "Running peer workflow.",
+        extra={"run_id": environment.run_id, "needs_retrieval": needs_retrieval},
+    )
+
     required_agents = [
         "design_author",
         "design_challenger",
@@ -339,7 +380,13 @@ async def run_peer_pipeline(
     )
 
     async with workflow_server_context(environment, specs.values(), server_specs) as active_servers:
-        append_trace_entry(environment, "USER INPUT", message)
+        append_trace_entry(
+            environment,
+            "WORKFLOW_START",
+            "Starting peer workflow.",
+            metadata={"mode": "peer", "needs_retrieval": needs_retrieval},
+        )
+        append_trace_entry(environment, "USER_INPUT", message, event_type="workflow_input")
 
         discovery_text = ""
         if needs_retrieval:
@@ -349,15 +396,17 @@ async def run_peer_pipeline(
                 spec=specs["discovery"],
                 ui_agent_id="discovery",
                 prompt=build_discovery_prompt(message),
-                trace_label="DISCOVERY OUTPUT",
+                trace_label="DISCOVERY_OUTPUT",
                 verbose=verbose,
                 runner=_run_agent_with_transient_box,
             )
         else:
             append_trace_entry(
                 environment,
-                "DISCOVERY OUTPUT",
+                "DISCOVERY_OUTPUT",
                 "Discovery skipped because this peer task does not require retrieval.",
+                event_type="stage_skipped",
+                metadata={"reason": "retrieval_not_required"},
             )
 
         discovery_basis = discovery_text or "None."
@@ -368,7 +417,7 @@ async def run_peer_pipeline(
             spec=specs["design_author"],
             ui_agent_id="design_author",
             prompt=build_author_prompt(message, discovery_basis),
-            trace_label="AUTHOR OUTPUT",
+            trace_label="AUTHOR_OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
         )
@@ -379,7 +428,7 @@ async def run_peer_pipeline(
             spec=specs["design_challenger"],
             ui_agent_id="design_challenger",
             prompt=build_challenger_prompt(message, discovery_basis, author_text),
-            trace_label="CHALLENGER OUTPUT",
+            trace_label="CHALLENGER_OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
         )
@@ -390,7 +439,7 @@ async def run_peer_pipeline(
             spec=specs["design_refiner"],
             ui_agent_id="design_refiner",
             prompt=build_refiner_prompt(message, discovery_basis, author_text, challenger_text),
-            trace_label="REFINER OUTPUT",
+            trace_label="REFINER_OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
         )
@@ -401,7 +450,7 @@ async def run_peer_pipeline(
             spec=specs["judge"],
             ui_agent_id="judge",
             prompt=build_judge_prompt(message, discovery_basis, challenger_text, refiner_text),
-            trace_label="JUDGE OUTPUT",
+            trace_label="JUDGE_OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
         )
@@ -419,12 +468,14 @@ async def run_peer_pipeline(
                 refiner_text,
                 judge_text,
             ),
-            trace_label="FINAL OUTPUT",
+            trace_label="FINAL_OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
             print_output=False,
         )
+        append_trace_entry(environment, "WORKFLOW_END", "Completed peer workflow.")
         return _extract_final_recommendation(final_text)
+
 
 
 def build_peer_run_result(

@@ -18,9 +18,12 @@ class Settings:
     workspace_dir: Path
     log_dir: Path
     registry_dir: Path
+    log_level: str
+
 
 
 def load_settings() -> Settings:
+    """Load runtime settings from environment variables."""
     root = Path(__file__).resolve().parents[2]
     workspace_dir = Path(os.getenv("CRISAI_WORKSPACE_DIR", root / "workspace")).resolve()
     log_dir = Path(os.getenv("CRISAI_LOG_DIR", root / "logs")).resolve()
@@ -38,4 +41,5 @@ def load_settings() -> Settings:
         workspace_dir=workspace_dir,
         log_dir=log_dir,
         registry_dir=registry_dir,
+        log_level=os.getenv("CRISAI_LOG_LEVEL", "INFO"),
     )
