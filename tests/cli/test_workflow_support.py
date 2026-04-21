@@ -63,7 +63,7 @@ def test_create_workflow_environment_uses_cwd(monkeypatch, tmp_path):
     assert environment.root_dir == tmp_path
     assert isinstance(environment.runtime, DummyRuntimeManager)
     assert isinstance(environment.factory, DummyAgentFactory)
-    assert environment.trace_file == tmp_path / "logs" / "agent_trace.log"
+    assert environment.trace_file == tmp_path / "logs" / "agent_trace.jsonl"
 
 
 @pytest.mark.anyio

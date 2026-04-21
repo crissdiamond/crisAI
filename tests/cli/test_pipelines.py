@@ -35,7 +35,11 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-    monkeypatch.setattr(pipelines, "workflow_server_context", lambda environment, specs, server_specs: DummyContext())
+    monkeypatch.setattr(
+        pipelines,
+        "workflow_server_context",
+        lambda environment, specs, server_specs: DummyContext(),
+    )
 
     def fake_append_trace_entry(environment, stage, content):
         trace_calls.append((stage, content))
@@ -59,8 +63,10 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     assert result == "orchestrator-output"
     assert stage_calls == ["discovery", "design", "orchestrator"]
     assert trace_calls == [
+        ("WORKFLOW_START", "Starting pipeline workflow."),
         ("USER INPUT", "hello"),
         ("REVIEW OUTPUT", "Review stage skipped because review is disabled."),
+        ("WORKFLOW_END", "Pipeline workflow completed."),
     ]
 
 
@@ -91,7 +97,11 @@ async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monke
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-    monkeypatch.setattr(pipelines, "workflow_server_context", lambda environment, specs, server_specs: DummyContext())
+    monkeypatch.setattr(
+        pipelines,
+        "workflow_server_context",
+        lambda environment, specs, server_specs: DummyContext(),
+    )
 
     def fake_append_trace_entry(environment, stage, content):
         trace_calls.append((stage, content))
@@ -126,8 +136,10 @@ async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monke
     ]
     assert stage_calls[0][1] == "hello"
     assert trace_calls == [
+        ("WORKFLOW_START", "Starting peer workflow."),
         ("USER INPUT", "hello"),
         ("DISCOVERY OUTPUT", "Discovery skipped because this peer task does not require retrieval."),
+        ("WORKFLOW_END", "Peer workflow completed."),
     ]
 
 
