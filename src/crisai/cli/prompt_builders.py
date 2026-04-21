@@ -51,7 +51,8 @@ def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: 
             "Task:\nProduce the final answer to the user.",
             "Handoff guidance:\n"
             "- Use the design output as the main body.\n"
-            "- Incorporate review feedback only where it improves the answer.",
+            "- Incorporate review feedback only where it improves the answer.\n"
+            "- do not mention internal pipeline stages unless the user explicitly asked to see them.",
         ]
     )
 
