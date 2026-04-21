@@ -1,5 +1,5 @@
 from crisai.cli.commands import parse_chat_command
-from crisai.cli.main import _agent_status, _mode_status
+from crisai.cli.status_views import agent_status, mode_status
 
 
 def test_parse_mode_auto_command():
@@ -17,16 +17,16 @@ def test_parse_agent_auto_command():
 
 
 def test_mode_status_auto():
-    assert _mode_status("single", False) == "auto"
+    assert mode_status("single", False) == "auto"
 
 
 def test_mode_status_pinned():
-    assert _mode_status("peer", True) == "pinned:peer"
+    assert mode_status("peer", True) == "pinned:peer"
 
 
 def test_agent_status_auto():
-    assert _agent_status("orchestrator", False) == "auto"
+    assert agent_status("orchestrator", False) == "auto"
 
 
 def test_agent_status_pinned():
-    assert _agent_status("design", True) == "pinned:design"
+    assert agent_status("design", True) == "pinned:design"

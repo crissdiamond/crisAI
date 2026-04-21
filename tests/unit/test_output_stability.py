@@ -1,5 +1,5 @@
 from crisai.cli.display import _role_led_summary
-from crisai.cli.main import _route_display
+from crisai.cli.status_views import route_display
 from crisai.orchestration.router import RoutingDecision
 
 
@@ -23,7 +23,7 @@ def test_route_display_includes_review_and_retrieval_flags():
         confidence=0.9,
         reason="Prompt asks for both proposal and critique.",
     )
-    rendered = _route_display(decision)
+    rendered = route_display(decision)
     assert "review:on" in rendered
     assert "retrieval:off" in rendered
     assert "pipeline" in rendered
