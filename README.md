@@ -1,8 +1,8 @@
 # crisAI
 
-> **A local AI workstation for architecture, design, documentation, and research work.**
+> **A local AI workstation for architecture, design, documentation, research, and controlled multi-agent critique.**
 
-crisAI combines a registry-driven catalogue of MCP servers, a set of specialist agents, an interactive CLI, local and external document retrieval, and optional peer-style critique workflows.
+crisAI combines a registry-driven catalogue of MCP servers, a set of specialist agents, an interactive CLI, local and external document retrieval, optional peer-style critique workflows, and provider-aware model assignment.
 
 The aim is to create a personal AI workstation that can retrieve source material, reason over it, draft outputs, critique them, and connect to tools such as local files, document readers, diagram generators, and SharePoint / OneDrive.
 
@@ -26,17 +26,19 @@ The aim is to create a personal AI workstation that can retrieve source material
   - `single`
   - `pipeline`
   - `peer`
-- Phase 1 heuristic router for more intelligent task-to-agent selection
+- Phase 1 heuristic router for task-to-agent selection
 - Explicit chat-state visibility for routing and agent pinning
 - Persistent chat sessions
 - Command history in the CLI
 - In-chat slash commands for agent and server introspection
+- Provider-aware model registry with per-agent model assignment
+- Support-ready provider layer for OpenAI, Gemini, and Anthropic
 
 ---
 
 ## Architecture at a glance
 
-crisAI is built around five layers:
+crisAI is built around six layers:
 
 1. **CLI and orchestration**
    - `src/crisai/cli/main.py`
@@ -48,62 +50,35 @@ crisAI is built around five layers:
    - heuristic task routing
 
 2. **CLI support modules**
-   - `src/crisai/cli/chat_session.py`
+   - `src/crisai/cli/chat_context.py`
+   - `src/crisai/cli/chat_controller.py`
    - `src/crisai/cli/commands.py`
    - `src/crisai/cli/display.py`
    - `src/crisai/cli/pipelines.py`
    - `src/crisai/cli/prompt_builders.py`
+   - `src/crisai/cli/session_store.py`
+   - `src/crisai/cli/status_views.py`
+   - `src/crisai/cli/workflow_support.py`
 
 3. **Agents**
    - configured in `registry/agents.yaml`
    - prompts stored in `prompts/`
    - created by `src/crisai/agents/factory.py`
 
-4. **MCP servers**
+4. **Model registry**
+   - configured in `registry/models.yaml`
+   - resolved by `src/crisai/model_resolver.py`
+   - assigns provider-specific models to agents through logical `model_ref` values
+
+5. **MCP servers**
    - configured in `registry/servers.yaml`
    - built and managed by `src/crisai/runtime.py`
 
-5. **Sources**
+6. **Sources**
    - local workspace
    - document parser
    - diagram generator
    - SharePoint / OneDrive via Microsoft Graph
-
----
-
-## Current components
-
-### MCP servers
-Typical servers include:
-
-- `workspace_server.py`
-  - local file listing
-  - text reads
-  - note writes
-  - workspace search
-
-- `document_server.py`
-  - extracts text from common document formats
-
-- `diagram_server.py`
-  - Mermaid generation and validation
-
-- `sharepoint_server.py`
-  - delegated Microsoft Graph authentication
-  - SharePoint / OneDrive site, drive, and document access
-
-### Agents
-Typical agent set:
-
-- `orchestrator`
-- `discovery`
-- `design`
-- `review`
-- `operations`
-- `design_author`
-- `design_challenger`
-- `design_refiner`
-- `judge`
 
 ---
 
@@ -114,12 +89,13 @@ crisAI/
   start
   README.md
   DOCUMENTATION.md
-  requirements.txt
+  TESTING.md
   .env.example
 
   registry/
     servers.yaml
     agents.yaml
+    models.yaml
     policies.yaml
 
   prompts/
@@ -127,6 +103,8 @@ crisAI/
     discovery_agent.md
     design_agent.md
     review_agent.md
+    operations_agent.md
+    publisher.md
     design_author.md
     design_challenger.md
     design_refiner.md
@@ -136,15 +114,19 @@ crisAI/
     crisai/
       cli/
         main.py
-        chat_session.py
+        chat_context.py
+        chat_controller.py
         commands.py
         display.py
+        peer_transcript.py
         pipelines.py
         prompt_builders.py
+        session_store.py
+        status_views.py
+        workflow_support.py
       agents/
         factory.py
       orchestration/
-        __init__.py
         router.py
       servers/
         workspace_server.py
@@ -152,17 +134,13 @@ crisAI/
         diagram_server.py
         sharepoint_server.py
       config.py
+      model_resolver.py
       registry.py
       runtime.py
       tracing.py
 
+  tests/
   workspace/
-    inputs/
-    reference/
-    outputs/
-    scratch/
-    chat_sessions/
-
   logs/
 ```
 
@@ -174,7 +152,8 @@ Before getting started, make sure you have:
 
 - **Python 3.10+**
 - **Linux, macOS, or WSL on Windows**
-- **OpenAI API key**
+- **OpenAI API key** for OpenAI-backed agents
+- **Optional:** Gemini and Anthropic keys if you assign those providers to any agents
 - **Optional:** Microsoft Entra app registration for SharePoint access
 
 ---
@@ -192,24 +171,19 @@ cd crisAI
 
 ```bash
 python3 -m venv .venv
-```
-
-### 3. Activate the virtual environment
-
-**Linux / macOS / WSL:**
-
-```bash
 source .venv/bin/activate
 ```
 
-### 4. Install dependencies
+### 3. Install dependencies
 
 ```bash
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -e .
 ```
 
-### 5. Create your environment file
+If you want Gemini or Anthropic support through LiteLLM-backed integration, make sure the relevant optional dependency is available in your environment.
+
+### 4. Create your environment file
 
 ```bash
 cp .env.example .env
@@ -225,22 +199,29 @@ CRISAI_LOG_DIR=./logs
 CRISAI_REGISTRY_DIR=./registry
 ```
 
+Provider keys when needed:
+
+```dotenv
+GEMINI_API_KEY=your_gemini_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
 Optional SharePoint settings:
 
 ```dotenv
 MS_TENANT_ID=your_tenant_id
 MS_CLIENT_ID=your_client_id
-MS_TOKEN_CACHE_PATH=./workspace/.auth/msal_token_cache.json
-MS_TOKEN_INFO_PATH=./workspace/.auth/msal_token_info.json
+MS_TOKEN_CACHE_PATH=.tokens/msal_token_cache.json
+MS_GRAPH_SCOPES=User.Read,Files.Read.All,Sites.Read.All
 ```
 
-### 6. Make the launcher executable
+### 5. Make the launcher executable
 
 ```bash
 chmod +x start
 ```
 
-### 7. Start crisAI
+### 6. Start crisAI
 
 ```bash
 ./start
@@ -248,24 +229,44 @@ chmod +x start
 
 ---
 
-## What the `start` script should do
+## Model assignment
 
-The `start` launcher is expected to:
+Agents no longer need to hard-code raw provider model strings.
 
-- activate `.venv`
-- load `.env`
-- set `PYTHONPATH=./src`
-- start the interactive CLI
+### `registry/agents.yaml`
+Assign a logical model reference:
 
-Recommended behaviour:
-- enter chat without forcing `--pipeline`
-- let the heuristic router decide the right initial route unless the user explicitly pins a mode or agent
+```yaml
+- id: discovery
+  model_ref: openai_fast
+
+- id: judge
+  model_ref: gemini_strong
+```
+
+### `registry/models.yaml`
+Define the real provider and model name:
+
+```yaml
+models:
+  - id: openai_fast
+    provider: openai
+    model_name: gpt-5.4-mini
+    api_key_env: OPENAI_API_KEY
+
+  - id: gemini_strong
+    provider: gemini
+    model_name: gemini/gemini-2.5-pro
+    api_key_env: GEMINI_API_KEY
+```
+
+This allows per-agent model assignment regardless of provider.
 
 ---
 
 ## Quick start
 
-Once inside the prepared shell or once `./start` opens the interactive CLI, you can use:
+Once inside the interactive CLI, try:
 
 ```text
 /status
@@ -274,19 +275,13 @@ Once inside the prepared shell or once `./start` opens the interactive CLI, you 
 /help
 ```
 
-Start crisAI from the project root:
-
-```bash
-./start
-```
-
 Typical first prompt:
 
 ```text
 Search my personal OneDrive, not SharePoint sites, and find all documents related to the integration strategy.
 ```
 
-Example one-off invocation through the CLI entrypoint when needed:
+Example one-off invocation:
 
 ```bash
 python -m crisai.cli.main ask -m "Find the most relevant document for integration strategy and summarise it."
@@ -323,8 +318,6 @@ Runs the peer-style flow:
 
 crisAI includes a Phase 1 heuristic router.
 
-Its job is to route a prompt to the most sensible starting mode and agent when the user has **not** explicitly pinned one.
-
 Typical behaviour:
 
 - pure retrieval task → `single` + `discovery`
@@ -335,32 +328,9 @@ Typical behaviour:
 - peer-style debate request → `peer`
 - vague or mixed task → `single` + `orchestrator`
 
-Important principles:
-
-- explicit user instructions always win
+Explicit user instructions always win:
 - `/mode ...` and `/agent ...` pin behaviour
 - `/mode auto` and `/agent auto` clear pins
-- the router should not override a real user choice
-- the default startup should not itself count as an explicit mode selection
-
----
-
-## Review behaviour
-
-Review is **off by default** as a user preference, but pipeline review is now executed from the routing decision rather than from the raw CLI toggle alone.
-
-Enable the preference on startup:
-
-```bash
-python -m crisai.cli.main chat --review --verbose
-```
-
-Or toggle it inside chat:
-
-```text
-/review on
-/review off
-```
 
 ---
 
@@ -393,30 +363,18 @@ Inside the interactive CLI:
 /exit
 ```
 
-Notes:
-- `/status` shows the current session state, including whether routing and agent selection are auto or pinned
-- `/mode auto` clears a pinned mode and returns control to the router
-- `/agent auto` clears a pinned agent and returns control to the router
-- `/list servers` shows the registered MCP servers in a coloured table
-- `/list agents` shows the registered agents in a coloured table
-- legacy hyphenated forms may still exist for compatibility, but the preferred form is the spaced command style
-
 ---
 
-## Persistent chat history
+## Retrieval discipline
 
-crisAI stores chat history by session in:
+crisAI is designed around retrieval discipline:
 
-```text
-workspace/chat_sessions/
-```
+- never guess file paths, site names, drive IDs, or item IDs
+- always list or search before reading
+- only read a path or item returned in the current run
+- report exact tool errors when retrieval fails
 
-Examples:
-
-```bash
-python -m crisai.cli.main chat --session architecture
-python -m crisai.cli.main chat --peer --session sharepoint-debug
-```
+This matters for architecture and documentation work because trustworthy source handling is more important than sounding clever.
 
 ---
 
@@ -427,16 +385,12 @@ Recommended local source locations:
 ```text
 workspace/inputs/
 workspace/reference/
-```
-
-Generated material:
-
-```text
 workspace/outputs/
 workspace/scratch/
+workspace/chat_sessions/
 ```
 
-Workspace paths are always relative to the workspace root.
+Workspace paths are relative to the workspace root.
 
 Correct examples:
 
@@ -453,33 +407,7 @@ workspace/inputs/strategy.md
 
 ---
 
-## Engineering guidance
-
-### Registry-driven design
-
-MCP servers and agents are configured through:
-
-```text
-registry/servers.yaml
-registry/agents.yaml
-```
-
-### Prompts
-
-Agent behaviour is controlled through prompt files in `prompts/`.
-
-### Retrieval discipline
-
-The system should follow these rules:
-
-- never guess file paths, site names, drive IDs, or item IDs
-- always list or search before reading
-- only read a path or item returned in the current run
-- report exact tool errors when retrieval fails
-
----
-
-## SharePoint auth
+## SharePoint / OneDrive
 
 SharePoint access is delegated and tied to the signed-in user.
 
@@ -497,6 +425,12 @@ Operational recommendation:
 
 ---
 
+## Testing
+
+See `TESTING.md` for the current suite structure, how to run tests, and what the test layers protect.
+
+---
+
 ## Logs
 
 Useful logs include:
@@ -510,38 +444,6 @@ workspace/sharepoint_mcp.log
 
 ---
 
-## Example prompts
-
-### Local retrieval
-
-> Use the workspace tools first. Find documents related to integration strategy in inputs and reference, identify the best match, and summarise it.
-
-### SharePoint / OneDrive retrieval
-
-> Search my personal OneDrive, not SharePoint sites, and find all documents related to the integration strategy.
-
-### Design task
-
-> Use the available tools first. Identify the most relevant source for federated data architecture operating model work, summarise it, and draft a one-page HLD skeleton based on that material.
-
----
-
-## SharePoint setup summary
-
-To enable SharePoint access, you typically need:
-
-- a Microsoft Entra app registration
-- a public client / localhost redirect setup
-- delegated Microsoft Graph permissions such as:
-  - `User.Read`
-  - `Sites.Read.All`
-  - `Files.Read.All`
-- tenant consent where required
-
-The SharePoint MCP server then uses delegated auth and Microsoft Graph to list sites, drives, items, search documents, and read supported file content.
-
----
-
 ## Licence
 
-crisAI is released under the MIT License. See the LICENSE file for details.
+crisAI is released under the MIT License. See the `LICENSE` file for details.
