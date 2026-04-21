@@ -1,121 +1,138 @@
 from __future__ import annotations
 
 
-def _section(title: str, content: str) -> str:
-    """Return a simple prompt section with a stable heading format."""
-    return f"{title}:\n{content}".strip()
+def _section(title: str, body: str) -> str:
+    """Render a stable prompt section with trimmed content."""
+    clean = (body or "").strip() or "None."
+    return f"{title}:\n{clean}"
 
 
 def build_discovery_prompt(message: str) -> str:
     """Build the runtime prompt for the discovery stage."""
-    parts = [
-        _section("User request", message),
-        _section(
-            "Task",
-            "Inspect the available sources and retrieve the most relevant material for this request.",
-        ),
-    ]
-    return "\n\n".join(parts)
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            "Task:\nInspect the available sources and retrieve the most relevant material for this request.",
+        ]
+    )
 
 
 def build_design_prompt(message: str, discovery_text: str) -> str:
     """Build the runtime prompt for the design stage."""
-    parts = [
-        _section("User request", message),
-        _section("Discovery findings", discovery_text or "None."),
-        _section(
-            "Task",
-            "Produce the best possible architecture, design, or documentation response for the user's request.",
-        ),
-    ]
-    return "\n\n".join(parts)
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            "Task:\nProduce the best possible architecture, design, or documentation response for the user's request.",
+        ]
+    )
 
 
 def build_review_prompt(message: str, discovery_text: str, design_text: str) -> str:
     """Build the runtime prompt for the review stage."""
-    parts = [
-        _section("User request", message),
-        _section("Discovery findings", discovery_text or "None."),
-        _section("Draft design response", design_text),
-        _section("Task", "Critically review the draft."),
-    ]
-    return "\n\n".join(parts)
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            _section("Draft design response", design_text),
+            "Task:\nCritically review the draft.",
+        ]
+    )
 
 
-def build_pipeline_final_prompt(
-    message: str,
-    discovery_text: str,
-    design_text: str,
-    review_text: str,
-) -> str:
+def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: str, review_text: str) -> str:
     """Build the runtime prompt for the pipeline final stage."""
-    parts = [
-        _section("User request", message),
-        _section("Discovery findings", discovery_text or "None."),
-        _section("Draft design response", design_text),
-        _section("Review feedback", review_text or "None."),
-        _section("Task", "Produce the final answer to the user."),
-        _section(
-            "Handoff guidance",
-            "Use the design output as the main body, improve it using the review feedback where relevant, and do not mention internal pipeline stages unless the user explicitly asked for them.",
-        ),
-    ]
-    return "\n\n".join(parts)
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            _section("Draft design response", design_text),
+            _section("Review feedback", review_text),
+            "Task:\nProduce the final answer to the user.",
+            "Final-stage guidance:\n"
+            "- Use the design output as the main body.\n"
+            "- Incorporate review feedback only where it improves the answer.\n"
+            "- Do not mention internal pipeline stages unless the user explicitly asked to see them.",
+        ]
+    )
 
 
 def build_author_prompt(message: str, discovery_text: str) -> str:
-    """Build the runtime prompt for the peer author stage."""
-    parts = [
-        _section("User request", message),
-        _section("Discovery findings", discovery_text or "None."),
-        _section("Task", "Produce the best possible first draft for the user's request."),
-    ]
-    return "\n\n".join(parts)
+    """Build the runtime prompt for the author stage.
+
+    This stage must remain isolated from later peer roles. The author receives
+    the full user request, but must only produce the initial proposal or first
+    draft. Later critique, refinement, judgement, and final packaging are
+    handled by separate agents.
+    """
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            "Task:\nProduce the best possible first draft for the user's request.",
+            "Stage boundary:\n"
+            "- You are only the author stage in a peer workflow.\n"
+            "- Do not simulate the challenger, refiner, judge, or orchestrator.\n"
+            "- Do not output a peer transcript or role-labelled conversation.\n"
+            "- Do not include sections such as 'Challenger', 'Refiner', 'Judge', 'Peer conversation', or 'Final recommendation'.\n"
+            "- Output only the initial draft or proposal that later peer stages will inspect.",
+        ]
+    )
 
 
 def build_challenger_prompt(message: str, discovery_text: str, author_text: str) -> str:
-    """Build the runtime prompt for the peer challenger stage."""
-    parts = [
-        _section("User request", message),
-        _section("Discovery findings", discovery_text or "None."),
-        _section("Draft", author_text),
-        _section("Task", "Critique the draft rigorously."),
-    ]
-    return "\n\n".join(parts)
+    """Build the runtime prompt for the challenger stage."""
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            _section("Author draft", author_text),
+            "Task:\nCritique the draft rigorously.",
+            "Stage boundary:\n"
+            "- You are only the challenger stage in a peer workflow.\n"
+            "- Do not rewrite the draft directly.\n"
+            "- Do not simulate the refiner, judge, or orchestrator.\n"
+            "- Do not output a peer transcript or final recommendation.\n"
+            "- Output only critique for later stages to use.",
+        ]
+    )
 
 
-def build_refiner_prompt(
-    message: str,
-    discovery_text: str,
-    author_text: str,
-    challenger_text: str,
-) -> str:
-    """Build the runtime prompt for the peer refiner stage."""
-    parts = [
-        _section("User request", message),
-        _section("Discovery findings", discovery_text or "None."),
-        _section("Original draft", author_text),
-        _section("Challenge", challenger_text),
-        _section("Task", "Refine the draft using the critique."),
-    ]
-    return "\n\n".join(parts)
+def build_refiner_prompt(message: str, discovery_text: str, author_text: str, challenger_text: str) -> str:
+    """Build the runtime prompt for the refiner stage."""
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            _section("Original draft", author_text),
+            _section("Challenge", challenger_text),
+            "Task:\nRefine the draft using the critique.",
+            "Stage boundary:\n"
+            "- You are only the refiner stage in a peer workflow.\n"
+            "- Do not simulate the judge or orchestrator.\n"
+            "- Do not output a peer transcript or final recommendation.\n"
+            "- Output only the improved draft that should be judged next.",
+        ]
+    )
 
 
-def build_judge_prompt(
-    message: str,
-    discovery_text: str,
-    challenger_text: str,
-    refiner_text: str,
-) -> str:
-    """Build the runtime prompt for the peer judge stage."""
-    parts = [
-        _section("User request", message),
-        _section("Discovery findings", discovery_text or "None."),
-        _section("Challenge", challenger_text),
-        _section("Refined draft", refiner_text),
-        _section("Task", "Decide whether the refined answer is good enough."),
-    ]
-    return "\n\n".join(parts)
+def build_judge_prompt(message: str, discovery_text: str, challenger_text: str, refiner_text: str) -> str:
+    """Build the runtime prompt for the judge stage."""
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            _section("Challenge", challenger_text),
+            _section("Refined draft", refiner_text),
+            "Task:\nDecide whether the refined answer is good enough.",
+            "Stage boundary:\n"
+            "- You are only the judge stage in a peer workflow.\n"
+            "- Do not rewrite the answer.\n"
+            "- Do not simulate the orchestrator.\n"
+            "- Do not output a peer transcript or final recommendation.\n"
+            "- Output only the judgement, reasons, and any remaining issues.",
+        ]
+    )
 
 
 def build_peer_final_prompt(
@@ -127,17 +144,20 @@ def build_peer_final_prompt(
     judge_text: str,
 ) -> str:
     """Build the runtime prompt for the peer final stage."""
-    parts = [
-        _section("User request", message),
-        _section("Discovery findings", discovery_text or "None."),
-        _section("Original draft", author_text),
-        _section("Challenge", challenger_text),
-        _section("Refined draft", refiner_text),
-        _section("Judge decision", judge_text),
-        _section("Task", "Produce the final answer to the user."),
-        _section(
-            "Handoff guidance",
-            "Use the refined draft as the main body, incorporate only improvements justified by the critique and judge decision, and do not mention internal peer stages unless the user explicitly asked for them.",
-        ),
-    ]
-    return "\n\n".join(parts)
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            _section("Original draft", author_text),
+            _section("Challenge", challenger_text),
+            _section("Refined draft", refiner_text),
+            _section("Judge decision", judge_text),
+            "Task:\nProduce the final answer to the user.",
+            "Final-stage guidance:\n"
+            "- Use the refined draft as the main body.\n"
+            "- Incorporate only improvements justified by the critique and judge decision.\n"
+            "- Show the peer conversation only if the user explicitly asked to see it.\n"
+            "- If the user asked to see the peer conversation, present it only here in the final stage, not in earlier stages.\n"
+            "- Do not mention internal peer stages unless the user explicitly asked to see them.",
+        ]
+    )

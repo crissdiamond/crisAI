@@ -76,7 +76,8 @@ agents:
 
   - id: judge
     name: Judge
-    model_ref: openai_strong
+    model_ref: gemini_strong
+    #model_ref: openai_strong
     prompt_file: prompts/judge.md
     allowed_servers:
       - workspace
