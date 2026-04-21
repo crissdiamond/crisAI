@@ -3,11 +3,17 @@ from __future__ import annotations
 import io
 import logging
 import re
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
+from pathlib import Path
 
 import typer
 from agents import Runner
 
+from crisai.agents.factory import AgentFactory
+from crisai.runtime import MultiServerContext, RuntimeManager
+from crisai.tracing import append_trace
+
+from .display import create_agent_live, print_agent_output
 from .peer_transcript import PeerRunResult, append_peer_message
 from .prompt_builders import (
     build_author_prompt,
@@ -20,14 +26,11 @@ from .prompt_builders import (
     build_refiner_prompt,
     build_review_prompt,
 )
-from .display import create_agent_live
 from .workflow_support import (
-    append_trace_entry,
-    create_workflow_environment,
+    WorkflowEnvironment,
+    collect_server_ids,
     ensure_openai_api_key,
     resolve_required_agents,
-    run_traced_stage,
-    workflow_server_context,
 )
 
 
@@ -95,6 +98,64 @@ async def _run_agent_with_transient_box(agent_id: str, agent, prompt: str) -> st
     live = create_agent_live(agent_id)
     with live:
         result = await _run_agent_silently(agent, prompt)
+    return result
+
+
+def create_workflow_environment(settings) -> WorkflowEnvironment:
+    """Create workflow runtime objects using local module dependencies.
+
+    This wrapper intentionally lives in pipelines.py so existing tests that
+    monkeypatch RuntimeManager or AgentFactory on this module continue to work.
+    """
+    root_dir = Path.cwd()
+    return WorkflowEnvironment(
+        root_dir=root_dir,
+        runtime=RuntimeManager(root_dir),
+        factory=AgentFactory(root_dir),
+        trace_file=settings.log_dir / "agent_trace.log",
+    )
+
+
+@asynccontextmanager
+async def workflow_server_context(environment: WorkflowEnvironment, agent_specs, server_specs):
+    """Build and open the required MCP server context for a workflow."""
+    server_ids = collect_server_ids(agent_specs)
+    servers = [
+        environment.runtime.build_server(server_specs[server_id])
+        for server_id in server_ids
+        if server_id in server_specs
+    ]
+    async with MultiServerContext(servers) as active_servers:
+        yield active_servers
+
+
+def append_trace_entry(environment: WorkflowEnvironment, stage: str, content: str) -> None:
+    """Append a trace entry to the workflow trace file.
+
+    This wrapper keeps append_trace patchable from tests through the pipelines
+    module surface.
+    """
+    append_trace(environment.trace_file, stage, content)
+
+
+async def run_traced_stage(
+    *,
+    environment: WorkflowEnvironment,
+    active_servers: list,
+    spec,
+    ui_agent_id: str,
+    prompt: str,
+    trace_label: str,
+    verbose: bool,
+    runner,
+    print_output: bool = True,
+) -> str:
+    """Run a workflow stage, trace it, and optionally print stage output."""
+    agent = environment.factory.build_agent(spec, active_servers)
+    result = await runner(ui_agent_id, agent, prompt)
+    append_trace(environment.trace_file, trace_label, result)
+    if print_output:
+        print_agent_output(ui_agent_id, result, verbose=verbose)
     return result
 
 

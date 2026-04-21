@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +8,7 @@ import typer
 from crisai.cli import pipelines
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     trace_calls = []
     stage_calls = []
@@ -65,7 +64,7 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     ]
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monkeypatch, tmp_path):
     trace_calls = []
     stage_calls = []
@@ -105,6 +104,7 @@ async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monke
 
     monkeypatch.setattr(pipelines, "append_trace_entry", fake_append_trace_entry)
     monkeypatch.setattr(pipelines, "run_traced_stage", fake_run_traced_stage)
+    monkeypatch.setattr(pipelines, "build_author_prompt", lambda message, discovery_text: message)
 
     result = await pipelines.run_peer_pipeline(
         "hello",
@@ -131,7 +131,7 @@ async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monke
     ]
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_run_single_raises_for_unknown_agent(monkeypatch, tmp_path):
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
     with pytest.raises(typer.BadParameter) as exc:

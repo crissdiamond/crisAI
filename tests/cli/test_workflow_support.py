@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -67,7 +66,7 @@ def test_create_workflow_environment_uses_cwd(monkeypatch, tmp_path):
     assert environment.trace_file == tmp_path / "logs" / "agent_trace.log"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_run_traced_stage_builds_runs_traces_and_prints(monkeypatch, tmp_path):
     built = []
     traces = []
