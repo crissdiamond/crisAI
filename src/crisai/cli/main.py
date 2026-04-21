@@ -1,19 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-import json
-from datetime import datetime
-from pathlib import Path
-
 import typer
 from prompt_toolkit import prompt
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
-from rich.table import Table
 
-from crisai.cli.commands import parse_chat_command
+from crisai.cli.chat_context import build_chat_input
+from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
 from crisai.cli.display import print_final_answer, print_final_recommendation, print_status_message
-from crisai.cli.text_loader import load_cli_text, render_cli_text
+from crisai.cli.session_store import cli_history_file, load_history, save_history
+from crisai.cli.status_views import print_agents_table, print_chat_state, print_servers_table, route_display
 from crisai.config import load_settings
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
@@ -24,174 +21,12 @@ app = typer.Typer(help="crisAI CLI")
 
 
 def _load_registry():
+    """Loads runtime settings and enabled registry entries."""
     settings = load_settings()
     registry = Registry(settings.registry_dir)
     server_specs = {s.id: s for s in registry.load_servers() if s.enabled}
     agent_specs = {a.id: a for a in registry.load_agents()}
     return settings, registry, server_specs, agent_specs
-
-
-def _render_history(history: list[tuple[str, str]]) -> str:
-    if not history:
-        return ""
-
-    lines: list[str] = []
-    for role, content in history:
-        if role == "user":
-            lines.append(f"User: {content}")
-        else:
-            lines.append(f"Assistant: {content}")
-
-    return "\n\n".join(lines)
-
-
-def _cli_history_file() -> Path:
-    settings = load_settings()
-    path = settings.workspace_dir / ".cli_history"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _build_chat_input(user_input: str, history: list[tuple[str, str]]) -> str:
-    if not history:
-        return user_input
-
-    transcript = _render_history(history[-12:])
-    return render_cli_text(
-        "chat/history_wrapper.md",
-        transcript=transcript,
-        user_input=user_input,
-    )
-
-
-def _session_dir() -> Path:
-    settings = load_settings()
-    path = settings.workspace_dir / "chat_sessions"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _session_file(session_name: str) -> Path:
-    safe = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in session_name.strip())
-    if not safe:
-        safe = "default"
-    return _session_dir() / f"{safe}.json"
-
-
-def _load_history(session_name: str) -> list[tuple[str, str]]:
-    path = _session_file(session_name)
-    if not path.exists():
-        return []
-
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        history: list[tuple[str, str]] = []
-        for item in data:
-            role = item.get("role")
-            content = item.get("content")
-            if role in {"user", "assistant"} and isinstance(content, str):
-                history.append((role, content))
-        return history
-    except Exception:
-        return []
-
-
-def _save_history(session_name: str, history: list[tuple[str, str]]) -> None:
-    path = _session_file(session_name)
-    payload = [
-        {
-            "role": role,
-            "content": content,
-            "saved_at": datetime.utcnow().isoformat() + "Z",
-        }
-        for role, content in history
-    ]
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-
-
-def _server_icon(server_id: str) -> str:
-    sid = server_id.lower()
-    if "workspace" in sid:
-        return "📁"
-    if "document" in sid:
-        return "📄"
-    if "diagram" in sid:
-        return "📊"
-    if "sharepoint" in sid:
-        return "☁"
-    return "⚙"
-
-
-def _agent_icon(agent_id: str) -> str:
-    aid = agent_id.lower()
-    if "orchestrator" in aid:
-        return "🧭"
-    if "discovery" in aid:
-        return "🔎"
-    if "design_author" in aid:
-        return "✍"
-    if "design_challenger" in aid:
-        return "⚔"
-    if "design_refiner" in aid:
-        return "🛠"
-    if aid == "design":
-        return "🏗"
-    if "review" in aid:
-        return "🛡"
-    if "judge" in aid:
-        return "⚖"
-    if "operations" in aid:
-        return "🖧"
-    return "🧠"
-
-
-def _print_servers_table() -> None:
-    from rich.console import Console
-    console = Console()
-    settings = load_settings()
-    registry = Registry(settings.registry_dir)
-    servers = registry.load_servers()
-
-    table = Table(title="⚙ MCP Servers", header_style="bold bright_white")
-    table.add_column("Type", justify="center")
-    table.add_column("Server", style="bold cyan")
-    table.add_column("Status", justify="center")
-    table.add_column("Transport", style="magenta")
-    table.add_column("Tags", style="dim cyan")
-
-    for spec in servers:
-        status = "[green]enabled[/green]" if spec.enabled else "[red]disabled[/red]"
-        tags = ", ".join(spec.tags) if spec.tags else "[dim]-[/dim]"
-        table.add_row(_server_icon(spec.id), spec.id, status, spec.transport, tags)
-
-    console.print(f"[dim]Registry:[/dim] {settings.registry_dir}")
-    console.print(table)
-
-
-def _print_agents_table() -> None:
-    from rich.console import Console
-    console = Console()
-    _, _, _, agent_specs = _load_registry()
-
-    table = Table(title="🧠 Agents", header_style="bold bright_white")
-    table.add_column("Type", justify="center")
-    table.add_column("Agent", style="bold bright_cyan")
-    table.add_column("Model", style="yellow")
-    table.add_column("Allowed servers", style="green")
-
-    for spec in agent_specs.values():
-        servers = ", ".join(spec.allowed_servers) if spec.allowed_servers else "[dim]-[/dim]"
-        table.add_row(_agent_icon(spec.id), spec.id, spec.model, servers)
-
-    console.print(table)
-
-
-def _route_display(decision: RoutingDecision) -> str:
-    agent = decision.agent or "-"
-    label = "pinned" if decision.intent == "explicit" else "auto"
-    review_label = "review:on" if decision.needs_review else "review:off"
-    retrieval_label = "retrieval:on" if decision.needs_retrieval else "retrieval:off"
-    return f"[router:{label}] {decision.mode} • {agent} • {review_label} • {retrieval_label} • {decision.reason}"
 
 
 def _resolve_route(
@@ -200,6 +35,7 @@ def _resolve_route(
     mode_override: str | None = None,
     agent_override: str | None = None,
 ) -> RoutingDecision:
+    """Delegates routing decisions to the router."""
     return decide_route(
         user_input=user_input,
         review_enabled=review_enabled,
@@ -209,45 +45,12 @@ def _resolve_route(
 
 
 def _effective_pipeline_review(decision: RoutingDecision) -> bool:
+    """Returns whether pipeline review should execute for this decision."""
     return decision.mode == "pipeline" and decision.needs_review
 
 
-def _mode_status(current_mode: str, mode_pinned: bool) -> str:
-    if not mode_pinned:
-        return "auto"
-    return f"pinned:{current_mode}"
-
-
-def _agent_status(current_agent: str, agent_pinned: bool) -> str:
-    if not agent_pinned:
-        return "auto"
-    return f"pinned:{current_agent}"
-
-
-def _print_chat_state(
-    *,
-    current_session: str,
-    current_mode: str,
-    current_agent: str,
-    current_review: bool,
-    current_verbose: bool,
-    mode_pinned: bool,
-    agent_pinned: bool,
-    history_count: int,
-) -> None:
-    lines = [
-        f"Session: {current_session}",
-        f"Routing: {_mode_status(current_mode, mode_pinned)}",
-        f"Agent: {_agent_status(current_agent, agent_pinned)}",
-        f"Review preference: {'on' if current_review else 'off'}",
-        f"Verbose: {'on' if current_verbose else 'off'}",
-        f"Loaded history entries: {history_count}",
-        "Commands: /mode auto|single|pipeline|peer • /agent auto|<agent_id> • /status • /help",
-    ]
-    print_status_message("\n".join(lines), title="💬 Chat state")
-
-
 def _render_final_output(decision: RoutingDecision, body: str) -> None:
+    """Renders the final output according to the chosen mode."""
     if decision.mode == "peer":
         print_final_recommendation(body)
         return
@@ -256,12 +59,14 @@ def _render_final_output(decision: RoutingDecision, body: str) -> None:
 
 @app.command("list-servers")
 def list_servers() -> None:
-    _print_servers_table()
+    """Lists registered MCP servers."""
+    print_servers_table()
 
 
 @app.command("list-agents")
 def list_agents() -> None:
-    _print_agents_table()
+    """Lists registered agents."""
+    print_agents_table()
 
 
 async def _run_with_routing(
@@ -270,6 +75,7 @@ async def _run_with_routing(
     review: bool,
     decision: RoutingDecision,
 ) -> str:
+    """Executes the selected runtime path for a routed request."""
     settings, _, server_specs, agent_specs = _load_registry()
     effective_review = _effective_pipeline_review(decision)
 
@@ -301,149 +107,6 @@ async def _run_with_routing(
     )
 
 
-def _print_session_history(history: list[tuple[str, str]]) -> None:
-    if not history:
-        print_status_message("No history in this session.", title="📜 Session history")
-        return
-
-    lines = []
-    for idx, (role, content) in enumerate(history[-20:], start=1):
-        label = "User" if role == "user" else "Assistant"
-        lines.append(f"{idx}. {label}: {content[:500]}")
-    print_status_message("\n".join(lines), title="📜 Session history")
-
-
-def _handle_chat_command(
-    user_input: str,
-    *,
-    history: list[tuple[str, str]],
-    current_session: str,
-    current_mode: str,
-    current_agent: str,
-    current_review: bool,
-    current_verbose: bool,
-    mode_pinned: bool,
-    agent_pinned: bool,
-) -> tuple[bool, str, list[tuple[str, str]], str, str, bool, bool, bool, bool]:
-    command = parse_chat_command(user_input)
-
-    if not command.handled:
-        return False, current_session, history, current_mode, current_agent, current_review, current_verbose, mode_pinned, agent_pinned
-
-    action = command.action
-
-    if action == "exit":
-        raise EOFError
-
-    if action == "help":
-        print_final_answer(load_cli_text("help.md"), title="📘 CLI help")
-    elif action == "clear":
-        history.clear()
-        _save_history(current_session, history)
-        print_status_message(f"Conversation history cleared for session '{current_session}'.", title="🧹 Session cleared")
-    elif action == "list_servers":
-        _print_servers_table()
-    elif action == "list_agents":
-        _print_agents_table()
-    elif action == "history":
-        _print_session_history(history)
-    elif action == "switch_session":
-        current_session = str(command.value)
-        history = _load_history(current_session)
-        print_status_message(f"Switched to session '{current_session}'.\nLoaded history entries: {len(history)}", title="🔁 Session switched")
-        _print_chat_state(
-            current_session=current_session,
-            current_mode=current_mode,
-            current_agent=current_agent,
-            current_review=current_review,
-            current_verbose=current_verbose,
-            mode_pinned=mode_pinned,
-            agent_pinned=agent_pinned,
-            history_count=len(history),
-        )
-    elif action == "set_mode":
-        value = str(command.value)
-        if value == "auto":
-            current_mode = "single"
-            mode_pinned = False
-            print_status_message("Mode pin cleared. Router is back to auto mode selection.", title="🧭 Routing mode")
-        else:
-            current_mode = value
-            mode_pinned = True
-            print_status_message(f"Mode pinned to {current_mode}", title="🧭 Routing mode")
-        _print_chat_state(
-            current_session=current_session,
-            current_mode=current_mode,
-            current_agent=current_agent,
-            current_review=current_review,
-            current_verbose=current_verbose,
-            mode_pinned=mode_pinned,
-            agent_pinned=agent_pinned,
-            history_count=len(history),
-        )
-    elif action == "set_review":
-        current_review = bool(command.value)
-        print_status_message(f"Review preference {'enabled' if current_review else 'disabled'}.", title="🛡 Review preference")
-        _print_chat_state(
-            current_session=current_session,
-            current_mode=current_mode,
-            current_agent=current_agent,
-            current_review=current_review,
-            current_verbose=current_verbose,
-            mode_pinned=mode_pinned,
-            agent_pinned=agent_pinned,
-            history_count=len(history),
-        )
-    elif action == "set_verbose":
-        current_verbose = bool(command.value)
-        print_status_message(f"Verbose {'enabled' if current_verbose else 'disabled'}.", title="📝 Verbose output")
-        _print_chat_state(
-            current_session=current_session,
-            current_mode=current_mode,
-            current_agent=current_agent,
-            current_review=current_review,
-            current_verbose=current_verbose,
-            mode_pinned=mode_pinned,
-            agent_pinned=agent_pinned,
-            history_count=len(history),
-        )
-    elif action == "set_agent":
-        value = str(command.value)
-        if value.lower() == "auto":
-            current_agent = "orchestrator"
-            agent_pinned = False
-            print_status_message("Agent pin cleared. Router is back to auto agent selection.", title="🤖 Agent selection")
-        else:
-            current_agent = value
-            agent_pinned = True
-            print_status_message(f"Single-agent target pinned to {current_agent}", title="🤖 Agent selection")
-        _print_chat_state(
-            current_session=current_session,
-            current_mode=current_mode,
-            current_agent=current_agent,
-            current_review=current_review,
-            current_verbose=current_verbose,
-            mode_pinned=mode_pinned,
-            agent_pinned=agent_pinned,
-            history_count=len(history),
-        )
-    elif action == "noop" and command.message == "status":
-        _print_chat_state(
-            current_session=current_session,
-            current_mode=current_mode,
-            current_agent=current_agent,
-            current_review=current_review,
-            current_verbose=current_verbose,
-            mode_pinned=mode_pinned,
-            agent_pinned=agent_pinned,
-            history_count=len(history),
-        )
-    elif action in {"invalid", "noop"} and command.message:
-        print_status_message(command.message, title="⚠ Command notice")
-
-    return True, current_session, history, current_mode, current_agent, current_review, current_verbose, mode_pinned, agent_pinned
-
-
 @app.command()
 def ask(
     message: str = typer.Option(..., "--message", "-m"),
@@ -453,13 +116,14 @@ def ask(
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
+    """Runs a single non-interactive crisAI request."""
     decision = _resolve_route(
         message,
         review_enabled=review,
         mode_override="peer" if peer else "pipeline" if pipeline else None,
         agent_override=agent_id if agent_id != "orchestrator" else None,
     )
-    print_status_message(_route_display(decision), title="🧭 Routing decision")
+    print_status_message(route_display(decision), title="🧭 Routing decision")
 
     async def _run() -> None:
         text = await _run_with_routing(message, verbose, review, decision)
@@ -477,31 +141,34 @@ def chat(
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    current_session = session
-    history: list[tuple[str, str]] = _load_history(current_session)
-    current_mode = "peer" if peer else "pipeline" if pipeline else "single"
-    current_agent = agent_id
-    current_review = review
-    current_verbose = verbose
-    mode_pinned = True if (peer or pipeline) else False
-    agent_pinned = True if (agent_id != "orchestrator") else False
+    """Starts the interactive crisAI chat session."""
+    state = ChatRuntimeState(
+        current_session=session,
+        history=load_history(session),
+        current_mode="peer" if peer else "pipeline" if pipeline else "single",
+        current_agent=agent_id,
+        current_review=review,
+        current_verbose=verbose,
+        mode_pinned=True if (peer or pipeline) else False,
+        agent_pinned=True if (agent_id != "orchestrator") else False,
+    )
 
-    _print_chat_state(
-        current_session=current_session,
-        current_mode=current_mode,
-        current_agent=current_agent,
-        current_review=current_review,
-        current_verbose=current_verbose,
-        mode_pinned=mode_pinned,
-        agent_pinned=agent_pinned,
-        history_count=len(history),
+    print_chat_state(
+        current_session=state.current_session,
+        current_mode=state.current_mode,
+        current_agent=state.current_agent,
+        current_review=state.current_review,
+        current_verbose=state.current_verbose,
+        mode_pinned=state.mode_pinned,
+        agent_pinned=state.agent_pinned,
+        history_count=len(state.history),
     )
 
     while True:
         try:
             user_input = prompt(
                 "> ",
-                history=FileHistory(str(_cli_history_file())),
+                history=FileHistory(str(cli_history_file())),
                 auto_suggest=AutoSuggestFromHistory(),
             ).strip()
         except (EOFError, KeyboardInterrupt):
@@ -512,35 +179,25 @@ def chat(
             continue
 
         try:
-            handled, current_session, history, current_mode, current_agent, current_review, current_verbose, mode_pinned, agent_pinned = _handle_chat_command(
-                user_input,
-                history=history,
-                current_session=current_session,
-                current_mode=current_mode,
-                current_agent=current_agent,
-                current_review=current_review,
-                current_verbose=current_verbose,
-                mode_pinned=mode_pinned,
-                agent_pinned=agent_pinned,
-            )
+            handled = handle_chat_command(user_input, state)
         except EOFError:
             break
 
         if handled:
             continue
 
-        chat_input = _build_chat_input(user_input, history)
+        chat_input = build_chat_input(user_input, state.history)
         decision = _resolve_route(
             user_input,
-            review_enabled=current_review,
-            mode_override=current_mode if mode_pinned else None,
-            agent_override=current_agent if agent_pinned else None,
+            review_enabled=state.current_review,
+            mode_override=state.current_mode if state.mode_pinned else None,
+            agent_override=state.current_agent if state.agent_pinned else None,
         )
 
-        print_status_message(_route_display(decision), title="🧭 Routing decision")
+        print_status_message(route_display(decision), title="🧭 Routing decision")
 
         async def _run() -> str:
-            return await _run_with_routing(chat_input, current_verbose, current_review, decision)
+            return await _run_with_routing(chat_input, state.current_verbose, state.current_review, decision)
 
         try:
             text = asyncio.run(_run())
@@ -550,9 +207,9 @@ def chat(
 
         _render_final_output(decision, text)
 
-        history.append(("user", user_input))
-        history.append(("assistant", text))
-        _save_history(current_session, history)
+        state.history.append(("user", user_input))
+        state.history.append(("assistant", text))
+        save_history(state.current_session, state.history)
 
 
 if __name__ == "__main__":
