@@ -1,0 +1,114 @@
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Mapping, Sequence
+
+import typer
+
+from crisai.agents.factory import AgentFactory
+from crisai.runtime import MultiServerContext, RuntimeManager
+from crisai.tracing import append_trace
+
+from .display import print_agent_output
+
+
+@dataclass(slots=True)
+class WorkflowEnvironment:
+    """Shared runtime objects for a workflow execution.
+
+    Attributes:
+        root_dir: Repository root used as the runtime working directory.
+        runtime: Builds MCP server instances from server specs.
+        factory: Builds agent instances from agent specs.
+        trace_file: Destination file for workflow stage traces.
+    """
+
+    root_dir: Path
+    runtime: RuntimeManager
+    factory: AgentFactory
+    trace_file: Path
+
+
+def ensure_openai_api_key(settings) -> None:
+    """Raise when the OpenAI API key is missing."""
+    if not settings.openai_api_key:
+        raise typer.BadParameter("OPENAI_API_KEY is not set.")
+
+
+def create_workflow_environment(settings) -> WorkflowEnvironment:
+    """Create shared runtime objects for a workflow run."""
+    root_dir = Path.cwd()
+    return WorkflowEnvironment(
+        root_dir=root_dir,
+        runtime=RuntimeManager(root_dir),
+        factory=AgentFactory(root_dir),
+        trace_file=settings.log_dir / "agent_trace.log",
+    )
+
+
+def resolve_required_agents(
+    agent_specs: Mapping[str, object],
+    required_ids: Sequence[str],
+    *,
+    mode_name: str | None = None,
+) -> dict[str, object]:
+    """Resolve required agent specs or raise a clear validation error."""
+    missing = [agent_id for agent_id in required_ids if agent_id not in agent_specs]
+    if missing:
+        if mode_name:
+            raise typer.BadParameter(
+                f"{mode_name} requires these agents in registry/agents.yaml: {', '.join(missing)}"
+            )
+        raise typer.BadParameter(
+            f"Missing required agents in registry/agents.yaml: {', '.join(missing)}"
+        )
+    return {agent_id: agent_specs[agent_id] for agent_id in required_ids}
+
+
+def collect_server_ids(agent_specs: Sequence[object]) -> list[str]:
+    """Return the sorted unique allowed server ids across the provided agent specs."""
+    server_ids: set[str] = set()
+    for spec in agent_specs:
+        server_ids.update(getattr(spec, "allowed_servers", []))
+    return sorted(server_ids)
+
+
+@asynccontextmanager
+async def workflow_server_context(environment: WorkflowEnvironment, agent_specs: Sequence[object], server_specs):
+    """Build and open the MCP servers required by the provided agent specs."""
+    server_ids = collect_server_ids(agent_specs)
+    servers = [
+        environment.runtime.build_server(server_specs[server_id])
+        for server_id in server_ids
+        if server_id in server_specs
+    ]
+    async with MultiServerContext(servers) as active_servers:
+        yield active_servers
+
+
+async def run_traced_stage(
+    *,
+    environment: WorkflowEnvironment,
+    active_servers: list,
+    spec,
+    ui_agent_id: str,
+    prompt: str,
+    trace_label: str,
+    verbose: bool,
+    runner,
+    print_output: bool = True,
+) -> str:
+    """Run a workflow stage, trace it, and optionally print its output."""
+    agent = environment.factory.build_agent(spec, active_servers)
+    result = await runner(ui_agent_id, agent, prompt)
+    append_trace(environment.trace_file, trace_label, result)
+    if print_output:
+        print_agent_output(ui_agent_id, result, verbose=verbose)
+    return result
+
+
+def append_trace_entry(environment: WorkflowEnvironment, stage: str, content: str) -> None:
+    """Append a trace entry using the workflow environment trace file."""
+    append_trace(environment.trace_file, stage, content)

@@ -4,16 +4,11 @@ import io
 import logging
 import re
 from contextlib import redirect_stderr, redirect_stdout
-from pathlib import Path
 
 import typer
 from agents import Runner
 
-from crisai.agents.factory import AgentFactory
-from crisai.runtime import MultiServerContext, RuntimeManager
-from crisai.tracing import append_trace
-
-from .display import create_agent_live, print_agent_output
+from .peer_transcript import PeerRunResult, append_peer_message
 from .prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
@@ -24,6 +19,15 @@ from .prompt_builders import (
     build_pipeline_final_prompt,
     build_refiner_prompt,
     build_review_prompt,
+)
+from .display import create_agent_live
+from .workflow_support import (
+    append_trace_entry,
+    create_workflow_environment,
+    ensure_openai_api_key,
+    resolve_required_agents,
+    run_traced_stage,
+    workflow_server_context,
 )
 
 
@@ -112,7 +116,7 @@ def _extract_final_recommendation(text: str) -> str:
     return stripped
 
 
-def build_agent_servers(runtime: RuntimeManager, agent_spec, server_specs):
+def build_agent_servers(runtime, agent_spec, server_specs):
     servers = []
     for server_id in agent_spec.allowed_servers:
         spec = server_specs.get(server_id)
@@ -122,84 +126,87 @@ def build_agent_servers(runtime: RuntimeManager, agent_spec, server_specs):
 
 
 async def run_single(message: str, agent_id: str, *, settings, server_specs, agent_specs) -> str:
-    if not settings.openai_api_key:
-        raise typer.BadParameter("OPENAI_API_KEY is not set.")
+    ensure_openai_api_key(settings)
 
     if agent_id not in agent_specs:
         raise typer.BadParameter(f"Unknown agent_id: {agent_id}")
 
-    root_dir = Path.cwd()
-    runtime = RuntimeManager(root_dir)
-    factory = AgentFactory(root_dir)
+    environment = create_workflow_environment(settings)
     agent_spec = agent_specs[agent_id]
-    servers = build_agent_servers(runtime, agent_spec, server_specs)
 
-    async with MultiServerContext(servers) as active_servers:
-        agent = factory.build_agent(agent_spec, active_servers)
+    async with workflow_server_context(environment, [agent_spec], server_specs) as active_servers:
+        agent = environment.factory.build_agent(agent_spec, active_servers)
         return await _run_agent_silently(agent, message)
 
 
 async def run_pipeline(message: str, verbose: bool, review: bool, *, settings, server_specs, agent_specs) -> str:
-    if not settings.openai_api_key:
-        raise typer.BadParameter("OPENAI_API_KEY is not set.")
+    ensure_openai_api_key(settings)
+    environment = create_workflow_environment(settings)
 
-    root_dir = Path.cwd()
-    runtime = RuntimeManager(root_dir)
-    factory = AgentFactory(root_dir)
-    trace_file = settings.log_dir / "agent_trace.log"
-
-    discovery_spec = agent_specs["discovery"]
-    design_spec = agent_specs["design"]
-    review_spec = agent_specs["review"]
-    orchestrator_spec = agent_specs["orchestrator"]
-
-    all_server_ids = sorted(
-        {
-            *discovery_spec.allowed_servers,
-            *design_spec.allowed_servers,
-            *review_spec.allowed_servers,
-            *orchestrator_spec.allowed_servers,
-        }
+    specs = resolve_required_agents(
+        agent_specs,
+        ["discovery", "design", "review", "orchestrator"],
+        mode_name="Pipeline mode",
     )
-    servers = [runtime.build_server(server_specs[sid]) for sid in all_server_ids if sid in server_specs]
 
-    async with MultiServerContext(servers) as active_servers:
-        append_trace(trace_file, "USER INPUT", message)
+    async with workflow_server_context(environment, specs.values(), server_specs) as active_servers:
+        append_trace_entry(environment, "USER INPUT", message)
 
-        discovery_agent = factory.build_agent(discovery_spec, active_servers)
-        discovery_text = await _run_agent_with_transient_box("discovery", discovery_agent, build_discovery_prompt(message))
-        append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
-        print_agent_output("discovery", discovery_text, verbose=verbose)
+        discovery_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["discovery"],
+            ui_agent_id="discovery",
+            prompt=build_discovery_prompt(message),
+            trace_label="DISCOVERY OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
+        )
 
-        design_agent = factory.build_agent(design_spec, active_servers)
-        design_text = await _run_agent_with_transient_box("design", design_agent, build_design_prompt(message, discovery_text))
-        append_trace(trace_file, "DESIGN OUTPUT", design_text)
-        print_agent_output("design", design_text, verbose=verbose)
+        design_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["design"],
+            ui_agent_id="design",
+            prompt=build_design_prompt(message, discovery_text),
+            trace_label="DESIGN OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
+        )
 
         if review:
-            review_agent = factory.build_agent(review_spec, active_servers)
-            review_text = await _run_agent_with_transient_box(
-                "review", review_agent, build_review_prompt(message, discovery_text, design_text)
+            review_text = await run_traced_stage(
+                environment=environment,
+                active_servers=active_servers,
+                spec=specs["review"],
+                ui_agent_id="review",
+                prompt=build_review_prompt(message, discovery_text, design_text),
+                trace_label="REVIEW OUTPUT",
+                verbose=verbose,
+                runner=_run_agent_with_transient_box,
             )
-            append_trace(trace_file, "REVIEW OUTPUT", review_text)
-            print_agent_output("review", review_text, verbose=verbose)
         else:
             review_text = "Review stage skipped because review is disabled."
-            append_trace(trace_file, "REVIEW OUTPUT", review_text)
+            append_trace_entry(environment, "REVIEW OUTPUT", review_text)
 
-        orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_text = await _run_agent_with_transient_box(
-            "orchestrator",
-            orchestrator_agent,
-            build_pipeline_final_prompt(message, discovery_text, design_text, review_text),
+        final_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["orchestrator"],
+            ui_agent_id="orchestrator",
+            prompt=build_pipeline_final_prompt(message, discovery_text, design_text, review_text),
+            trace_label="FINAL OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
+            print_output=False,
         )
-        append_trace(trace_file, "FINAL OUTPUT", final_text)
         return final_text
 
 
 async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settings, server_specs, agent_specs, needs_retrieval: bool = True) -> str:
-    if not settings.openai_api_key:
-        raise typer.BadParameter("OPENAI_API_KEY is not set.")
+    del review  # Unused in peer mode today; kept for API compatibility.
+    ensure_openai_api_key(settings)
+    environment = create_workflow_environment(settings)
 
     required_agents = [
         "design_author",
@@ -210,100 +217,100 @@ async def run_peer_pipeline(message: str, verbose: bool, review: bool, *, settin
     ]
     if needs_retrieval:
         required_agents.insert(0, "discovery")
-    missing = [agent_id for agent_id in required_agents if agent_id not in agent_specs]
-    if missing:
-        raise typer.BadParameter(
-            f"Peer mode requires these agents in registry/agents.yaml: {', '.join(missing)}"
-        )
 
-    root_dir = Path.cwd()
-    runtime = RuntimeManager(root_dir)
-    factory = AgentFactory(root_dir)
-    trace_file = settings.log_dir / "agent_trace.log"
+    specs = resolve_required_agents(
+        agent_specs,
+        required_agents,
+        mode_name="Peer mode",
+    )
 
-    discovery_spec = agent_specs["discovery"]
-    author_spec = agent_specs["design_author"]
-    challenger_spec = agent_specs["design_challenger"]
-    refiner_spec = agent_specs["design_refiner"]
-    judge_spec = agent_specs["judge"]
-    orchestrator_spec = agent_specs["orchestrator"]
-
-    all_server_ids = set()
-    if needs_retrieval:
-        all_server_ids.update(discovery_spec.allowed_servers)
-    all_server_ids.update(author_spec.allowed_servers)
-    all_server_ids.update(challenger_spec.allowed_servers)
-    all_server_ids.update(refiner_spec.allowed_servers)
-    all_server_ids.update(judge_spec.allowed_servers)
-    all_server_ids.update(orchestrator_spec.allowed_servers)
-    servers = [runtime.build_server(server_specs[sid]) for sid in sorted(all_server_ids) if sid in server_specs]
-
-    async with MultiServerContext(servers) as active_servers:
-        append_trace(trace_file, "USER INPUT", message)
+    async with workflow_server_context(environment, specs.values(), server_specs) as active_servers:
+        append_trace_entry(environment, "USER INPUT", message)
 
         discovery_text = ""
         if needs_retrieval:
-            discovery_agent = factory.build_agent(discovery_spec, active_servers)
-            discovery_text = await _run_agent_with_transient_box(
-                "discovery", discovery_agent, build_discovery_prompt(message)
+            discovery_text = await run_traced_stage(
+                environment=environment,
+                active_servers=active_servers,
+                spec=specs["discovery"],
+                ui_agent_id="discovery",
+                prompt=build_discovery_prompt(message),
+                trace_label="DISCOVERY OUTPUT",
+                verbose=verbose,
+                runner=_run_agent_with_transient_box,
             )
-            append_trace(trace_file, "DISCOVERY OUTPUT", discovery_text)
-            print_agent_output("discovery", discovery_text, verbose=verbose)
         else:
-            append_trace(trace_file, "DISCOVERY OUTPUT", "Discovery skipped because this peer task does not require retrieval.")
+            append_trace_entry(
+                environment,
+                "DISCOVERY OUTPUT",
+                "Discovery skipped because this peer task does not require retrieval.",
+            )
 
-        author_agent = factory.build_agent(author_spec, active_servers)
-        author_text = await _run_agent_with_transient_box(
-            "design_author", author_agent, build_author_prompt(message, discovery_text or "None.")
+        discovery_basis = discovery_text or "None."
+
+        author_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["design_author"],
+            ui_agent_id="design_author",
+            prompt=build_author_prompt(message, discovery_basis),
+            trace_label="AUTHOR OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
         )
-        append_trace(trace_file, "AUTHOR OUTPUT", author_text)
-        print_agent_output("design_author", author_text, verbose=verbose)
 
-        challenger_agent = factory.build_agent(challenger_spec, active_servers)
-        challenger_text = await _run_agent_with_transient_box(
-            "design_challenger",
-            challenger_agent,
-            build_challenger_prompt(message, discovery_text or "None.", author_text),
+        challenger_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["design_challenger"],
+            ui_agent_id="design_challenger",
+            prompt=build_challenger_prompt(message, discovery_basis, author_text),
+            trace_label="CHALLENGER OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
         )
-        append_trace(trace_file, "CHALLENGER OUTPUT", challenger_text)
-        print_agent_output("design_challenger", challenger_text, verbose=verbose)
 
-        refiner_agent = factory.build_agent(refiner_spec, active_servers)
-        refiner_text = await _run_agent_with_transient_box(
-            "design_refiner",
-            refiner_agent,
-            build_refiner_prompt(message, discovery_text or "None.", author_text, challenger_text),
+        refiner_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["design_refiner"],
+            ui_agent_id="design_refiner",
+            prompt=build_refiner_prompt(message, discovery_basis, author_text, challenger_text),
+            trace_label="REFINER OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
         )
-        append_trace(trace_file, "REFINER OUTPUT", refiner_text)
-        print_agent_output("design_refiner", refiner_text, verbose=verbose)
 
-        judge_agent = factory.build_agent(judge_spec, active_servers)
-        judge_text = await _run_agent_with_transient_box(
-            "judge",
-            judge_agent,
-            build_judge_prompt(message, discovery_text or "None.", challenger_text, refiner_text),
+        judge_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["judge"],
+            ui_agent_id="judge",
+            prompt=build_judge_prompt(message, discovery_basis, challenger_text, refiner_text),
+            trace_label="JUDGE OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
         )
-        append_trace(trace_file, "JUDGE OUTPUT", judge_text)
-        print_agent_output("judge", judge_text, verbose=verbose)
 
-        orchestrator_agent = factory.build_agent(orchestrator_spec, active_servers)
-        final_text = await _run_agent_with_transient_box(
-            "orchestrator",
-            orchestrator_agent,
-            build_peer_final_prompt(
+        final_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["orchestrator"],
+            ui_agent_id="orchestrator",
+            prompt=build_peer_final_prompt(
                 message,
-                discovery_text or "None.",
+                discovery_basis,
                 author_text,
                 challenger_text,
                 refiner_text,
                 judge_text,
             ),
+            trace_label="FINAL OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
+            print_output=False,
         )
-        append_trace(trace_file, "FINAL OUTPUT", final_text)
         return _extract_final_recommendation(final_text)
-
-
-from .peer_transcript import PeerRunResult, append_peer_message
 
 
 def build_peer_run_result(
