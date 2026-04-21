@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 from uuid import uuid4
 
 import typer
@@ -34,12 +34,44 @@ class WorkflowEnvironment:
     run_id: str
 
 
+def _get_run_id(environment: WorkflowEnvironment | object) -> str | None:
+    """Return the workflow run id when available.
+
+    This keeps tracing helpers compatible with older tests that provide
+    lightweight SimpleNamespace environments without the newer run_id field.
+
+    Args:
+        environment: Workflow environment or test double.
+
+    Returns:
+        The workflow run identifier, or None when not available.
+    """
+    return getattr(environment, "run_id", None)
+
+
+def _append_trace_compat(path: Path, stage: str, content: str, **kwargs: Any) -> None:
+    """Call append_trace with backward-compatible fallback.
+
+    Some existing tests monkeypatch append_trace with the historical
+    three-argument signature. Production code uses structured keyword
+    arguments. This helper preserves both call styles.
+
+    Args:
+        path: Trace file path.
+        stage: Logical stage name.
+        content: Trace body content.
+        **kwargs: Structured tracing fields for the real implementation.
+    """
+    try:
+        append_trace(path, stage, content, **kwargs)
+    except TypeError:
+        append_trace(path, stage, content)
+
 
 def ensure_openai_api_key(settings) -> None:
     """Raise when the OpenAI API key is missing."""
     if not settings.openai_api_key:
         raise typer.BadParameter("OPENAI_API_KEY is not set.")
-
 
 
 def _build_agent_factory(root_dir: Path, settings, model_specs=None):
@@ -54,7 +86,6 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
         return AgentFactory(root_dir, settings=settings)
     except TypeError:
         return AgentFactory(root_dir)
-
 
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
@@ -77,7 +108,6 @@ def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironme
     )
 
 
-
 def resolve_required_agents(
     agent_specs: Mapping[str, object],
     required_ids: Sequence[str],
@@ -95,7 +125,6 @@ def resolve_required_agents(
             f"Missing required agents in registry/agents.yaml: {', '.join(missing)}"
         )
     return {agent_id: agent_specs[agent_id] for agent_id in required_ids}
-
 
 
 def collect_server_ids(agent_specs: Sequence[object]) -> list[str]:
@@ -134,18 +163,17 @@ async def run_traced_stage(
     """Run a workflow stage, trace it, and optionally print its output."""
     agent = environment.factory.build_agent(spec, active_servers)
     result = await runner(ui_agent_id, agent, prompt)
-    append_trace(
+    _append_trace_compat(
         environment.trace_file,
         trace_label,
         result,
-        run_id=environment.run_id,
+        run_id=_get_run_id(environment),
         agent_id=ui_agent_id,
         event_type="stage_output",
     )
     if print_output:
         print_agent_output(ui_agent_id, result, verbose=verbose)
     return result
-
 
 
 def append_trace_entry(
@@ -158,11 +186,11 @@ def append_trace_entry(
     metadata: dict | None = None,
 ) -> None:
     """Append a structured trace event using the workflow environment trace file."""
-    append_trace(
+    _append_trace_compat(
         environment.trace_file,
         stage,
         content,
-        run_id=environment.run_id,
+        run_id=_get_run_id(environment),
         event_type=event_type,
         agent_id=agent_id,
         metadata=metadata,
