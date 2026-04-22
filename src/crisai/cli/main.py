@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
+from contextlib import contextmanager
 
 import typer
 from prompt_toolkit import prompt
@@ -21,6 +24,25 @@ from .pipelines import run_peer_pipeline, run_pipeline, run_single
 
 app = typer.Typer(help="crisAI CLI")
 logger = get_logger(__name__)
+
+_EXPLICIT_MODE_PATTERNS: dict[str, tuple[str, ...]] = {
+    "peer": (
+        r"\buse\s+peer\s+mode\b",
+        r"\brun\s+in\s+peer\s+mode\b",
+        r"\bshow\s+the\s+peer\s+conversation\b",
+        r"\bpeer\s+conversation\b",
+        r"\bauthor\b.*\bchallenger\b.*\brefiner\b.*\bjudge\b",
+    ),
+    "pipeline": (
+        r"\buse\s+pipeline\s+mode\b",
+        r"\brun\s+the\s+pipeline\b",
+        r"\bdiscovery\b.*\bdesign\b.*\breview\b.*\borchestrator\b",
+    ),
+    "single": (
+        r"\buse\s+single\s+mode\b",
+        r"\brun\s+a\s+single\s+agent\b",
+    ),
+}
 
 
 
@@ -48,6 +70,63 @@ def _load_registry():
         },
     )
     return settings, registry, server_specs, agent_specs, model_specs
+
+
+
+def _detect_explicit_mode(user_input: str) -> str | None:
+    """Return a mode explicitly requested in the user prompt when present.
+
+    Args:
+        user_input: Raw user text entered in the CLI.
+
+    Returns:
+        One of ``peer``, ``pipeline``, or ``single`` when the request contains
+        an explicit mode instruction. Returns ``None`` when no strong signal is
+        present.
+    """
+    normalized = " ".join(user_input.lower().split())
+    for mode, patterns in _EXPLICIT_MODE_PATTERNS.items():
+        for pattern in patterns:
+            if re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL):
+                return mode
+    return None
+
+
+@contextmanager
+def _suppress_console_info_logs():
+    """Hide non-file INFO logs from the interactive console.
+
+    The CLI should remain clean while preserving structured logs written to
+    files. This helper temporarily raises the threshold only for non-file
+    handlers such as console or Rich handlers.
+    """
+    handler_states: list[tuple[logging.Handler, int]] = []
+    seen_handler_ids: set[int] = set()
+
+    logger_objects: list[logging.Logger] = [logging.getLogger()]
+    logger_objects.extend(
+        candidate
+        for candidate in logging.root.manager.loggerDict.values()
+        if isinstance(candidate, logging.Logger)
+    )
+
+    for logger_obj in logger_objects:
+        for handler in logger_obj.handlers:
+            handler_id = id(handler)
+            if handler_id in seen_handler_ids:
+                continue
+            if isinstance(handler, logging.FileHandler):
+                continue
+            seen_handler_ids.add(handler_id)
+            handler_states.append((handler, handler.level))
+            if handler.level < logging.WARNING:
+                handler.setLevel(logging.WARNING)
+
+    try:
+        yield
+    finally:
+        for handler, original_level in handler_states:
+            handler.setLevel(original_level)
 
 
 
@@ -159,10 +238,13 @@ def ask(
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Run a single non-interactive crisAI request."""
+    explicit_mode = _detect_explicit_mode(message)
+    mode_override = "peer" if peer else "pipeline" if pipeline else explicit_mode
+
     decision = _resolve_route(
         message,
         review_enabled=review,
-        mode_override="peer" if peer else "pipeline" if pipeline else None,
+        mode_override=mode_override,
         agent_override=agent_id if agent_id != "orchestrator" else None,
     )
     print_status_message(route_display(decision), title="🧭 Routing decision")
@@ -171,7 +253,8 @@ def ask(
         text = await _run_with_routing(message, verbose, review, decision)
         _render_final_output(decision, text)
 
-    asyncio.run(_run())
+    with _suppress_console_info_logs():
+        asyncio.run(_run())
 
 
 @app.command()
@@ -232,11 +315,15 @@ def chat(
             continue
 
         chat_input = build_chat_input(user_input, state.history)
+        explicit_mode = _detect_explicit_mode(user_input)
+        mode_override = state.current_mode if state.mode_pinned else explicit_mode
+        agent_override = state.current_agent if state.agent_pinned else None
+
         decision = _resolve_route(
             user_input,
             review_enabled=state.current_review,
-            mode_override=state.current_mode if state.mode_pinned else None,
-            agent_override=state.current_agent if state.agent_pinned else None,
+            mode_override=mode_override,
+            agent_override=agent_override,
         )
 
         print_status_message(route_display(decision), title="🧭 Routing decision")
@@ -245,7 +332,8 @@ def chat(
             return await _run_with_routing(chat_input, state.current_verbose, state.current_review, decision)
 
         try:
-            text = asyncio.run(_run())
+            with _suppress_console_info_logs():
+                text = asyncio.run(_run())
         except Exception as exc:  # noqa: BLE001
             logger.exception("Chat execution failed.")
             print_status_message(str(exc), title="❌ Error")
