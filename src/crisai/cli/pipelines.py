@@ -125,6 +125,33 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
         return AgentFactory(root_dir)
 
 
+
+def build_context_prompt(message: str, discovery_text: str) -> str:
+    """Build the prompt for the context agent.
+
+    The context stage separates source discovery from design. Discovery finds
+    candidate material; context turns that material into a concise, grounded
+    brief that downstream design agents can safely use.
+
+    Args:
+        message: Original user request.
+        discovery_text: Output from the discovery stage.
+
+    Returns:
+        A structured prompt for the context agent.
+    """
+    return (
+        "You are preparing grounded context for a solution design task.\n\n"
+        "Original request:\n"
+        f"{message}\n\n"
+        "Discovery output:\n"
+        f"{discovery_text}\n\n"
+        "Create a concise context brief for the design agent. Include only "
+        "information supported by the discovery output. Highlight relevant facts, "
+        "constraints, assumptions, gaps, and source references when available. "
+        "Do not draft the solution design.\n"
+    )
+
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
     """Create workflow runtime objects using local module dependencies.
 
@@ -301,7 +328,7 @@ async def run_pipeline(
     agent_specs,
     model_specs=None,
 ) -> str:
-    """Run the standard discovery → design → review → final pipeline."""
+    """Run the standard discovery → context → design → review → final pipeline."""
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
 
@@ -309,7 +336,7 @@ async def run_pipeline(
 
     specs = resolve_required_agents(
         agent_specs,
-        ["discovery", "design", "review", "orchestrator"],
+        ["discovery", "context", "design", "review", "orchestrator"],
         mode_name="Pipeline mode",
     )
 
@@ -333,12 +360,23 @@ async def run_pipeline(
             runner=_run_agent_with_transient_box,
         )
 
+        context_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["context"],
+            ui_agent_id="context",
+            prompt=build_context_prompt(message, discovery_text),
+            trace_label="CONTEXT OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
+        )
+
         design_text = await run_traced_stage(
             environment=environment,
             active_servers=active_servers,
             spec=specs["design"],
             ui_agent_id="design",
-            prompt=build_design_prompt(message, discovery_text),
+            prompt=build_design_prompt(message, context_text),
             trace_label="DESIGN OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,

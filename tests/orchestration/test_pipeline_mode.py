@@ -45,6 +45,7 @@ def fake_specs():
     }
     agent_specs = {
         "discovery": AgentSpec("discovery", "Discovery", "m", "p", ["workspace"]),
+        "context": AgentSpec("context", "Context", "m", "p", ["workspace", "document"]),
         "design": AgentSpec("design", "Design", "m", "p", ["document"]),
         "review": AgentSpec("review", "Review", "m", "p", ["document"]),
         "orchestrator": AgentSpec("orchestrator", "Orchestrator", "m", "p", ["workspace"]),
@@ -67,7 +68,8 @@ def patch_pipeline_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "append_trace", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "print_agent_output", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "build_discovery_prompt", lambda message: f"DISCOVERY::{message}")
-    monkeypatch.setattr(pipelines, "build_design_prompt", lambda message, discovery: f"DESIGN::{message}::{discovery}")
+    monkeypatch.setattr(pipelines, "build_context_prompt", lambda message, discovery: f"CONTEXT::{message}::{discovery}")
+    monkeypatch.setattr(pipelines, "build_design_prompt", lambda message, context: f"DESIGN::{message}::{context}")
     monkeypatch.setattr(pipelines, "build_review_prompt", lambda message, discovery, design: f"REVIEW::{message}::{design}")
     monkeypatch.setattr(pipelines, "build_pipeline_final_prompt", lambda message, discovery, design, review: f"FINAL::{message}::{review}")
 
@@ -128,7 +130,7 @@ async def test_pipeline_runs_expected_stage_order_when_review_off(monkeypatch, f
         agent_specs=agent_specs,
     )
 
-    assert calls == ["discovery", "design", "orchestrator"]
+    assert calls == ["discovery", "context", "design", "orchestrator"]
     assert result == "ORCHESTRATOR OUTPUT"
 
 
@@ -152,5 +154,5 @@ async def test_pipeline_runs_expected_stage_order_when_review_on(monkeypatch, fa
         agent_specs=agent_specs,
     )
 
-    assert calls == ["discovery", "design", "review", "orchestrator"]
+    assert calls == ["discovery", "context", "design", "review", "orchestrator"]
     assert result == "ORCHESTRATOR OUTPUT"

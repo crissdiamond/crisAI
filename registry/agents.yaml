@@ -19,6 +19,14 @@ agents:
       - documents
       - sharepoint_docs
 
+  - id: context
+    name: Context Agent
+    model_ref: openai_fast
+    prompt_file: prompts/context_agent.md
+    allowed_servers:
+      - workspace
+      - documents
+
   - id: design
     name: Design Agent
     model_ref: openai_fast
