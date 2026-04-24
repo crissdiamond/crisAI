@@ -1,0 +1,14 @@
+Domain Background Reference
+
+Several portfolios need reporting over operational processes that are currently tracked in local files.
+These files often start as manual trackers but gradually become important sources for management decisions.
+
+Common issues:
+- business definitions are unclear
+- ownership of local files is ambiguous
+- data quality checks are manual
+- reports are recreated differently by different teams
+- lineage is difficult to explain
+
+For architecture decisions, the key question is whether the use case is ad hoc analysis or a recurring operational reporting capability.
+Recurring reporting should normally move towards a governed data product.

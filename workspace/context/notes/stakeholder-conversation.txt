@@ -1,0 +1,10 @@
+Stakeholder Conversation Notes
+
+Stakeholders asked whether Power BI can just connect to the spreadsheet directly.
+They said speed is important, but they also want confidence that figures are consistent month to month.
+
+Architecture concern raised:
+If logic is implemented only in Power BI, it may be difficult to assure, reuse, or explain later.
+
+Suggested compromise:
+start with a simple ingestion route, keep transformations minimal, and document known data quality issues.

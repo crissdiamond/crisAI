@@ -1,0 +1,9 @@
+System Landscape Reference
+
+The institutional application landscape includes major enterprise systems, portfolio-owned applications, SaaS products, and local operational files.
+Not every useful data source is an enterprise system.
+
+A source can be accepted temporarily even if it is not technically mature, but the design must make ownership, lineage, quality, and retention explicit.
+
+Excel and CSV files are common transitional sources.
+They are acceptable for discovery or prototype reporting, but not ideal as long-term operational reporting sources without governance controls.

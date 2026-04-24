@@ -1,0 +1,9 @@
+Discovery Notes
+
+A team has a spreadsheet used to track benefits, savings, and expected delivery dates.
+The spreadsheet is manually maintained and currently has no formal owner.
+
+The stakeholders want a dashboard quickly, but they also expect it to become a regular monthly reporting product.
+There is uncertainty about field definitions such as realised benefit, forecast benefit, and confidence level.
+
+Initial observation: this looks like more than a one-off visualisation.

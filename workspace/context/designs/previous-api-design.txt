@@ -1,0 +1,10 @@
+Existing Design Example: API-Based Student Data Product
+
+This design exposed student-related data through a governed API and event topic.
+It is not directly about file ingestion, but it established useful principles:
+- source ownership remains with the mastering system
+- consumers should not build hidden copies without governance
+- canonical definitions are preferred where data is reused
+- access is controlled through standard identity groups
+
+The important precedent is not the API technology itself, but the separation between source ownership, curated representation, and consumer access.

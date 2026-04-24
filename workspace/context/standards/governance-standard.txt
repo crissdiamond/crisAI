@@ -1,0 +1,14 @@
+Standard: Governance Requirements for Data Products
+
+Any dataset used for operational or strategic reporting must define:
+- Data Owner
+- Data Steward
+- Data Custodian
+- purpose
+- retention expectation
+- access model
+- known quality limitations
+
+Known limitations are acceptable if they are documented and visible to consumers.
+
+The design must describe how data quality issues are raised and tracked.

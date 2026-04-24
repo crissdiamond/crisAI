@@ -1,0 +1,19 @@
+Reusable Pattern: Controlled File Ingestion
+
+When a source is a file, the preferred pattern is:
+1. land the original file unchanged
+2. record source metadata
+3. validate structure and required fields
+4. transform into a standard staging shape
+5. curate into a reusable data product
+6. expose reporting from the curated or gold layer
+
+This pattern avoids Power BI becoming both the transformation layer and the reporting layer.
+
+Use this pattern when:
+- the report is recurring
+- multiple users rely on the output
+- the data influences operational or financial decisions
+- auditability or lineage is required
+
+Do not over-engineer one-off analysis.

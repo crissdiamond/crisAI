@@ -1,0 +1,12 @@
+Open Questions
+
+Questions to resolve before final design:
+- Who owns the source spreadsheet?
+- Who approves changes to field definitions?
+- How often will the report refresh?
+- Is the output used for operational, financial, or strategic decisions?
+- Are historical versions of the spreadsheet required?
+- Who can access the dashboard?
+
+Potential risk:
+The solution may be described as tactical, but usage expectations suggest it will become operational.

@@ -1,0 +1,18 @@
+Existing Design Example: File-Based Benefits Dashboard
+
+A previous dashboard used Excel files as the initial source because the process was immature and no enterprise system integration existed.
+
+The design decision was to ingest the Excel files into the data platform before reporting because:
+- the dashboard was expected to be refreshed monthly
+- senior stakeholders relied on the figures
+- calculations needed to be repeatable
+- Power BI-only transformation would make assurance difficult
+
+The design used:
+- file landing area
+- validation step
+- staging table
+- curated dataset
+- Power BI report over curated output
+
+The design noted that direct Excel-to-Power BI was acceptable only for early discovery.

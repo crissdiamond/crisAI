@@ -1,0 +1,8 @@
+Standard: Reporting Data Preparation
+
+Recurring reports must not rely on undocumented transformations hidden only inside a report file.
+Business rules, joins, filters, and calculations should be documented or implemented in controlled data preparation layers.
+
+Power BI may be used for visualisation, exploration, and lightweight calculations, but should not be the only location where critical transformation logic exists.
+
+A report is considered recurring if it is expected to be refreshed or used more than twice for operational decision-making.

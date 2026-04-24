@@ -1,0 +1,17 @@
+Reusable Pattern: Operational Reporting
+
+For operational reporting, the preferred design is to separate data preparation from presentation.
+
+Recommended pattern:
+- source data is ingested into the platform
+- transformations are performed in controlled pipelines
+- quality checks are recorded before publishing
+- a curated dataset or gold layer is exposed
+- Power BI is used for presentation and user interaction
+
+Anti-pattern:
+- connecting Power BI directly to unmanaged local files
+- embedding business rules only inside report visuals
+- duplicating transformations in multiple reports
+
+This pattern supports reuse and reduces hidden logic.

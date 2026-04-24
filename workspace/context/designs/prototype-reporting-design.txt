@@ -1,0 +1,11 @@
+Existing Design Example: Prototype Reporting Route
+
+A prototype reporting design allowed analysts to connect directly to local files for a short experiment.
+The design included a clear expiry condition:
+- if the report became recurring
+- if it was shared beyond the immediate working group
+- or if decisions depended on it
+
+then the source had to move into a controlled ingestion and curation route.
+
+This design is useful because it distinguishes exploratory analysis from operational reporting.

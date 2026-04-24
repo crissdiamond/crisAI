@@ -1,0 +1,15 @@
+Platform Capabilities Reference
+
+The current data platform supports batch ingestion, curated data products, semantic models, and operational reporting.
+The preferred ingestion route is through a controlled ingestion service rather than unmanaged direct uploads.
+
+The platform is suitable for:
+- structured operational data from enterprise systems
+- scheduled ingestion of files
+- publishing reusable curated datasets
+- producing Power BI reports from governed data products
+
+The platform is not currently positioned as a low-code spreadsheet automation tool.
+Where Excel files are used as a source, they should be treated as data inputs and moved into a controlled data pipeline when the output becomes operational or recurring.
+
+Relevant capability: Bronze landing, Silver staging, Silver curated, Gold data products.

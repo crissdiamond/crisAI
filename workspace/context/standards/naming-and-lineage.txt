@@ -1,0 +1,8 @@
+Standard: Naming and Lineage
+
+Files, tables, datasets, and reports should use descriptive names that reflect the business concept, not only the source system.
+
+Lineage must be traceable from report output back to the original source input.
+For file-based sources, the original filename, received date, and source owner should be captured.
+
+Curated datasets should avoid source-specific names where an enterprise or domain concept is clearer.

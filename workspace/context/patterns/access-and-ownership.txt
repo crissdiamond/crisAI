@@ -1,0 +1,14 @@
+Reusable Pattern: Data Ownership and Access
+
+Every data product or reporting dataset should identify:
+- accountable Data Owner
+- operational Data Steward
+- technical Data Custodian
+- approved user groups
+- access route
+- escalation path for data quality issues
+
+For local-file sources, ownership is often unclear.
+The architecture should explicitly assign interim ownership before the source is used for recurring reporting.
+
+Access to reports should be based on role or group membership rather than individually managed exceptions.
