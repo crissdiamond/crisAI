@@ -127,30 +127,79 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
 
 
 def build_context_prompt(message: str, discovery_text: str) -> str:
-    """Build the prompt for the context agent.
+    """Build a grounded prompt for the context agent.
 
-    The context stage separates source discovery from design. Discovery finds
-    candidate material; context turns that material into a concise, grounded
-    brief that downstream design agents can safely use.
+    The context stage is intentionally separate from both discovery and design:
+    discovery identifies candidate source material, while context converts that
+    material into an evidence-led brief that a downstream design agent can use.
 
     Args:
         message: Original user request.
-        discovery_text: Output from the discovery stage.
+        discovery_text: Output produced by the discovery stage.
 
     Returns:
-        A structured prompt for the context agent.
+        A structured prompt that asks the context agent to extract relevant
+        information, preserve source references, identify uncertainty, and avoid
+        drafting the final solution design.
     """
-    return (
-        "You are preparing grounded context for a solution design task.\n\n"
-        "Original request:\n"
-        f"{message}\n\n"
-        "Discovery output:\n"
-        f"{discovery_text}\n\n"
-        "Create a concise context brief for the design agent. Include only "
-        "information supported by the discovery output. Highlight relevant facts, "
-        "constraints, assumptions, gaps, and source references when available. "
-        "Do not draft the solution design.\n"
-    )
+    return f"""You are the Context agent in the crisAI workflow.
+
+Your job is to transform discovered source material into a concise, grounded context brief for a downstream solution design agent.
+
+## Original user request
+
+```text
+{message}
+```
+
+## Discovery output
+
+```text
+{discovery_text}
+```
+
+## Task
+
+Create a context brief that helps the design agent draft a solution design using only the information available in the discovery output.
+
+## Rules
+
+- Use only facts supported by the discovery output.
+- Preserve file names, paths, document titles, sections, links, citations, or other source references when they are available.
+- Separate confirmed facts from assumptions and uncertainties.
+- Remove irrelevant findings, duplication, and low-value noise.
+- Do not invent missing details.
+- Do not draft, recommend, or optimise the solution design.
+- If the discovery output is empty, weak, or not relevant, say so clearly and explain what is missing.
+
+## Output format
+
+```markdown
+## Context Summary
+A short paragraph explaining what relevant context was found and how strong the source basis is.
+
+## Relevant Facts
+- Fact: ...
+  Source: ...
+
+## Constraints and Dependencies
+- Constraint/dependency: ...
+  Source: ...
+
+## Assumptions
+- Assumption: ...
+  Basis: ...
+
+## Gaps and Uncertainties
+- Gap/uncertainty: ...
+  Why it matters: ...
+
+## Source Notes
+- Source: ...
+  Relevance: ...
+```
+"""
+
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
     """Create workflow runtime objects using local module dependencies.
