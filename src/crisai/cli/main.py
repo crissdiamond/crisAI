@@ -4,6 +4,8 @@ import asyncio
 import logging
 import re
 from contextlib import contextmanager
+from dataclasses import is_dataclass, replace
+from types import SimpleNamespace
 
 import typer
 from prompt_toolkit import prompt
@@ -44,6 +46,32 @@ _EXPLICIT_MODE_PATTERNS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+_GENERATIVE_PEER_PATTERNS: tuple[str, ...] = (
+    r"\bpropose\b",
+    r"\bdesign\b",
+    r"\bdraft\b",
+    r"\bcreate\b",
+    r"\bwrite\b",
+    r"\bimprov(?:e|ing|ement)\b",
+    r"\brefactor\b",
+    r"\bsimple\s+design\b",
+)
+
+_RETRIEVAL_REQUIRED_PATTERNS: tuple[str, ...] = (
+    r"\bbased\s+on\b",
+    r"\bfrom\s+the\s+workspace\b",
+    r"\bfrom\s+existing\b",
+    r"\buse\s+the\s+existing\b",
+    r"\buse\s+the\s+document\b",
+    r"\breview\s+the\s+document\b",
+    r"\bretrieve\b",
+    r"\blook\s+up\b",
+    r"\bfind\b",
+    r"\bsearch\b",
+    r"\bsource\b",
+    r"\bcitation\b",
+    r"\bcontext\s+from\b",
+)
 
 
 def _load_registry():
@@ -90,6 +118,77 @@ def _detect_explicit_mode(user_input: str) -> str | None:
             if re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL):
                 return mode
     return None
+
+
+
+def _should_disable_peer_retrieval(user_input: str, explicit_mode: str | None, decision: RoutingDecision) -> bool:
+    """Return whether discovery should be skipped for a peer design task.
+
+    For generation-first peer requests, retrieval can bias the entire workflow
+    toward stale workspace artefacts. This override only applies when the user
+    explicitly asks for peer mode and the prompt is asking the agents to create
+    or improve a design rather than analyse existing sources.
+
+    Args:
+        user_input: Raw user prompt for the current request.
+        explicit_mode: Mode explicitly detected from the prompt, if any.
+        decision: Router decision before local CLI overrides.
+
+    Returns:
+        ``True`` when peer retrieval should be disabled locally.
+    """
+    if getattr(decision, "mode", None) != "peer":
+        return False
+
+    if explicit_mode != "peer":
+        return False
+
+    normalized = " ".join(user_input.lower().split())
+
+    for pattern in _RETRIEVAL_REQUIRED_PATTERNS:
+        if re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL):
+            return False
+
+    if re.search(r"\bauthor\b.*\bchallenger\b.*\brefiner\b.*\bjudge\b", normalized, flags=re.IGNORECASE | re.DOTALL):
+        return True
+
+    return any(
+        re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL)
+        for pattern in _GENERATIVE_PEER_PATTERNS
+    )
+
+
+
+def _copy_decision_with_updates(decision: RoutingDecision, **updates):
+    """Return a decision-like object with selected fields updated.
+
+    This supports both mutable objects and frozen dataclass-style routing
+    decisions without forcing changes in the router implementation.
+    """
+    try:
+        for field_name, value in updates.items():
+            setattr(decision, field_name, value)
+        return decision
+    except Exception:  # noqa: BLE001
+        if is_dataclass(decision):
+            return replace(decision, **updates)
+
+    data = vars(decision).copy() if hasattr(decision, "__dict__") else {}
+    data.update(updates)
+    return SimpleNamespace(**data)
+
+
+
+def _apply_decision_overrides(user_input: str, explicit_mode: str | None, decision: RoutingDecision):
+    """Apply local CLI safeguards on top of the router decision.
+
+    The router remains the source of truth for general routing, but the CLI can
+    impose narrower interaction guarantees when the user gave a clear local
+    instruction such as explicit peer mode for a generative design task.
+    """
+    if _should_disable_peer_retrieval(user_input, explicit_mode, decision):
+        return _copy_decision_with_updates(decision, needs_retrieval=False)
+    return decision
 
 
 @contextmanager
@@ -247,6 +346,7 @@ def ask(
         mode_override=mode_override,
         agent_override=agent_id if agent_id != "orchestrator" else None,
     )
+    decision = _apply_decision_overrides(message, explicit_mode, decision)
     print_status_message(route_display(decision), title="🧭 Routing decision")
 
     async def _run() -> None:
@@ -325,6 +425,7 @@ def chat(
             mode_override=mode_override,
             agent_override=agent_override,
         )
+        decision = _apply_decision_overrides(user_input, explicit_mode, decision)
 
         print_status_message(route_display(decision), title="🧭 Routing decision")
 

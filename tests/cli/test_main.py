@@ -1,42 +1,76 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 
 from crisai.cli import main
 
 
-def test_detect_explicit_mode_returns_peer_for_peer_instruction():
-    user_input = (
+def test_detect_explicit_mode_returns_peer_for_peer_prompt():
+    prompt = (
         "Use peer mode. The author should propose. "
-        "The challenger should identify weaknesses. "
-        "The refiner should address them. The judge should decide."
+        "The challenger should identify three weaknesses. "
+        "The refiner should respond. The judge should decide."
     )
 
-    assert main._detect_explicit_mode(user_input) == "peer"
+    assert main._detect_explicit_mode(prompt) == "peer"
 
 
-def test_detect_explicit_mode_returns_none_when_no_explicit_instruction():
-    assert main._detect_explicit_mode("Summarise this design proposal.") is None
+def test_should_disable_peer_retrieval_for_explicit_generative_peer_request():
+    prompt = (
+        "Use peer mode. Propose a simple design for improving crisAI command handling in the CLI. "
+        "The author should propose. The challenger should identify at least three weaknesses. "
+        "The refiner should address those weaknesses. The judge should decide whether the refined version is acceptable."
+    )
+    decision = SimpleNamespace(mode="peer", needs_retrieval=True)
+
+    assert main._should_disable_peer_retrieval(prompt, "peer", decision) is True
 
 
-def test_suppress_console_info_logs_preserves_file_handlers(tmp_path):
-    logger = logging.getLogger("crisai.test.logging")
-    logger.handlers = []
-    logger.propagate = False
+def test_should_keep_peer_retrieval_when_prompt_requests_existing_sources():
+    prompt = (
+        "Use peer mode. Review the existing document in the workspace and propose improvements based on it. "
+        "Show the peer conversation and final recommendation."
+    )
+    decision = SimpleNamespace(mode="peer", needs_retrieval=True)
+
+    assert main._should_disable_peer_retrieval(prompt, "peer", decision) is False
+
+
+def test_apply_decision_overrides_turns_off_retrieval_for_generative_peer_request():
+    prompt = (
+        "Use peer mode. Propose a simple design for improving crisAI command handling in the CLI. "
+        "The author should propose. The challenger should identify at least three weaknesses."
+    )
+    decision = SimpleNamespace(mode="peer", needs_retrieval=True, needs_review=True)
+
+    updated = main._apply_decision_overrides(prompt, "peer", decision)
+
+    assert updated.mode == "peer"
+    assert updated.needs_retrieval is False
+    assert updated.needs_review is True
+
+
+def test_suppress_console_info_logs_preserves_file_handler(tmp_path):
+    logger = logging.getLogger("crisai.test.console_suppression")
+    logger.handlers.clear()
     logger.setLevel(logging.INFO)
+    logger.propagate = False
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
-
-    file_handler = logging.FileHandler(tmp_path / "test.log")
+    file_handler = logging.FileHandler(tmp_path / "app.log")
     file_handler.setLevel(logging.INFO)
 
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
 
-    with main._suppress_console_info_logs():
-        assert console_handler.level == logging.WARNING
+    try:
+        with main._suppress_console_info_logs():
+            assert console_handler.level == logging.WARNING
+            assert file_handler.level == logging.INFO
+        assert console_handler.level == logging.INFO
         assert file_handler.level == logging.INFO
-
-    assert console_handler.level == logging.INFO
-    assert file_handler.level == logging.INFO
+    finally:
+        logger.handlers.clear()
+        file_handler.close()
