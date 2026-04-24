@@ -76,7 +76,7 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     )
 
     assert result == "orchestrator-output"
-    assert stage_calls == ["discovery", "context", "design", "orchestrator"]
+    assert stage_calls == ["discovery", "context_retrieval", "context", "design", "orchestrator"]
     assert trace_calls == [
         ("WORKFLOW_START", "Starting pipeline workflow."),
         ("USER INPUT", "hello"),

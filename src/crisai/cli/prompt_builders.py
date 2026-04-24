@@ -17,6 +17,24 @@ def build_discovery_prompt(message: str) -> str:
     )
 
 
+def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
+    """Build the runtime prompt for the context retrieval stage.
+
+    This stage is a dedicated pipeline boundary for retrieval-related work.
+    It currently uses the discovered task framing and asks the retrieval-capable
+    agent to collect evidence before the context stage structures it.
+    """
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery framing", discovery_text),
+            "Task:\nRetrieve the most relevant local or connected-source material for this request. "
+            "Return only grounded findings, source paths, and relevant extracts. "
+            "Do not draft the final design response.",
+        ]
+    )
+
+
 def build_design_prompt(message: str, discovery_text: str) -> str:
     """Build the runtime prompt for the design stage."""
     return "\n\n".join(

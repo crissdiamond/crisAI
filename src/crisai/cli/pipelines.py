@@ -22,6 +22,7 @@ from .prompt_builders import (
     build_challenger_prompt,
     build_design_prompt,
     build_discovery_prompt,
+    build_context_retrieval_prompt,
     build_judge_prompt,
     build_peer_final_prompt,
     build_pipeline_final_prompt,
@@ -377,7 +378,7 @@ async def run_pipeline(
     agent_specs,
     model_specs=None,
 ) -> str:
-    """Run the standard discovery → context → design → review → final pipeline."""
+    """Run the standard discovery → context_retrieval → context → design pipeline."""
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
 
@@ -409,12 +410,23 @@ async def run_pipeline(
             runner=_run_agent_with_transient_box,
         )
 
+        context_retrieval_text = await run_traced_stage(
+            environment=environment,
+            active_servers=active_servers,
+            spec=specs["discovery"],
+            ui_agent_id="context_retrieval",
+            prompt=build_context_retrieval_prompt(message, discovery_text),
+            trace_label="CONTEXT RETRIEVAL OUTPUT",
+            verbose=verbose,
+            runner=_run_agent_with_transient_box,
+        )
+
         context_text = await run_traced_stage(
             environment=environment,
             active_servers=active_servers,
             spec=specs["context"],
             ui_agent_id="context",
-            prompt=build_context_prompt(message, discovery_text),
+            prompt=build_context_prompt(message, context_retrieval_text),
             trace_label="CONTEXT OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
@@ -437,7 +449,7 @@ async def run_pipeline(
                 active_servers=active_servers,
                 spec=specs["review"],
                 ui_agent_id="review",
-                prompt=build_review_prompt(message, discovery_text, design_text),
+                prompt=build_review_prompt(message, context_text, design_text),
                 trace_label="REVIEW OUTPUT",
                 verbose=verbose,
                 runner=_run_agent_with_transient_box,
@@ -457,7 +469,7 @@ async def run_pipeline(
             active_servers=active_servers,
             spec=specs["orchestrator"],
             ui_agent_id="orchestrator",
-            prompt=build_pipeline_final_prompt(message, discovery_text, design_text, review_text),
+            prompt=build_pipeline_final_prompt(message, context_text, design_text, review_text),
             trace_label="FINAL OUTPUT",
             verbose=verbose,
             runner=_run_agent_with_transient_box,
