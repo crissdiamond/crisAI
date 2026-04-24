@@ -14,7 +14,7 @@ from crisai.cli.prompt_builders import (
 def test_build_discovery_prompt_contains_only_runtime_context():
     text = build_discovery_prompt("Find the latest design note")
     assert "User request:\nFind the latest design note" in text
-    assert "Task:\nInspect the available sources" in text
+    assert "Task:\nFrame the request for the downstream workflow." in text
     assert "Rules:" not in text
     assert "Return:" not in text
 
