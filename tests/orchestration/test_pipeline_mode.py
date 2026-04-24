@@ -130,7 +130,13 @@ async def test_pipeline_runs_expected_stage_order_when_review_off(monkeypatch, f
         agent_specs=agent_specs,
     )
 
-    assert calls == ["discovery", "context", "design", "orchestrator"]
+    assert calls == [
+        "discovery",
+        "discovery",  # context_retrieval temporarily reuses the discovery agent.
+        "context",
+        "design",
+        "orchestrator",
+    ]
     assert result == "ORCHESTRATOR OUTPUT"
 
 
@@ -154,5 +160,12 @@ async def test_pipeline_runs_expected_stage_order_when_review_on(monkeypatch, fa
         agent_specs=agent_specs,
     )
 
-    assert calls == ["discovery", "context", "design", "review", "orchestrator"]
+    assert calls == [
+        "discovery",
+        "discovery",  # context_retrieval temporarily reuses the discovery agent.
+        "context",
+        "design",
+        "review",
+        "orchestrator",
+    ]
     assert result == "ORCHESTRATOR OUTPUT"
