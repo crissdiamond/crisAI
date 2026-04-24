@@ -44,7 +44,8 @@ def fake_specs():
         "document": types.SimpleNamespace(id="document"),
     }
     agent_specs = {
-        "discovery": AgentSpec("discovery", "Discovery", "m", "p", ["workspace"]),
+        "discovery": AgentSpec("discovery", "Discovery", "m", "p", []),
+        "context_retrieval": AgentSpec("context_retrieval", "Context Retrieval", "m", "p", ["workspace", "document"]),
         "context": AgentSpec("context", "Context", "m", "p", ["workspace", "document"]),
         "design": AgentSpec("design", "Design", "m", "p", ["document"]),
         "review": AgentSpec("review", "Review", "m", "p", ["document"]),
@@ -132,7 +133,7 @@ async def test_pipeline_runs_expected_stage_order_when_review_off(monkeypatch, f
 
     assert calls == [
         "discovery",
-        "discovery",  # context_retrieval temporarily reuses the discovery agent.
+        "context_retrieval",
         "context",
         "design",
         "orchestrator",
@@ -162,7 +163,7 @@ async def test_pipeline_runs_expected_stage_order_when_review_on(monkeypatch, fa
 
     assert calls == [
         "discovery",
-        "discovery",  # context_retrieval temporarily reuses the discovery agent.
+        "context_retrieval",
         "context",
         "design",
         "review",

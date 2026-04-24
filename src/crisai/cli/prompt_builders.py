@@ -8,11 +8,16 @@ def _section(title: str, body: str) -> str:
 
 
 def build_discovery_prompt(message: str) -> str:
-    """Build the runtime prompt for the discovery stage."""
+    """Build the runtime prompt for the discovery stage.
+
+    Discovery should classify and frame the request. Retrieval is handled by the
+    dedicated context_retrieval stage so that source lookup remains observable
+    and independently tunable.
+    """
     return "\n\n".join(
         [
             _section("User request", message),
-            "Task:\nInspect the available sources and retrieve the most relevant material for this request.",
+            "Task:\nFrame the request for the downstream workflow. Identify the user goal, likely output type, and what knowledge areas may need retrieval. Do not retrieve or read source documents in this stage.",
         ]
     )
 
@@ -20,17 +25,19 @@ def build_discovery_prompt(message: str) -> str:
 def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
     """Build the runtime prompt for the context retrieval stage.
 
-    This stage is a dedicated pipeline boundary for retrieval-related work.
-    It currently uses the discovered task framing and asks the retrieval-capable
-    agent to collect evidence before the context stage structures it.
+    This stage performs source lookup only. It should return evidence and source
+    references that the context stage can structure, without drafting the final
+    design response.
     """
     return "\n\n".join(
         [
             _section("User request", message),
             _section("Discovery framing", discovery_text),
-            "Task:\nRetrieve the most relevant local or connected-source material for this request. "
-            "Return only grounded findings, source paths, and relevant extracts. "
-            "Do not draft the final design response.",
+            "Task:\nRetrieve the most relevant material for this request from available context sources. "
+            "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
+            "If those tools are unavailable, list or search before reading files. "
+            "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
+            "Do not draft, recommend, or optimise the final design response.",
         ]
     )
 

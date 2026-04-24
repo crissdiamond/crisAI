@@ -386,7 +386,7 @@ async def run_pipeline(
 
     specs = resolve_required_agents(
         agent_specs,
-        ["discovery", "context", "design", "review", "orchestrator"],
+        ["discovery", "context_retrieval", "context", "design", "review", "orchestrator"],
         mode_name="Pipeline mode",
     )
 
@@ -413,7 +413,7 @@ async def run_pipeline(
         context_retrieval_text = await run_traced_stage(
             environment=environment,
             active_servers=active_servers,
-            spec=specs["discovery"],
+            spec=specs["context_retrieval"],
             ui_agent_id="context_retrieval",
             prompt=build_context_retrieval_prompt(message, discovery_text),
             trace_label="CONTEXT RETRIEVAL OUTPUT",
