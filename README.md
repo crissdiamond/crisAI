@@ -440,7 +440,7 @@ See `TESTING.md` for the current suite structure, how to run tests, and what the
 Useful logs include:
 
 ```text
-logs/agent_trace.log
+logs/agent_trace.jsonl
 workspace/workspace_mcp.log
 workspace/document_mcp.log
 workspace/sharepoint_mcp.log

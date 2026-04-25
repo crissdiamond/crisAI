@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+import inspect
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from uuid import uuid4
@@ -75,17 +76,14 @@ def ensure_openai_api_key(settings) -> None:
 
 
 def _build_agent_factory(root_dir: Path, settings, model_specs=None):
-    """Build an agent factory with graceful fallback for older test doubles."""
-    if model_specs:
-        try:
-            return AgentFactory(root_dir, model_specs=model_specs, settings=settings)
-        except TypeError:
-            pass
-
-    try:
-        return AgentFactory(root_dir, settings=settings)
-    except TypeError:
-        return AgentFactory(root_dir)
+    """Build an agent factory with compatibility for lightweight test doubles."""
+    kwargs: dict[str, Any] = {}
+    signature = inspect.signature(AgentFactory)
+    if model_specs is not None and "model_specs" in signature.parameters:
+        kwargs["model_specs"] = model_specs
+    if "settings" in signature.parameters:
+        kwargs["settings"] = settings
+    return AgentFactory(root_dir, **kwargs)
 
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:

@@ -26,6 +26,7 @@ from .pipelines import run_peer_pipeline, run_pipeline, run_single
 
 app = typer.Typer(help="crisAI CLI")
 logger = get_logger(__name__)
+_EXPECTED_RUNTIME_ERRORS = (typer.BadParameter, ValueError, RuntimeError, FileNotFoundError)
 
 _EXPLICIT_MODE_PATTERNS: dict[str, tuple[str, ...]] = {
     "peer": (
@@ -259,6 +260,20 @@ def _render_final_output(decision: RoutingDecision, body: str) -> None:
     print_final_answer(body)
 
 
+def _render_runtime_error(exc: Exception) -> None:
+    """Render runtime failures with consistent expected/unexpected handling."""
+    if isinstance(exc, _EXPECTED_RUNTIME_ERRORS):
+        logger.warning("Request failed with expected runtime error.", extra={"error_type": type(exc).__name__})
+        print_status_message(str(exc), title="⚠ Request error")
+        return
+
+    logger.exception("Request failed with unexpected runtime error.")
+    print_status_message(
+        "Unexpected runtime error. Check logs/agent_trace.jsonl and workspace MCP logs for details.",
+        title="❌ Unexpected error",
+    )
+
+
 @app.command("list-servers")
 def list_servers() -> None:
     """List registered MCP servers."""
@@ -353,8 +368,11 @@ def ask(
         text = await _run_with_routing(message, verbose, review, decision)
         _render_final_output(decision, text)
 
-    with _suppress_console_info_logs():
-        asyncio.run(_run())
+    try:
+        with _suppress_console_info_logs():
+            asyncio.run(_run())
+    except Exception as exc:  # noqa: BLE001
+        _render_runtime_error(exc)
 
 
 @app.command()
@@ -440,8 +458,7 @@ def chat(
             with _suppress_console_info_logs():
                 text = asyncio.run(_run())
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Chat execution failed.")
-            print_status_message(str(exc), title="❌ Error")
+            _render_runtime_error(exc)
             continue
 
         _render_final_output(decision, text)

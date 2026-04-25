@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import inspect
 import re
 from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -114,17 +115,14 @@ async def _run_agent_with_transient_box(agent_id: str, agent, prompt: str) -> st
 
 
 def _build_agent_factory(root_dir: Path, settings, model_specs=None):
-    """Build an agent factory with graceful fallback for older test doubles."""
-    if model_specs:
-        try:
-            return AgentFactory(root_dir, model_specs=model_specs, settings=settings)
-        except TypeError:
-            pass
-
-    try:
-        return AgentFactory(root_dir, settings=settings)
-    except TypeError:
-        return AgentFactory(root_dir)
+    """Build an agent factory with compatibility for lightweight test doubles."""
+    kwargs: dict[str, Any] = {}
+    signature = inspect.signature(AgentFactory)
+    if model_specs is not None and "model_specs" in signature.parameters:
+        kwargs["model_specs"] = model_specs
+    if "settings" in signature.parameters:
+        kwargs["settings"] = settings
+    return AgentFactory(root_dir, **kwargs)
 
 
 
@@ -278,11 +276,9 @@ def _extract_final_recommendation(text: str) -> str:
 
 def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
     """Create a workflow environment while preserving older monkeypatch seams."""
-    if model_specs is not None:
-        try:
-            return create_workflow_environment(settings, model_specs=model_specs)
-        except TypeError:
-            pass
+    signature = inspect.signature(create_workflow_environment)
+    if model_specs is not None and "model_specs" in signature.parameters:
+        return create_workflow_environment(settings, model_specs=model_specs)
     return create_workflow_environment(settings)
 
 

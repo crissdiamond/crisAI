@@ -1,6 +1,6 @@
 # Observability
 
-- Agent trace: `logs/agent_trace.log`
+- Agent trace: `logs/agent_trace.jsonl`
 - Workspace MCP log: `workspace/workspace_mcp.log`
 - Diagram MCP log: `workspace/diagram_mcp.log`
 

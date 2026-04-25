@@ -10,6 +10,12 @@ from crisai.config import load_settings
 HistoryEntry = tuple[str, str]
 
 
+def sanitize_session_name(session_name: str) -> str:
+    """Return a filesystem-safe session name."""
+    safe = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in session_name.strip())
+    return safe or "default"
+
+
 def cli_history_file() -> Path:
     """Returns the prompt-toolkit history file path for the CLI."""
     settings = load_settings()
@@ -35,10 +41,7 @@ def session_file(session_name: str) -> Path:
     Returns:
         Path to the JSON file used for that session.
     """
-    safe = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in session_name.strip())
-    if not safe:
-        safe = "default"
-    return session_dir() / f"{safe}.json"
+    return session_dir() / f"{sanitize_session_name(session_name)}.json"
 
 
 def load_history(session_name: str) -> list[HistoryEntry]:
@@ -59,7 +62,7 @@ def load_history(session_name: str) -> list[HistoryEntry]:
             if role in {"user", "assistant"} and isinstance(content, str):
                 history.append((role, content))
         return history
-    except Exception:
+    except (json.JSONDecodeError, OSError, TypeError):
         return []
 
 
