@@ -41,12 +41,42 @@ class FakeRuntimeManager:
 def fake_specs():
     server_specs = {"workspace": types.SimpleNamespace(id="workspace")}
     agent_specs = {
-        "discovery": AgentSpec("discovery", "Discovery", "m", "p", ["workspace"]),
-        "design_author": AgentSpec("design_author", "Design Author", "m", "p", ["workspace"]),
-        "design_challenger": AgentSpec("design_challenger", "Design Challenger", "m", "p", ["workspace"]),
-        "design_refiner": AgentSpec("design_refiner", "Design Refiner", "m", "p", ["workspace"]),
-        "judge": AgentSpec("judge", "Judge", "m", "p", ["workspace"]),
-        "orchestrator": AgentSpec("orchestrator", "Orchestrator", "m", "p", ["workspace"]),
+        "discovery": AgentSpec(
+            id="discovery",
+            name="Discovery",
+            prompt_file="prompts/discovery.md",
+            allowed_servers=["workspace"],
+        ),
+        "design_author": AgentSpec(
+            id="design_author",
+            name="Design Author",
+            prompt_file="prompts/design_author.md",
+            allowed_servers=["workspace"],
+        ),
+        "design_challenger": AgentSpec(
+            id="design_challenger",
+            name="Design Challenger",
+            prompt_file="prompts/design_challenger.md",
+            allowed_servers=["workspace"],
+        ),
+        "design_refiner": AgentSpec(
+            id="design_refiner",
+            name="Design Refiner",
+            prompt_file="prompts/design_refiner.md",
+            allowed_servers=["workspace"],
+        ),
+        "judge": AgentSpec(
+            id="judge",
+            name="Judge",
+            prompt_file="prompts/judge.md",
+            allowed_servers=["workspace"],
+        ),
+        "orchestrator": AgentSpec(
+            id="orchestrator",
+            name="Orchestrator",
+            prompt_file="prompts/orchestrator.md",
+            allowed_servers=["workspace"],
+        ),
     }
     return server_specs, agent_specs
 

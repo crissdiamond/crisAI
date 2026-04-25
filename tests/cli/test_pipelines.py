@@ -8,6 +8,57 @@ import typer
 from crisai.cli import pipelines
 
 
+class FakeWorkflowSession:
+    """Test double for pipeline workflow orchestration."""
+
+    def __init__(self, trace_calls: list[tuple[str, str]], stage_calls: list[tuple[str, str]], final_output: str) -> None:
+        self._trace_calls = trace_calls
+        self._stage_calls = stage_calls
+        self._final_output = final_output
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    def start_workflow(self, content: str, *, metadata=None) -> None:
+        del metadata
+        self._trace_calls.append(("WORKFLOW_START", content))
+
+    def trace_user_input(self, content: str, *, metadata=None) -> None:
+        del metadata
+        self._trace_calls.append(("USER INPUT", content))
+
+    def finish_workflow(self, content: str, *, metadata=None) -> None:
+        del metadata
+        self._trace_calls.append(("WORKFLOW_END", content))
+
+    def skip_stage(self, trace_label: str, content: str, *, agent_id=None) -> str:
+        del agent_id
+        self._trace_calls.append((trace_label, content))
+        return content
+
+    async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+        del kwargs
+        self._stage_calls.append((ui_agent_id, prompt))
+        if ui_agent_id == "orchestrator":
+            return self._final_output
+        return f"{ui_agent_id}-output"
+
+
+class FakeWorkflowEngine:
+    """Test double for the workflow engine wiring used by pipelines.py."""
+
+    def __init__(self, session: FakeWorkflowSession) -> None:
+        self._session = session
+        self.agent_specs = None
+
+    def session(self, agent_specs):
+        self.agent_specs = list(agent_specs)
+        return self._session
+
+
 def test_build_context_prompt_creates_grounded_context_brief_prompt():
     prompt = pipelines.build_context_prompt(
         "Draft a solution design from local documents.",
@@ -25,8 +76,10 @@ def test_build_context_prompt_creates_grounded_context_brief_prompt():
 
 @pytest.mark.anyio
 async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
-    trace_calls = []
-    stage_calls = []
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "orchestrator-output")
+    engine = FakeWorkflowEngine(session)
 
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
     monkeypatch.setattr(
@@ -42,29 +95,7 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
             for agent_id in required_ids
         },
     )
-
-    class DummyContext:
-        async def __aenter__(self):
-            return ["server"]
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-    monkeypatch.setattr(
-        pipelines,
-        "workflow_server_context",
-        lambda environment, specs, server_specs: DummyContext(),
-    )
-
-    def fake_append_trace_entry(environment, stage, content):
-        trace_calls.append((stage, content))
-
-    async def fake_run_traced_stage(**kwargs):
-        stage_calls.append(kwargs["ui_agent_id"])
-        return f"{kwargs['ui_agent_id']}-output"
-
-    monkeypatch.setattr(pipelines, "append_trace_entry", fake_append_trace_entry)
-    monkeypatch.setattr(pipelines, "run_traced_stage", fake_run_traced_stage)
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
 
     result = await pipelines.run_pipeline(
         "hello",
@@ -76,7 +107,13 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     )
 
     assert result == "orchestrator-output"
-    assert stage_calls == ["discovery", "context_retrieval", "context", "design", "orchestrator"]
+    assert [name for name, _ in stage_calls] == [
+        "discovery",
+        "context_retrieval",
+        "context",
+        "design",
+        "orchestrator",
+    ]
     assert trace_calls == [
         ("WORKFLOW_START", "Starting pipeline workflow."),
         ("USER INPUT", "hello"),
@@ -87,8 +124,10 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
 
 @pytest.mark.anyio
 async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monkeypatch, tmp_path):
-    trace_calls = []
-    stage_calls = []
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "Final recommendation\nKeep it simple.")
+    engine = FakeWorkflowEngine(session)
 
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
     monkeypatch.setattr(
@@ -104,31 +143,7 @@ async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monke
             for agent_id in required_ids
         },
     )
-
-    class DummyContext:
-        async def __aenter__(self):
-            return ["server"]
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-    monkeypatch.setattr(
-        pipelines,
-        "workflow_server_context",
-        lambda environment, specs, server_specs: DummyContext(),
-    )
-
-    def fake_append_trace_entry(environment, stage, content):
-        trace_calls.append((stage, content))
-
-    async def fake_run_traced_stage(**kwargs):
-        stage_calls.append((kwargs["ui_agent_id"], kwargs["prompt"]))
-        if kwargs["ui_agent_id"] == "orchestrator":
-            return "Final recommendation\nKeep it simple."
-        return f"{kwargs['ui_agent_id']}-output"
-
-    monkeypatch.setattr(pipelines, "append_trace_entry", fake_append_trace_entry)
-    monkeypatch.setattr(pipelines, "run_traced_stage", fake_run_traced_stage)
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
     monkeypatch.setattr(pipelines, "build_author_prompt", lambda message, discovery_text: message)
 
     result = await pipelines.run_peer_pipeline(

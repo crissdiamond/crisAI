@@ -44,12 +44,37 @@ def fake_specs():
         "document": types.SimpleNamespace(id="document"),
     }
     agent_specs = {
-        "discovery": AgentSpec("discovery", "Discovery", "m", "p", []),
-        "context_retrieval": AgentSpec("context_retrieval", "Context Retrieval", "m", "p", ["workspace", "document"]),
-        "context": AgentSpec("context", "Context", "m", "p", ["workspace", "document"]),
-        "design": AgentSpec("design", "Design", "m", "p", ["document"]),
-        "review": AgentSpec("review", "Review", "m", "p", ["document"]),
-        "orchestrator": AgentSpec("orchestrator", "Orchestrator", "m", "p", ["workspace"]),
+        "discovery": AgentSpec(id="discovery", name="Discovery", prompt_file="prompts/discovery.md", allowed_servers=[]),
+        "context_retrieval": AgentSpec(
+            id="context_retrieval",
+            name="Context Retrieval",
+            prompt_file="prompts/context_retrieval.md",
+            allowed_servers=["workspace", "document"],
+        ),
+        "context": AgentSpec(
+            id="context",
+            name="Context",
+            prompt_file="prompts/context.md",
+            allowed_servers=["workspace", "document"],
+        ),
+        "design": AgentSpec(
+            id="design",
+            name="Design",
+            prompt_file="prompts/design.md",
+            allowed_servers=["document"],
+        ),
+        "review": AgentSpec(
+            id="review",
+            name="Review",
+            prompt_file="prompts/review.md",
+            allowed_servers=["document"],
+        ),
+        "orchestrator": AgentSpec(
+            id="orchestrator",
+            name="Orchestrator",
+            prompt_file="prompts/orchestrator.md",
+            allowed_servers=["workspace"],
+        ),
     }
     return server_specs, agent_specs
 

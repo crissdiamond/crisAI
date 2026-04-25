@@ -29,6 +29,7 @@ from .prompt_builders import (
     build_refiner_prompt,
     build_review_prompt,
 )
+from .pipeline_engine import WorkflowEngine
 from .workflow_support import (
     WorkflowEnvironment,
     collect_server_ids,
@@ -256,48 +257,6 @@ def append_trace_entry(
     )
 
 
-async def run_traced_stage(
-    *,
-    environment: WorkflowEnvironment,
-    active_servers: list,
-    spec,
-    ui_agent_id: str,
-    prompt: str,
-    trace_label: str,
-    verbose: bool,
-    runner,
-    print_output: bool = True,
-) -> str:
-    """Run a workflow stage, trace it, and optionally print stage output."""
-    agent = environment.factory.build_agent(spec, active_servers)
-    _append_trace_entry_compat(
-        environment,
-        f"{trace_label}_START",
-        f"Starting stage for {ui_agent_id}.",
-        event_type="stage_start",
-        agent_id=ui_agent_id,
-    )
-    result = await runner(ui_agent_id, agent, prompt)
-    _append_trace_compat(
-        environment.trace_file,
-        trace_label,
-        result,
-        run_id=_get_run_id(environment),
-        event_type="stage_output",
-        agent_id=ui_agent_id,
-    )
-    _append_trace_entry_compat(
-        environment,
-        f"{trace_label}_END",
-        f"Completed stage for {ui_agent_id}.",
-        event_type="stage_end",
-        agent_id=ui_agent_id,
-    )
-    if print_output:
-        print_agent_output(ui_agent_id, result, verbose=verbose)
-    return result
-
-
 _FINAL_RECOMMENDATION_PATTERNS = [
     r"(?:^|\n)(#+\s*Final recommendation\s*\n+.*)$",
     r"(?:^|\n)(\*\*Final recommendation\*\*\s*\n+.*)$",
@@ -333,6 +292,28 @@ def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
         except TypeError:
             pass
     return create_workflow_environment(settings)
+
+
+def _create_workflow_engine(environment: WorkflowEnvironment, server_specs) -> WorkflowEngine:
+    """Create a workflow engine wired to the local compatibility helpers.
+
+    Keeping this wiring in ``pipelines.py`` preserves existing monkeypatch
+    seams for tests that patch runtime, tracing, or agent execution helpers on
+    this module.
+    """
+
+    def trace_writer(stage: str, content: str, **kwargs: Any) -> None:
+        """Forward structured workflow events through the compatibility layer."""
+        _append_trace_entry_compat(environment, stage, content, **kwargs)
+
+    return WorkflowEngine(
+        environment=environment,
+        server_specs=server_specs,
+        server_context_factory=workflow_server_context,
+        stage_runner=_run_agent_with_transient_box,
+        trace_writer=trace_writer,
+        output_printer=print_agent_output,
+    )
 
 
 async def run_single(message: str, agent_id: str, *, settings, server_specs, agent_specs, model_specs=None) -> str:
@@ -390,92 +371,71 @@ async def run_pipeline(
         mode_name="Pipeline mode",
     )
 
-    async with workflow_server_context(environment, specs.values(), server_specs) as active_servers:
-        _append_trace_entry_compat(
-            environment,
-            "WORKFLOW_START",
+    engine = _create_workflow_engine(environment, server_specs)
+
+    async with engine.session(specs.values()) as workflow:
+        workflow.start_workflow(
             "Starting pipeline workflow.",
             metadata={"mode": "pipeline", "review": review},
         )
-        _append_trace_entry_compat(environment, "USER INPUT", message, event_type="workflow_input")
+        workflow.trace_user_input(message)
 
-        discovery_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        discovery_text = await workflow.run_stage(
             spec=specs["discovery"],
             ui_agent_id="discovery",
             prompt=build_discovery_prompt(message),
             trace_label="DISCOVERY OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
         )
 
-        context_retrieval_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        context_retrieval_text = await workflow.run_stage(
             spec=specs["context_retrieval"],
             ui_agent_id="context_retrieval",
             prompt=build_context_retrieval_prompt(message, discovery_text),
             trace_label="CONTEXT RETRIEVAL OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
         )
 
-        context_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        context_text = await workflow.run_stage(
             spec=specs["context"],
             ui_agent_id="context",
             prompt=build_context_prompt(message, context_retrieval_text),
             trace_label="CONTEXT OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
         )
 
-        design_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        design_text = await workflow.run_stage(
             spec=specs["design"],
             ui_agent_id="design",
             prompt=build_design_prompt(message, context_text),
             trace_label="DESIGN OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
         )
 
         if review:
-            review_text = await run_traced_stage(
-                environment=environment,
-                active_servers=active_servers,
+            review_text = await workflow.run_stage(
                 spec=specs["review"],
                 ui_agent_id="review",
                 prompt=build_review_prompt(message, context_text, design_text),
                 trace_label="REVIEW OUTPUT",
                 verbose=verbose,
-                runner=_run_agent_with_transient_box,
             )
         else:
-            review_text = "Review stage skipped because review is disabled."
-            _append_trace_entry_compat(
-                environment,
+            review_text = workflow.skip_stage(
                 "REVIEW OUTPUT",
-                review_text,
-                event_type="stage_skipped",
+                "Review stage skipped because review is disabled.",
                 agent_id="review",
             )
 
-        final_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        final_text = await workflow.run_stage(
             spec=specs["orchestrator"],
             ui_agent_id="orchestrator",
             prompt=build_pipeline_final_prompt(message, context_text, design_text, review_text),
             trace_label="FINAL OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
             print_output=False,
         )
-        _append_trace_entry_compat(environment, "WORKFLOW_END", "Pipeline workflow completed.", metadata={"mode": "pipeline"})
+        workflow.finish_workflow("Pipeline workflow completed.", metadata={"mode": "pipeline"})
         return final_text
 
 
@@ -516,85 +476,66 @@ async def run_peer_pipeline(
         mode_name="Peer mode",
     )
 
-    async with workflow_server_context(environment, specs.values(), server_specs) as active_servers:
-        _append_trace_entry_compat(
-            environment,
-            "WORKFLOW_START",
+    engine = _create_workflow_engine(environment, server_specs)
+
+    async with engine.session(specs.values()) as workflow:
+        workflow.start_workflow(
             "Starting peer workflow.",
             metadata={"mode": "peer", "needs_retrieval": needs_retrieval},
         )
-        _append_trace_entry_compat(environment, "USER INPUT", message, event_type="workflow_input")
+        workflow.trace_user_input(message)
 
         discovery_text = ""
         if needs_retrieval:
-            discovery_text = await run_traced_stage(
-                environment=environment,
-                active_servers=active_servers,
+            discovery_text = await workflow.run_stage(
                 spec=specs["discovery"],
                 ui_agent_id="discovery",
                 prompt=build_discovery_prompt(message),
                 trace_label="DISCOVERY OUTPUT",
                 verbose=verbose,
-                runner=_run_agent_with_transient_box,
             )
         else:
-            _append_trace_entry_compat(
-                environment,
+            workflow.skip_stage(
                 "DISCOVERY OUTPUT",
                 "Discovery skipped because this peer task does not require retrieval.",
-                event_type="stage_skipped",
                 agent_id="discovery",
             )
 
         discovery_basis = discovery_text or "None."
 
-        author_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        author_text = await workflow.run_stage(
             spec=specs["design_author"],
             ui_agent_id="design_author",
             prompt=build_author_prompt(message, discovery_basis),
             trace_label="AUTHOR OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
         )
 
-        challenger_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        challenger_text = await workflow.run_stage(
             spec=specs["design_challenger"],
             ui_agent_id="design_challenger",
             prompt=build_challenger_prompt(message, discovery_basis, author_text),
             trace_label="CHALLENGER OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
         )
 
-        refiner_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        refiner_text = await workflow.run_stage(
             spec=specs["design_refiner"],
             ui_agent_id="design_refiner",
             prompt=build_refiner_prompt(message, discovery_basis, author_text, challenger_text),
             trace_label="REFINER OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
         )
 
-        judge_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        judge_text = await workflow.run_stage(
             spec=specs["judge"],
             ui_agent_id="judge",
             prompt=build_judge_prompt(message, discovery_basis, challenger_text, refiner_text),
             trace_label="JUDGE OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
         )
 
-        final_text = await run_traced_stage(
-            environment=environment,
-            active_servers=active_servers,
+        final_text = await workflow.run_stage(
             spec=specs["orchestrator"],
             ui_agent_id="orchestrator",
             prompt=build_peer_final_prompt(
@@ -607,10 +548,9 @@ async def run_peer_pipeline(
             ),
             trace_label="FINAL OUTPUT",
             verbose=verbose,
-            runner=_run_agent_with_transient_box,
             print_output=False,
         )
-        _append_trace_entry_compat(environment, "WORKFLOW_END", "Peer workflow completed.", metadata={"mode": "peer"})
+        workflow.finish_workflow("Peer workflow completed.", metadata={"mode": "peer"})
         return _extract_final_recommendation(final_text)
 
 
