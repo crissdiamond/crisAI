@@ -276,15 +276,6 @@ def _extract_final_recommendation(text: str) -> str:
     return stripped
 
 
-def build_agent_servers(runtime, agent_spec, server_specs):
-    servers = []
-    for server_id in agent_spec.allowed_servers:
-        spec = server_specs.get(server_id)
-        if spec:
-            servers.append(runtime.build_server(spec))
-    return servers
-
-
 def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
     """Create a workflow environment while preserving older monkeypatch seams."""
     if model_specs is not None:
