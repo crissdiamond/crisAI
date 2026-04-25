@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import ssl
 from contextlib import contextmanager
 from dataclasses import is_dataclass, replace
 from types import SimpleNamespace
+from typing import Any, Awaitable
 
 import typer
 from prompt_toolkit import prompt
@@ -274,6 +276,48 @@ def _render_runtime_error(exc: Exception) -> None:
     )
 
 
+def _is_benign_ssl_shutdown_context(context: dict[str, Any]) -> bool:
+    """Return whether an asyncio loop error context is a benign SSL shutdown noise."""
+    message = str(context.get("message", "")).lower()
+    if "fatal error on ssl transport" in message:
+        return True
+
+    exc = context.get("exception")
+    if isinstance(exc, ssl.SSLError):
+        text = str(exc).lower()
+        if "application data after close notify" in text:
+            return True
+    return False
+
+
+def _run_async(coro: Awaitable[Any]) -> Any:
+    """Run a coroutine with graceful loop teardown and benign SSL shutdown filtering."""
+    loop = asyncio.new_event_loop()
+    previous_loop = None
+    try:
+        try:
+            previous_loop = asyncio.get_event_loop_policy().get_event_loop()
+        except Exception:  # noqa: BLE001
+            previous_loop = None
+
+        def _exception_handler(current_loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
+            if _is_benign_ssl_shutdown_context(context):
+                logger.debug("Suppressed benign asyncio SSL shutdown noise.", extra={"context": str(context)})
+                return
+            current_loop.default_exception_handler(context)
+
+        loop.set_exception_handler(_exception_handler)
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(coro)
+    finally:
+        try:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:  # noqa: BLE001
+            pass
+        asyncio.set_event_loop(previous_loop)
+        loop.close()
+
+
 @app.command("list-servers")
 def list_servers() -> None:
     """List registered MCP servers."""
@@ -370,7 +414,7 @@ def ask(
 
     try:
         with _suppress_console_info_logs():
-            asyncio.run(_run())
+            _run_async(_run())
     except Exception as exc:  # noqa: BLE001
         _render_runtime_error(exc)
 
@@ -456,7 +500,7 @@ def chat(
 
         try:
             with _suppress_console_info_logs():
-                text = asyncio.run(_run())
+                text = _run_async(_run())
         except Exception as exc:  # noqa: BLE001
             _render_runtime_error(exc)
             continue

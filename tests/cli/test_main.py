@@ -74,3 +74,19 @@ def test_suppress_console_info_logs_preserves_file_handler(tmp_path):
     finally:
         logger.handlers.clear()
         file_handler.close()
+
+
+def test_is_benign_ssl_shutdown_context_detects_transport_message():
+    context = {"message": "Fatal error on SSL transport"}
+    assert main._is_benign_ssl_shutdown_context(context) is True
+
+
+def test_is_benign_ssl_shutdown_context_detects_close_notify_sslerror():
+    context = {"exception": OSError("[SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify")}
+    # non-SSLError should not match
+    assert main._is_benign_ssl_shutdown_context(context) is False
+
+    import ssl
+
+    ssl_context = {"exception": ssl.SSLError("application data after close notify")}
+    assert main._is_benign_ssl_shutdown_context(ssl_context) is True
