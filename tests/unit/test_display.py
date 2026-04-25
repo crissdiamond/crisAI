@@ -20,3 +20,13 @@ def test_print_agent_output_compact_mode_uses_single_line(monkeypatch) -> None:
     display.print_agent_output("design", "Use a staged rollout with validation gates.", verbose=False)
 
     assert len(captured) == 1
+    assert isinstance(captured[0], Panel)
+
+
+def test_print_status_message_keeps_router_literal_text(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+
+    display.print_status_message("router:auto • pipeline • discovery", title="🧭 Routing decision")
+
+    assert len(captured) == 1

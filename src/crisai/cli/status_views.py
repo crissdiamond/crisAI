@@ -122,7 +122,7 @@ def route_display(decision: RoutingDecision) -> str:
     label = "pinned" if decision.intent == "explicit" else "auto"
     review_label = "review:on" if decision.needs_review else "review:off"
     retrieval_label = "retrieval:on" if decision.needs_retrieval else "retrieval:off"
-    return f"[router:{label}] {decision.mode} • {agent} • {review_label} • {retrieval_label} • {decision.reason}"
+    return f"router:{label} • {decision.mode} • {agent} • {review_label} • {retrieval_label} • {decision.reason}"
 
 
 _route_display = route_display

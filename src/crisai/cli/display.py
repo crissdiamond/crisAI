@@ -18,6 +18,8 @@ RenderKind = Literal["status", "stage", "final"]
 
 _ICONS = {
     "discovery": "🔎",
+    "context_retrieval": "📚",
+    "context_synthesizer": "🧩",
     "design": "✍",
     "design_author": "✍",
     "design_challenger": "⚔",
@@ -30,6 +32,8 @@ _ICONS = {
 
 _LABELS = {
     "discovery": "Discovery",
+    "context_retrieval": "Context Retrieval",
+    "context_synthesizer": "Context Synthesizer",
     "design": "Design",
     "design_author": "Author",
     "design_challenger": "Challenger",
@@ -42,6 +46,8 @@ _LABELS = {
 
 _STYLES = {
     "discovery": "yellow",
+    "context_retrieval": "cyan",
+    "context_synthesizer": "magenta",
     "design": "green",
     "design_author": "green",
     "design_challenger": "blue",
@@ -284,7 +290,7 @@ def print_status_message(body: str, *, title: str | None = None) -> None:
     panel_title = Text(title or _RENDER_TITLES["status"], style=f"bold {_RENDER_STYLES['status']}")
     console.print(
         Panel(
-            body.strip() or "_empty_",
+            Text(body.strip() or "_empty_"),
             title=panel_title,
             border_style=_RENDER_STYLES["status"],
             padding=(0, 1),
@@ -299,7 +305,20 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
     style = _style(agent_id)
     if not verbose:
         summary = _role_led_summary(agent_id, body).replace("\n", " ").strip()
-        console.print(Text(f"{icon} {label}: {summary}", style="dim"))
+        compact_line = f"{icon} {label}: {summary}"
+        if len(compact_line) > 180:
+            compact_line = compact_line[:177].rstrip() + "..."
+        title = Text(f"{icon} {label}", style=f"bold {style}")
+        console.print(
+            Panel(
+                Text(compact_line, style="dim"),
+                title=title,
+                subtitle=Text(_RENDER_TITLES["stage"], style=f"italic {_RENDER_STYLES['stage']}"),
+                border_style=style,
+                padding=(0, 1),
+                expand=True,
+            )
+        )
         return
 
     title = Text(f"{icon} {label}", style=f"bold {style}")

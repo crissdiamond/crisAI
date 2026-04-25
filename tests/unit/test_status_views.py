@@ -92,7 +92,7 @@ def test_route_display_formats_expected_labels():
 
     result = status_views.route_display(decision)
 
-    assert result == "[router:pinned] pipeline • design • review:on • retrieval:off • forced"
+    assert result == "router:pinned • pipeline • design • review:on • retrieval:off • forced"
 
 
 def test_mode_and_agent_status_helpers():
