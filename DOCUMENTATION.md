@@ -43,6 +43,8 @@ The interactive shell where you type slash commands and prompts.
 ### 2.2 Agents
 Specialist reasoning roles such as:
 - `discovery`
+- `context_retrieval`
+- `context_synthesizer`
 - `design`
 - `review`
 - `operations`
@@ -225,7 +227,7 @@ Best for:
 Structured flow:
 
 ```text
-discovery -> design -> optional review -> orchestrator
+discovery -> context_retrieval -> context_synthesizer -> design -> optional review -> orchestrator
 ```
 
 Best for:
@@ -237,8 +239,12 @@ Best for:
 Collaborative critique flow:
 
 ```text
-discovery -> design_author -> design_challenger -> design_refiner -> judge -> orchestrator
+optional discovery -> optional context_retrieval -> design_author -> design_challenger -> design_refiner -> judge -> orchestrator
 ```
+
+Notes:
+- `discovery` and `context_retrieval` can be skipped when retrieval is not needed for the peer task.
+- when retrieval is needed, `context_retrieval` can run after discovery to provide a stronger evidence basis for peer stages.
 
 Best for:
 - debated design work
@@ -254,6 +260,12 @@ General coordinator and safe fallback.
 
 ### `discovery`
 The retrieval and source-finding specialist.
+
+### `context_retrieval`
+The evidence retrieval specialist for local context chunks and source-grounded extracts.
+
+### `context_synthesizer`
+The context structuring specialist that turns retrieved evidence into a grounded brief for downstream design.
 
 ### `design`
 The drafting and architecture specialist.
@@ -506,7 +518,7 @@ A good way to use crisAI in practice:
 Useful logs:
 
 ```text
-logs/agent_trace.log
+logs/agent_trace.jsonl
 workspace/workspace_mcp.log
 workspace/document_mcp.log
 workspace/sharepoint_mcp.log

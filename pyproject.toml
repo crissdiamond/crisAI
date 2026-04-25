@@ -15,7 +15,19 @@ dependencies = [
   "PyYAML>=6.0.2",
   "typer>=0.12.3",
   "rich>=13.7.1",
-  "litellm>=1.51.0"
+  "prompt_toolkit>=3.0.0",
+  "python-docx>=1.1.0",
+  "pypdf>=4.0.0",
+  "python-pptx>=0.6.0",
+  "openpyxl>=3.1.0",
+  "chardet>=5.0.0",
+  "msal>=1.28.0",
+  "requests>=2.31.0"
+]
+
+[project.optional-dependencies]
+litellm = [
+  "openai-agents[litellm]>=0.2.10"
 ]
 
 [project.scripts]

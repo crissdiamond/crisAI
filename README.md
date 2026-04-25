@@ -181,7 +181,11 @@ pip install --upgrade pip
 pip install -e .
 ```
 
-If you want Gemini or Anthropic support through LiteLLM-backed integration, make sure the relevant optional dependency is available in your environment.
+If you want Gemini or Anthropic support through LiteLLM-backed integration, install the optional extra:
+
+```bash
+pip install -e ".[litellm]"
+```
 
 ### 4. Create your environment file
 
