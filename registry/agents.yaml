@@ -25,8 +25,8 @@ agents:
       - documents
       - sharepoint_docs
 
-  - id: context
-    name: Context Agent
+  - id: context_synthesizer
+    name: Context Synthesizer Agent
     model_ref: openai_fast
     prompt_file: prompts/context_agent.md
     allowed_servers:

@@ -128,23 +128,24 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
 
 
 
-def build_context_prompt(message: str, discovery_text: str) -> str:
-    """Build a grounded prompt for the context agent.
+def build_context_synthesizer_prompt(message: str, discovery_text: str) -> str:
+    """Build a grounded prompt for the context synthesizer agent.
 
-    The context stage is intentionally separate from both discovery and design:
-    discovery identifies candidate source material, while context converts that
-    material into an evidence-led brief that a downstream design agent can use.
+    The context_synthesizer stage is intentionally separate from both discovery
+    and design: discovery identifies candidate source material, while
+    context_synthesizer converts that material into an evidence-led brief that a
+    downstream design agent can use.
 
     Args:
         message: Original user request.
         discovery_text: Output produced by the discovery stage.
 
     Returns:
-        A structured prompt that asks the context agent to extract relevant
-        information, preserve source references, identify uncertainty, and avoid
-        drafting the final solution design.
+        A structured prompt that asks the context_synthesizer agent to extract
+        relevant information, preserve source references, identify uncertainty,
+        and avoid drafting the final solution design.
     """
-    return f"""You are the Context agent in the crisAI workflow.
+    return f"""You are the Context Synthesizer agent in the crisAI workflow.
 
 Your job is to transform discovered source material into a concise, grounded context brief for a downstream solution design agent.
 
@@ -359,7 +360,7 @@ async def run_pipeline(
     agent_specs,
     model_specs=None,
 ) -> str:
-    """Run the standard discovery → context_retrieval → context → design pipeline."""
+    """Run the standard discovery → context_retrieval → context_synthesizer → design pipeline."""
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
 
@@ -367,7 +368,7 @@ async def run_pipeline(
 
     specs = resolve_required_agents(
         agent_specs,
-        ["discovery", "context_retrieval", "context", "design", "review", "orchestrator"],
+        ["discovery", "context_retrieval", "context_synthesizer", "design", "review", "orchestrator"],
         mode_name="Pipeline mode",
     )
 
@@ -397,9 +398,9 @@ async def run_pipeline(
         )
 
         context_text = await workflow.run_stage(
-            spec=specs["context"],
-            ui_agent_id="context",
-            prompt=build_context_prompt(message, context_retrieval_text),
+            spec=specs["context_synthesizer"],
+            ui_agent_id="context_synthesizer",
+            prompt=build_context_synthesizer_prompt(message, context_retrieval_text),
             trace_label="CONTEXT OUTPUT",
             verbose=verbose,
         )
@@ -450,7 +451,7 @@ async def run_peer_pipeline(
     model_specs=None,
     needs_retrieval: bool = True,
 ) -> str:
-    """Run the peer workflow with optional discovery and final recommendation."""
+    """Run the peer workflow with optional retrieval and final recommendation."""
     del review  # Unused in peer mode today; kept for API compatibility.
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
@@ -459,6 +460,8 @@ async def run_peer_pipeline(
         "Running peer workflow.",
         extra={"run_id": _get_run_id(environment), "needs_retrieval": needs_retrieval},
     )
+
+    use_context_retrieval = needs_retrieval and "context_retrieval" in agent_specs
 
     required_agents = [
         "design_author",
@@ -469,6 +472,8 @@ async def run_peer_pipeline(
     ]
     if needs_retrieval:
         required_agents.insert(0, "discovery")
+    if use_context_retrieval:
+        required_agents.insert(1, "context_retrieval")
 
     specs = resolve_required_agents(
         agent_specs,
@@ -486,6 +491,7 @@ async def run_peer_pipeline(
         workflow.trace_user_input(message)
 
         discovery_text = ""
+        context_retrieval_text = ""
         if needs_retrieval:
             discovery_text = await workflow.run_stage(
                 spec=specs["discovery"],
@@ -494,14 +500,33 @@ async def run_peer_pipeline(
                 trace_label="DISCOVERY OUTPUT",
                 verbose=verbose,
             )
+            if use_context_retrieval:
+                context_retrieval_text = await workflow.run_stage(
+                    spec=specs["context_retrieval"],
+                    ui_agent_id="context_retrieval",
+                    prompt=build_context_retrieval_prompt(message, discovery_text),
+                    trace_label="CONTEXT RETRIEVAL OUTPUT",
+                    verbose=verbose,
+                )
+            else:
+                workflow.skip_stage(
+                    "CONTEXT RETRIEVAL OUTPUT",
+                    "Context retrieval stage skipped in peer mode.",
+                    agent_id="context_retrieval",
+                )
         else:
             workflow.skip_stage(
                 "DISCOVERY OUTPUT",
                 "Discovery skipped because this peer task does not require retrieval.",
                 agent_id="discovery",
             )
+            workflow.skip_stage(
+                "CONTEXT RETRIEVAL OUTPUT",
+                "Context retrieval skipped because this peer task does not require retrieval.",
+                agent_id="context_retrieval",
+            )
 
-        discovery_basis = discovery_text or "None."
+        discovery_basis = context_retrieval_text or discovery_text or "None."
 
         author_text = await workflow.run_stage(
             spec=specs["design_author"],

@@ -47,6 +47,12 @@ def fake_specs():
             prompt_file="prompts/discovery.md",
             allowed_servers=["workspace"],
         ),
+        "context_retrieval": AgentSpec(
+            id="context_retrieval",
+            name="Context Retrieval",
+            prompt_file="prompts/context_retrieval.md",
+            allowed_servers=["workspace"],
+        ),
         "design_author": AgentSpec(
             id="design_author",
             name="Design Author",
@@ -128,6 +134,7 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
 
     assert calls == [
         "discovery",
+        "context_retrieval",
         "design_author",
         "design_challenger",
         "design_refiner",
@@ -162,6 +169,7 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
 
     assert calls == [
         "discovery",
+        "context_retrieval",
         "design_author",
         "design_challenger",
         "design_refiner",

@@ -59,13 +59,13 @@ class FakeWorkflowEngine:
         return self._session
 
 
-def test_build_context_prompt_creates_grounded_context_brief_prompt():
-    prompt = pipelines.build_context_prompt(
+def test_build_context_synthesizer_prompt_creates_grounded_context_brief_prompt():
+    prompt = pipelines.build_context_synthesizer_prompt(
         "Draft a solution design from local documents.",
         "Found design_notes.md and constraints.md in the workspace.",
     )
 
-    assert "You are the Context agent" in prompt
+    assert "You are the Context Synthesizer agent" in prompt
     assert "Draft a solution design from local documents." in prompt
     assert "Found design_notes.md and constraints.md" in prompt
     assert "Use only facts supported by the discovery output." in prompt
@@ -110,7 +110,7 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     assert [name for name, _ in stage_calls] == [
         "discovery",
         "context_retrieval",
-        "context",
+        "context_synthesizer",
         "design",
         "orchestrator",
     ]
@@ -169,6 +169,7 @@ async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monke
         ("WORKFLOW_START", "Starting peer workflow."),
         ("USER INPUT", "hello"),
         ("DISCOVERY OUTPUT", "Discovery skipped because this peer task does not require retrieval."),
+        ("CONTEXT RETRIEVAL OUTPUT", "Context retrieval skipped because this peer task does not require retrieval."),
         ("WORKFLOW_END", "Peer workflow completed."),
     ]
 

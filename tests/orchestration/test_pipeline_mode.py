@@ -51,9 +51,9 @@ def fake_specs():
             prompt_file="prompts/context_retrieval.md",
             allowed_servers=["workspace", "document"],
         ),
-        "context": AgentSpec(
-            id="context",
-            name="Context",
+        "context_synthesizer": AgentSpec(
+            id="context_synthesizer",
+            name="Context Synthesizer",
             prompt_file="prompts/context.md",
             allowed_servers=["workspace", "document"],
         ),
@@ -94,7 +94,11 @@ def patch_pipeline_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "append_trace", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "print_agent_output", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "build_discovery_prompt", lambda message: f"DISCOVERY::{message}")
-    monkeypatch.setattr(pipelines, "build_context_prompt", lambda message, discovery: f"CONTEXT::{message}::{discovery}")
+    monkeypatch.setattr(
+        pipelines,
+        "build_context_synthesizer_prompt",
+        lambda message, discovery: f"CONTEXT::{message}::{discovery}",
+    )
     monkeypatch.setattr(pipelines, "build_design_prompt", lambda message, context: f"DESIGN::{message}::{context}")
     monkeypatch.setattr(pipelines, "build_review_prompt", lambda message, discovery, design: f"REVIEW::{message}::{design}")
     monkeypatch.setattr(pipelines, "build_pipeline_final_prompt", lambda message, discovery, design, review: f"FINAL::{message}::{review}")
@@ -159,7 +163,7 @@ async def test_pipeline_runs_expected_stage_order_when_review_off(monkeypatch, f
     assert calls == [
         "discovery",
         "context_retrieval",
-        "context",
+        "context_synthesizer",
         "design",
         "orchestrator",
     ]
@@ -189,7 +193,7 @@ async def test_pipeline_runs_expected_stage_order_when_review_on(monkeypatch, fa
     assert calls == [
         "discovery",
         "context_retrieval",
-        "context",
+        "context_synthesizer",
         "design",
         "review",
         "orchestrator",
