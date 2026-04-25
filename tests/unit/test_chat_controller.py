@@ -62,7 +62,6 @@ def test_clear_empties_history_and_persists(monkeypatch, state):
 
 def test_switch_session_loads_new_history_and_prints_state(monkeypatch, state):
     notices = []
-    state_calls = []
 
     monkeypatch.setattr(
         "crisai.cli.chat_controller.load_history",
@@ -72,21 +71,14 @@ def test_switch_session_loads_new_history_and_prints_state(monkeypatch, state):
         "crisai.cli.chat_controller.print_status_message",
         lambda body, title=None: notices.append((title, body)),
     )
-    monkeypatch.setattr(
-        "crisai.cli.chat_controller.print_chat_state",
-        lambda **kwargs: state_calls.append(kwargs),
-    )
-
     assert handle_chat_command("/session project-a", state) is True
     assert state.current_session == "project-a"
     assert state.history == [("user", "loaded:project-a")]
     assert notices[-1][0] == "🔁 Session switched"
-    assert state_calls[-1]["history_count"] == 1
 
 
 def test_set_mode_auto_clears_pin(monkeypatch, state):
     notices = []
-    state_calls = []
     state.current_mode = "pipeline"
     state.mode_pinned = True
 
@@ -94,32 +86,22 @@ def test_set_mode_auto_clears_pin(monkeypatch, state):
         "crisai.cli.chat_controller.print_status_message",
         lambda body, title=None: notices.append((title, body)),
     )
-    monkeypatch.setattr(
-        "crisai.cli.chat_controller.print_chat_state",
-        lambda **kwargs: state_calls.append(kwargs),
-    )
-
     assert handle_chat_command("/mode auto", state) is True
     assert state.current_mode == "single"
     assert state.mode_pinned is False
     assert notices[-1][0] == "🧭 Routing mode"
-    assert state_calls[-1]["mode_pinned"] is False
 
 
 def test_set_mode_peer_pins_mode(monkeypatch, state):
     monkeypatch.setattr("crisai.cli.chat_controller.print_status_message", lambda *args, **kwargs: None)
-    calls = []
-    monkeypatch.setattr("crisai.cli.chat_controller.print_chat_state", lambda **kwargs: calls.append(kwargs))
 
     assert handle_chat_command("/mode peer", state) is True
     assert state.current_mode == "peer"
     assert state.mode_pinned is True
-    assert calls[-1]["current_mode"] == "peer"
 
 
 def test_set_review_updates_state(monkeypatch, state):
     monkeypatch.setattr("crisai.cli.chat_controller.print_status_message", lambda *args, **kwargs: None)
-    monkeypatch.setattr("crisai.cli.chat_controller.print_chat_state", lambda **kwargs: None)
 
     assert handle_chat_command("/review on", state) is True
     assert state.current_review is True
@@ -127,7 +109,6 @@ def test_set_review_updates_state(monkeypatch, state):
 
 def test_set_verbose_updates_state(monkeypatch, state):
     monkeypatch.setattr("crisai.cli.chat_controller.print_status_message", lambda *args, **kwargs: None)
-    monkeypatch.setattr("crisai.cli.chat_controller.print_chat_state", lambda **kwargs: None)
 
     assert handle_chat_command("/verbose on", state) is True
     assert state.current_verbose is True
@@ -137,18 +118,14 @@ def test_set_agent_auto_clears_pin(monkeypatch, state):
     state.current_agent = "design"
     state.agent_pinned = True
     monkeypatch.setattr("crisai.cli.chat_controller.print_status_message", lambda *args, **kwargs: None)
-    calls = []
-    monkeypatch.setattr("crisai.cli.chat_controller.print_chat_state", lambda **kwargs: calls.append(kwargs))
 
     assert handle_chat_command("/agent auto", state) is True
     assert state.current_agent == "orchestrator"
     assert state.agent_pinned is False
-    assert calls[-1]["agent_pinned"] is False
 
 
 def test_set_agent_specific_value_pins(monkeypatch, state):
     monkeypatch.setattr("crisai.cli.chat_controller.print_status_message", lambda *args, **kwargs: None)
-    monkeypatch.setattr("crisai.cli.chat_controller.print_chat_state", lambda **kwargs: None)
 
     assert handle_chat_command("/agent design_author", state) is True
     assert state.current_agent == "design_author"

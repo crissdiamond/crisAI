@@ -391,6 +391,7 @@ def chat(
         agent_pinned=state.agent_pinned,
         history_count=len(state.history),
     )
+    last_route_line: str | None = None
 
     while True:
         try:
@@ -427,7 +428,10 @@ def chat(
         )
         decision = _apply_decision_overrides(user_input, explicit_mode, decision)
 
-        print_status_message(route_display(decision), title="🧭 Routing decision")
+        current_route_line = route_display(decision)
+        if current_route_line != last_route_line:
+            print_status_message(current_route_line, title="🧭 Routing decision")
+            last_route_line = current_route_line
 
         async def _run() -> str:
             return await _run_with_routing(chat_input, state.current_verbose, state.current_review, decision)

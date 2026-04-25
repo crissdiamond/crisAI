@@ -73,16 +73,6 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
             f"Switched to session '{state.current_session}'.\nLoaded history entries: {len(state.history)}",
             title="🔁 Session switched",
         )
-        print_chat_state(
-            current_session=state.current_session,
-            current_mode=state.current_mode,
-            current_agent=state.current_agent,
-            current_review=state.current_review,
-            current_verbose=state.current_verbose,
-            mode_pinned=state.mode_pinned,
-            agent_pinned=state.agent_pinned,
-            history_count=len(state.history),
-        )
     elif action == "set_mode":
         value = str(command.value)
         if value == "auto":
@@ -96,47 +86,17 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
             state.current_mode = value
             state.mode_pinned = True
             print_status_message(f"Mode pinned to {state.current_mode}", title="🧭 Routing mode")
-        print_chat_state(
-            current_session=state.current_session,
-            current_mode=state.current_mode,
-            current_agent=state.current_agent,
-            current_review=state.current_review,
-            current_verbose=state.current_verbose,
-            mode_pinned=state.mode_pinned,
-            agent_pinned=state.agent_pinned,
-            history_count=len(state.history),
-        )
     elif action == "set_review":
         state.current_review = bool(command.value)
         print_status_message(
             f"Review preference {'enabled' if state.current_review else 'disabled'}.",
             title="🛡 Review preference",
         )
-        print_chat_state(
-            current_session=state.current_session,
-            current_mode=state.current_mode,
-            current_agent=state.current_agent,
-            current_review=state.current_review,
-            current_verbose=state.current_verbose,
-            mode_pinned=state.mode_pinned,
-            agent_pinned=state.agent_pinned,
-            history_count=len(state.history),
-        )
     elif action == "set_verbose":
         state.current_verbose = bool(command.value)
         print_status_message(
             f"Verbose {'enabled' if state.current_verbose else 'disabled'}.",
             title="📝 Verbose output",
-        )
-        print_chat_state(
-            current_session=state.current_session,
-            current_mode=state.current_mode,
-            current_agent=state.current_agent,
-            current_review=state.current_review,
-            current_verbose=state.current_verbose,
-            mode_pinned=state.mode_pinned,
-            agent_pinned=state.agent_pinned,
-            history_count=len(state.history),
         )
     elif action == "set_agent":
         value = str(command.value)
@@ -154,16 +114,6 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
                 f"Single-agent target pinned to {state.current_agent}",
                 title="🤖 Agent selection",
             )
-        print_chat_state(
-            current_session=state.current_session,
-            current_mode=state.current_mode,
-            current_agent=state.current_agent,
-            current_review=state.current_review,
-            current_verbose=state.current_verbose,
-            mode_pinned=state.mode_pinned,
-            agent_pinned=state.agent_pinned,
-            history_count=len(state.history),
-        )
     elif action == "noop" and command.message == "status":
         print_chat_state(
             current_session=state.current_session,

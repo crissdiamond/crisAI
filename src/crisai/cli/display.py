@@ -297,9 +297,13 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
     icon = _icon(agent_id)
     label = _label(agent_id)
     style = _style(agent_id)
-    title = Text(f"{icon} {label}", style=f"bold {style}")
+    if not verbose:
+        summary = _role_led_summary(agent_id, body).replace("\n", " ").strip()
+        console.print(Text(f"{icon} {label}: {summary}", style="dim"))
+        return
 
-    rendered_body = Markdown(body.strip() or "_empty_") if verbose else _role_led_summary(agent_id, body)
+    title = Text(f"{icon} {label}", style=f"bold {style}")
+    rendered_body = Markdown(body.strip() or "_empty_")
     console.print(
         Panel(
             rendered_body,
