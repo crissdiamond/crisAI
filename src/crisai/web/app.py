@@ -373,9 +373,10 @@ function renderSessionHistory(items) {
   }
   const lines = items.map((entry, index) => {
     const roleLabel = entry.role === "assistant" ? "ASSISTANT" : "USER";
-    return `#${index + 1} [${roleLabel}]\n${entry.content}`;
+    return "#" + (index + 1) + " [" + roleLabel + "]" + "\n" + entry.content;
   });
-  sessionHistory.textContent = lines.join("\n\n----------------------------------------\n\n");
+  const historySeparator = ["", "", "----------------------------------------", "", ""].join("\n");
+  sessionHistory.textContent = lines.join(historySeparator);
 }
 
 async function loadSessionMeta() {
