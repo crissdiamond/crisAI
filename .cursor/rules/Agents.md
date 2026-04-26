@@ -1,7 +1,0 @@
-- Work on one improvement at a time.
-- The user may write in English or Italian; always respond in English.
-- Apply solid software engineering practices.
-- Add code comments when needed, following Google style conventions.
-- Add comments to existing code when clarity is needed.
-- At the end of each improvement, create a commit using Conventional Commits.
-- Do not add "Made-with: Cursor" to commit messages.

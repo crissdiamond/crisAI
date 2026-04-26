@@ -18,6 +18,10 @@ htmlcov/
 .DS_Store
 .env
 .cursor
+.cursor/
+logs/agent_trace.jsonl
+workspace/.cli_history
+workspace/chat_sessions/*.json
 chat_session/
 .secrets/
 *.sqlite
