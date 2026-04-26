@@ -117,6 +117,13 @@ pytest
 
 That is the preferred command for checking the full current project state.
 
+For a clean-install smoke check, also verify both launch modes:
+
+```bash
+./start cli
+./start web
+```
+
 ---
 
 ## 5. Running focused groups

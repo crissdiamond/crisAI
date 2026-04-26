@@ -226,19 +226,36 @@ MS_GRAPH_SCOPES=User.Read,Files.Read.All,Sites.Read.All
 chmod +x start
 ```
 
-### 6. Start crisAI
+### 6. Start crisAI (CLI or Web)
 
 ```bash
-./start
+./start cli
 ```
 
-### 7. Start the web interface
+Start web mode with:
+
+```bash
+./start web
+```
+
+Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+You can still run the direct script if needed:
 
 ```bash
 crisai-web
 ```
 
-Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+### 8. Clean install verification
+
+After a fresh install, validate both runtime surfaces:
+
+```bash
+./start cli
+./start web
+```
+
+If `./start` reports a missing `.venv`, create it and install dependencies first.
 
 ---
 

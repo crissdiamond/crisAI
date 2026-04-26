@@ -3,6 +3,14 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+if [ ! -d ".venv" ]; then
+  echo "Missing .venv. Create and install dependencies first:"
+  echo "  python3 -m venv .venv"
+  echo "  source .venv/bin/activate"
+  echo "  pip install -e ."
+  exit 1
+fi
+
 source .venv/bin/activate
 export PYTHONPATH=./src
 
@@ -12,5 +20,20 @@ if [ -f .env ]; then
   set +a
 fi
 
-exec python -m crisai.cli.main chat --verbose
-#exec python -m crisai.cli.main chat
+MODE="${1:-cli}"
+
+case "$MODE" in
+  cli)
+    exec python -m crisai.cli.main chat --verbose
+    ;;
+  web)
+    exec crisai-web
+    ;;
+  *)
+    echo "Usage: ./start [cli|web]"
+    echo "Examples:"
+    echo "  ./start cli"
+    echo "  ./start web"
+    exit 2
+    ;;
+esac

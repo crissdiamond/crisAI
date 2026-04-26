@@ -37,8 +37,9 @@ That means:
 
 crisAI has five main moving parts:
 
-### 2.1 CLI
-The interactive shell where you type slash commands and prompts.
+### 2.1 App surfaces
+- **CLI**: interactive shell where you type slash commands and prompts.
+- **Web**: browser interface with session history and progressive workflow tabs.
 
 ### 2.2 Agents
 Specialist reasoning roles such as:
@@ -88,7 +89,7 @@ This allows examples such as:
 From the project root:
 
 ```bash
-./start
+./start cli
 ```
 
 Recommended startup behaviour:
@@ -96,6 +97,14 @@ Recommended startup behaviour:
 - let the router decide unless you explicitly pin a mode or agent later
 
 When crisAI opens, you are inside the interactive CLI.
+
+To run the web interface:
+
+```bash
+./start web
+```
+
+Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ---
 
