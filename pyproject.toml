@@ -34,7 +34,7 @@ litellm = [
 
 [project.scripts]
 crisai = "crisai.cli.main:app"
-crisai-web = "crisai.web.app:main"
+crisai-web = "crisai.apps.web:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

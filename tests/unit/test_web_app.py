@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from fastapi import HTTPException
 
-from crisai.web.app import _collect_stage_outputs, _select_latest_run, _to_http_exception, app
+from crisai.apps.web import _collect_stage_outputs, _select_latest_run, _to_http_exception, app
 
 
 def test_select_latest_run_filters_by_last_run_id():
@@ -55,12 +55,12 @@ def test_run_endpoint_returns_execution_payload(monkeypatch):
             "stage_outputs": [{"agent_id": "discovery", "stage": "DISCOVERY_OUTPUT", "event_type": "stage_output", "content": "x"}],
         }
 
-    monkeypatch.setattr("crisai.web.app.load_history", lambda session_name: [])
+    monkeypatch.setattr("crisai.apps.web.load_history", lambda session_name: [])
     monkeypatch.setattr(
-        "crisai.web.app.save_history",
+        "crisai.apps.web.save_history",
         lambda session_name, history: saved.update({"session": session_name, "history": history}),
     )
-    monkeypatch.setattr("crisai.web.app._execute", fake_execute)
+    monkeypatch.setattr("crisai.apps.web._execute", fake_execute)
     client = TestClient(app)
 
     response = client.post(
@@ -94,9 +94,9 @@ def test_to_http_exception_maps_max_turns_to_422():
 
 
 def test_list_sessions_endpoint_returns_default_history(monkeypatch):
-    monkeypatch.setattr("crisai.web.app._list_session_names", lambda: ["default", "design"])
+    monkeypatch.setattr("crisai.apps.web._list_session_names", lambda: ["default", "design"])
     monkeypatch.setattr(
-        "crisai.web.app.load_history",
+        "crisai.apps.web.load_history",
         lambda session_name: [("user", "u1"), ("assistant", "a1")] if session_name == "default" else [],
     )
     client = TestClient(app)
@@ -111,9 +111,9 @@ def test_list_sessions_endpoint_returns_default_history(monkeypatch):
 
 
 def test_create_session_endpoint_sanitizes_and_returns_session(monkeypatch):
-    monkeypatch.setattr("crisai.web.app.load_history", lambda session_name: [])
-    monkeypatch.setattr("crisai.web.app.save_history", lambda session_name, history: None)
-    monkeypatch.setattr("crisai.web.app._list_session_names", lambda: ["default", "new_session"])
+    monkeypatch.setattr("crisai.apps.web.load_history", lambda session_name: [])
+    monkeypatch.setattr("crisai.apps.web.save_history", lambda session_name, history: None)
+    monkeypatch.setattr("crisai.apps.web._list_session_names", lambda: ["default", "new_session"])
     client = TestClient(app)
 
     response = client.post("/api/sessions", json={"session": "new session"})
@@ -125,7 +125,7 @@ def test_create_session_endpoint_sanitizes_and_returns_session(monkeypatch):
 
 
 def test_get_session_endpoint_returns_specific_history(monkeypatch):
-    monkeypatch.setattr("crisai.web.app.load_history", lambda _name: [("user", "hello")])
+    monkeypatch.setattr("crisai.apps.web.load_history", lambda _name: [("user", "hello")])
     client = TestClient(app)
 
     response = client.get("/api/sessions/my-session")
