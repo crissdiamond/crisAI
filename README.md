@@ -11,6 +11,7 @@ The aim is to create a personal AI workstation that can retrieve source material
 ## Features
 
 - Interactive CLI for one-off or ongoing sessions
+- Web interface mirroring CLI routing and workflows
 - Local workspace retrieval
 - Document reading for common formats:
   - `.txt`
@@ -230,6 +231,14 @@ chmod +x start
 ```bash
 ./start
 ```
+
+### 7. Start the web interface
+
+```bash
+crisai-web
+```
+
+Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ---
 
