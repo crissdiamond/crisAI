@@ -74,6 +74,21 @@ def test_build_context_synthesizer_prompt_creates_grounded_context_brief_prompt(
     assert "## Gaps and Uncertainties" in prompt
 
 
+def test_resolve_agent_max_turns_defaults_to_safe_value(monkeypatch):
+    monkeypatch.delenv("CRISAI_AGENT_MAX_TURNS", raising=False)
+    assert pipelines._resolve_agent_max_turns() == 30
+
+
+def test_resolve_agent_max_turns_handles_invalid_env_value(monkeypatch):
+    monkeypatch.setenv("CRISAI_AGENT_MAX_TURNS", "invalid")
+    assert pipelines._resolve_agent_max_turns() == 30
+
+
+def test_resolve_agent_max_turns_respects_positive_env_value(monkeypatch):
+    monkeypatch.setenv("CRISAI_AGENT_MAX_TURNS", "42")
+    assert pipelines._resolve_agent_max_turns() == 42
+
+
 @pytest.mark.anyio
 async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []

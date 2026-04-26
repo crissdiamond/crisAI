@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from crisai.web.app import _collect_stage_outputs, _select_latest_run, app
+from fastapi import HTTPException
+
+from crisai.web.app import _collect_stage_outputs, _select_latest_run, _to_http_exception, app
 
 
 def test_select_latest_run_filters_by_last_run_id():
@@ -67,4 +69,13 @@ def test_run_endpoint_returns_execution_payload(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["final_output"] == "ok"
+
+
+def test_to_http_exception_maps_max_turns_to_422():
+    error = Exception("Error: Max turns (10) exceeded")
+    http_error = _to_http_exception(error)
+
+    assert isinstance(http_error, HTTPException)
+    assert http_error.status_code == 422
+    assert "Increase CRISAI_AGENT_MAX_TURNS" in str(http_error.detail)
 

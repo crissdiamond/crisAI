@@ -114,6 +114,21 @@ def _resolve_decision(payload: RunRequest):
     return _apply_decision_overrides(payload.message, explicit_mode, decision)
 
 
+def _to_http_exception(exc: Exception) -> HTTPException:
+    """Map runtime failures to user-facing HTTP errors."""
+    message = str(exc).strip() or "Unknown runtime error."
+    lowered = message.lower()
+    if "max turns" in lowered and "exceeded" in lowered:
+        return HTTPException(
+            status_code=422,
+            detail=(
+                "Agent run exceeded max turns. Increase CRISAI_AGENT_MAX_TURNS "
+                "or simplify the prompt to reduce iterative steps."
+            ),
+        )
+    return HTTPException(status_code=500, detail=message)
+
+
 async def _execute(payload: RunRequest) -> dict[str, Any]:
     """Execute one request and return final output plus stage records."""
     trace_path = _trace_file_path()
@@ -127,7 +142,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
             decision=decision,
         )
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise _to_http_exception(exc) from exc
 
     appended_entries = _read_json_lines_from_offset(trace_path, before_size)
     run_entries = _select_latest_run(appended_entries)
