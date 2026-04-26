@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import asyncio
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import typer
 from fastapi import FastAPI, HTTPException
@@ -26,6 +28,7 @@ from crisai.cli.session_store import (
 from crisai.config import load_settings
 
 app = FastAPI(title="crisAI Web")
+_RUN_JOBS: dict[str, dict[str, Any]] = {}
 
 
 class RunRequest(BaseModel):
@@ -175,6 +178,82 @@ def _serialize_history(history: list[tuple[str, str]]) -> list[dict[str, str]]:
     return [{"role": role, "content": content} for role, content in history]
 
 
+def _expected_flow_tabs(decision: Any) -> list[dict[str, str]]:
+    """Build expected flow tabs from routing decision."""
+    mode = getattr(decision, "mode", "single")
+    needs_review = bool(getattr(decision, "needs_review", False))
+    needs_retrieval = bool(getattr(decision, "needs_retrieval", False))
+    agent = getattr(decision, "agent", "orchestrator") or "orchestrator"
+
+    tabs: list[dict[str, str]] = []
+    if mode == "pipeline":
+        tabs.extend(
+            [
+                {"key": "discovery", "label": "discovery"},
+                {"key": "context_retrieval", "label": "context_retrieval"},
+                {"key": "context_synthesizer", "label": "context_synthesizer"},
+                {"key": "design", "label": "design"},
+            ]
+        )
+        if needs_review:
+            tabs.append({"key": "review", "label": "review"})
+        tabs.append({"key": "orchestrator", "label": "orchestrator"})
+    elif mode == "peer":
+        if needs_retrieval:
+            tabs.append({"key": "discovery", "label": "discovery"})
+            tabs.append({"key": "context_retrieval", "label": "context_retrieval"})
+        tabs.extend(
+            [
+                {"key": "design_author", "label": "design_author"},
+                {"key": "design_challenger", "label": "design_challenger"},
+                {"key": "design_refiner", "label": "design_refiner"},
+                {"key": "judge", "label": "judge"},
+                {"key": "orchestrator", "label": "orchestrator"},
+            ]
+        )
+    else:
+        tabs.append({"key": agent, "label": agent})
+
+    tabs.append({"key": "final_output", "label": "final_output"})
+    return tabs
+
+
+def _extract_stage_key(entry: dict[str, str]) -> str:
+    """Map a stage-output entry to a stable flow tab key."""
+    agent_id = str(entry.get("agent_id", "")).strip()
+    if agent_id:
+        return agent_id
+    stage = str(entry.get("stage", "")).strip().lower()
+    if "final" in stage:
+        return "final_output"
+    return "system"
+
+
+async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
+    """Execute one background run and persist completion state."""
+    job = _RUN_JOBS[job_id]
+    try:
+        final_output = await _run_with_routing(
+            message=payload.message,
+            verbose=payload.verbose,
+            review=payload.review,
+            decision=decision,
+        )
+        session_name = sanitize_session_name(payload.session)
+        history = load_history(session_name)
+        history.append(("user", payload.message))
+        history.append(("assistant", final_output))
+        save_history(session_name, history)
+
+        job["status"] = "completed"
+        job["final_output"] = final_output
+        job["history"] = _serialize_history(history)
+        job["current_session"] = session_name
+    except Exception as exc:  # noqa: BLE001
+        job["status"] = "failed"
+        job["error"] = _to_http_exception(exc).detail
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
     """Return the single-page web interface."""
@@ -185,43 +264,182 @@ def index() -> HTMLResponse:
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Data Architecture Design assistant</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
-    .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
-    .panel { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; }
-    label { display: block; font-size: 13px; margin-bottom: 6px; color: #cbd5e1; }
-    input, textarea, select, button { width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #475569; background: #0b1220; color: #f8fafc; padding: 10px; }
+    :root {
+      --color-primary-dark: #361a54;
+      --color-bg: #fafafa;
+      --color-accent-bright: #993bff;
+      --color-accent-mid: #ba82ff;
+      --color-surface-light: #ddbdff;
+      --color-surface-pale: #eedeff;
+      --color-accent-blue: #30d6ff;
+      --color-text: #1f1f2e;
+      --color-border: #c9b7dd;
+      --font-family-base: "UCL Sans", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --space-1: 8px;
+      --space-2: 12px;
+      --space-3: 16px;
+      --space-4: 24px;
+      --space-5: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-family-base);
+      margin: 0;
+      background: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.4;
+    }
+    .skip-link {
+      position: absolute;
+      left: -999px;
+      top: var(--space-1);
+      background: var(--color-primary-dark);
+      color: var(--color-bg);
+      padding: var(--space-1) var(--space-2);
+      border-radius: var(--radius-sm);
+      z-index: 1000;
+    }
+    .skip-link:focus { left: var(--space-2); }
+    .site-header {
+      background: var(--color-primary-dark);
+      color: var(--color-bg);
+      border-bottom: 4px solid var(--color-accent-mid);
+    }
+    .header-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: var(--space-3) var(--space-4);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .brand-title {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+    .brand-subtitle {
+      margin: var(--space-1) 0 0;
+      color: var(--color-accent-mid);
+      font-size: 14px;
+    }
+    .pillar-motif {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 44px;
+      min-width: 52px;
+    }
+    .pillar-motif span {
+      width: 9px;
+      background: var(--color-accent-blue);
+      display: inline-block;
+    }
+    .pillar-motif span:nth-child(1) { height: 18px; opacity: 0.5; }
+    .pillar-motif span:nth-child(2) { height: 28px; opacity: 0.7; }
+    .pillar-motif span:nth-child(3) { height: 38px; }
+    .container { max-width: 1120px; margin: 0 auto; padding: var(--space-4); }
+    .breadcrumbs {
+      margin: 0 0 var(--space-3);
+      font-size: 14px;
+      color: #5b4e6d;
+    }
+    .hero {
+      background: var(--color-surface-pale);
+      border: 1px solid var(--color-border);
+      border-left: 8px solid var(--color-accent-bright);
+      padding: var(--space-4);
+      margin-bottom: var(--space-4);
+    }
+    .hero h2 {
+      margin: 0 0 var(--space-1);
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      color: var(--color-primary-dark);
+    }
+    .hero p { margin: 0; color: #4d3f61; }
+    .section-card {
+      background: #ffffff;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-3);
+      margin-bottom: var(--space-3);
+    }
+    .row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    label { display: block; font-size: 13px; margin-bottom: 6px; color: #5b4e6d; font-weight: 600; }
+    input, textarea, select, button {
+      width: 100%;
+      border: 1px solid #9f82bf;
+      background: #ffffff;
+      color: var(--color-text);
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-family-base);
+    }
     textarea { min-height: 120px; resize: vertical; }
-    button { cursor: pointer; font-weight: bold; }
+    button {
+      cursor: pointer;
+      font-weight: 700;
+      background: var(--color-primary-dark);
+      color: var(--color-bg);
+      border-color: var(--color-primary-dark);
+    }
+    button:hover { background: #2b1245; }
     .col { flex: 1 1 220px; }
-    .switch { display: flex; align-items: center; gap: 8px; }
+    .switch { display: flex; align-items: center; gap: var(--space-1); }
     .switch input { width: auto; }
-    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .tab-btn { width: auto; padding: 8px 12px; border: 1px solid transparent; color: #0b1220; font-weight: 700; }
-    .tab-btn.active { background: #ffffff !important; border-color: #ffffff; color: #0b1220; }
-    .tab-color-0 { background: #ef4444; }
-    .tab-color-1 { background: #f97316; }
-    .tab-color-2 { background: #facc15; }
-    .tab-color-3 { background: #22c55e; }
-    .tab-color-4 { background: #06b6d4; }
-    .tab-color-5 { background: #3b82f6; }
-    .tab-color-6 { background: #a855f7; }
+    .tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
+    .tab-btn {
+      width: auto;
+      padding: 8px 12px;
+      border: 2px solid rgba(54, 26, 84, 0.55);
+      color: #ffffff;
+      font-weight: 800;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+    }
+    .tab-btn.active {
+      background: #ffffff !important;
+      border-color: var(--color-primary-dark);
+      color: var(--color-primary-dark);
+      text-shadow: none;
+    }
+    .tab-color-0 { background: rgba(153, 59, 255, 0.9); }
+    .tab-color-1 { background: rgba(186, 130, 255, 0.9); }
+    .tab-color-2 { background: rgba(78, 37, 118, 0.86); }
+    .tab-color-3 { background: rgba(54, 26, 84, 0.86); }
+    .tab-color-4 { background: rgba(32, 125, 156, 0.88); }
+    .tab-color-5 { background: rgba(93, 58, 132, 0.9); }
+    .tab-color-6 { background: rgba(120, 73, 171, 0.9); }
     .tab-content-panel {
-      border-radius: 8px;
-      border: 1px solid #334155;
-      padding: 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border);
+      padding: var(--space-2);
       line-height: 1.4;
       max-height: calc(20 * 1.4em);
       overflow-y: auto;
     }
-    .flow-shade-0 { background: #7f1d1d; }
-    .flow-shade-1 { background: #7c2d12; }
-    .flow-shade-2 { background: #713f12; }
-    .flow-shade-3 { background: #14532d; }
-    .flow-shade-4 { background: #164e63; }
-    .flow-shade-5 { background: #1e3a8a; }
-    .flow-shade-6 { background: #4c1d95; }
-    pre { background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 12px; overflow-x: auto; white-space: pre-wrap; }
+    .flow-shade-0 { background: #f1e5ff; }
+    .flow-shade-1 { background: #ead8ff; }
+    .flow-shade-2 { background: #f3e9ff; }
+    .flow-shade-3 { background: #f7efff; }
+    .flow-shade-4 { background: #ddf7ff; }
+    .flow-shade-5 { background: #ece3f7; }
+    .flow-shade-6 { background: #efe7f9; }
+    pre {
+      background: #f6f1fb;
+      border: 1px solid #d6c7e8;
+      border-radius: var(--radius-sm);
+      padding: var(--space-2);
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
     #sessionHistory {
       line-height: 1.4;
       max-height: calc(20 * 1.4em);
@@ -255,21 +473,43 @@ def index() -> HTMLResponse:
       border: 1px solid #334155;
       border-radius: 4px;
       padding: 1px 4px;
+      color: #f8fafc;
     }
     #tabContent pre {
       margin: 8px 0;
       background: #0b1220;
+      color: #f8fafc;
     }
-    .muted { color: #94a3b8; font-size: 13px; }
+    .muted { color: #6a5a7e; font-size: 13px; }
+    a { color: var(--color-primary-dark); text-decoration: underline; }
+    *:focus-visible { outline: 3px solid var(--color-accent-blue); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Data Architecture Design assistant</h1>
-    <p class="muted">Runs the same routing and agent workflows as the CLI.</p>
+  <a href="#main-content" class="skip-link">Skip to content</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <div>
+        <h1 class="brand-title">Data Architecture Design assistant</h1>
+        <p class="brand-subtitle">Explore workflow outputs and progress with clarity.</p>
+      </div>
+      <div class="pillar-motif" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </header>
+  <main id="main-content" class="container">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">Home / Apps / Data Architecture Design assistant</nav>
+    <section class="hero" aria-labelledby="hero-title">
+      <h2 id="hero-title">Get started</h2>
+      <p>Use the prompt workspace to run discovery, design and orchestration flows with clear stage progression.</p>
+    </section>
 
-    <div class="panel">
-      <h2>Prompt Workspace</h2>
+    <section class="section-card" aria-labelledby="workspace-title">
+      <h2 id="workspace-title">Prompt workspace</h2>
       <div class="row">
         <div class="col">
           <label for="sessionSelect">Session</label>
@@ -315,21 +555,21 @@ def index() -> HTMLResponse:
         <button id="runBtn" type="button">Run</button>
       </div>
       <p class="muted" id="uiStatus">UI status: loading</p>
-    </div>
+    </section>
 
-    <div class="panel">
-      <h2>Routing Decision</h2>
+    <section class="section-card" aria-labelledby="routing-title">
+      <h2 id="routing-title">Routing decision</h2>
       <pre id="decision">No run yet.</pre>
-    </div>
+    </section>
 
-    <div class="panel">
-      <h2>Agent Flow</h2>
+    <section class="section-card" aria-labelledby="flow-title">
+      <h2 id="flow-title">Agent flow</h2>
       <div id="tabs" class="tabs"></div>
       <div id="tabContent" class="tab-content-panel flow-shade-5">No stage output yet.</div>
-    </div>
-  </div>
+    </section>
+  </main>
 
-  <script src="/app.js?v=3"></script>
+  <script src="/app.js?v=4"></script>
 </body>
 </html>"""
     return HTMLResponse(
@@ -361,6 +601,8 @@ const uiStatus = document.getElementById("uiStatus");
 let stageData = [];
 let sessions = [];
 let currentSession = "default";
+let currentJobId = null;
+let pollingTimer = null;
 
 function setUiStatus(text) {
   if (uiStatus) uiStatus.textContent = `UI status: ${text}`;
@@ -471,6 +713,38 @@ function buildFlowRecords(stageOutputs, finalOutputText) {
   return records;
 }
 
+function buildPlaceholderFlowTabs(expectedTabs) {
+  return (expectedTabs || []).map((tab) => ({
+    agent_id: tab.label,
+    stage: "PENDING",
+    event_type: "pending",
+    content: "_Waiting for output..._",
+    key: tab.key,
+  }));
+}
+
+function applyStageUpdates(records, updates, finalOutputText) {
+  const byKey = new Map();
+  records.forEach((item) => byKey.set(item.key || item.agent_id, item));
+
+  (updates || []).forEach((entry) => {
+    const key = entry.key || entry.agent_id;
+    byKey.set(key, { ...entry, key });
+  });
+
+  if (finalOutputText) {
+    byKey.set("final_output", {
+      key: "final_output",
+      agent_id: "final_output",
+      stage: "FINAL_OUTPUT",
+      event_type: "workflow_output",
+      content: finalOutputText,
+    });
+  }
+
+  return records.map((item) => byKey.get(item.key || item.agent_id) || item);
+}
+
 async function loadSessionMeta() {
   const response = await fetch("/api/sessions");
   const data = await response.json();
@@ -520,7 +794,7 @@ async function runWorkflow() {
     if (!payload.message) {
       throw new Error("Please enter a prompt.");
     }
-    const response = await fetch("/api/run", {
+    const response = await fetch("/api/run/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -530,10 +804,55 @@ async function runWorkflow() {
       throw new Error(data.detail || "Request failed.");
     }
     decision.textContent = JSON.stringify(data.decision, null, 2);
-    const flowRecords = buildFlowRecords(data.stage_outputs || [], data.final_output || "");
-    renderTabs(flowRecords);
-    renderSessionHistory(data.history || []);
+    currentJobId = data.job_id;
+
+    stageData = buildPlaceholderFlowTabs(data.expected_tabs || []);
+    renderTabs(stageData);
+    setUiStatus("running");
     messageInput.value = "";
+
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+    }
+    pollingTimer = setInterval(async () => {
+      if (!currentJobId) return;
+      const statusResponse = await fetch(`/api/run/status/${encodeURIComponent(currentJobId)}`);
+      const statusData = await statusResponse.json();
+      if (!statusResponse.ok) {
+        throw new Error(statusData.detail || "Status polling failed.");
+      }
+
+      const updates = (statusData.stage_outputs || []).map((entry) => ({
+        ...entry,
+        key: entry.key || entry.agent_id,
+      }));
+      stageData = applyStageUpdates(stageData, updates, statusData.final_output || "");
+      renderTabs(stageData);
+
+      // Auto-focus newest produced tab to emphasize progression.
+      const latest = updates[updates.length - 1];
+      if (latest) {
+        const idx = stageData.findIndex((item) => (item.key || item.agent_id) === (latest.key || latest.agent_id));
+        if (idx >= 0) selectTab(idx);
+      }
+      if (statusData.final_output) {
+        const finalIdx = stageData.findIndex((item) => (item.key || item.agent_id) === "final_output");
+        if (finalIdx >= 0) selectTab(finalIdx);
+      }
+
+      if (statusData.status === "completed") {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+        currentJobId = null;
+        renderSessionHistory(statusData.history || []);
+        setUiStatus("ready");
+      } else if (statusData.status === "failed") {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+        currentJobId = null;
+        throw new Error(statusData.error || "Run failed.");
+      }
+    }, 1000);
   } catch (error) {
     handleUiError(error);
   } finally {
@@ -588,6 +907,93 @@ async def run(payload: RunRequest) -> dict[str, Any]:
     response["history"] = _serialize_history(history)
     response["current_session"] = session_name
     return response
+
+
+@app.post("/api/run/start")
+async def run_start(payload: RunRequest) -> dict[str, Any]:
+    """Start a run in background and return a job id."""
+    if any(job.get("status") == "running" for job in _RUN_JOBS.values()):
+        raise HTTPException(status_code=409, detail="Another run is already in progress.")
+
+    decision = _resolve_decision(payload)
+    trace_path = _trace_file_path()
+    before_size = trace_path.stat().st_size if trace_path.exists() else 0
+    job_id = uuid4().hex
+
+    _RUN_JOBS[job_id] = {
+        "status": "running",
+        "payload": payload,
+        "decision": decision,
+        "decision_data": asdict(decision),
+        "before_size": before_size,
+        "run_id": None,
+        "stage_outputs": [],
+        "final_output": "",
+        "error": "",
+        "history": [],
+        "current_session": sanitize_session_name(payload.session),
+        "task": None,
+    }
+    _RUN_JOBS[job_id]["task"] = asyncio.create_task(_run_job(job_id, payload, decision))
+
+    return {
+        "job_id": job_id,
+        "decision": asdict(decision),
+        "expected_tabs": _expected_flow_tabs(decision),
+    }
+
+
+@app.get("/api/run/status/{job_id}")
+def run_status(job_id: str) -> dict[str, Any]:
+    """Return progressive status and stage outputs for a run job."""
+    job = _RUN_JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Run job not found.")
+
+    trace_path = _trace_file_path()
+    new_entries = _read_json_lines_from_offset(trace_path, int(job.get("before_size", 0)))
+    if trace_path.exists():
+        job["before_size"] = trace_path.stat().st_size
+
+    if job.get("run_id") is None:
+        for entry in new_entries:
+            candidate = entry.get("run_id")
+            if isinstance(candidate, str) and candidate:
+                job["run_id"] = candidate
+
+    run_id = job.get("run_id")
+    if run_id:
+        run_entries = [entry for entry in new_entries if entry.get("run_id") == run_id]
+    else:
+        run_entries = []
+
+    for entry in run_entries:
+        event_type = str(entry.get("event_type", ""))
+        if event_type not in {"stage_output", "stage_skipped"}:
+            continue
+        stage_entry = {
+            "key": _extract_stage_key(
+                {
+                    "agent_id": str(entry.get("agent_id") or ""),
+                    "stage": str(entry.get("stage", "")),
+                }
+            ),
+            "agent_id": str(entry.get("agent_id") or "system"),
+            "stage": str(entry.get("stage", "")),
+            "event_type": event_type,
+            "content": str(entry.get("content", "")),
+        }
+        job["stage_outputs"] = [e for e in job["stage_outputs"] if e.get("key") != stage_entry["key"]]
+        job["stage_outputs"].append(stage_entry)
+
+    return {
+        "status": job.get("status"),
+        "stage_outputs": job.get("stage_outputs", []),
+        "final_output": job.get("final_output", ""),
+        "history": job.get("history", []),
+        "current_session": job.get("current_session"),
+        "error": job.get("error", ""),
+    }
 
 
 @app.get("/api/sessions")
