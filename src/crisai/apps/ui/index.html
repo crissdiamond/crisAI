@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Data Architecture Design assistant</title>
+  <link rel="stylesheet" href="/styles.css?v=1" />
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <div>
+        <h1 class="brand-title">Data Architecture Design assistant</h1>
+        <p class="brand-subtitle">Explore workflow outputs and progress with clarity.</p>
+      </div>
+      <div class="pillar-motif" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </header>
+  <main id="main-content" class="container">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">Home / Apps / Data Architecture Design assistant</nav>
+    <section class="hero" aria-labelledby="hero-title">
+      <h2 id="hero-title">Get started</h2>
+      <p>Use the prompt workspace to run discovery, design and orchestration flows with clear stage progression.</p>
+    </section>
+
+    <section class="section-card" aria-labelledby="workspace-title">
+      <h2 id="workspace-title">Prompt workspace</h2>
+      <div class="row">
+        <div class="col">
+          <label for="sessionSelect">Session</label>
+          <select id="sessionSelect"></select>
+          <p class="muted" id="currentSessionText">Current session: default</p>
+        </div>
+        <div class="col">
+          <label for="newSessionName">Create new session</label>
+          <input id="newSessionName" placeholder="e.g. architecture-review" />
+          <div style="margin-top: 8px;">
+            <button id="createSessionBtn" type="button">Create Session</button>
+          </div>
+        </div>
+      </div>
+      <label for="sessionHistory">Session history</label>
+      <div id="sessionHistory">No history for this session yet.</div>
+      <label for="message" style="margin-top: 12px;">New prompt</label>
+      <textarea id="message" placeholder="Describe your request..."></textarea>
+      <div class="row" style="margin-top: 12px;">
+        <div class="col">
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="auto">auto</option>
+            <option value="single">single</option>
+            <option value="pipeline">pipeline</option>
+            <option value="peer">peer</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="agent">Agent override</label>
+          <input id="agent" value="auto" />
+        </div>
+        <div class="col switch">
+          <input type="checkbox" id="review" />
+          <label for="review">Review on/off</label>
+        </div>
+        <div class="col switch">
+          <input type="checkbox" id="verbose" />
+          <label for="verbose">Verbose on/off</label>
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <button id="runBtn" type="button">Run</button>
+      </div>
+      <p class="muted" id="uiStatus">UI status: loading</p>
+    </section>
+
+    <section class="section-card" aria-labelledby="routing-title">
+      <h2 id="routing-title">Routing decision</h2>
+      <pre id="decision">No run yet.</pre>
+    </section>
+
+    <section class="section-card" aria-labelledby="flow-title">
+      <h2 id="flow-title">Agent flow</h2>
+      <div id="tabs" class="tabs"></div>
+      <div id="tabContent" class="tab-content-panel flow-shade-5">No stage output yet.</div>
+    </section>
+  </main>
+
+  <script src="/app.js?v=5"></script>
+</body>
+</html>
+
