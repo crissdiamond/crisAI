@@ -17,6 +17,7 @@ htmlcov/
 .vscode/
 .DS_Store
 .env
+.cursor
 chat_session/
 .secrets/
 *.sqlite
