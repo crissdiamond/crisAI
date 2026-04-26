@@ -46,6 +46,8 @@ def test_collect_stage_outputs_keeps_only_renderable_stage_events():
 
 
 def test_run_endpoint_returns_execution_payload(monkeypatch):
+    saved = {}
+
     async def fake_execute(_payload):
         return {
             "decision": {"mode": "pipeline", "agent": "discovery"},
@@ -53,6 +55,11 @@ def test_run_endpoint_returns_execution_payload(monkeypatch):
             "stage_outputs": [{"agent_id": "discovery", "stage": "DISCOVERY_OUTPUT", "event_type": "stage_output", "content": "x"}],
         }
 
+    monkeypatch.setattr("crisai.web.app.load_history", lambda session_name: [])
+    monkeypatch.setattr(
+        "crisai.web.app.save_history",
+        lambda session_name, history: saved.update({"session": session_name, "history": history}),
+    )
     monkeypatch.setattr("crisai.web.app._execute", fake_execute)
     client = TestClient(app)
 
@@ -64,11 +71,17 @@ def test_run_endpoint_returns_execution_payload(monkeypatch):
             "agent": "auto",
             "review": False,
             "verbose": False,
+            "session": "default",
         },
     )
 
     assert response.status_code == 200
     assert response.json()["final_output"] == "ok"
+    assert response.json()["current_session"] == "default"
+    assert len(response.json()["history"]) == 2
+    assert saved["session"] == "default"
+    assert saved["history"][0] == ("user", "hello")
+    assert saved["history"][1] == ("assistant", "ok")
 
 
 def test_to_http_exception_maps_max_turns_to_422():
@@ -78,4 +91,47 @@ def test_to_http_exception_maps_max_turns_to_422():
     assert isinstance(http_error, HTTPException)
     assert http_error.status_code == 422
     assert "Increase CRISAI_AGENT_MAX_TURNS" in str(http_error.detail)
+
+
+def test_list_sessions_endpoint_returns_default_history(monkeypatch):
+    monkeypatch.setattr("crisai.web.app._list_session_names", lambda: ["default", "design"])
+    monkeypatch.setattr(
+        "crisai.web.app.load_history",
+        lambda session_name: [("user", "u1"), ("assistant", "a1")] if session_name == "default" else [],
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/sessions")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_session"] == "default"
+    assert payload["sessions"] == ["default", "design"]
+    assert payload["history"] == [{"role": "user", "content": "u1"}, {"role": "assistant", "content": "a1"}]
+
+
+def test_create_session_endpoint_sanitizes_and_returns_session(monkeypatch):
+    monkeypatch.setattr("crisai.web.app.load_history", lambda session_name: [])
+    monkeypatch.setattr("crisai.web.app.save_history", lambda session_name, history: None)
+    monkeypatch.setattr("crisai.web.app._list_session_names", lambda: ["default", "new_session"])
+    client = TestClient(app)
+
+    response = client.post("/api/sessions", json={"session": "new session"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_session"] == "new_session"
+    assert "new_session" in payload["sessions"]
+
+
+def test_get_session_endpoint_returns_specific_history(monkeypatch):
+    monkeypatch.setattr("crisai.web.app.load_history", lambda _name: [("user", "hello")])
+    client = TestClient(app)
+
+    response = client.get("/api/sessions/my-session")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_session"] == "my-session"
+    assert payload["history"] == [{"role": "user", "content": "hello"}]
 

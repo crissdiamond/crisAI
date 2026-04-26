@@ -7,7 +7,7 @@ from typing import Any
 
 import typer
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from crisai.cli.main import (
@@ -18,6 +18,12 @@ from crisai.cli.main import (
     _run_with_routing,
 )
 from crisai.config import load_settings
+from crisai.cli.session_store import (
+    load_history,
+    sanitize_session_name,
+    save_history,
+    session_dir,
+)
 
 app = FastAPI(title="crisAI Web")
 
@@ -30,6 +36,13 @@ class RunRequest(BaseModel):
     agent: str = Field(default="auto")
     review: bool = False
     verbose: bool = False
+    session: str = Field(default="default")
+
+
+class SessionCreateRequest(BaseModel):
+    """Represent a request to create a new web session."""
+
+    session: str = Field(min_length=1)
 
 
 def _trace_file_path() -> Path:
@@ -155,10 +168,25 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
     }
 
 
+def _list_session_names() -> list[str]:
+    """List available persisted chat sessions."""
+    names: list[str] = []
+    for file_path in session_dir().glob("*.json"):
+        names.append(file_path.stem)
+    if "default" not in names:
+        names.append("default")
+    return sorted(set(names))
+
+
+def _serialize_history(history: list[tuple[str, str]]) -> list[dict[str, str]]:
+    """Convert tuple-based history to JSON-serializable objects."""
+    return [{"role": role, "content": content} for role, content in history]
+
+
 @app.get("/", response_class=HTMLResponse)
-def index() -> str:
+def index() -> HTMLResponse:
     """Return the single-page web interface."""
-    return """<!doctype html>
+    html = """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -190,7 +218,24 @@ def index() -> str:
     <p class="muted">Runs the same routing and agent workflows as the CLI.</p>
 
     <div class="panel">
-      <label for="message">Prompt</label>
+      <h2>Prompt Workspace</h2>
+      <div class="row">
+        <div class="col">
+          <label for="sessionSelect">Session</label>
+          <select id="sessionSelect"></select>
+          <p class="muted" id="currentSessionText">Current session: default</p>
+        </div>
+        <div class="col">
+          <label for="newSessionName">Create new session</label>
+          <input id="newSessionName" placeholder="e.g. architecture-review" />
+          <div style="margin-top: 8px;">
+            <button id="createSessionBtn" type="button">Create Session</button>
+          </div>
+        </div>
+      </div>
+      <label for="sessionHistory">Session history</label>
+      <pre id="sessionHistory">No history for this session yet.</pre>
+      <label for="message" style="margin-top: 12px;">New prompt</label>
       <textarea id="message" placeholder="Describe your request..."></textarea>
       <div class="row" style="margin-top: 12px;">
         <div class="col">
@@ -216,8 +261,9 @@ def index() -> str:
         </div>
       </div>
       <div style="margin-top: 12px;">
-        <button id="runBtn">Run</button>
+        <button id="runBtn" type="button">Run</button>
       </div>
+      <p class="muted" id="uiStatus">UI status: loading</p>
     </div>
 
     <div class="panel">
@@ -237,82 +283,257 @@ def index() -> str:
     </div>
   </div>
 
-  <script>
-    const tabs = document.getElementById("tabs");
-    const tabContent = document.getElementById("tabContent");
-    const finalOutput = document.getElementById("finalOutput");
-    const decision = document.getElementById("decision");
-    const runBtn = document.getElementById("runBtn");
-    let stageData = [];
-
-    function renderTabs(records) {
-      tabs.innerHTML = "";
-      stageData = records || [];
-      if (!stageData.length) {
-        tabContent.textContent = "No stage output captured for this run.";
-        return;
-      }
-      stageData.forEach((record, index) => {
-        const btn = document.createElement("button");
-        btn.className = "tab-btn" + (index === 0 ? " active" : "");
-        const labelAgent = record.agent_id || "system";
-        btn.textContent = `${index + 1}. ${labelAgent}`;
-        btn.onclick = () => selectTab(index);
-        tabs.appendChild(btn);
-      });
-      selectTab(0);
-    }
-
-    function selectTab(index) {
-      Array.from(tabs.children).forEach((child, idx) => {
-        child.classList.toggle("active", idx === index);
-      });
-      const record = stageData[index];
-      if (!record) return;
-      tabContent.textContent = `[${record.event_type}] ${record.stage}\n\n${record.content}`;
-    }
-
-    async function runWorkflow() {
-      runBtn.disabled = true;
-      runBtn.textContent = "Running...";
-      try {
-        const payload = {
-          message: document.getElementById("message").value.trim(),
-          mode: document.getElementById("mode").value,
-          agent: document.getElementById("agent").value.trim() || "auto",
-          review: document.getElementById("review").checked,
-          verbose: document.getElementById("verbose").checked,
-        };
-        const response = await fetch("/api/run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.detail || "Request failed.");
-        }
-        decision.textContent = JSON.stringify(data.decision, null, 2);
-        finalOutput.textContent = data.final_output || "";
-        renderTabs(data.stage_outputs || []);
-      } catch (error) {
-        finalOutput.textContent = String(error);
-      } finally {
-        runBtn.disabled = false;
-        runBtn.textContent = "Run";
-      }
-    }
-
-    runBtn.addEventListener("click", runWorkflow);
-  </script>
+  <script src="/app.js?v=2"></script>
 </body>
 </html>"""
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
+@app.get("/app.js")
+def app_js() -> Response:
+    """Return frontend JavaScript for the web interface."""
+    script = r"""
+const tabs = document.getElementById("tabs");
+const tabContent = document.getElementById("tabContent");
+const finalOutput = document.getElementById("finalOutput");
+const decision = document.getElementById("decision");
+const runBtn = document.getElementById("runBtn");
+const sessionSelect = document.getElementById("sessionSelect");
+const createSessionBtn = document.getElementById("createSessionBtn");
+const newSessionNameInput = document.getElementById("newSessionName");
+const currentSessionText = document.getElementById("currentSessionText");
+const sessionHistory = document.getElementById("sessionHistory");
+const messageInput = document.getElementById("message");
+const uiStatus = document.getElementById("uiStatus");
+
+let stageData = [];
+let sessions = [];
+let currentSession = "default";
+
+function setUiStatus(text) {
+  if (uiStatus) uiStatus.textContent = `UI status: ${text}`;
+}
+
+function handleUiError(error) {
+  const message = String(error);
+  if (finalOutput) finalOutput.textContent = message;
+  setUiStatus(`error - ${message}`);
+}
+
+function renderTabs(records) {
+  tabs.innerHTML = "";
+  stageData = records || [];
+  if (!stageData.length) {
+    tabContent.textContent = "No stage output captured for this run.";
+    return;
+  }
+  stageData.forEach((record, index) => {
+    const btn = document.createElement("button");
+    btn.className = "tab-btn" + (index === 0 ? " active" : "");
+    const labelAgent = record.agent_id || "system";
+    btn.textContent = `${index + 1}. ${labelAgent}`;
+    btn.onclick = () => selectTab(index);
+    tabs.appendChild(btn);
+  });
+  selectTab(0);
+}
+
+function selectTab(index) {
+  Array.from(tabs.children).forEach((child, idx) => {
+    child.classList.toggle("active", idx === index);
+  });
+  const record = stageData[index];
+  if (!record) return;
+  tabContent.textContent = `[${record.event_type}] ${record.stage}\n\n${record.content}`;
+}
+
+function renderSessionSelector() {
+  sessionSelect.innerHTML = "";
+  sessions.forEach((sessionName) => {
+    const option = document.createElement("option");
+    option.value = sessionName;
+    option.textContent = sessionName;
+    option.selected = sessionName === currentSession;
+    sessionSelect.appendChild(option);
+  });
+  currentSessionText.textContent = `Current session: ${currentSession}`;
+}
+
+function renderSessionHistory(items) {
+  if (!items || !items.length) {
+    sessionHistory.textContent = "No history for this session yet.";
+    return;
+  }
+  const lines = items.map((entry, index) => {
+    const roleLabel = entry.role === "assistant" ? "ASSISTANT" : "USER";
+    return `#${index + 1} [${roleLabel}]\n${entry.content}`;
+  });
+  sessionHistory.textContent = lines.join("\n\n----------------------------------------\n\n");
+}
+
+async function loadSessionMeta() {
+  const response = await fetch("/api/sessions");
+  const data = await response.json();
+  sessions = data.sessions || ["default"];
+  currentSession = data.current_session || sessions[0] || "default";
+  renderSessionSelector();
+  renderSessionHistory(data.history || []);
+}
+
+async function switchSession(sessionName) {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionName)}`);
+  const data = await response.json();
+  currentSession = data.current_session;
+  if (!sessions.includes(currentSession)) sessions.push(currentSession);
+  renderSessionSelector();
+  renderSessionHistory(data.history || []);
+}
+
+async function createSession() {
+  const proposed = newSessionNameInput.value.trim();
+  if (!proposed) return;
+  const response = await fetch("/api/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session: proposed }),
+  });
+  const data = await response.json();
+  currentSession = data.current_session;
+  sessions = data.sessions || sessions;
+  renderSessionSelector();
+  renderSessionHistory(data.history || []);
+  newSessionNameInput.value = "";
+}
+
+async function runWorkflow() {
+  runBtn.disabled = true;
+  runBtn.textContent = "Running...";
+  try {
+    const payload = {
+      message: messageInput.value.trim(),
+      mode: document.getElementById("mode").value,
+      agent: document.getElementById("agent").value.trim() || "auto",
+      review: document.getElementById("review").checked,
+      verbose: document.getElementById("verbose").checked,
+      session: currentSession,
+    };
+    if (!payload.message) {
+      throw new Error("Please enter a prompt.");
+    }
+    const response = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "Request failed.");
+    }
+    decision.textContent = JSON.stringify(data.decision, null, 2);
+    finalOutput.textContent = data.final_output || "";
+    renderTabs(data.stage_outputs || []);
+    renderSessionHistory(data.history || []);
+    messageInput.value = "";
+  } catch (error) {
+    handleUiError(error);
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = "Run";
+  }
+}
+
+function initUiBindings() {
+  if (!runBtn || !createSessionBtn || !sessionSelect || !finalOutput) {
+    setUiStatus("missing required elements");
+    return;
+  }
+  runBtn.addEventListener("click", () => { runWorkflow().catch(handleUiError); });
+  createSessionBtn.addEventListener("click", () => { createSession().catch(handleUiError); });
+  sessionSelect.addEventListener("change", (event) => {
+    const selected = event && event.target ? event.target.value : currentSession;
+    switchSession(selected).catch(handleUiError);
+  });
+  setUiStatus("ready");
+}
+
+window.addEventListener("error", (event) => {
+  handleUiError(event.error || event.message || "Unknown UI error");
+});
+
+initUiBindings();
+if (finalOutput) {
+  loadSessionMeta().catch(handleUiError);
+}
+"""
+    return Response(
+        content=script,
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.post("/api/run")
 async def run(payload: RunRequest) -> dict[str, Any]:
     """Run a routed workflow and return decision plus outputs."""
-    return await _execute(payload)
+    response = await _execute(payload)
+    session_name = sanitize_session_name(payload.session)
+    history = load_history(session_name)
+    history.append(("user", payload.message))
+    history.append(("assistant", response["final_output"]))
+    save_history(session_name, history)
+    response["history"] = _serialize_history(history)
+    response["current_session"] = session_name
+    return response
+
+
+@app.get("/api/sessions")
+def list_sessions() -> dict[str, Any]:
+    """Return available sessions and default session history."""
+    names = _list_session_names()
+    current_session = "default" if "default" in names else names[0]
+    history = load_history(current_session)
+    return {
+        "sessions": names,
+        "current_session": current_session,
+        "history": _serialize_history(history),
+    }
+
+
+@app.post("/api/sessions")
+def create_session(payload: SessionCreateRequest) -> dict[str, Any]:
+    """Create a new named session and return its initial state."""
+    session_name = sanitize_session_name(payload.session)
+    # Persist an empty session file immediately so the tab appears on reload.
+    save_history(session_name, load_history(session_name))
+    names = _list_session_names()
+    history = load_history(session_name)
+    return {
+        "sessions": names,
+        "current_session": session_name,
+        "history": _serialize_history(history),
+    }
+
+
+@app.get("/api/sessions/{session_name}")
+def get_session(session_name: str) -> dict[str, Any]:
+    """Return one session history and identify it as current."""
+    safe_name = sanitize_session_name(session_name)
+    history = load_history(safe_name)
+    return {
+        "current_session": safe_name,
+        "history": _serialize_history(history),
+    }
 
 
 def main() -> None:
