@@ -183,7 +183,7 @@ def index() -> HTMLResponse:
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>crisAI Web</title>
+  <title>Data Architecture Design assistant</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
     .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
@@ -197,8 +197,30 @@ def index() -> HTMLResponse:
     .switch { display: flex; align-items: center; gap: 8px; }
     .switch input { width: auto; }
     .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .tab-btn { width: auto; padding: 8px 12px; background: #0b1220; border: 1px solid #334155; }
-    .tab-btn.active { background: #1d4ed8; border-color: #1d4ed8; }
+    .tab-btn { width: auto; padding: 8px 12px; border: 1px solid transparent; color: #0b1220; font-weight: 700; }
+    .tab-btn.active { background: #ffffff !important; border-color: #ffffff; color: #0b1220; }
+    .tab-color-0 { background: #ef4444; }
+    .tab-color-1 { background: #f97316; }
+    .tab-color-2 { background: #facc15; }
+    .tab-color-3 { background: #22c55e; }
+    .tab-color-4 { background: #06b6d4; }
+    .tab-color-5 { background: #3b82f6; }
+    .tab-color-6 { background: #a855f7; }
+    .tab-content-panel {
+      border-radius: 8px;
+      border: 1px solid #334155;
+      padding: 12px;
+      line-height: 1.4;
+      max-height: calc(20 * 1.4em);
+      overflow-y: auto;
+    }
+    .flow-shade-0 { background: #7f1d1d; }
+    .flow-shade-1 { background: #7c2d12; }
+    .flow-shade-2 { background: #713f12; }
+    .flow-shade-3 { background: #14532d; }
+    .flow-shade-4 { background: #164e63; }
+    .flow-shade-5 { background: #1e3a8a; }
+    .flow-shade-6 { background: #4c1d95; }
     pre { background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 12px; overflow-x: auto; white-space: pre-wrap; }
     #sessionHistory {
       line-height: 1.4;
@@ -227,12 +249,23 @@ def index() -> HTMLResponse:
       margin: 8px 0;
       background: #0b1220;
     }
+    #tabContent h2, #tabContent h3, #tabContent h4 { margin: 8px 0; }
+    #tabContent code {
+      background: #0b1220;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    #tabContent pre {
+      margin: 8px 0;
+      background: #0b1220;
+    }
     .muted { color: #94a3b8; font-size: 13px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>crisAI Web Interface</h1>
+    <h1>Data Architecture Design assistant</h1>
     <p class="muted">Runs the same routing and agent workflows as the CLI.</p>
 
     <div class="panel">
@@ -292,12 +325,7 @@ def index() -> HTMLResponse:
     <div class="panel">
       <h2>Agent Flow</h2>
       <div id="tabs" class="tabs"></div>
-      <pre id="tabContent">No stage output yet.</pre>
-    </div>
-
-    <div class="panel">
-      <h2>Final Output</h2>
-      <pre id="finalOutput">No run yet.</pre>
+      <div id="tabContent" class="tab-content-panel flow-shade-5">No stage output yet.</div>
     </div>
   </div>
 
@@ -320,7 +348,6 @@ def app_js() -> Response:
     script = r"""
 const tabs = document.getElementById("tabs");
 const tabContent = document.getElementById("tabContent");
-const finalOutput = document.getElementById("finalOutput");
 const decision = document.getElementById("decision");
 const runBtn = document.getElementById("runBtn");
 const sessionSelect = document.getElementById("sessionSelect");
@@ -341,7 +368,7 @@ function setUiStatus(text) {
 
 function handleUiError(error) {
   const message = String(error);
-  if (finalOutput) finalOutput.textContent = message;
+  if (tabContent) tabContent.textContent = message;
   setUiStatus(`error - ${message}`);
 }
 
@@ -377,9 +404,11 @@ function renderTabs(records) {
   }
   stageData.forEach((record, index) => {
     const btn = document.createElement("button");
-    btn.className = "tab-btn" + (index === 0 ? " active" : "");
+    const colorIndex = index % 7;
+    btn.className = "tab-btn tab-color-" + colorIndex + (index === 0 ? " active" : "");
     const labelAgent = record.agent_id || "system";
     btn.textContent = `${index + 1}. ${labelAgent}`;
+    btn.dataset.colorIndex = String(colorIndex);
     btn.onclick = () => selectTab(index);
     tabs.appendChild(btn);
   });
@@ -392,7 +421,11 @@ function selectTab(index) {
   });
   const record = stageData[index];
   if (!record) return;
-  tabContent.textContent = `[${record.event_type}] ${record.stage}\n\n${record.content}`;
+  const selectedTab = tabs.children[index];
+  const colorIndex = selectedTab && selectedTab.dataset ? Number(selectedTab.dataset.colorIndex || "0") : 0;
+  tabContent.className = "tab-content-panel flow-shade-" + (colorIndex % 7);
+  const header = `**${record.agent_id || "system"}**  \n\`${record.event_type}\` - \`${record.stage}\`\n\n`;
+  tabContent.innerHTML = markdownToSafeHtml(header + (record.content || ""));
 }
 
 function renderSessionSelector() {
@@ -425,6 +458,17 @@ function renderSessionHistory(items) {
     );
   });
   sessionHistory.innerHTML = entryHtml.join("");
+}
+
+function buildFlowRecords(stageOutputs, finalOutputText) {
+  const records = Array.isArray(stageOutputs) ? [...stageOutputs] : [];
+  records.push({
+    agent_id: "final_output",
+    stage: "FINAL_OUTPUT",
+    event_type: "workflow_output",
+    content: finalOutputText || "No final output.",
+  });
+  return records;
 }
 
 async function loadSessionMeta() {
@@ -486,8 +530,8 @@ async function runWorkflow() {
       throw new Error(data.detail || "Request failed.");
     }
     decision.textContent = JSON.stringify(data.decision, null, 2);
-    finalOutput.textContent = data.final_output || "";
-    renderTabs(data.stage_outputs || []);
+    const flowRecords = buildFlowRecords(data.stage_outputs || [], data.final_output || "");
+    renderTabs(flowRecords);
     renderSessionHistory(data.history || []);
     messageInput.value = "";
   } catch (error) {
@@ -499,7 +543,7 @@ async function runWorkflow() {
 }
 
 function initUiBindings() {
-  if (!runBtn || !createSessionBtn || !sessionSelect || !finalOutput) {
+  if (!runBtn || !createSessionBtn || !sessionSelect || !tabContent) {
     setUiStatus("missing required elements");
     return;
   }
@@ -517,7 +561,7 @@ window.addEventListener("error", (event) => {
 });
 
 initUiBindings();
-if (finalOutput) {
+if (tabContent) {
   loadSessionMeta().catch(handleUiError);
 }
 """
