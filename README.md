@@ -113,6 +113,13 @@ crisAI/
 
   src/
     crisai/
+      apps/
+        web.py
+        ui_config.py
+        ui/
+          index.html
+          styles.css
+          app.js
       cli/
         main.py
         chat_context.py
@@ -139,11 +146,17 @@ crisAI/
       registry.py
       runtime.py
       tracing.py
+      web/
+        app.py
 
   tests/
   workspace/
   logs/
 ```
+
+Notes:
+- `src/crisai/apps/` is the canonical app-surface package (web today, mobile-ready structure for future apps).
+- `src/crisai/web/app.py` is a compatibility shim.
 
 ---
 
