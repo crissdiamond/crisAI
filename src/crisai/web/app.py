@@ -209,6 +209,11 @@ def index() -> HTMLResponse:
     .tab-btn { width: auto; padding: 8px 12px; background: #0b1220; border: 1px solid #334155; }
     .tab-btn.active { background: #1d4ed8; border-color: #1d4ed8; }
     pre { background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 12px; overflow-x: auto; white-space: pre-wrap; }
+    #sessionHistory {
+      line-height: 1.4;
+      max-height: calc(20 * 1.4em);
+      overflow-y: auto;
+    }
     .muted { color: #94a3b8; font-size: 13px; }
   </style>
 </head>
