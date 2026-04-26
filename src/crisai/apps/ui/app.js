@@ -140,6 +140,22 @@ function applyStageUpdates(records, updates, finalOutputText) {
   return records.map((item) => byKey.get(item.key || item.agent_id) || item);
 }
 
+function isCompletedRecord(record) {
+  const isPending = record.event_type === "pending";
+  const content = String(record.content || "").trim();
+  return !isPending && content.length > 0 && content !== "_Waiting for output..._";
+}
+
+function selectProgressKey(records) {
+  let furthestKey = null;
+  records.forEach((record) => {
+    if (isCompletedRecord(record)) {
+      furthestKey = record.key || record.agent_id || furthestKey;
+    }
+  });
+  return furthestKey;
+}
+
 async function loadSessionMeta() {
   const response = await fetch("/api/sessions");
   const data = await response.json();
@@ -212,11 +228,10 @@ async function runWorkflow() {
       if (!statusResponse.ok) throw new Error(statusData.detail || "Status polling failed.");
 
       const updates = (statusData.stage_outputs || []).map((entry) => ({ ...entry, key: entry.key || entry.agent_id }));
-      const latest = updates[updates.length - 1];
-      if (latest) activeFlowKey = latest.key || latest.agent_id;
-      if (statusData.final_output) activeFlowKey = "final_output";
-
       stageData = applyStageUpdates(stageData, updates, statusData.final_output || "");
+      const progressedKey = selectProgressKey(stageData);
+      if (progressedKey) activeFlowKey = progressedKey;
+      if (statusData.final_output) activeFlowKey = "final_output";
       renderTabs(stageData);
 
       if (statusData.status === "completed") {
