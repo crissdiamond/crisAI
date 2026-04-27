@@ -1,1 +1,3 @@
--e .[litellm]
+# Editable install: dependencies come from pyproject.toml.
+# For LiteLLM routing: pip install -r requirements-litellm.txt
+-e .

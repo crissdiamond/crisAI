@@ -1,0 +1,2 @@
+# Optional extra: openai-agents with LiteLLM (see pyproject optional-dependencies).
+-e ".[litellm]"
