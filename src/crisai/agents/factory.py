@@ -3,6 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_patch
+
+apply_openai_agents_trace_export_patch()
+
 from agents import Agent
 
 from crisai.model_resolver import ModelResolver, ResolvedModel

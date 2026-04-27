@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_patch
+
+apply_openai_agents_trace_export_patch()
+
 import io
 import inspect
 import os
