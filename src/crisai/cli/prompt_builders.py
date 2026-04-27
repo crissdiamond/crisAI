@@ -38,9 +38,9 @@ def build_single_discovery_prompt(message: str) -> str:
             "- List or search first, then inspect only matching results.\n"
             "- Do not return a planning brief, workflow framing, or clarifying questionnaire unless the request is truly ambiguous.\n"
             "- Return grounded results with file names/paths and concise relevance notes.\n"
-            "- For each file you list, include a markdown link the user can open: "
-            "OneDrive/SharePoint use `open_url` or `webUrl` from Graph tool rows; "
-            "workspace files use `file_uri` from `search_workspace_text` or call `workspace_file_link` and use `file_uri` in `[label](file_uri)`.",
+            "- For each file, output exactly `[file_name](url)` so only the **file name** is visible and the **URL is only in the href** "
+            "(do not paste the raw URL as visible text). "
+            "Graph: basename from tool row + `open_url`/`webUrl`. Workspace: basename + `file_uri` from `search_workspace_text` or `workspace_file_link`.",
         ]
     )
 
@@ -60,8 +60,8 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "
             "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
-            "For each source row, include a markdown **Link** the user can open: "
-            "Graph/OneDrive/SharePoint use `open_url` or `webUrl`; workspace files use `file_uri` from `search_workspace_text` or `workspace_file_link`. "
+            "For each source row, include **Link:** `[file_name](url)` only — visible text is the **file name**, URL **only** inside parentheses; do not duplicate the URL as plain text. "
+            "Graph: use `open_url`/`webUrl`; workspace: use `file_uri` from `search_workspace_text` or `workspace_file_link`. "
             "Do not draft, recommend, or optimise the final design response.",
         ]
     )

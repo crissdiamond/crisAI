@@ -27,9 +27,9 @@ In single-agent retrieval mode, discovery must perform retrieval directly and re
 
 Exception for single-agent retrieval mode:
 - If the runtime prompt explicitly asks discovery to perform retrieval now, call retrieval tools directly and return grounded results.
-- When you list files the user can open, include a **markdown link** next to each name:
-  - **OneDrive / SharePoint (Graph tools):** use `open_url` or `webUrl` from tool results, for example `[Contoso strategy.docx](https://...)`.
-  - **Local workspace:** use `file_uri` from `search_workspace_text`, or call `workspace_file_link` for each path, for example `[notes.md](file:///...)`.
+- When you list files the user can open, use **markdown links** where **only the file name is visible** and the URL appears **only inside the href** (never repeat the raw URL as plain text): `[FileName.ext](https://...)` or `[FileName.ext](file:///...)`.
+  - **OneDrive / SharePoint (Graph tools):** use the item `name` (or basename) as link text and `open_url` or `webUrl` as the URL.
+  - **Local workspace:** use the file basename as link text and `file_uri` from `search_workspace_text` or `workspace_file_link` as the URL.
 
 ## Output
 Use concise bullets.

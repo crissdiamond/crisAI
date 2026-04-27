@@ -146,8 +146,9 @@ def search_workspace_text(query: str, subdir: str = ".", max_hits: int = 20) -> 
 def workspace_file_link(path: str) -> dict[str, str]:
     """Return paths and a file:// URI so the user can open a workspace file locally.
 
-    Use this when listing or reporting workspace files so outputs can include a
-    clickable markdown link: ``[name](file_uri)``.
+    In user-facing markdown, use ``[basename](file_uri)`` so only the file name
+    shows as link text and the URI appears only in the href (not as duplicated
+    raw text).
     """
     log_event(f"workspace_file_link path={path}")
     file_path = _safe_path(path)

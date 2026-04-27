@@ -37,7 +37,26 @@ function escapeHtml(value) {
 }
 
 function markdownToSafeHtml(markdown) {
-  let html = escapeHtml(markdown || "");
+  let html = String(markdown || "");
+  // Markdown links: visible text is only [label]; URL lives only in href.
+  const linkAnchors = [];
+  html = html.replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, (full, label, url) => {
+    const u = String(url).trim();
+    if (!/^(https?:\/\/|file:\/\/)/i.test(u)) return full;
+    const i = linkAnchors.length;
+    linkAnchors.push(
+      '<a href="' +
+        escapeHtml(u) +
+        '" target="_blank" rel="noopener noreferrer">' +
+        escapeHtml(String(label)) +
+        "</a>"
+    );
+    return "XLINK" + i + "XEND";
+  });
+  html = escapeHtml(html);
+  linkAnchors.forEach((anchor, i) => {
+    html = html.split("XLINK" + i + "XEND").join(anchor);
+  });
   html = html.replace(/```([\s\S]*?)```/g, (_match, code) => `<pre><code>${code}</code></pre>`);
   html = html.replace(/^### (.*)$/gm, "<h4>$1</h4>");
   html = html.replace(/^## (.*)$/gm, "<h3>$1</h3>");
