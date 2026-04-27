@@ -22,6 +22,26 @@ def build_discovery_prompt(message: str) -> str:
     )
 
 
+def build_single_discovery_prompt(message: str) -> str:
+    """Build the runtime prompt for single-mode discovery execution.
+
+    In single mode, discovery is the terminal agent for retrieval-only asks, so
+    it must perform retrieval now instead of only framing a downstream stage.
+    """
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            "Task:\nPerform retrieval now and return concrete results for the user request.",
+            "Execution rules:\n"
+            "- Use available retrieval tools for OneDrive/SharePoint/workspace as needed.\n"
+            "- Authenticate when required (for example interactive Microsoft Entra login when cached tokens are missing or expired).\n"
+            "- List or search first, then inspect only matching results.\n"
+            "- Do not return a planning brief, workflow framing, or clarifying questionnaire unless the request is truly ambiguous.\n"
+            "- Return grounded results with file names/paths and concise relevance notes.",
+        ]
+    )
+
+
 def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
     """Build the runtime prompt for the context retrieval stage.
 

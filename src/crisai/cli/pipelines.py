@@ -24,6 +24,7 @@ from .prompt_builders import (
     build_challenger_prompt,
     build_design_prompt,
     build_discovery_prompt,
+    build_single_discovery_prompt,
     build_context_retrieval_prompt,
     build_judge_prompt,
     build_peer_final_prompt,
@@ -349,7 +350,8 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
             metadata={"mode": "single", "agent_id": agent_id},
         )
         agent = environment.factory.build_agent(agent_spec, active_servers)
-        result = await _run_agent_silently(agent, message)
+        prompt = build_single_discovery_prompt(message) if agent_id == "discovery" else message
+        result = await _run_agent_silently(agent, prompt)
         _append_trace_compat(
             environment.trace_file,
             "FINAL_OUTPUT",

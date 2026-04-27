@@ -201,3 +201,44 @@ async def test_run_single_raises_for_unknown_agent(monkeypatch, tmp_path):
             agent_specs={},
         )
     assert "Unknown agent_id: missing" in str(exc.value)
+
+
+@pytest.mark.anyio
+async def test_run_single_discovery_uses_retrieval_execution_prompt(monkeypatch, tmp_path):
+    captured_prompt = None
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(
+            trace_file=tmp_path / "trace.log",
+            runtime=SimpleNamespace(
+                build_server=lambda server_spec: server_spec
+            ),
+            factory=SimpleNamespace(
+                build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)
+            ),
+            run_id="test-run-id",
+        ),
+    )
+    async def _fake_run_agent_silently(agent, prompt: str) -> str:
+        nonlocal captured_prompt
+        del agent
+        captured_prompt = prompt
+        return "ok"
+
+    monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
+
+    result = await pipelines.run_single(
+        "Find files in my OneDrive related to integration strategy.",
+        "discovery",
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={"discovery": SimpleNamespace(id="discovery", allowed_servers=[])},
+    )
+
+    assert result == "ok"
+    assert captured_prompt is not None
+    assert "Perform retrieval now" in captured_prompt
+    assert "Do not return a planning brief" in captured_prompt
