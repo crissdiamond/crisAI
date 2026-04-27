@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+import os
 from contextlib import AsyncExitStack
 from pathlib import Path
 
 from agents.mcp import MCPServerStdio, create_static_tool_filter
 
 from .registry import ServerSpec
+
+
+def _mcp_client_session_timeout_seconds() -> float:
+    """Return MCP ClientSession timeout for list_tools and tool calls (seconds).
+
+    The OpenAI Agents SDK defaults to 5s, which is often too short for stdio
+    servers that import heavy stacks (for example SharePoint + MSAL) before
+    responding to the first ``list_tools`` request.
+    """
+    raw = os.getenv("CRISAI_MCP_CLIENT_TIMEOUT_SECONDS", "60")
+    try:
+        value = float(raw)
+    except ValueError:
+        return 60.0
+    return max(value, 10.0)
 
 
 class RuntimeManager:
@@ -24,6 +40,7 @@ class RuntimeManager:
                     "args": args,
                     "cwd": str(self.root_dir),
                 },
+                client_session_timeout_seconds=_mcp_client_session_timeout_seconds(),
                 tool_filter=create_static_tool_filter(allowed_tool_names=allowed_tools),
             )
         raise NotImplementedError(f"Transport not yet supported: {spec.transport}")
