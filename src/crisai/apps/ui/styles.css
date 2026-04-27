@@ -74,6 +74,36 @@ pre { background: #f6f1fb; border: 1px solid #d6c7e8; border-radius: var(--radiu
 #tabContent h2, #tabContent h3, #tabContent h4 { margin: 8px 0; }
 #tabContent code { background: #0b1220; border: 1px solid #334155; border-radius: 4px; padding: 1px 4px; color: #f8fafc; }
 #tabContent pre { margin: 8px 0; background: #0b1220; color: #f8fafc; }
+#tabContent .md-table,
+#sessionHistory .history-content .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 14px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+#tabContent .md-table th,
+#tabContent .md-table td,
+#sessionHistory .history-content .md-table th,
+#sessionHistory .history-content .md-table td {
+  border: 1px solid var(--color-border);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+#tabContent .md-table th,
+#sessionHistory .history-content .md-table th {
+  background: var(--color-surface-pale);
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+#tabContent .md-table tbody tr:nth-child(even) td,
+#sessionHistory .history-content .md-table tbody tr:nth-child(even) td {
+  background: #faf8fc;
+}
 .muted { color: #6a5a7e; font-size: 13px; }
 a { color: var(--color-primary-dark); text-decoration: underline; }
 *:focus-visible { outline: 3px solid var(--color-accent-blue); outline-offset: 2px; }

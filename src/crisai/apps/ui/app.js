@@ -36,11 +36,8 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function markdownToSafeHtml(markdown) {
-  let html = String(markdown || "");
-  // Markdown links: visible text is only [label]; URL lives only in href.
-  const linkAnchors = [];
-  html = html.replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, (full, label, url) => {
+function promoteMarkdownLinks(markdown, linkAnchors) {
+  return String(markdown || "").replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, (full, label, url) => {
     const u = String(url).trim();
     if (!/^(https?:\/\/|file:\/\/)/i.test(u)) return full;
     const i = linkAnchors.length;
@@ -53,9 +50,105 @@ function markdownToSafeHtml(markdown) {
     );
     return "XLINK" + i + "XEND";
   });
-  html = escapeHtml(html);
+}
+
+function restoreMarkdownLinkPlaceholders(html, linkAnchors) {
+  let out = html;
   linkAnchors.forEach((anchor, i) => {
-    html = html.split("XLINK" + i + "XEND").join(anchor);
+    out = out.split("XLINK" + i + "XEND").join(anchor);
+  });
+  return out;
+}
+
+function splitMarkdownTableRow(line) {
+  const t = line.trim();
+  if (!t.startsWith("|") || !t.endsWith("|")) return null;
+  return t
+    .slice(1, -1)
+    .split("|")
+    .map((c) => c.trim());
+}
+
+function isMarkdownTableSeparatorRow(line) {
+  const cells = splitMarkdownTableRow(line);
+  if (!cells || !cells.length) return false;
+  return cells.every((c) => /^:?-{3,}:?$/.test(c.replace(/\s/g, "")));
+}
+
+function markdownTableCellToHtml(cell, linkAnchors) {
+  let s = escapeHtml(cell);
+  return restoreMarkdownLinkPlaceholders(s, linkAnchors);
+}
+
+function renderMarkdownTableHtml(headerCells, bodyLines, linkAnchors) {
+  let h = '<table class="md-table"><thead><tr>';
+  for (const c of headerCells) {
+    h += "<th>" + markdownTableCellToHtml(c, linkAnchors) + "</th>";
+  }
+  h += "</tr></thead><tbody>";
+  for (const line of bodyLines) {
+    const cells = splitMarkdownTableRow(line);
+    if (!cells) continue;
+    h += "<tr>";
+    for (const c of cells) {
+      h += "<td>" + markdownTableCellToHtml(c, linkAnchors) + "</td>";
+    }
+    h += "</tr>";
+  }
+  h += "</tbody></table>";
+  return h;
+}
+
+function tryParseMarkdownTableAtLine(lines, startIdx) {
+  if (startIdx >= lines.length - 1) return null;
+  const headerCells = splitMarkdownTableRow(lines[startIdx]);
+  if (!headerCells || !isMarkdownTableSeparatorRow(lines[startIdx + 1])) return null;
+  let end = startIdx + 2;
+  while (end < lines.length) {
+    const raw = lines[end];
+    if (raw.trim() === "") break;
+    if (isMarkdownTableSeparatorRow(raw)) break;
+    if (!splitMarkdownTableRow(raw)) break;
+    end++;
+  }
+  const bodyLines = lines.slice(startIdx + 2, end);
+  return { end, headerCells, bodyLines };
+}
+
+function extractMarkdownTablesToPlaceholders(markdown, tableHtmlFragments, linkAnchors) {
+  const lines = markdown.split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const parsed = tryParseMarkdownTableAtLine(lines, i);
+    if (parsed) {
+      const idx = tableHtmlFragments.length;
+      tableHtmlFragments.push(
+        renderMarkdownTableHtml(parsed.headerCells, parsed.bodyLines, linkAnchors)
+      );
+      out.push("XTABLE" + idx + "XEND");
+      i = parsed.end;
+      if (i < lines.length && lines[i].trim() === "") {
+        out.push("");
+        i++;
+      }
+      continue;
+    }
+    out.push(lines[i]);
+    i++;
+  }
+  return out.join("\n");
+}
+
+function markdownToSafeHtml(markdown) {
+  const linkAnchors = [];
+  let html = promoteMarkdownLinks(markdown, linkAnchors);
+  const tableHtmlFragments = [];
+  html = extractMarkdownTablesToPlaceholders(html, tableHtmlFragments, linkAnchors);
+  html = escapeHtml(html);
+  html = restoreMarkdownLinkPlaceholders(html, linkAnchors);
+  tableHtmlFragments.forEach((fragment, i) => {
+    html = html.split("XTABLE" + i + "XEND").join(fragment);
   });
   html = html.replace(/```([\s\S]*?)```/g, (_match, code) => `<pre><code>${code}</code></pre>`);
   html = html.replace(/^### (.*)$/gm, "<h4>$1</h4>");

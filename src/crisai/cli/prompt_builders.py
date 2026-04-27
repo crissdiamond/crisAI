@@ -41,11 +41,13 @@ def build_single_discovery_prompt(message: str) -> str:
             "- List or search first, then inspect only matching results.\n"
             "- Do not return a planning brief, workflow framing, or clarifying questionnaire unless the request is truly ambiguous.\n"
             "- Return grounded results with file names/paths and concise relevance notes.\n"
-            "- For each file, output exactly `[file_name](url)` so only the **file name** is visible and the **URL is only in the href** "
-            "(do not paste the raw URL as visible text). "
-            "Graph: basename from tool row + `open_url`/`webUrl` only inside `(...)`. "
-            "Never append query strings such as `&action=edit` to the visible file name. "
-            "Workspace: basename + `file_uri` from `search_workspace_text` or `workspace_file_link`.",
+            "- When listing **three or more** files (or the user asked for a list), use one **markdown table** with header row and separator: "
+            "columns **File** | **Location** | **Note**.\n"
+            "  - **File:** `[file_name](url)` only — visible text is the **file name**; URL **only** inside `(...)` (no raw URL as text). "
+            "Graph: `open_url`/`webUrl`. Workspace: `file_uri` / `workspace_file_link`. Never put `&action=edit` on the visible name.\n"
+            "  - **Location:** site or library name, drive, or folder (plain text).\n"
+            "  - **Note:** one short relevance line (for example matched query); do not repeat the full file name.\n"
+            "- For one or two files, a short bullet with the same link rules is acceptable.",
         ]
     )
 
