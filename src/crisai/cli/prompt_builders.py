@@ -34,13 +34,18 @@ def build_single_discovery_prompt(message: str) -> str:
             "Task:\nPerform retrieval now and return concrete results for the user request.",
             "Execution rules:\n"
             "- Use available retrieval tools for OneDrive/SharePoint/workspace as needed.\n"
+            "- **SharePoint vs OneDrive:** if the user asks for SharePoint (not personal OneDrive only), "
+            "prefer `search_sharepoint_site_documents` or `list_sites` + `search_site_drive_documents`; "
+            "do not use only `list_my_drives` + `search_drive_documents` for that case.\n"
             "- Authenticate when required (for example interactive Microsoft Entra login when cached tokens are missing or expired).\n"
             "- List or search first, then inspect only matching results.\n"
             "- Do not return a planning brief, workflow framing, or clarifying questionnaire unless the request is truly ambiguous.\n"
             "- Return grounded results with file names/paths and concise relevance notes.\n"
             "- For each file, output exactly `[file_name](url)` so only the **file name** is visible and the **URL is only in the href** "
             "(do not paste the raw URL as visible text). "
-            "Graph: basename from tool row + `open_url`/`webUrl`. Workspace: basename + `file_uri` from `search_workspace_text` or `workspace_file_link`.",
+            "Graph: basename from tool row + `open_url`/`webUrl` only inside `(...)`. "
+            "Never append query strings such as `&action=edit` to the visible file name. "
+            "Workspace: basename + `file_uri` from `search_workspace_text` or `workspace_file_link`.",
         ]
     )
 
@@ -60,8 +65,10 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "
             "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
-            "For each source row, include **Link:** `[file_name](url)` only — visible text is the **file name**, URL **only** inside parentheses; do not duplicate the URL as plain text. "
+            "For each source row, include **Link:** `[file_name](url)` only — visible text is the **file name**, URL **only** inside parentheses; do not duplicate the URL as plain text "
+            "and never append `&action=edit` or other query text to the file name. "
             "Graph: use `open_url`/`webUrl`; workspace: use `file_uri` from `search_workspace_text` or `workspace_file_link`. "
+            "For SharePoint (not OneDrive-only) use `search_sharepoint_site_documents` or site-scoped search after `list_sites`. "
             "Do not draft, recommend, or optimise the final design response.",
         ]
     )

@@ -388,6 +388,16 @@ def _extract_bytes_by_suffix(data: bytes, suffix: str) -> str:
     raise ValueError(f"Unsupported document type: {suffix or 'no extension'}")
 
 
+def _is_likely_personal_onedrive_site(site: dict[str, Any]) -> bool:
+    """Return True when a site row looks like a user's personal OneDrive library.
+
+    Team SharePoint sites usually live under ``{tenant}.sharepoint.com/sites/...``.
+    OneDrive for Business personal sites commonly use ``*-my.sharepoint.com/personal/...``.
+    """
+    web = str(site.get("webUrl") or "").lower()
+    return "-my.sharepoint.com" in web and "/personal/" in web
+
+
 def _normalise_item(item: dict[str, Any]) -> dict[str, Any]:
     parent = item.get("parentReference", {}) or {}
     file_info = item.get("file", {}) or {}
@@ -494,7 +504,12 @@ def list_sites(query: str = "*", max_hits: int = 10) -> list[dict[str, Any]]:
 
 @mcp.tool()
 def list_my_drives() -> list[dict[str, Any]]:
-    """List drives visible under the signed-in user's account."""
+    """List drives visible under the signed-in user's account (includes personal OneDrive).
+
+    For **SharePoint team/site** file search, prefer ``search_sharepoint_site_documents``
+    or ``list_sites`` + ``search_site_drive_documents`` instead of searching only here,
+    otherwise results skew toward OneDrive.
+    """
     log_event("list_my_drives")
     data = _graph_get("/me/drives")
     return [
@@ -570,6 +585,66 @@ def search_site_drive_documents(site_id: str, query: str, max_hits: int = 20) ->
     data = _graph_get(f"/sites/{site_id}/drive/root/search(q='{encoded}')", timeout=90)
     values = data.get("value", [])[:max_hits]
     return [_normalise_item(item) for item in values]
+
+
+@mcp.tool()
+def search_sharepoint_site_documents(
+    document_query: str,
+    site_search: str = "*",
+    max_sites: int = 12,
+    max_hits_per_site: int = 10,
+    include_onedrive_personal_sites: bool = False,
+) -> list[dict[str, Any]]:
+    """Search SharePoint **team/site** document libraries, not personal OneDrive by default.
+
+    Use this when the user asks for **SharePoint** (sites/libraries) and does **not**
+    restrict the request to personal **OneDrive** only. It discovers sites via
+    ``list_sites`` and runs ``search_site_drive_documents`` on each site's default
+    library.
+
+    Do **not** satisfy SharePoint-only requests using only ``list_my_drives`` plus
+    ``search_drive_documents``, because that path is usually the user's OneDrive.
+
+    Args:
+        document_query: Text for Graph drive item search (for example a topic name).
+        site_search: Query passed to ``list_sites`` (use ``*`` or a site keyword).
+        max_sites: Maximum number of sites to search.
+        max_hits_per_site: Maximum hits returned per site library.
+        include_onedrive_personal_sites: When True, include ``*-my.sharepoint.com/personal/`` sites.
+    """
+    log_event(
+        "search_sharepoint_site_documents "
+        f"q={document_query!r} site_search={site_search!r} max_sites={max_sites} "
+        f"max_hits_per_site={max_hits_per_site} include_onedrive={include_onedrive_personal_sites}"
+    )
+    sites = list_sites(query=site_search, max_hits=max_sites)
+    aggregated: list[dict[str, Any]] = []
+    max_total = 80
+
+    for site in sites:
+        if len(aggregated) >= max_total:
+            break
+        if not include_onedrive_personal_sites and _is_likely_personal_onedrive_site(site):
+            continue
+        site_id = site.get("id")
+        if not site_id:
+            continue
+        hits = search_site_drive_documents(
+            site_id=str(site_id),
+            query=document_query,
+            max_hits=max_hits_per_site,
+        )
+        for item in hits:
+            if len(aggregated) >= max_total:
+                break
+            row = dict(item)
+            row["site_display_name"] = site.get("displayName")
+            row["site_web_url"] = site.get("webUrl")
+            row["site_id"] = site_id
+            aggregated.append(row)
+
+    return aggregated
+
 
 @mcp.tool()
 def get_sharepoint_document_metadata(drive_id: str, item_id: str) -> dict[str, Any]:

@@ -102,6 +102,7 @@ servers:
         - list_drive_items
         - search_drive_documents
         - search_site_drive_documents
+        - search_sharepoint_site_documents
         - get_sharepoint_document_metadata
         - read_sharepoint_document
     approval:

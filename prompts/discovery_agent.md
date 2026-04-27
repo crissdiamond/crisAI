@@ -28,8 +28,10 @@ In single-agent retrieval mode, discovery must perform retrieval directly and re
 Exception for single-agent retrieval mode:
 - If the runtime prompt explicitly asks discovery to perform retrieval now, call retrieval tools directly and return grounded results.
 - When you list files the user can open, use **markdown links** where **only the file name is visible** and the URL appears **only inside the href** (never repeat the raw URL as plain text): `[FileName.ext](https://...)` or `[FileName.ext](file:///...)`.
-  - **OneDrive / SharePoint (Graph tools):** use the item `name` (or basename) as link text and `open_url` or `webUrl` as the URL.
+  - **OneDrive / SharePoint (Graph tools):** use the item `name` (or basename) as link text and `open_url` or `webUrl` as the URL. Put each link on its own line; **never** glue `&action=edit` or other query text onto the filename.
   - **Local workspace:** use the file basename as link text and `file_uri` from `search_workspace_text` or `workspace_file_link` as the URL.
+- **SharePoint vs OneDrive:** when the user asks for **SharePoint** (team/sites/libraries) and does **not** ask for personal **OneDrive** only, prefer **`search_sharepoint_site_documents`** (or `list_sites` then `search_site_drive_documents` per site). **Do not** answer SharePoint-only requests using only `list_my_drives` + `search_drive_documents`, because that usually searches the user's OneDrive.
+- When the user explicitly wants **personal OneDrive**, use `list_my_drives` / `search_drive_documents` on the right drive.
 
 ## Output
 Use concise bullets.
