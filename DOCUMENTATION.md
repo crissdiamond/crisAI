@@ -401,6 +401,22 @@ crisAI supports delegated Microsoft Graph access for:
 - search before read
 - only inspect matching results from the current run
 
+### Authentication behaviour
+
+- if the cached Graph token is missing or expired, crisAI forces interactive Microsoft Entra authentication
+- this applies to both CLI and web runtime paths
+- on WSL, interactive Microsoft Entra login opens the browser using WSL-aware fallbacks (`wslview` or `explorer.exe`)
+
+### Manual Graph auth smoke test
+
+The Graph login script under `tests/orchestration/test_graph_login.py` is manual by design and skipped in automated pytest runs.
+
+Run it directly when validating local auth/browser flow:
+
+```bash
+python tests/orchestration/test_graph_login.py
+```
+
 ---
 
 ## 14. Model assignment and providers
@@ -495,7 +511,7 @@ Use review only. Critique this architecture note, identify weak assumptions, and
 ### 15.4 Operations / debugging
 
 ```text
-Use operations only. Investigate why SharePoint discovery is triggering interactive web authentication even when a cached token should already exist.
+Use operations only. Investigate why SharePoint discovery is triggering interactive Microsoft Entra login even when a cached token should already exist.
 ```
 
 ### 15.5 Peer critique

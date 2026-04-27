@@ -1,92 +1,87 @@
+"""Manual Microsoft Graph auth smoke test.
+
+This module is intentionally skipped by pytest and can be run directly:
+`python tests/orchestration/test_graph_login.py`.
+"""
+
+from __future__ import annotations
+
 import os
+import shutil
+import webbrowser
+from pathlib import Path
+
 import requests
 from dotenv import load_dotenv
 from msal import PublicClientApplication
 
 load_dotenv()
 
-TENANT_ID = os.environ["MS_TENANT_ID"]
-CLIENT_ID = os.environ["MS_CLIENT_ID"]
-REDIRECT_URI = os.environ.get("MS_REDIRECT_URI", "http://localhost")
 
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPES = [
-    "User.Read",
-    "Sites.Read.All",
-    "Files.Read.All",
-    
-]
+def _is_wsl_environment() -> bool:
+    if os.environ.get("WSL_DISTRO_NAME"):
+        return True
+    try:
+        content = Path("/proc/version").read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+    return "microsoft" in content or "wsl" in content
 
-app = PublicClientApplication(
-    client_id=CLIENT_ID,
-    authority=AUTHORITY,
-)
 
-#result = app.acquire_token_interactive(
-#    scopes=SCOPES,
-#)
+def _open_interactive_browser(url: str) -> None:
+    if _is_wsl_environment():
+        for candidate in ("wslview", "explorer.exe"):
+            if shutil.which(candidate):
+                os.spawnlp(os.P_NOWAIT, candidate, candidate, url)
+                return
+    webbrowser.open(url, new=1)
 
-result = app.acquire_token_interactive(
-    scopes=SCOPES,
-    login_hint="your.upn@yourorg.ac.uk",
-    domain_hint="organizations",
-)
 
-print("\nGranted scopes:")
-print(result.get("scope"))
+def run_manual_graph_login_smoke() -> None:
+    tenant_id = os.environ["MS_TENANT_ID"]
+    client_id = os.environ["MS_CLIENT_ID"]
+    authority = f"https://login.microsoftonline.com/{tenant_id}"
+    scopes = ["User.Read", "Sites.Read.All", "Files.Read.All"]
 
-if "access_token" not in result:
-    print("Login failed")
-    print(result)
-    raise SystemExit(1)
+    app = PublicClientApplication(client_id=client_id, authority=authority)
+    result = app.acquire_token_interactive(
+        scopes=scopes,
+        domain_hint="organizations",
+        open_browser=_open_interactive_browser,
+    )
 
-print("Login succeeded")
-print("Account:", result.get("id_token_claims", {}).get("preferred_username"))
+    print("\nGranted scopes:")
+    print(result.get("scope"))
 
-headers = {
-    "Authorization": f"Bearer {result['access_token']}",
-    "Accept": "application/json",
-}
+    if "access_token" not in result:
+        print("Login failed")
+        print(result)
+        raise SystemExit(1)
 
-me = requests.get("https://graph.microsoft.com/v1.0/me", headers=headers, timeout=30)
-print("\n/me status:", me.status_code)
-print(me.text)
+    print("Login succeeded")
+    print("Account:", result.get("id_token_claims", {}).get("preferred_username"))
 
-sites = requests.get("https://graph.microsoft.com/v1.0/sites?search=*", headers=headers, timeout=30)
-print("\n/sites search status:", sites.status_code)
-print(sites.text[:2000])
+    headers = {
+        "Authorization": f"Bearer {result['access_token']}",
+        "Accept": "application/json",
+    }
 
-if "access_token" not in result:
-    print("Login failed")
-    from pprint import pprint
-    pprint(result)
-    raise SystemExit(1)
+    for endpoint in (
+        "https://graph.microsoft.com/v1.0/me",
+        "https://graph.microsoft.com/v1.0/sites/root",
+        "https://graph.microsoft.com/v1.0/sites?search=*",
+        "https://graph.microsoft.com/v1.0/me/drives",
+    ):
+        response = requests.get(endpoint, headers=headers, timeout=30)
+        print(f"\n{endpoint} status:", response.status_code)
+        print(response.text[:2000])
 
-print("Login succeeded")
-print("Account:", result.get("id_token_claims", {}).get("preferred_username"))
-print("\nGranted scopes:")
-print(result.get("scope"))
 
-root_site = requests.get(
-    "https://graph.microsoft.com/v1.0/sites/root",
-    headers=headers,
-    timeout=30,
-)
-print("\n/sites/root status:", root_site.status_code)
-print(root_site.text[:2000])
+def test_graph_login_manual_only():
+    import pytest
 
-sites = requests.get(
-    "https://graph.microsoft.com/v1.0/sites?search=*",
-    headers=headers,
-    timeout=30,
-)
-print("\n/sites search status:", sites.status_code)
-print(sites.text[:2000])
+    pytest.skip("Manual smoke test only. Run file directly when needed.")
 
-drives = requests.get(
-    "https://graph.microsoft.com/v1.0/me/drives",
-    headers=headers,
-    timeout=30,
-)
-print("\n/me/drives status:", drives.status_code)
-print(drives.text[:2000])
+
+if __name__ == "__main__":
+    run_manual_graph_login_smoke()

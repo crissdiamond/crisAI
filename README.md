@@ -270,6 +270,18 @@ After a fresh install, validate both runtime surfaces:
 
 If `./start` reports a missing `.venv`, create it and install dependencies first.
 
+Dependency note:
+- `pytest` and `traced` are part of the base install and should be available after `pip install -e .`.
+
+Microsoft Graph auth note:
+- when SharePoint/Graph token cache is missing or expired, crisAI now forces interactive Microsoft Entra login again (CLI and web)
+- on WSL, browser opening uses WSL-aware fallbacks (`wslview`, then `explorer.exe`)
+- for a manual login smoke test, run:
+
+```bash
+python tests/orchestration/test_graph_login.py
+```
+
 ---
 
 ## Model assignment
@@ -463,7 +475,7 @@ The expected flow is:
 
 Operational recommendation:
 - check auth status before search
-- avoid triggering interactive login unless explicitly required
+- expect interactive Microsoft Entra login when cached token is missing or expired
 - prefer predictable auth checks over surprise browser popups during discovery
 
 ---

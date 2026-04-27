@@ -5,7 +5,9 @@ import csv
 import io
 import json
 import os
+import shutil
 import sys
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -137,6 +139,31 @@ def _build_app(cache: SerializableTokenCache) -> PublicClientApplication:
     )
 
 
+def _is_wsl_environment() -> bool:
+    """Return whether the current process runs inside WSL."""
+    if os.environ.get("WSL_DISTRO_NAME"):
+        return True
+    try:
+        content = Path("/proc/version").read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+    return "microsoft" in content or "wsl" in content
+
+
+def _open_interactive_browser(url: str) -> None:
+    """Open browser URL with WSL-aware fallback launchers."""
+    if _is_wsl_environment():
+        # Prefer wslview when installed; fall back to explorer.exe.
+        for candidate in ("wslview", "explorer.exe"):
+            if shutil.which(candidate):
+                try:
+                    os.spawnlp(os.P_NOWAIT, candidate, candidate, url)
+                    return
+                except OSError:
+                    continue
+    webbrowser.open(url, new=1)
+
+
 #def _acquire_token(scopes: list[str] | None = None) -> str:
 #    _require_env()
 #    scopes = scopes or DEFAULT_SCOPES
@@ -187,9 +214,9 @@ def _acquire_token(scopes: list[str] | None = None, force_interactive: bool = Fa
         return str(result["access_token"])
 
     if not force_interactive:
-        raise RuntimeError(
-            "No valid cached SharePoint token is available. Run login_sharepoint first."
-        )
+        # Restore previous behavior: automatically trigger interactive sign-in
+        # when cache is missing or expired so CLI/web recover without manual steps.
+        force_interactive = True
 
     log_event(f"interactive_login scopes={scopes}")
     cache = _load_token_cache()
@@ -199,6 +226,7 @@ def _acquire_token(scopes: list[str] | None = None, force_interactive: bool = Fa
         scopes=scopes,
         prompt="select_account",
         domain_hint="organizations",
+        open_browser=_open_interactive_browser,
     )
 
     _save_token_cache(cache)

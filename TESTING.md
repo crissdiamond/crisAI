@@ -172,6 +172,21 @@ pytest tests/orchestration/test_peer_mode.py
 ### Base test environment
 For the core suite, the project should import and run without requiring live provider credentials.
 
+Clean installs should include `pytest` and `traced` automatically via `pip install -e .`.
+
+### Microsoft Graph auth smoke test (manual)
+`tests/orchestration/test_graph_login.py` is a manual smoke test and is intentionally skipped by pytest.
+
+Run it directly when you want to validate interactive Microsoft Entra login and Graph reachability:
+
+```bash
+python tests/orchestration/test_graph_login.py
+```
+
+WSL note:
+- the script uses WSL-aware browser launch (`wslview` or `explorer.exe` fallback) for interactive Microsoft Entra login
+- if no browser opens, install `wslu` (`wslview`) or verify Windows browser integration
+
 ### Optional provider support
 If you want to exercise Gemini or Anthropic in real runtime flows, you need the relevant optional runtime dependencies and environment variables configured in `.env`.
 
