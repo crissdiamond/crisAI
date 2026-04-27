@@ -23,6 +23,8 @@ from openpyxl import load_workbook
 from pptx import Presentation
 from pypdf import PdfReader
 
+from crisai.config import load_settings
+
 load_dotenv()
 
 mcp = FastMCP("crisai-sharepoint")
@@ -30,7 +32,7 @@ mcp = FastMCP("crisai-sharepoint")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
 
-LOG_FILE = ROOT / "sharepoint_mcp.log"
+LOG_FILE = load_settings().log_dir / "sharepoint_mcp.log"
 CACHE_DIR = ROOT / ".auth"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 TOKEN_CACHE_PATH = Path(os.getenv("MS_TOKEN_CACHE_PATH", CACHE_DIR / "msal_token_cache.json"))

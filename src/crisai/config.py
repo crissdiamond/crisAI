@@ -35,7 +35,8 @@ def load_settings() -> Settings:
     """Load settings from environment variables with sensible defaults.
 
     The project root is resolved relative to this file's location
-    (three directories up).  Sub-directories (workspace, logs, registry)
+    (three directories up).  Default directories ``workspace`` (your files),
+    ``logs`` (app trace, crisai.log, MCP server logs), and ``registry`` (YAML)
     can be overridden via environment variables and are created if they
     do not exist.
 

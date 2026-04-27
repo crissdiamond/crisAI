@@ -20,13 +20,15 @@ from openpyxl import load_workbook
 from pypdf import PdfReader
 from pptx import Presentation
 
+from crisai.config import load_settings
+
 
 mcp = FastMCP("crisai-document-reader")
 
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
 
-LOG_FILE = ROOT / "document_mcp.log"
+LOG_FILE = load_settings().log_dir / "document_mcp.log"
 CONTEXT_INDEX_FILE = ROOT / ".crisai" / "context_index.json"
 SUPPORTED_DOCUMENT_SUFFIXES = {
     ".txt",

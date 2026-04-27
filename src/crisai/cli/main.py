@@ -271,7 +271,7 @@ def _render_runtime_error(exc: Exception) -> None:
 
     logger.exception("Request failed with unexpected runtime error.")
     print_status_message(
-        "Unexpected runtime error. Check logs/agent_trace.jsonl and workspace MCP logs for details.",
+        "Unexpected runtime error. Check logs/ (agent_trace.jsonl, crisai.log, *_mcp.log) for details.",
         title="❌ Unexpected error",
     )
 

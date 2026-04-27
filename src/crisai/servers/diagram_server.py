@@ -8,10 +8,12 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from crisai.config import load_settings
+
 mcp = FastMCP("crisai-diagrams")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
-LOG_FILE = ROOT / "diagram_mcp.log"
+LOG_FILE = load_settings().log_dir / "diagram_mcp.log"
 
 
 

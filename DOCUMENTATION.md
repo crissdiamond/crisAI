@@ -562,14 +562,18 @@ A good way to use crisAI in practice:
 
 ## 17. Logs and troubleshooting
 
-Useful logs:
+Useful logs (default directory **`./logs`**, override with **`CRISAI_LOG_DIR`**):
 
 ```text
 logs/agent_trace.jsonl
-workspace/workspace_mcp.log
-workspace/document_mcp.log
-workspace/sharepoint_mcp.log
+logs/crisai.log
+logs/workspace_mcp.log
+logs/document_mcp.log
+logs/diagram_mcp.log
+logs/sharepoint_mcp.log
 ```
+
+The **workspace** directory is for your documents and generated files; MCP server logs are written under the log directory with the main trace and `crisai.log`.
 
 ### If routing looks wrong
 Check:

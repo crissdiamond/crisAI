@@ -512,14 +512,18 @@ See `TESTING.md` for the current suite structure, how to run tests, and what the
 
 ## Logs
 
-Useful logs include:
+Useful logs (all under **`CRISAI_LOG_DIR`**, default `./logs`) include:
 
 ```text
 logs/agent_trace.jsonl
-workspace/workspace_mcp.log
-workspace/document_mcp.log
-workspace/sharepoint_mcp.log
+logs/crisai.log
+logs/workspace_mcp.log
+logs/document_mcp.log
+logs/diagram_mcp.log
+logs/sharepoint_mcp.log
 ```
+
+MCP stdio servers write next to the main app log so the **workspace** tree stays for documents and generated artefacts, not server diagnostics.
 
 ---
 
