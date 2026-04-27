@@ -175,6 +175,25 @@ def _list_session_names() -> list[str]:
     return sorted(set(names))
 
 
+def _session_name_newest_by_mtime() -> str | None:
+    """Return the session whose JSON file was most recently modified, if any exist.
+
+    Used on full page load so the UI reopens the last-created or last-touched
+    session instead of always preferring the virtual ``default`` slot.
+    """
+    best_mtime: float | None = None
+    best_name: str | None = None
+    for file_path in session_dir().glob("*.json"):
+        try:
+            mtime = file_path.stat().st_mtime
+        except OSError:
+            continue
+        if best_mtime is None or mtime >= best_mtime:
+            best_mtime = mtime
+            best_name = file_path.stem
+    return best_name
+
+
 def _serialize_history(history: list[tuple[str, str]]) -> list[dict[str, str]]:
     """Convert tuple-based history to JSON-serializable objects."""
     return [{"role": role, "content": content} for role, content in history]
@@ -434,7 +453,13 @@ def run_status(job_id: str) -> dict[str, Any]:
 def list_sessions() -> dict[str, Any]:
     """Return available sessions and default session history."""
     names = _list_session_names()
-    current_session = "default" if "default" in names else names[0]
+    newest = _session_name_newest_by_mtime()
+    if newest is not None and newest in names:
+        current_session = newest
+    elif "default" in names:
+        current_session = "default"
+    else:
+        current_session = names[0] if names else "default"
     history = load_history(current_session)
     return {
         "sessions": names,

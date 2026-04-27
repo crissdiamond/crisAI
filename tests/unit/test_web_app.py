@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import time
+
 from fastapi.testclient import TestClient
 
 from fastapi import HTTPException
@@ -123,6 +126,7 @@ def test_to_http_exception_maps_max_turns_to_422():
 
 def test_list_sessions_endpoint_returns_default_history(monkeypatch):
     monkeypatch.setattr("crisai.apps.web._list_session_names", lambda: ["default", "design"])
+    monkeypatch.setattr("crisai.apps.web._session_name_newest_by_mtime", lambda: None)
     monkeypatch.setattr(
         "crisai.apps.web.load_history",
         lambda session_name: [("user", "u1"), ("assistant", "a1")] if session_name == "default" else [],
@@ -136,6 +140,31 @@ def test_list_sessions_endpoint_returns_default_history(monkeypatch):
     assert payload["current_session"] == "default"
     assert payload["sessions"] == ["default", "design"]
     assert payload["history"] == [{"role": "user", "content": "u1"}, {"role": "assistant", "content": "a1"}]
+
+
+def test_list_sessions_selects_session_with_newest_json_mtime(tmp_path, monkeypatch):
+    monkeypatch.setattr("crisai.apps.web.session_dir", lambda: tmp_path)
+    (tmp_path / "older.json").write_text("[]")
+    (tmp_path / "newer.json").write_text("[]")
+    base = time.time()
+    os.utime(tmp_path / "older.json", (base - 200, base - 200))
+    os.utime(tmp_path / "newer.json", (base, base))
+
+    monkeypatch.setattr(
+        "crisai.apps.web.load_history",
+        lambda session_name: (
+            [("user", "old")] if session_name == "older" else [("user", "new")]
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/sessions")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_session"] == "newer"
+    assert "newer" in payload["sessions"]
+    assert payload["history"] == [{"role": "user", "content": "new"}]
 
 
 def test_create_session_endpoint_sanitizes_and_returns_session(monkeypatch):
