@@ -434,11 +434,13 @@ def get_document_metadata(path: str) -> dict[str, str | int]:
         raise FileNotFoundError(f"No such file: {file_path}")
 
     stat = file_path.stat()
+    resolved = file_path.resolve()
     return {
         "path": str(file_path.relative_to(ROOT)),
         "name": file_path.name,
         "suffix": file_path.suffix.lower(),
         "size_bytes": stat.st_size,
+        "file_uri": resolved.as_uri(),
     }
 
 

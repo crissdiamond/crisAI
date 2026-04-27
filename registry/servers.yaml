@@ -21,6 +21,7 @@ servers:
         - write_workspace_file
         - append_workspace_file
         - search_workspace_text
+        - workspace_file_link
         - make_note_path
     approval:
       required_for:

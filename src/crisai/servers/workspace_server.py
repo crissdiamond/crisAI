@@ -129,10 +129,39 @@ def search_workspace_text(query: str, subdir: str = ".", max_hits: int = 20) -> 
             continue
         for idx, line in enumerate(lines, start=1):
             if pattern.search(line):
-                results.append({"path": str(file_path.relative_to(ROOT)), "line": idx, "text": line.strip()})
+                results.append(
+                    {
+                        "path": str(file_path.relative_to(ROOT)),
+                        "line": idx,
+                        "text": line.strip(),
+                        "file_uri": file_path.resolve().as_uri(),
+                    }
+                )
                 if len(results) >= max_hits:
                     return results
     return results
+
+
+@mcp.tool()
+def workspace_file_link(path: str) -> dict[str, str]:
+    """Return paths and a file:// URI so the user can open a workspace file locally.
+
+    Use this when listing or reporting workspace files so outputs can include a
+    clickable markdown link: ``[name](file_uri)``.
+    """
+    log_event(f"workspace_file_link path={path}")
+    file_path = _safe_path(path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"No such file: {file_path}")
+    if not file_path.is_file():
+        raise ValueError(f"Not a file (directories are not supported): {file_path}")
+    resolved = file_path.resolve()
+    root_resolved = ROOT.resolve()
+    return {
+        "relative_path": str(resolved.relative_to(root_resolved)),
+        "absolute_path": str(resolved),
+        "file_uri": resolved.as_uri(),
+    }
 
 
 @mcp.tool()

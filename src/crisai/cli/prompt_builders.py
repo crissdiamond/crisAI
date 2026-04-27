@@ -37,7 +37,10 @@ def build_single_discovery_prompt(message: str) -> str:
             "- Authenticate when required (for example interactive Microsoft Entra login when cached tokens are missing or expired).\n"
             "- List or search first, then inspect only matching results.\n"
             "- Do not return a planning brief, workflow framing, or clarifying questionnaire unless the request is truly ambiguous.\n"
-            "- Return grounded results with file names/paths and concise relevance notes.",
+            "- Return grounded results with file names/paths and concise relevance notes.\n"
+            "- For each file you list, include a markdown link the user can open: "
+            "OneDrive/SharePoint use `open_url` or `webUrl` from Graph tool rows; "
+            "workspace files use `file_uri` from `search_workspace_text` or call `workspace_file_link` and use `file_uri` in `[label](file_uri)`.",
         ]
     )
 
@@ -57,6 +60,8 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "
             "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
+            "For each source row, include a markdown **Link** the user can open: "
+            "Graph/OneDrive/SharePoint use `open_url` or `webUrl`; workspace files use `file_uri` from `search_workspace_text` or `workspace_file_link`. "
             "Do not draft, recommend, or optimise the final design response.",
         ]
     )

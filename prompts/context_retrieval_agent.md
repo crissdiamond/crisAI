@@ -37,11 +37,16 @@ Your role is to retrieve relevant source material for downstream context structu
 
 Use the following structure:
 
+For **Link** lines in Retrieved Sources:
+- **OneDrive / SharePoint:** use `open_url` or `webUrl` from Graph tool rows (browser opens Microsoft 365 or SharePoint).
+- **Local workspace:** use `file_uri` from `search_workspace_text` hits, or call `workspace_file_link` on the workspace-relative path and use the returned `file_uri` in markdown `[label](file_uri)`.
+
 ```markdown
 ## Retrieval Summary
 
 ## Retrieved Sources
 - Source: path-or-identifier
+  Link: markdown link the user can click to open the item
   Relevance: short explanation
   Extract: concise relevant extract or summary
 

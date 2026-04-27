@@ -393,10 +393,13 @@ def _normalise_item(item: dict[str, Any]) -> dict[str, Any]:
     file_info = item.get("file", {}) or {}
     folder_info = item.get("folder", {}) or {}
 
+    web_url = item.get("webUrl")
     return {
         "id": item.get("id"),
         "name": item.get("name"),
-        "webUrl": item.get("webUrl"),
+        "webUrl": web_url,
+        # Explicit alias so agents surface a browser-openable link for OneDrive/SharePoint.
+        "open_url": web_url,
         "size": item.get("size"),
         "createdDateTime": item.get("createdDateTime"),
         "lastModifiedDateTime": item.get("lastModifiedDateTime"),
@@ -481,6 +484,7 @@ def list_sites(query: str = "*", max_hits: int = 10) -> list[dict[str, Any]]:
             "name": site.get("name"),
             "displayName": site.get("displayName"),
             "webUrl": site.get("webUrl"),
+            "open_url": site.get("webUrl"),
             "description": site.get("description"),
             "hostname": (site.get("siteCollection") or {}).get("hostname"),
         }
@@ -499,6 +503,7 @@ def list_my_drives() -> list[dict[str, Any]]:
             "name": drive.get("name"),
             "description": drive.get("description"),
             "webUrl": drive.get("webUrl"),
+            "open_url": drive.get("webUrl"),
             "driveType": drive.get("driveType"),
         }
         for drive in data.get("value", [])
@@ -516,6 +521,7 @@ def list_site_drives(site_id: str) -> list[dict[str, Any]]:
             "name": drive.get("name"),
             "description": drive.get("description"),
             "webUrl": drive.get("webUrl"),
+            "open_url": drive.get("webUrl"),
             "driveType": drive.get("driveType"),
         }
         for drive in data.get("value", [])
