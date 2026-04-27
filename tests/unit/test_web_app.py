@@ -4,7 +4,13 @@ from fastapi.testclient import TestClient
 
 from fastapi import HTTPException
 
-from crisai.apps.web import _collect_stage_outputs, _select_latest_run, _to_http_exception, app
+from crisai.apps.web import (
+    _collect_stage_outputs,
+    _select_latest_run,
+    _to_http_exception,
+    _trace_line_to_stage_output,
+    app,
+)
 
 
 def test_select_latest_run_filters_by_last_run_id():
@@ -18,6 +24,28 @@ def test_select_latest_run_filters_by_last_run_id():
 
     assert len(selected) == 2
     assert all(item.get("run_id") == "run-2" for item in selected)
+
+
+def test_trace_line_maps_single_agent_workflow_output_to_agent_tab():
+    """Single-agent runs trace FINAL_OUTPUT as workflow_output; UI needs a stage row."""
+    entry = {
+        "event_type": "workflow_output",
+        "stage": "FINAL_OUTPUT",
+        "agent_id": "discovery",
+        "content": "Listed 3 matching files.",
+        "run_id": "run-x",
+    }
+    out = _trace_line_to_stage_output(entry)
+    assert out is not None
+    assert out["key"] == "discovery"
+    assert out["agent_id"] == "discovery"
+    assert out["event_type"] == "stage_output"
+    assert out["content"] == "Listed 3 matching files."
+
+
+def test_trace_line_ignores_unrelated_workflow_output():
+    entry = {"event_type": "workflow_output", "stage": "OTHER", "agent_id": "discovery", "content": "x"}
+    assert _trace_line_to_stage_output(entry) is None
 
 
 def test_collect_stage_outputs_keeps_only_renderable_stage_events():

@@ -236,6 +236,40 @@ def _extract_stage_key(entry: dict[str, str]) -> str:
     return "system"
 
 
+def _trace_line_to_stage_output(entry: dict[str, Any]) -> dict[str, Any] | None:
+    """Map one JSONL trace line to a UI stage_output row, or None if not renderable.
+
+    Pipeline and peer runs emit ``stage_output`` / ``stage_skipped`` events.
+    Single-agent runs log the assistant result as ``workflow_output`` with
+    ``stage`` ``FINAL_OUTPUT`` and ``agent_id`` set; the web UI expects a
+    stage-shaped row so flow tabs can replace placeholders.
+    """
+    event_type = str(entry.get("event_type", ""))
+    if event_type in {"stage_output", "stage_skipped"}:
+        render_event = event_type
+    elif event_type == "workflow_output":
+        stage_upper = str(entry.get("stage", "")).strip().upper()
+        agent_raw = str(entry.get("agent_id", "")).strip()
+        if stage_upper != "FINAL_OUTPUT" or not agent_raw:
+            return None
+        render_event = "stage_output"
+    else:
+        return None
+
+    return {
+        "key": _extract_stage_key(
+            {
+                "agent_id": str(entry.get("agent_id") or ""),
+                "stage": str(entry.get("stage", "")),
+            }
+        ),
+        "agent_id": str(entry.get("agent_id") or "system"),
+        "stage": str(entry.get("stage", "")),
+        "event_type": render_event,
+        "content": str(entry.get("content", "")),
+    }
+
+
 async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
     """Execute one background run and persist completion state."""
     job = _RUN_JOBS[job_id]
@@ -380,21 +414,9 @@ def run_status(job_id: str) -> dict[str, Any]:
         run_entries = []
 
     for entry in run_entries:
-        event_type = str(entry.get("event_type", ""))
-        if event_type not in {"stage_output", "stage_skipped"}:
+        stage_entry = _trace_line_to_stage_output(entry)
+        if stage_entry is None:
             continue
-        stage_entry = {
-            "key": _extract_stage_key(
-                {
-                    "agent_id": str(entry.get("agent_id") or ""),
-                    "stage": str(entry.get("stage", "")),
-                }
-            ),
-            "agent_id": str(entry.get("agent_id") or "system"),
-            "stage": str(entry.get("stage", "")),
-            "event_type": event_type,
-            "content": str(entry.get("content", "")),
-        }
         job["stage_outputs"] = [e for e in job["stage_outputs"] if e.get("key") != stage_entry["key"]]
         job["stage_outputs"].append(stage_entry)
 
