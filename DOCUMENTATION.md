@@ -82,11 +82,33 @@ This allows examples such as:
 - `judge` → Gemini
 - `design_challenger` → Anthropic
 
+### 2.6 Installation and virtual environment
+
+crisAI is meant to run from a **local Python virtual environment** named **`.venv`** at the project root. The **`./start`** script activates `.venv` for both CLI and web; if `.venv` is missing, it prints short setup commands and exits.
+
+First-time setup (full step-by-step, including `.env`, is in the repository **README**):
+
+1. Create and activate the venv, for example:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+2. Install dependencies, for example:
+   ```bash
+   pip install --upgrade pip
+   pip install -e .
+   ```
+   or `pip install -r requirements.txt` (same default install). Optional LiteLLM: `pip install -r requirements-litellm.txt`.
+
+On **Debian / Ubuntu**, if `python3 -m venv` fails with a message about **`ensurepip`** or **`python3.x-venv` missing**, install the OS **`venv`** package for your Python version (e.g. `sudo apt install python3-venv` or `python3.12-venv`).
+
+You can also use **`scripts/bootstrap.sh`**, which creates `.venv` if needed and runs `pip install -r requirements.txt`.
+
 ---
 
 ## 3. Starting crisAI
 
-From the project root:
+From the project root (after `.venv` exists and dependencies are installed):
 
 ```bash
 ./start cli

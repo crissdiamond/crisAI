@@ -164,7 +164,7 @@ Notes:
 
 Before getting started, make sure you have:
 
-- **Python 3.10+**
+- **Python 3.10+** with the **`venv` standard library module available** (see installation notes below)
 - **Linux, macOS, or WSL on Windows**
 - **OpenAI API key** for OpenAI-backed agents
 - **Optional:** Gemini and Anthropic keys if you assign those providers to any agents
@@ -183,19 +183,43 @@ cd crisAI
 
 ### 2. Create a virtual environment
 
+crisAI expects a project-local virtual environment at **`.venv`** in the repository root. The **`./start`** launcher sources `.venv/bin/activate` and exits with instructions if that directory is missing.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
+On **Debian / Ubuntu** (and many derivatives), `python3 -m venv` can fail until you install the matching OS package for your Python minor version, for example:
+
+```bash
+sudo apt install python3-venv
+# or, if you use Python 3.12 specifically:
+sudo apt install python3.12-venv
+```
+
 ### 3. Install dependencies
+
+With `.venv` activated:
 
 ```bash
 pip install --upgrade pip
 pip install -e .
 ```
 
+Equivalent using the requirements file (same default dependencies as `pip install -e .`):
+
+```bash
+pip install -r requirements.txt
+```
+
 If you want Gemini or Anthropic support through LiteLLM-backed integration, install the optional extra:
+
+```bash
+pip install -r requirements-litellm.txt
+```
+
+or:
 
 ```bash
 pip install -e ".[litellm]"
