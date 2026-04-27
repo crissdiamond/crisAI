@@ -14,7 +14,10 @@ agents:
     name: Discovery Agent
     model_ref: openai_fast
     prompt_file: prompts/discovery_agent.md
-    allowed_servers: []
+    allowed_servers:
+      - workspace
+      - documents
+      - sharepoint_docs
 
   - id: context_retrieval
     name: Context Retrieval Agent
