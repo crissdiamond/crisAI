@@ -172,6 +172,18 @@ def _has_source_signal(text: str, discovery_score: int) -> bool:
     return any(marker in text for marker in source_markers)
 
 
+def _is_architecture_location_phrase(text: str) -> bool:
+    architecture_location_markers = {
+        "architecture site",
+        "architecture sites",
+        "sito architecture",
+        "siti architecture",
+        "sharepoint architecture site",
+        "sharepoint architecture sites",
+    }
+    return any(marker in text for marker in architecture_location_markers)
+
+
 def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
     if _contains_any(text, EXPLICIT_DISCOVERY_PATTERNS):
         return RoutingDecision(
@@ -193,6 +205,11 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
 
     has_source_signal = _has_source_signal(text, discovery_score)
     has_design_signal = design_score >= 2
+    architecture_used_as_location = _is_architecture_location_phrase(text)
+    if architecture_used_as_location and design_score > 0:
+        # "Architecture site(s)" is usually a SharePoint location label, not a drafting ask.
+        design_score -= 1
+        has_design_signal = design_score >= 2
     has_review_signal = review_score >= 2
     has_peer_signal = _contains_any(text, EXPLICIT_PEER_PATTERNS) or (
         peer_score >= 2 and (design_score >= 1 or review_score >= 1)
