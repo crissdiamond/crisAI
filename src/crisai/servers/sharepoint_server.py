@@ -152,18 +152,23 @@ def _is_wsl_environment() -> bool:
     return "microsoft" in content or "wsl" in content
 
 
-def _open_interactive_browser(url: str) -> None:
-    """Open browser URL with WSL-aware fallback launchers."""
+def _open_interactive_browser(url: str) -> bool:
+    """Open browser URL with WSL-aware fallback launchers.
+
+    MSAL expects ``open_browser`` callbacks to return a boolean indicating
+    whether the URL launch succeeded. Returning ``None`` is treated as failure
+    and surfaces an ``open_browser`` auth error even when a URL is printed.
+    """
     if _is_wsl_environment():
         # Prefer wslview when installed; fall back to explorer.exe.
         for candidate in ("wslview", "explorer.exe"):
             if shutil.which(candidate):
                 try:
                     os.spawnlp(os.P_NOWAIT, candidate, candidate, url)
-                    return
+                    return True
                 except OSError:
                     continue
-    webbrowser.open(url, new=1)
+    return bool(webbrowser.open(url, new=1))
 
 
 #def _acquire_token(scopes: list[str] | None = None) -> str:
