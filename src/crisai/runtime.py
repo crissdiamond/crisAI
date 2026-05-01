@@ -24,6 +24,24 @@ def _mcp_client_session_timeout_seconds() -> float:
     return max(value, 10.0)
 
 
+def _resolve_client_session_timeout_seconds(server_raw: dict[str, object]) -> float:
+    """Resolve MCP session timeout with optional per-server override.
+
+    A global default works for fast MCP servers, but interactive auth flows
+    (for example delegated Microsoft login) may legitimately exceed 60s while
+    the user completes browser consent. Servers can opt into a longer timeout
+    by setting ``client_timeout_seconds`` in ``registry/servers.yaml``.
+    """
+    default_timeout = _mcp_client_session_timeout_seconds()
+    override = server_raw.get("client_timeout_seconds")
+    if override is None:
+        return default_timeout
+    try:
+        return max(float(override), 10.0)
+    except (TypeError, ValueError):
+        return default_timeout
+
+
 class RuntimeManager:
     def __init__(self, root_dir: Path) -> None:
         self.root_dir = root_dir
@@ -40,7 +58,7 @@ class RuntimeManager:
                     "args": args,
                     "cwd": str(self.root_dir),
                 },
-                client_session_timeout_seconds=_mcp_client_session_timeout_seconds(),
+                client_session_timeout_seconds=_resolve_client_session_timeout_seconds(spec.raw),
                 tool_filter=create_static_tool_filter(allowed_tool_names=allowed_tools),
             )
         raise NotImplementedError(f"Transport not yet supported: {spec.transport}")

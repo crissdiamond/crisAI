@@ -82,6 +82,7 @@ servers:
     description: Search and read SharePoint documents using delegated Microsoft Graph access.
     enabled: true
     transport: stdio
+    client_timeout_seconds: 240
     command: python
     args:
       - src/crisai/servers/sharepoint_server.py
