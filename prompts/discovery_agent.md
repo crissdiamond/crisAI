@@ -37,6 +37,10 @@ Exception for single-agent retrieval mode:
   - For a **single** file or two, a compact bullet line is still fine; use the table when there are roughly **three or more** hits or the user asked for a list or directory-style output.
 - **SharePoint vs OneDrive:** when the user asks for **SharePoint** (team/sites/libraries) and does **not** ask for personal **OneDrive** only, prefer **`search_sharepoint_site_documents`** (or `list_sites` then `search_site_drive_documents` per site). **Do not** answer SharePoint-only requests using only `list_my_drives` + `search_drive_documents`, because that usually searches the user's OneDrive.
 - When the user explicitly wants **personal OneDrive**, use `list_my_drives` / `search_drive_documents` on the right drive.
+- If a retrieval/auth tool fails, include:
+  - the exact tool name, and
+  - the exact raw tool error text in a fenced code block.
+  Do not replace concrete tool errors with generic fallback wording.
 
 ## Output
 

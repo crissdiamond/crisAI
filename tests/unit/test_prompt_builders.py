@@ -3,6 +3,7 @@ from crisai.cli.prompt_builders import (
     build_challenger_prompt,
     build_design_prompt,
     build_discovery_prompt,
+    build_single_discovery_prompt,
     build_judge_prompt,
     build_peer_final_prompt,
     build_pipeline_final_prompt,
@@ -17,6 +18,13 @@ def test_build_discovery_prompt_contains_only_runtime_context():
     assert "Task:\nFrame the request for the downstream workflow." in text
     assert "Rules:" not in text
     assert "Return:" not in text
+
+
+def test_build_single_discovery_prompt_requires_verbatim_tool_errors():
+    text = build_single_discovery_prompt("Find files in OneDrive")
+
+    assert "report the exact failing tool name" in text
+    assert "raw error text verbatim in a fenced code block" in text
 
 
 def test_build_design_prompt_normalises_empty_discovery():

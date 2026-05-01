@@ -38,6 +38,8 @@ def build_single_discovery_prompt(message: str) -> str:
             "prefer `search_sharepoint_site_documents` or `list_sites` + `search_site_drive_documents`; "
             "do not use only `list_my_drives` + `search_drive_documents` for that case.\n"
             "- Authenticate when required (for example interactive Microsoft Entra login when cached tokens are missing or expired).\n"
+            "- If any retrieval/auth tool fails, report the exact failing tool name and include the raw error text verbatim in a fenced code block.\n"
+            "- Do not replace tool errors with generic wording like 'unable to access' or 'login failed' when a concrete tool error is available.\n"
             "- List or search first, then inspect only matching results.\n"
             "- Do not return a planning brief, workflow framing, or clarifying questionnaire unless the request is truly ambiguous.\n"
             "- Return grounded results with file names/paths and concise relevance notes.\n"
