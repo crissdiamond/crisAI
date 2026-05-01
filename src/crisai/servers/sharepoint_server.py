@@ -68,6 +68,32 @@ def _acquire_token_silent_only(scopes: list[str] | None = None) -> dict[str, Any
     _save_token_cache(cache)
     return result
 
+
+def _format_interactive_auth_failure(result: dict[str, Any] | None, scopes: list[str]) -> str:
+    """Build a user-facing diagnostic for interactive Microsoft login failures."""
+    payload = result or {}
+    error_code = str(payload.get("error") or "unknown_error")
+    description = str(payload.get("error_description") or payload.get("error_message") or "No description returned.")
+    suberror = payload.get("suberror")
+    correlation_id = payload.get("correlation_id")
+
+    lines = [
+        "Microsoft interactive login did not return an access token.",
+        f"Error code: {error_code}",
+        f"Description: {description}",
+        f"Requested scopes: {', '.join(scopes)}",
+        "Troubleshooting:",
+        "- Complete the browser flow in the same local session and wait for redirect to localhost.",
+        "- If prompted multiple times, close stale auth tabs and retry once.",
+        "- If this persists on clean install, run `sharepoint_auth_status` and `login_sharepoint` to inspect auth state.",
+    ]
+    if suberror:
+        lines.append(f"Suberror: {suberror}")
+    if correlation_id:
+        lines.append(f"Correlation ID: {correlation_id}")
+    return "\n".join(lines)
+
+
 def _write_token_info(info: dict[str, Any]) -> None:
     TOKEN_INFO_PATH.parent.mkdir(parents=True, exist_ok=True)
     TOKEN_INFO_PATH.write_text(json.dumps(info, indent=2), encoding="utf-8")
@@ -254,7 +280,9 @@ def _acquire_token(scopes: list[str] | None = None, force_interactive: bool = Fa
     _save_token_cache(cache)
 
     if not result or "access_token" not in result:
-        raise RuntimeError(f"Could not acquire token: {result}")
+        message = _format_interactive_auth_failure(result, scopes)
+        log_event(f"interactive_login_failed error={result}")
+        raise RuntimeError(message)
 
     granted = result.get("scope")
     account = result.get("id_token_claims", {}).get("preferred_username")

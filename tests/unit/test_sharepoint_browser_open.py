@@ -36,3 +36,28 @@ def test_open_interactive_browser_falls_back_when_wsl_launcher_fails(monkeypatch
     monkeypatch.setattr(sharepoint_server.webbrowser, "open", lambda _url, new=1: False)
 
     assert sharepoint_server._open_interactive_browser("https://example.com") is True
+
+
+def test_format_interactive_auth_failure_contains_core_fields():
+    message = sharepoint_server._format_interactive_auth_failure(
+        {
+            "error": "invalid_grant",
+            "error_description": "Authorization code was invalid or expired.",
+            "correlation_id": "abc-123",
+            "suberror": "bad_token",
+        },
+        ["User.Read", "Sites.Read.All"],
+    )
+
+    assert "Error code: invalid_grant" in message
+    assert "Description: Authorization code was invalid or expired." in message
+    assert "Requested scopes: User.Read, Sites.Read.All" in message
+    assert "Correlation ID: abc-123" in message
+    assert "Suberror: bad_token" in message
+
+
+def test_format_interactive_auth_failure_handles_missing_payload():
+    message = sharepoint_server._format_interactive_auth_failure(None, ["User.Read"])
+
+    assert "Error code: unknown_error" in message
+    assert "Requested scopes: User.Read" in message
