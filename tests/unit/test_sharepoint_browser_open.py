@@ -35,4 +35,4 @@ def test_open_interactive_browser_falls_back_when_wsl_launcher_fails(monkeypatch
     monkeypatch.setattr(sharepoint_server.os, "spawnlp", _raise_os_error)
     monkeypatch.setattr(sharepoint_server.webbrowser, "open", lambda _url, new=1: False)
 
-    assert sharepoint_server._open_interactive_browser("https://example.com") is False
+    assert sharepoint_server._open_interactive_browser("https://example.com") is True

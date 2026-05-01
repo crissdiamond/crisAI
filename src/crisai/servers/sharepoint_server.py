@@ -159,16 +159,31 @@ def _open_interactive_browser(url: str) -> bool:
     whether the URL launch succeeded. Returning ``None`` is treated as failure
     and surfaces an ``open_browser`` auth error even when a URL is printed.
     """
+    launched = False
+
     if _is_wsl_environment():
         # Prefer wslview when installed; fall back to explorer.exe.
         for candidate in ("wslview", "explorer.exe"):
             if shutil.which(candidate):
                 try:
                     os.spawnlp(os.P_NOWAIT, candidate, candidate, url)
-                    return True
+                    launched = True
+                    break
                 except OSError:
                     continue
-    return bool(webbrowser.open(url, new=1))
+
+    if not launched:
+        launched = bool(webbrowser.open(url, new=1))
+
+    if not launched:
+        # Keep interactive login alive even when no launcher is available:
+        # user can still open the URL manually in any browser.
+        print("Open a browser on this device to visit:")
+        print(url)
+        log_event("interactive_browser_manual_fallback")
+
+    # Returning True tells MSAL the interactive flow can proceed.
+    return True
 
 
 #def _acquire_token(scopes: list[str] | None = None) -> str:
