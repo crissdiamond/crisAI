@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import csv
 import io
+import inspect
 import json
 import os
 import shutil
@@ -212,6 +213,30 @@ def _open_interactive_browser(url: str) -> bool:
     return True
 
 
+def _acquire_token_interactive_compat(
+    app: PublicClientApplication,
+    scopes: list[str],
+) -> dict[str, Any]:
+    """Acquire token interactively across MSAL versions.
+
+    Some MSAL versions support ``open_browser`` in ``acquire_token_interactive``.
+    Others reject unknown kwargs and fail with errors such as:
+    ``Session.request() got an unexpected keyword argument 'open_browser'``.
+    """
+    kwargs: dict[str, Any] = {
+        "scopes": scopes,
+        "prompt": "select_account",
+        "domain_hint": "organizations",
+    }
+    try:
+        parameters = inspect.signature(app.acquire_token_interactive).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    if "open_browser" in parameters:
+        kwargs["open_browser"] = _open_interactive_browser
+    return app.acquire_token_interactive(**kwargs)
+
+
 #def _acquire_token(scopes: list[str] | None = None) -> str:
 #    _require_env()
 #    scopes = scopes or DEFAULT_SCOPES
@@ -270,12 +295,7 @@ def _acquire_token(scopes: list[str] | None = None, force_interactive: bool = Fa
     cache = _load_token_cache()
     app = _build_app(cache)
 
-    result = app.acquire_token_interactive(
-        scopes=scopes,
-        prompt="select_account",
-        domain_hint="organizations",
-        open_browser=_open_interactive_browser,
-    )
+    result = _acquire_token_interactive_compat(app, scopes)
 
     _save_token_cache(cache)
 

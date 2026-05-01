@@ -61,3 +61,41 @@ def test_format_interactive_auth_failure_handles_missing_payload():
 
     assert "Error code: unknown_error" in message
     assert "Requested scopes: User.Read" in message
+
+
+def test_acquire_token_interactive_compat_uses_open_browser_when_supported():
+    calls = {}
+
+    class _App:
+        def acquire_token_interactive(self, scopes, prompt, domain_hint, open_browser):
+            calls["scopes"] = scopes
+            calls["prompt"] = prompt
+            calls["domain_hint"] = domain_hint
+            calls["has_open_browser"] = open_browser is not None
+            return {"access_token": "token"}
+
+    result = sharepoint_server._acquire_token_interactive_compat(_App(), ["User.Read"])
+
+    assert result["access_token"] == "token"
+    assert calls["scopes"] == ["User.Read"]
+    assert calls["prompt"] == "select_account"
+    assert calls["domain_hint"] == "organizations"
+    assert calls["has_open_browser"] is True
+
+
+def test_acquire_token_interactive_compat_omits_open_browser_when_not_supported():
+    calls = {}
+
+    class _App:
+        def acquire_token_interactive(self, scopes, prompt, domain_hint):
+            calls["scopes"] = scopes
+            calls["prompt"] = prompt
+            calls["domain_hint"] = domain_hint
+            return {"access_token": "token"}
+
+    result = sharepoint_server._acquire_token_interactive_compat(_App(), ["Sites.Read.All"])
+
+    assert result["access_token"] == "token"
+    assert calls["scopes"] == ["Sites.Read.All"]
+    assert calls["prompt"] == "select_account"
+    assert calls["domain_hint"] == "organizations"
