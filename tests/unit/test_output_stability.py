@@ -29,6 +29,18 @@ def test_role_led_summary_includes_multiple_sentences_for_context_synthesizer():
     assert "Gaps remain" in summary or "lineage" in summary
 
 
+def test_role_led_summary_compact_uses_single_fragment():
+    body = (
+        "The retrieved context is strong. It supports a staged approach. "
+        "Gaps remain on lineage ownership for Excel-fed datasets."
+    )
+    full = _role_led_summary("context_synthesizer", body, compact=False)
+    tight = _role_led_summary("context_synthesizer", body, compact=True)
+    assert len(tight) < len(full)
+    assert "strong" in tight
+    assert "staged approach" not in tight
+
+
 def test_route_display_includes_review_and_retrieval_flags():
     decision = RoutingDecision(
         intent="design_review",

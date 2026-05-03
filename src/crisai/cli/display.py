@@ -227,9 +227,15 @@ def _normalise_fragment(text: str) -> str:
     return fragment
 
 
-def _author_like_summary(agent_id: str, text: str) -> str:
+def _author_like_summary(
+    agent_id: str,
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if not parts:
         return "The Author proposes reviewing the full stage output above."
     sentence = parts[0]
@@ -248,7 +254,7 @@ def _author_like_summary(agent_id: str, text: str) -> str:
             else:
                 base = f"The Author proposes we {action}."
             if remainder:
-                return base + " " + _join_recap_sentences(remainder)
+                return base + " " + _join_recap_sentences(remainder, max_chars=max_chars)
             return base
 
     action = _normalise_fragment(sentence)
@@ -257,11 +263,16 @@ def _author_like_summary(agent_id: str, text: str) -> str:
     else:
         base = f"The Author proposes {action}."
     if remainder:
-        return base + " " + _join_recap_sentences(remainder)
+        return base + " " + _join_recap_sentences(remainder, max_chars=max_chars)
     return base
 
 
-def _challenger_summary(text: str) -> str:
+def _challenger_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
 
     weakness_match = re.search(
@@ -271,23 +282,28 @@ def _challenger_summary(text: str) -> str:
     )
     if weakness_match and weakness_match.group(2).strip():
         tail = weakness_match.group(2).strip()
-        parts = _substantive_sentence_list(tail)
+        parts = _substantive_sentence_list(tail, max_count=max_fragments, max_chars=max_chars)
         if parts:
             head = f"The Challenger highlights that {_normalise_fragment(parts[0])}."
             if len(parts) > 1:
-                return head + " " + _join_recap_sentences(parts[1:])
+                return head + " " + _join_recap_sentences(parts[1:], max_chars=max_chars)
             return head
 
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if not parts:
         return "The Challenger highlights trade-offs worth reviewing in the full output."
     head = f"The Challenger highlights that {_normalise_fragment(parts[0])}."
     if len(parts) > 1:
-        return head + " " + _join_recap_sentences(parts[1:])
+        return head + " " + _join_recap_sentences(parts[1:], max_chars=max_chars)
     return head
 
 
-def _judge_summary(text: str) -> str:
+def _judge_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
 
     decision_match = re.search(r"\bdecision\s*[:\-]?\s*(accept|acceptable|revise|reject)\b", clean, flags=re.IGNORECASE)
@@ -311,100 +327,145 @@ def _judge_summary(text: str) -> str:
                 return f"The Judge concludes that the proposal should be rejected because {reason}."
             return "The Judge concludes that the proposal should be rejected."
 
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if parts:
         head = f"The Judge concludes that {_normalise_fragment(parts[0])}."
         if len(parts) > 1:
-            return head + " " + _join_recap_sentences(parts[1:])
+            return head + " " + _join_recap_sentences(parts[1:], max_chars=max_chars)
         return head
     fragment = _pick_first_substantive_sentence(clean)
     return f"The Judge concludes that {_normalise_fragment(fragment)}."
 
 
-def _retrieval_planner_summary(text: str) -> str:
+def _retrieval_planner_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if not parts:
         return "The Retrieval planner produced no substantive handoff text; see verbose output."
-    recap = _join_recap_sentences(parts)
+    recap = _join_recap_sentences(parts, max_chars=max_chars)
     return f"The Retrieval planner: {recap}"
 
 
-def _context_retrieval_summary(text: str) -> str:
+def _context_retrieval_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if not parts:
         return "Context Retrieval returned little text; expand with /verbose on if needed."
-    recap = _join_recap_sentences(parts)
+    recap = _join_recap_sentences(parts, max_chars=max_chars)
     return f"Context Retrieval: {recap}"
 
 
-def _context_synthesizer_summary(text: str) -> str:
+def _context_synthesizer_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if not parts:
         return "Context Synthesizer produced no brief; check verbose output."
-    recap = _join_recap_sentences(parts)
+    recap = _join_recap_sentences(parts, max_chars=max_chars)
     return f"Context Synthesizer: {recap}"
 
 
-def _review_summary(text: str) -> str:
+def _review_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if not parts:
         return "The Review notes points worth reading in the full stage output."
-    recap = _join_recap_sentences(parts)
+    recap = _join_recap_sentences(parts, max_chars=max_chars)
     return f"The Review notes: {recap}"
 
 
-def _operations_summary(text: str) -> str:
+def _operations_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if not parts:
         return "Operations suggests checking the full output for tool and environment detail."
-    recap = _join_recap_sentences(parts)
+    recap = _join_recap_sentences(parts, max_chars=max_chars)
     return f"Operations: {recap}"
 
 
-def _orchestrator_summary(text: str) -> str:
+def _orchestrator_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
     clean = _clean_agent_text(text)
-    parts = _substantive_sentence_list(clean)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
     if not parts:
         return "The Orchestrator recommends reading the full final answer."
-    recap = _join_recap_sentences(parts)
+    recap = _join_recap_sentences(parts, max_chars=max_chars)
     return f"The Orchestrator: {recap}"
 
 
-def _role_led_summary(agent_id: str, body: str, width: int = 100) -> str:
+def _role_led_summary(agent_id: str, body: str, width: int = 100, *, compact: bool = False) -> str:
+    """Plain-text recap for an agent stage.
+
+    Args:
+        agent_id: Registry agent id.
+        body: Raw stage output (may contain Markdown; stripped for recaps).
+        width: Wrap width for terminal display.
+        compact: When True, keep a single substantive fragment and a shorter char budget
+            for ``/verbose off`` panels.
+    """
+    mf = 1 if compact else 4
+    mc = 380 if compact else 1100
     if agent_id in {"design", "design_author", "design_refiner"}:
-        summary = _author_like_summary(agent_id, body) if agent_id != "design_refiner" else _author_like_summary("design_refiner", body)
+        summary = (
+            _author_like_summary(agent_id, body, max_fragments=mf, max_chars=mc)
+            if agent_id != "design_refiner"
+            else _author_like_summary("design_refiner", body, max_fragments=mf, max_chars=mc)
+        )
     elif agent_id == "design_challenger":
-        summary = _challenger_summary(body)
+        summary = _challenger_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "judge":
-        summary = _judge_summary(body)
+        summary = _judge_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "retrieval_planner":
-        summary = _retrieval_planner_summary(body)
+        summary = _retrieval_planner_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "context_retrieval":
-        summary = _context_retrieval_summary(body)
+        summary = _context_retrieval_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "context_synthesizer":
-        summary = _context_synthesizer_summary(body)
+        summary = _context_synthesizer_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "review":
-        summary = _review_summary(body)
+        summary = _review_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "operations":
-        summary = _operations_summary(body)
+        summary = _operations_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "orchestrator":
-        summary = _orchestrator_summary(body)
+        summary = _orchestrator_summary(body, max_fragments=mf, max_chars=mc)
     else:
         clean = _clean_agent_text(body)
-        parts = _substantive_sentence_list(clean)
+        parts = _substantive_sentence_list(clean, max_count=mf, max_chars=mc)
         if parts:
-            recap = _join_recap_sentences(parts)
+            recap = _join_recap_sentences(parts, max_chars=mc)
             summary = f"{_label(agent_id)}: {recap}"
         else:
             summary = f"{_label(agent_id)}: (no recap; use verbose output)"
 
+    max_lines = 4 if compact else 14
     wrapped = textwrap.wrap(summary, width=width, break_long_words=False, break_on_hyphens=False)
-    max_lines = 14
     if len(wrapped) <= max_lines:
         return "\n".join(wrapped)
 
@@ -456,23 +517,25 @@ def print_status_message(body: str, *, title: str | None = None) -> None:
 def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
     """Print one agent stage result in a bordered panel.
 
-    The body is always rendered with Rich ``Markdown`` so lists, headings, code
-    fences, and emphasis stay structured in the terminal—whether or not the user
-    enabled verbose mode elsewhere in the session.
+    With ``/verbose off``, shows one concise sentence-style recap as Markdown
+    (``**Summary:** …``). With ``/verbose on``, renders the full stage body as
+    Markdown so structure is preserved.
 
     Args:
         agent_id: Registry agent identifier for icons and styling.
         body: Stage text (Markdown-friendly) from the model.
-        verbose: Reserved for callers (e.g. pipeline engine); stage panels use the
-            same Markdown rendering regardless so output stays readable with
-            ``/verbose off``.
+        verbose: When True, print the full ``body``; when False, print a generated summary.
     """
-    _ = verbose
     icon = _icon(agent_id)
     label = _label(agent_id)
     style = _style(agent_id)
     title = Text(f"{icon} {label}", style=f"bold {style}")
-    rendered_body = Markdown(body.strip() or "_empty_")
+    if not verbose:
+        recap = _role_led_summary(agent_id, body, compact=True).strip()
+        md = f"**Summary:** {recap}" if recap else "**Summary:** _(empty)_"
+        rendered_body = Markdown(md)
+    else:
+        rendered_body = Markdown(body.strip() or "_empty_")
     console.print(
         Panel(
             rendered_body,

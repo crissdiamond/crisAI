@@ -37,6 +37,20 @@ def test_print_agent_output_verbose_uses_markdown_panel(monkeypatch) -> None:
     assert isinstance(panel.renderable, Markdown)
 
 
+def test_print_agent_output_non_verbose_markdown_is_short_summary_not_full_body(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+
+    long_body = "## Report\n\n" + ("First finding supports the compromise. " * 15)
+    display.print_agent_output("context_synthesizer", long_body, verbose=False)
+
+    panel = captured[0]
+    md = panel.renderable
+    assert isinstance(md, Markdown)
+    assert md.markup.startswith("**Summary:**")
+    assert len(md.markup) < len(long_body) * 0.6
+
+
 def test_print_status_message_keeps_router_literal_text(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
