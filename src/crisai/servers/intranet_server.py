@@ -137,5 +137,30 @@ def intranet_list_page_links(graph_site_id: str, graph_page_id: str) -> list[dic
     return links
 
 
+@mcp.tool()
+def intranet_list_all_pages() -> list[dict[str, Any]]:
+    """Return the complete page catalogue for all configured intranet sites.
+
+    Use this tool for comprehensive, deterministic discovery — it returns every
+    available page regardless of keyword matching, so pages that intranet_search
+    might miss (e.g. hub pages reachable only via navigation) are always included.
+
+    Results are served from an on-disk cache (workspace/.cache/intranet_pages_cache.json)
+    valid for INTRANET_PAGE_CACHE_TTL_HOURS (default 4 h, set in .env or registry/intranet.yaml).
+    A cache miss triggers a full paginated Graph scan across all configured sites.
+
+    Each entry contains: title, web_url, graph_site_id, graph_page_id, site_label.
+    Use graph_site_id + graph_page_id with intranet_fetch to retrieve page content.
+    """
+    log_event("intranet_list_all_pages")
+    try:
+        pages = PROVIDER.list_all_pages()
+    except Exception as exc:
+        log_event(f"intranet_list_all_pages error={exc!r}")
+        raise
+    log_event(f"intranet_list_all_pages done count={len(pages)}")
+    return pages
+
+
 if __name__ == "__main__":
     mcp.run()

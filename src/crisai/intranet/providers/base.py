@@ -36,3 +36,11 @@ class IntranetProvider(Protocol):
 
     def list_page_links(self, graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
         """Return same-host Site Pages URLs linked from a hub or catalogue page."""
+
+    def list_all_pages(self) -> list[dict[str, Any]]:
+        """Return the complete page catalogue for all configured sites.
+
+        Results should be cached by the implementation to avoid repeated Graph
+        API calls.  Each entry must contain at minimum: ``title``, ``web_url``,
+        ``graph_site_id``, ``graph_page_id``, and ``site_label``.
+        """

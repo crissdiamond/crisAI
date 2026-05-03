@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -207,6 +209,7 @@ class SharePointPagesProvider:
             # MCP servers that also use ms_graph.
             ms_graph.configure_workspace(workspace_root, namespace="intranet")
         self._settings = settings
+        self._workspace_root = workspace_root
         # Site resolution is deferred to the first tool call (_ensure_sites).
         # Resolving here would block on interactive auth during server startup,
         # preventing the MCP server from responding to protocol handshakes.
@@ -418,3 +421,84 @@ class SharePointPagesProvider:
                 seen.add(norm)
                 results.append({"web_url": norm, "open_url": norm})
         return results
+
+    # ------------------------------------------------------------------
+    # Full-catalogue listing with on-disk cache
+    # ------------------------------------------------------------------
+
+    def _page_cache_path(self) -> Path | None:
+        """Return the path for the on-disk page catalogue cache, or None if no workspace_root."""
+        if self._workspace_root is None:
+            return None
+        return self._workspace_root / ".cache" / "intranet_pages_cache.json"
+
+    def _load_cached_pages(self) -> list[dict[str, Any]] | None:
+        """Return cached pages if they exist and are within the configured TTL, else None."""
+        path = self._page_cache_path()
+        if path is None or not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            raw_ts = data.get("fetched_at", "")
+            fetched_at = datetime.datetime.fromisoformat(raw_ts)
+            # Ensure comparison is timezone-aware on both sides.
+            if fetched_at.tzinfo is None:
+                fetched_at = fetched_at.replace(tzinfo=datetime.timezone.utc)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            age_hours = (now - fetched_at).total_seconds() / 3600
+            ttl = self._settings.page_cache_ttl_hours
+            if age_hours <= ttl:
+                return list(data.get("pages") or [])
+        except (KeyError, ValueError, OSError):
+            pass
+        return None
+
+    def _save_page_cache(self, pages: list[dict[str, Any]]) -> None:
+        """Persist page catalogue to disk; silently ignores write errors."""
+        path = self._page_cache_path()
+        if path is None:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "ttl_hours": self._settings.page_cache_ttl_hours,
+                "pages": pages,
+            }
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except OSError:
+            pass
+
+    def list_all_pages(self) -> list[dict[str, Any]]:
+        """Return the complete page catalogue for all configured sites.
+
+        Results are served from an on-disk cache (``workspace/.cache/intranet_pages_cache.json``)
+        when the cache is younger than ``page_cache_ttl_hours`` (default 4 h, configurable via
+        ``INTRANET_PAGE_CACHE_TTL_HOURS`` env var or ``registry/intranet.yaml``).  A cache miss
+        triggers a full Graph paginated scan.
+
+        Each returned dict has: ``title``, ``web_url``, ``graph_site_id``, ``graph_page_id``,
+        ``site_label``.
+        """
+        self._ensure_sites()
+
+        cached = self._load_cached_pages()
+        if cached is not None:
+            return cached
+
+        all_pages: list[dict[str, Any]] = []
+        for site in self._sites or []:
+            raw_pages = _fetch_site_pages_paginated(site.graph_site_id, self._timeout)
+            for page in raw_pages:
+                all_pages.append(
+                    {
+                        "title": str(page.get("title") or ""),
+                        "web_url": str(page.get("webUrl") or ""),
+                        "graph_site_id": site.graph_site_id,
+                        "graph_page_id": str(page.get("id") or ""),
+                        "site_label": site.label,
+                    }
+                )
+
+        self._save_page_cache(all_pages)
+        return all_pages

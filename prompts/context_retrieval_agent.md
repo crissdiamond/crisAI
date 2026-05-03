@@ -37,18 +37,18 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
 - **Workspace search:** `search_workspace_text` matches a **literal substring on one line**; long sentences often return nothing. Use **short** queries, scoped `subdir` under `context/...`, or `list_workspace_files` then open candidates. When the user or handoff names a **relative path**, use `read_workspace_file` (text/markdown) or `read_document` (office/pdf) directly.
 - **SharePoint vs OneDrive:** for SharePoint **document libraries** (files: .pptx, .pdf, ...) without OneDrive-only scope, prefer **`search_sharepoint_site_documents`** or site-scoped search after `list_sites`; avoid satisfying those asks with only `list_my_drives` + `search_drive_documents`.
 - **Intranet site pages (not library files):** **`intranet_search`** / **`intranet_fetch`** are for **Site Pages** on the configured intranet. Do **not** treat **`search_sharepoint_site_documents`** results as a substitute when the user asked for the **intranet site** / **portal pages**—that tool searches **libraries**, not the page list.
-  - **Mandatory intranet fetch loop — follow this order for every pattern or page to retrieve:**
-    1. Call `intranet_search` with a targeted query (use the exact pattern name, slug, or key phrase).
-    2. From the search results, **immediately note the `web_url`, `graph_site_id`, and `graph_page_id`** for every candidate page—you will need these for the Link field.
+  - **Deterministic discovery — start here for any broad or open-ended intranet request:**
+    1. Call `intranet_list_all_pages` to get the **complete page catalogue** across all configured sites. This always succeeds regardless of keyword matching and is served from a local cache (TTL 4 h by default).
+    2. Filter the returned list by `title` and `web_url` relevance to the request. Select every candidate page.
+    3. Proceed to the mandatory fetch loop below for all selected candidates.
+  - **Mandatory intranet fetch loop — follow this order for every candidate page:**
+    1. Call `intranet_search` with a targeted query when you need additional candidates beyond the catalogue (use the exact pattern name, slug, or key phrase).
+    2. From search results or the catalogue, **immediately note the `web_url`, `graph_site_id`, and `graph_page_id`** for every candidate page — you will need these for the Link field.
     3. Call `intranet_fetch(graph_site_id, graph_page_id)` for each candidate. This gives the page body.
-    4. If the fetch returns non-empty content: **record the page as a Retrieved Source** using the `web_url` from step 2 as the Link URL and a meaningful extract from the fetch body.
+    4. If the fetch returns non-empty content: **record the page as a Retrieved Source** using the `web_url` as the Link URL and a meaningful extract from the fetch body.
     5. If the fetch fails or returns empty: record the page as a gap with the attempted `web_url`.
   - **After fetching ANY hub or catalogue page, you MUST call `intranet_list_page_links`** on that page to discover child `/SitePages/...` links, even when search already returned results. This is mandatory — search often misses hub pages that are only reachable via link traversal. Fetch each child page that matches an expected pattern name.
   - **Recognising hub/catalogue pages:** any page whose body contains a list of named patterns, links to pattern pages, or navigation items like "Pattern 1", "Pattern 2", "Consumer patterns", "Producer patterns" is a hub page. You MUST call `intranet_list_page_links` on it immediately.
-  - **Known integration entry-points on the EA it-architecture site** — always check these for integration-pattern tasks:
-    - Search query `"integration patterns"` → expect a page at slug `integration-patterns` (lists consumer, producer, and ingestion patterns).
-    - Search query `"integration strategy"` → expect a page at slug `integration-strategy`.
-    - After finding either, call `intranet_list_page_links` to enumerate all linked pattern pages.
   - **Catalogue trap:** a page that lists pattern names only is not sufficient for "which pattern to use" or for **`context_staging/`** pattern artefacts—you must `intranet_fetch` each **detail/leaf** page. See **`prompts/_shared/context-staging.md`**.
   - If a pattern name still cannot be resolved after both search and link traversal, record it as a gap with the queries tried and the outcome.
   - Do not answer from `workspace/context` alone when the user scoped **intranet pages**.
@@ -99,7 +99,7 @@ Use this structure exactly. The intranet source format is mandatory when intrane
 
 1. Understand the user request and the **retrieval handoff** from the retrieval planner (not a repeat of the router line).
 2. When paths are explicit, open them with `read_workspace_file` or `read_document` before relying only on broad search.
-3. For intranet pattern tasks: search for the catalogue/hub page first, fetch it, then immediately call `intranet_list_page_links` to enumerate child pages.
-4. For each expected pattern name: if not found via link traversal, run a targeted `intranet_search` using the exact pattern name.
-5. Call `intranet_fetch` for every candidate page found. Record the `web_url` from the search result before calling fetch.
+3. For intranet tasks: call `intranet_list_all_pages` first to get the full catalogue; filter by relevance. Then for hub/catalogue pages call `intranet_list_page_links` to enumerate child pages.
+4. For each expected pattern name: if not found in the catalogue or via link traversal, run a targeted `intranet_search` using the exact pattern name.
+5. Call `intranet_fetch` for every candidate page found. Record the `web_url` from the catalogue or search result before calling fetch.
 6. Report results using the intranet source format above. Fetched pages go in Retrieved Sources; unfetched or failed pages go in Retrieval Gaps.
