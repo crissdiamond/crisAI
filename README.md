@@ -23,6 +23,8 @@ The aim is to create a personal AI workstation that can retrieve source material
   - `.xlsx`
 - Mermaid diagram generation support
 - SharePoint / OneDrive retrieval via delegated Microsoft Graph access
+- Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools include search, fetch, and hub link following)
+- Optional **architecture context** corpus under `workspace/context/`, with **draft staging** in `workspace/context_staging/` for human review before promotion
 - Multi-agent orchestration with three execution modes:
   - `single`
   - `pipeline`
@@ -76,10 +78,11 @@ crisAI is built around six layers:
    - built and managed by `src/crisai/runtime.py`
 
 6. **Sources**
-   - local workspace
+   - local workspace (including curated `context/` retrieval and draft `context_staging/`)
    - document parser
    - diagram generator
-   - SharePoint / OneDrive via Microsoft Graph
+   - SharePoint / OneDrive documents via Microsoft Graph
+   - SharePoint **site pages** on allowed intranet hosts via the intranet MCP
 
 ---
 
@@ -98,10 +101,15 @@ crisAI/
     agents.yaml
     models.yaml
     policies.yaml
+    intranet.yaml
 
   prompts/
+    TEMPLATE.md
+    README.md
     orchestrator.md
     retrieval_planner_agent.md
+    context_retrieval_agent.md
+    context_synthesizer_agent.md
     design_agent.md
     review_agent.md
     operations_agent.md
@@ -110,6 +118,7 @@ crisAI/
     design_challenger.md
     design_refiner.md
     judge.md
+    _shared/  (snippet library for prompt authors)
 
   src/
     crisai/
@@ -152,6 +161,8 @@ crisAI/
 
   tests/
   workspace/
+    context/          # approved HE architecture corpus (retrieval default)
+    context_staging/  # agent drafts; promote into context/ after review
   logs/
 ```
 
@@ -377,20 +388,20 @@ Runs one selected agent directly.
 ### `pipeline`
 Runs the main structured flow:
 
-1. Discovery
-2. Design
-3. optional Review, when the routing decision says it is needed
-4. Orchestrator
+1. `retrieval_planner` → `context_retrieval` → `context_synthesizer`
+2. `design`
+3. optional `review`, when the routing decision says it is needed
+4. `orchestrator`
 
 ### `peer`
 Runs the peer-style flow:
 
-1. Discovery, when retrieval is needed
-2. Design Author
-3. Challenger
-4. Refiner
-5. Judge
-6. Orchestrator
+1. optional `retrieval_planner` → `context_retrieval`, when retrieval is needed
+2. `design_author`
+3. `design_challenger`
+4. `design_refiner`
+5. `judge`
+6. `orchestrator`
 
 ---
 
@@ -467,10 +478,12 @@ workspace/inputs/
 workspace/reference/
 workspace/outputs/
 workspace/scratch/
+workspace/context/          # approved architecture corpus (see workspace/context/README.md)
+workspace/context_staging/  # drafts for human review before promotion into context/
 workspace/chat_sessions/
 ```
 
-Workspace paths are relative to the workspace root.
+Retrieval agents search **`context/`** by default; **`context_staging/`** is for drafts only until you promote files. Workspace paths are relative to the workspace root.
 
 Correct examples:
 
@@ -496,12 +509,15 @@ The expected flow is:
 1. Microsoft Entra app registration
 2. delegated Microsoft Graph permissions
 3. MSAL token caching
-4. Graph access through `sharepoint_server.py`
+4. Graph access through `sharepoint_server.py` (documents) and, when enabled, `intranet_server.py` (published **site pages** on configured sites)
+
+**Documents** (libraries, drives) use the SharePoint docs MCP. **Modern intranet / Site Pages** (aspx content) use the separate **intranet** MCP so retrieval can search and fetch pages without treating them as generic file search. Configuration, tools (`intranet_search`, `intranet_fetch`, `intranet_list_page_links`, …), and guardrails are described in **DOCUMENTATION.md** (SharePoint / intranet section).
 
 Operational recommendation:
 - check auth status before search
 - expect interactive Microsoft Entra login when cached token is missing or expired
 - prefer predictable auth checks over surprise browser popups during source retrieval
+- for Site Pages and hub-style navigation, use intranet tools—not drive document search—unless you explicitly need library files
 
 ---
 
@@ -522,6 +538,7 @@ logs/workspace_mcp.log
 logs/document_mcp.log
 logs/diagram_mcp.log
 logs/sharepoint_mcp.log
+logs/intranet_mcp.log
 ```
 
 MCP stdio servers write next to the main app log so the **workspace** tree stays for documents and generated artefacts, not server diagnostics.

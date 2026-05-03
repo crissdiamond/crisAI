@@ -17,6 +17,7 @@ crisAI is a local AI workstation for:
 - source inspection
 - diagram generation
 - SharePoint / OneDrive discovery
+- intranet **site page** retrieval on configured SharePoint sites
 - controlled multi-agent critique
 
 It is designed to behave like a practical workstation rather than a black-box chatbot.
@@ -59,7 +60,8 @@ Typical examples:
 - local workspace server
 - document reader server
 - diagram server
-- SharePoint / OneDrive server
+- SharePoint / OneDrive documents server
+- intranet **site pages** server (scoped to `registry/intranet.yaml`; same Graph auth cache as SharePoint)
 
 ### 2.4 Router
 A lightweight heuristic layer that decides which agent or mode is most suitable when you have not explicitly chosen one.
@@ -186,6 +188,8 @@ These are the best first commands because they show you:
 /verbose on
 /verbose off
 ```
+
+With **`/verbose off`** (the usual default for readable transcripts), pipeline and peer **stage output** is shown as **compact Markdown**: short headings, bullets, and recaps rather than dumping full raw model text. Turn **`/verbose on`** when you need the full verbatim stage bodies for debugging.
 
 ### Agent controls
 
@@ -418,7 +422,7 @@ crisAI supports delegated Microsoft Graph access for:
 
 ### Intranet site pages (scoped MCP server)
 
-For **published SharePoint site pages** (modern intranet content), use the separate **`intranet`** MCP server—not a generic web browser. Tools: `intranet_search`, `intranet_fetch`, **`intranet_list_page_links`** (hyperlinks on a page—use on hub/catalog pages to reach child Site Pages), plus `intranet_login` / `intranet_auth_status` (same delegated Microsoft account and token cache as the SharePoint docs server). Search paginates the site page list and scores **webUrl** so slugs like `integration-patterns.aspx` match.
+For **published SharePoint site pages** (modern intranet content), use the separate **`intranet`** MCP server—not a generic web browser. Tools: `intranet_search`, `intranet_fetch`, **`intranet_list_page_links`** (hyperlinks on a page—use on hub/catalog pages to reach child Site Pages), plus `intranet_login` / `intranet_auth_status` (same delegated Microsoft account and token cache as the SharePoint docs server). Search paginates the site page list and scores **webUrl** so slugs like `integration-patterns.aspx` match. Operational logs for hit counts and fetch sizes are written to **`logs/intranet_mcp.log`** (alongside other MCP logs under `CRISAI_LOG_DIR`).
 
 Configuration lives in `registry/intranet.yaml`:
 
@@ -514,7 +518,11 @@ Use `.env.example` as the template for repo-safe configuration.
 
 ## 15. Prompting patterns
 
-### 15.1 Source finding only
+### 15.1 Intranet Site Pages (SharePoint publishing)
+
+For **published site pages** (intranet articles, integration pattern pages, hub catalogues), use **`intranet_search`** / **`intranet_fetch`** (and **`intranet_list_page_links`** on hub or index pages to follow curated links). Do **not** use generic SharePoint **document** search for `.aspx` Site Pages unless you intend library files. Same Microsoft account and token cache as the SharePoint docs server; check **`intranet_auth_status`** first when unsure.
+
+### 15.2 Source finding only
 
 ```text
 Use retrieval_planner only.
@@ -532,25 +540,25 @@ Return the final result as a markdown table with these columns:
 | File name | Path / Location | Last modified | Why relevant |
 ```
 
-### 15.2 Source material + design
+### 15.3 Source material + design
 
 ```text
 Find the most relevant source material on federated data architecture operating models, then draft a one-page HLD skeleton based on the strongest sources.
 ```
 
-### 15.3 Review only
+### 15.4 Review only
 
 ```text
 Use review only. Critique this architecture note, identify weak assumptions, and suggest specific improvements.
 ```
 
-### 15.4 Operations / debugging
+### 15.5 Operations / debugging
 
 ```text
 Use operations only. Investigate why SharePoint discovery is triggering interactive Microsoft Entra login even when a cached token should already exist.
 ```
 
-### 15.5 Peer critique
+### 15.6 Peer critique
 
 ```text
 Use peer mode. Produce a debated and refined architecture recommendation for a registry-driven local AI workstation with controlled MCP access.
