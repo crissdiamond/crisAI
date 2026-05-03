@@ -10,6 +10,7 @@ import crisai.intranet.providers.sharepoint_pages as sharepoint_pages
 from crisai.intranet.providers.sharepoint_pages import (
     SharePointPagesProvider,
     effective_allow_hosts,
+    _sitepage_urls_in_object,
     _strip_html,
 )
 from crisai.intranet.providers.wiki import WikiProvider
@@ -88,6 +89,18 @@ def test_effective_allow_hosts_derived_from_sites() -> None:
 
 def test_strip_html_removes_tags() -> None:
     assert _strip_html("<p>Hello <b>world</b></p>") == "Hello world"
+
+
+def test_sitepage_urls_in_object_finds_embedded_sharepoint_urls() -> None:
+    payload = {
+        "links": [
+            {"url": "https://contoso.sharepoint.com/sites/hr/SitePages/integration-patterns.aspx"},
+        ],
+        "note": "see https://contoso.sharepoint.com/sites/hr/SitePages/detail.aspx too",
+    }
+    urls = _sitepage_urls_in_object(payload)
+    assert "https://contoso.sharepoint.com/sites/hr/SitePages/integration-patterns.aspx" in urls
+    assert "https://contoso.sharepoint.com/sites/hr/SitePages/detail.aspx" in urls
 
 
 def test_wiki_provider_raises() -> None:

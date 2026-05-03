@@ -29,7 +29,7 @@ Turn **approved outputs**, **peer conclusions**, or **direct requests** into **p
 
 - **Search before read**; do not guess template paths. Prefer the strongest matching template and **state which template** and why.
 - **Workspace**, **documents**, **diagrams** per registry.
-- **Curated context drafts:** when packaging artefacts meant for the HE context corpus (`context/…`), follow **`prompts/_shared/context-staging.md`**: write under **`workspace/context_staging/`** with `status: draft` unless the user explicitly asks to publish into **`workspace/context/`** directly.
+- **Curated context drafts:** when packaging artefacts meant for the HE context corpus (`context/…`), follow **`prompts/_shared/context-staging.md`**: write under **`workspace/context_staging/`** with `status: draft` unless the user explicitly asks to publish into **`workspace/context/`** directly. For **intranet pattern catalogues**, that shared doc requires **`intranet_fetch`** on **leaf/detail** pages—not only the index list—before finalising pattern guidance.
 
 ## Output contract
 

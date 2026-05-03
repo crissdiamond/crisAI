@@ -21,6 +21,42 @@ def _hrefs_from_html_fragment(html: str) -> list[str]:
     return [h.strip() for h in out if h.strip()]
 
 
+# Absolute SharePoint Site Pages URLs embedded in web part JSON (Quick Links, embeds, etc.).
+_SP_SITEPAGE_URL_RE = re.compile(
+    r"https://[a-z0-9.-]+\.sharepoint\.com(?:/[^?\s\"'<>]*)?/SitePages/[^?\s\"'<>]+\.aspx",
+    re.IGNORECASE,
+)
+
+
+def _sitepage_urls_in_object(obj: Any, *, max_urls: int = 120, max_nodes: int = 500) -> list[str]:
+    """Walk web part structures and collect Site Pages URLs from any string field."""
+    found: list[str] = []
+    seen_urls: set[str] = set()
+    nodes = [0]
+
+    def walk(o: Any) -> None:
+        if len(found) >= max_urls or nodes[0] >= max_nodes:
+            return
+        nodes[0] += 1
+        if isinstance(o, str):
+            for m in _SP_SITEPAGE_URL_RE.finditer(o):
+                u = m.group(0).rstrip(").,;]")
+                if u not in seen_urls:
+                    seen_urls.add(u)
+                    found.append(u)
+                    if len(found) >= max_urls:
+                        return
+        elif isinstance(o, dict):
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    walk(obj)
+    return found
+
+
 def _strip_html(html: str) -> str:
     """Remove tags and collapse whitespace for model consumption."""
     text = re.sub(r"(?s)<script[^>]*>.*?</script>", " ", html, flags=re.IGNORECASE)
@@ -70,16 +106,20 @@ def _host_of(url: str) -> str | None:
 
 
 def _collect_hrefs_from_canvas(canvas: dict[str, Any] | None) -> list[str]:
-    """Extract raw href targets from text web part HTML on a modern page."""
+    """Extract link targets from canvas: ``href`` attributes plus embedded Site Pages URLs in web part data."""
     if not canvas:
         return []
     hrefs: list[str] = []
     for section in canvas.get("horizontalSections") or []:
         for col in section.get("columns") or []:
             for wp in col.get("webparts") or []:
+                if not isinstance(wp, dict):
+                    continue
                 inner = wp.get("innerHtml")
                 if isinstance(inner, str):
                     hrefs.extend(_hrefs_from_html_fragment(inner))
+                    hrefs.extend(_sitepage_urls_in_object(inner, max_urls=30))
+                hrefs.extend(_sitepage_urls_in_object(wp, max_urls=40))
     return hrefs
 
 
