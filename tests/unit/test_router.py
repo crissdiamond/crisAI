@@ -8,7 +8,7 @@ def test_route_discovery_only_for_source_lookup():
     )
 
     assert decision.mode == "single"
-    assert decision.agent == "discovery"
+    assert decision.agent == "retrieval_planner"
     assert decision.needs_retrieval is True
     assert decision.needs_review is False
 
@@ -20,7 +20,7 @@ def test_route_discovery_for_architecture_site_retrieval_query():
     )
 
     assert decision.mode == "single"
-    assert decision.agent == "discovery"
+    assert decision.agent == "retrieval_planner"
     assert decision.needs_retrieval is True
     assert decision.needs_review is False
 
@@ -32,7 +32,7 @@ def test_route_pipeline_for_source_based_design():
     )
 
     assert decision.mode == "pipeline"
-    assert decision.agent == "discovery"
+    assert decision.agent == "retrieval_planner"
     assert decision.needs_retrieval is True
     assert decision.needs_review is False
 

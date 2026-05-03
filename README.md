@@ -101,7 +101,7 @@ crisAI/
 
   prompts/
     orchestrator.md
-    discovery_agent.md
+    retrieval_planner_agent.md
     design_agent.md
     review_agent.md
     operations_agent.md
@@ -316,7 +316,7 @@ Agents no longer need to hard-code raw provider model strings.
 Assign a logical model reference:
 
 ```yaml
-- id: discovery
+- id: retrieval_planner
   model_ref: openai_fast
 
 - id: judge
@@ -399,7 +399,7 @@ crisAI includes a Phase 1 heuristic router.
 
 Typical behaviour:
 
-- pure retrieval task → `single` + `discovery`
+- pure retrieval task → `single` + `retrieval_planner`
 - retrieval + drafting task → `pipeline`
 - proposal + critique task → `pipeline` with review
 - critique-only task → `single` + `review`
@@ -431,7 +431,7 @@ Inside the interactive CLI:
 /verbose on
 /verbose off
 /agent auto
-/agent discovery
+/agent retrieval_planner
 /agent design
 /agent review
 /agent operations
@@ -500,7 +500,7 @@ The expected flow is:
 Operational recommendation:
 - check auth status before search
 - expect interactive Microsoft Entra login when cached token is missing or expired
-- prefer predictable auth checks over surprise browser popups during discovery
+- prefer predictable auth checks over surprise browser popups during source retrieval
 
 ---
 

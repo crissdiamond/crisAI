@@ -84,7 +84,7 @@ tests/
 - chat-state summary rendering
 
 ### Routing layer
-- retrieval-only prompts still route to discovery
+- retrieval-only prompts still route to `retrieval_planner` (legacy id `discovery` is normalized)
 - mixed retrieval + drafting prompts still route to pipeline
 - review prompts still route to review
 - operations/debug prompts still route to operations

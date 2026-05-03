@@ -31,8 +31,10 @@ def agent_icon(agent_id: str) -> str:
     aid = agent_id.lower()
     if "orchestrator" in aid:
         return "🧭"
-    if "discovery" in aid:
-        return "🔎"
+    if "retrieval_planner" in aid:
+        return "📋"
+    if aid == "discovery":
+        return "📋"
     if "design_author" in aid:
         return "✍"
     if "design_challenger" in aid:
@@ -46,7 +48,9 @@ def agent_icon(agent_id: str) -> str:
     if "judge" in aid:
         return "⚖"
     if "operations" in aid:
-        return "🖧"
+        return "🔧"
+    if "publisher" in aid:
+        return "📦"
     return "🧠"
 
 

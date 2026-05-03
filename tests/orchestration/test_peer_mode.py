@@ -41,10 +41,10 @@ class FakeRuntimeManager:
 def fake_specs():
     server_specs = {"workspace": types.SimpleNamespace(id="workspace")}
     agent_specs = {
-        "discovery": AgentSpec(
-            id="discovery",
-            name="Discovery",
-            prompt_file="prompts/discovery.md",
+        "retrieval_planner": AgentSpec(
+            id="retrieval_planner",
+            name="Retrieval Planner",
+            prompt_file="prompts/retrieval_planner_agent.md",
             allowed_servers=["workspace"],
         ),
         "context_retrieval": AgentSpec(
@@ -101,7 +101,7 @@ def patch_peer_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "MultiServerContext", DummyAsyncContext)
     monkeypatch.setattr(pipelines, "append_trace", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "print_agent_output", lambda *args, **kwargs: None)
-    monkeypatch.setattr(pipelines, "build_discovery_prompt", lambda message: f"DISCOVERY::{message}")
+    monkeypatch.setattr(pipelines, "build_retrieval_planner_prompt", lambda message: f"RETRIEVAL_PLANNER::{message}")
     monkeypatch.setattr(pipelines, "build_author_prompt", lambda message, discovery: f"AUTHOR::{message}")
     monkeypatch.setattr(pipelines, "build_challenger_prompt", lambda message, discovery, author: f"CHALLENGER::{message}")
     monkeypatch.setattr(pipelines, "build_refiner_prompt", lambda message, discovery, author, challenger: f"REFINER::{message}")
@@ -133,7 +133,7 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
     )
 
     assert calls == [
-        "discovery",
+        "retrieval_planner",
         "context_retrieval",
         "design_author",
         "design_challenger",
@@ -168,7 +168,7 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
     )
 
     assert calls == [
-        "discovery",
+        "retrieval_planner",
         "context_retrieval",
         "design_author",
         "design_challenger",
@@ -180,7 +180,7 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
 
 
 @pytest.mark.anyio
-async def test_peer_mode_skips_discovery_when_retrieval_not_needed(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
+async def test_peer_mode_skips_retrieval_planner_when_retrieval_not_needed(monkeypatch, fake_specs, fake_settings, patch_peer_runtime):
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
@@ -222,7 +222,7 @@ def test_build_peer_run_result_contains_expected_speakers() -> None:
         final_text="Final answer",
     )
     assert peer_speakers(run_result.transcript) == [
-        "discovery",
+        "retrieval_planner",
         "design_author",
         "design_challenger",
         "design_refiner",

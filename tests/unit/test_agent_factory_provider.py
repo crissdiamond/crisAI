@@ -25,8 +25,8 @@ def test_build_agent_uses_resolved_runtime_model(tmp_path: Path, monkeypatch):
         tmp_path,
         model_specs=[ModelSpec(id='openai_fast', provider='openai', model_name='gpt-5.4-mini', api_key_env='OPENAI_API_KEY')],
     )
-    spec = AgentSpec(id='discovery', name='Discovery', prompt_file='prompts/x.md', allowed_servers=[], model_ref='openai_fast')
+    spec = AgentSpec(id='retrieval_planner', name='Retrieval Planner', prompt_file='prompts/x.md', allowed_servers=[], model_ref='openai_fast')
     factory.build_agent(spec, mcp_servers=[])
 
     assert captured['model'] == 'gpt-5.4-mini'
-    assert captured['name'] == 'Discovery'
+    assert captured['name'] == 'Retrieval Planner'

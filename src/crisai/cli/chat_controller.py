@@ -12,6 +12,7 @@ from crisai.cli.status_views import (
     print_session_history,
 )
 from crisai.cli.text_loader import load_cli_text
+from crisai.orchestration.router import normalize_agent_id
 
 
 @dataclass
@@ -108,7 +109,7 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
                 title="🤖 Agent selection",
             )
         else:
-            state.current_agent = value
+            state.current_agent = normalize_agent_id(value) or value
             state.agent_pinned = True
             print_status_message(
                 f"Single-agent target pinned to {state.current_agent}",

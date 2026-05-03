@@ -225,7 +225,7 @@ def _expected_flow_tabs(decision: Any) -> list[dict[str, str]]:
     if mode == "pipeline":
         tabs.extend(
             [
-                {"key": "discovery", "label": "discovery"},
+                {"key": "retrieval_planner", "label": "retrieval_planner"},
                 {"key": "context_retrieval", "label": "context_retrieval"},
                 {"key": "context_synthesizer", "label": "context_synthesizer"},
                 {"key": "design", "label": "design"},
@@ -236,7 +236,7 @@ def _expected_flow_tabs(decision: Any) -> list[dict[str, str]]:
         tabs.append({"key": "orchestrator", "label": "orchestrator"})
     elif mode == "peer":
         if needs_retrieval:
-            tabs.append({"key": "discovery", "label": "discovery"})
+            tabs.append({"key": "retrieval_planner", "label": "retrieval_planner"})
             tabs.append({"key": "context_retrieval", "label": "context_retrieval"})
         tabs.extend(
             [

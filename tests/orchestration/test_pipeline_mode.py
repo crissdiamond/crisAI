@@ -44,7 +44,12 @@ def fake_specs():
         "document": types.SimpleNamespace(id="document"),
     }
     agent_specs = {
-        "discovery": AgentSpec(id="discovery", name="Discovery", prompt_file="prompts/discovery.md", allowed_servers=[]),
+        "retrieval_planner": AgentSpec(
+            id="retrieval_planner",
+            name="Retrieval Planner",
+            prompt_file="prompts/retrieval_planner_agent.md",
+            allowed_servers=[],
+        ),
         "context_retrieval": AgentSpec(
             id="context_retrieval",
             name="Context Retrieval",
@@ -93,7 +98,7 @@ def patch_pipeline_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "MultiServerContext", DummyAsyncContext)
     monkeypatch.setattr(pipelines, "append_trace", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "print_agent_output", lambda *args, **kwargs: None)
-    monkeypatch.setattr(pipelines, "build_discovery_prompt", lambda message: f"DISCOVERY::{message}")
+    monkeypatch.setattr(pipelines, "build_retrieval_planner_prompt", lambda message: f"RETRIEVAL_PLANNER::{message}")
     monkeypatch.setattr(
         pipelines,
         "build_context_synthesizer_prompt",
@@ -161,7 +166,7 @@ async def test_pipeline_runs_expected_stage_order_when_review_off(monkeypatch, f
     )
 
     assert calls == [
-        "discovery",
+        "retrieval_planner",
         "context_retrieval",
         "context_synthesizer",
         "design",
@@ -191,7 +196,7 @@ async def test_pipeline_runs_expected_stage_order_when_review_on(monkeypatch, fa
     )
 
     assert calls == [
-        "discovery",
+        "retrieval_planner",
         "context_retrieval",
         "context_synthesizer",
         "design",

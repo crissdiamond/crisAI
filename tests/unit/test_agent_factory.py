@@ -20,7 +20,7 @@ def test_load_prompt_reads_prompt_file(tmp_path: Path) -> None:
 def test_build_agent_uses_spec_and_loaded_prompt(monkeypatch, tmp_path: Path) -> None:
     prompts_dir = tmp_path / "prompts"
     prompts_dir.mkdir()
-    (prompts_dir / "discovery.md").write_text("Discovery instructions", encoding="utf-8")
+    (prompts_dir / "retrieval_planner_agent.md").write_text("Retrieval planner instructions", encoding="utf-8")
 
     captured: dict[str, object] = {}
 
@@ -32,16 +32,16 @@ def test_build_agent_uses_spec_and_loaded_prompt(monkeypatch, tmp_path: Path) ->
 
     factory = AgentFactory(tmp_path)
     spec = AgentSpec(
-        id="discovery",
-        name="Discovery",
+        id="retrieval_planner",
+        name="Retrieval Planner",
         model="gpt-test",
-        prompt_file="prompts/discovery.md",
+        prompt_file="prompts/retrieval_planner_agent.md",
         allowed_servers=["workspace"],
     )
 
     agent = factory.build_agent(spec, mcp_servers=["srv-1"])
     assert isinstance(agent, FakeAgent)
-    assert captured["name"] == "Discovery"
-    assert captured["instructions"] == "Discovery instructions"
+    assert captured["name"] == "Retrieval Planner"
+    assert captured["instructions"] == "Retrieval planner instructions"
     assert captured["model"] == "gpt-test"
     assert captured["mcp_servers"] == ["srv-1"]

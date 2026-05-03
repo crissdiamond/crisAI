@@ -20,10 +20,10 @@ def test_append_peer_message_skips_empty_content() -> None:
 
 def test_peer_speakers_returns_transcript_order() -> None:
     transcript: list[PeerMessage] = []
-    append_peer_message(transcript, "discovery", "Found three docs")
+    append_peer_message(transcript, "retrieval_planner", "Found three docs")
     append_peer_message(transcript, "design_author", "Drafted proposal")
     append_peer_message(transcript, "judge", "Looks good")
-    assert peer_speakers(transcript) == ["discovery", "design_author", "judge"]
+    assert peer_speakers(transcript) == ["retrieval_planner", "design_author", "judge"]
 
 
 def test_peer_run_result_holds_final_text_and_transcript() -> None:

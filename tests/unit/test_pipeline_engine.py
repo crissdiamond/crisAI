@@ -40,7 +40,7 @@ def engine_fixture():
 
     environment = SimpleNamespace(factory=FakeFactory())
     server_specs = {"workspace": object(), "document": object()}
-    discovery_spec = SimpleNamespace(id="discovery", allowed_servers=["document"])
+    retrieval_planner_spec = SimpleNamespace(id="retrieval_planner", allowed_servers=["document"])
 
     def server_context_factory(environment_arg, agent_specs_arg, server_specs_arg):
         context_calls.append((environment_arg, list(agent_specs_arg), server_specs_arg))
@@ -69,7 +69,7 @@ def engine_fixture():
         engine=engine,
         environment=environment,
         server_specs=server_specs,
-        discovery_spec=discovery_spec,
+        retrieval_planner_spec=retrieval_planner_spec,
         active_servers=active_servers,
         lifecycle_events=lifecycle_events,
         trace_calls=trace_calls,
@@ -84,67 +84,67 @@ def engine_fixture():
 async def test_workflow_engine_opens_and_closes_shared_server_context(engine_fixture):
     fixture = engine_fixture
 
-    async with fixture.engine.session([fixture.discovery_spec]) as workflow:
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
         result = await workflow.run_stage(
-            spec=fixture.discovery_spec,
-            ui_agent_id="discovery",
+            spec=fixture.retrieval_planner_spec,
+            ui_agent_id="retrieval_planner",
             prompt="find context",
-            trace_label="DISCOVERY OUTPUT",
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
             verbose=False,
         )
 
-    assert result == "discovery::find context"
+    assert result == "retrieval_planner::find context"
     assert fixture.lifecycle_events == ["enter", "exit"]
     assert fixture.context_calls == [
         (
             fixture.environment,
-            [fixture.discovery_spec],
+            [fixture.retrieval_planner_spec],
             fixture.server_specs,
         )
     ]
-    assert fixture.build_calls == [("discovery", fixture.active_servers)]
-    assert fixture.runner_calls == [("discovery", "discovery", "find context")]
+    assert fixture.build_calls == [("retrieval_planner", fixture.active_servers)]
+    assert fixture.runner_calls == [("retrieval_planner", "retrieval_planner", "find context")]
 
 
 @pytest.mark.anyio
 async def test_workflow_session_traces_stage_lifecycle_and_prints_output(engine_fixture):
     fixture = engine_fixture
 
-    async with fixture.engine.session([fixture.discovery_spec]) as workflow:
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
         result = await workflow.run_stage(
-            spec=fixture.discovery_spec,
-            ui_agent_id="discovery",
+            spec=fixture.retrieval_planner_spec,
+            ui_agent_id="retrieval_planner",
             prompt="find context",
-            trace_label="DISCOVERY OUTPUT",
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
             verbose=True,
         )
 
-    assert result == "discovery::find context"
+    assert result == "retrieval_planner::find context"
     assert fixture.trace_calls == [
         (
-            "DISCOVERY OUTPUT_START",
-            "Starting stage for discovery.",
-            {"event_type": "stage_start", "agent_id": "discovery", "metadata": None},
+            "RETRIEVAL_PLANNER OUTPUT_START",
+            "Starting stage for retrieval_planner.",
+            {"event_type": "stage_start", "agent_id": "retrieval_planner", "metadata": None},
         ),
         (
-            "DISCOVERY OUTPUT",
-            "discovery::find context",
-            {"event_type": "stage_output", "agent_id": "discovery", "metadata": None},
+            "RETRIEVAL_PLANNER OUTPUT",
+            "retrieval_planner::find context",
+            {"event_type": "stage_output", "agent_id": "retrieval_planner", "metadata": None},
         ),
         (
-            "DISCOVERY OUTPUT_END",
-            "Completed stage for discovery.",
-            {"event_type": "stage_end", "agent_id": "discovery", "metadata": None},
+            "RETRIEVAL_PLANNER OUTPUT_END",
+            "Completed stage for retrieval_planner.",
+            {"event_type": "stage_end", "agent_id": "retrieval_planner", "metadata": None},
         ),
     ]
-    assert fixture.output_calls == [("discovery", "discovery::find context", True)]
+    assert fixture.output_calls == [("retrieval_planner", "retrieval_planner::find context", True)]
 
 
 @pytest.mark.anyio
 async def test_workflow_session_records_workflow_events_and_skipped_stages(engine_fixture):
     fixture = engine_fixture
 
-    async with fixture.engine.session([fixture.discovery_spec]) as workflow:
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
         workflow.start_workflow("Starting pipeline workflow.", metadata={"mode": "pipeline"})
         workflow.trace_user_input("hello")
         skipped_message = workflow.skip_stage(
@@ -153,10 +153,10 @@ async def test_workflow_session_records_workflow_events_and_skipped_stages(engin
             agent_id="review",
         )
         await workflow.run_stage(
-            spec=fixture.discovery_spec,
-            ui_agent_id="discovery",
+            spec=fixture.retrieval_planner_spec,
+            ui_agent_id="retrieval_planner",
             prompt="find context",
-            trace_label="DISCOVERY OUTPUT",
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
             verbose=False,
             print_output=False,
         )

@@ -43,7 +43,7 @@ crisAI has five main moving parts:
 
 ### 2.2 Agents
 Specialist reasoning roles such as:
-- `discovery`
+- `retrieval_planner`
 - `context_retrieval`
 - `context_synthesizer`
 - `design`
@@ -78,7 +78,7 @@ Instead:
 - the runtime resolves the correct provider-specific model for each agent
 
 This allows examples such as:
-- `discovery` → OpenAI
+- `retrieval_planner` → OpenAI
 - `judge` → Gemini
 - `design_challenger` → Anthropic
 
@@ -191,7 +191,7 @@ These are the best first commands because they show you:
 
 ```text
 /agent auto
-/agent discovery
+/agent retrieval_planner
 /agent design
 /agent review
 /agent operations
@@ -249,7 +249,7 @@ Meaning:
 Use one agent directly.
 
 Best for:
-- pure discovery
+- pure source lookup (finding documents only)
 - direct design drafting
 - review only
 - operations/debug
@@ -258,7 +258,7 @@ Best for:
 Structured flow:
 
 ```text
-discovery -> context_retrieval -> context_synthesizer -> design -> optional review -> orchestrator
+retrieval_planner -> context_retrieval -> context_synthesizer -> design -> optional review -> orchestrator
 ```
 
 Best for:
@@ -270,12 +270,12 @@ Best for:
 Collaborative critique flow:
 
 ```text
-optional discovery -> optional context_retrieval -> design_author -> design_challenger -> design_refiner -> judge -> orchestrator
+optional retrieval_planner -> optional context_retrieval -> design_author -> design_challenger -> design_refiner -> judge -> orchestrator
 ```
 
 Notes:
-- `discovery` and `context_retrieval` can be skipped when retrieval is not needed for the peer task.
-- when retrieval is needed, `context_retrieval` can run after discovery to provide a stronger evidence basis for peer stages.
+- `retrieval_planner` and `context_retrieval` can be skipped when retrieval is not needed for the peer task.
+- when retrieval is needed, `context_retrieval` runs after the retrieval planner to provide a stronger evidence basis for peer stages.
 
 Best for:
 - debated design work
@@ -289,8 +289,8 @@ Best for:
 ### `orchestrator`
 General coordinator and safe fallback.
 
-### `discovery`
-The retrieval and source-finding specialist.
+### `retrieval_planner`
+Plans a compact retrieval handoff (search angles, paths, constraints) before **Context Retrieval** fetches sources. Does not retrieve documents itself.
 
 ### `context_retrieval`
 The evidence retrieval specialist for local context chunks and source-grounded extracts.
@@ -329,7 +329,7 @@ Its purpose is simple:
 
 | Prompt type | Likely route |
 |---|---|
-| Find documents only | `single` + `discovery` |
+| Find documents only | `single` + `retrieval_planner` |
 | Find documents and draft a note | `pipeline` |
 | Propose and critique a design | `pipeline` with review |
 | Review this draft | `single` + `review` |
@@ -348,7 +348,7 @@ A default startup state should **not** count as a user-explicit mode selection.
 You may see messages such as:
 
 ```text
-[router:auto] single • discovery • review:off • retrieval:on • Prompt primarily asks for finding or inspecting sources.
+[router:auto] single • retrieval_planner • review:off • retrieval:on • Prompt primarily asks for finding or inspecting sources.
 ```
 
 Or:
@@ -455,7 +455,7 @@ crisAI now supports provider-aware model assignment.
 
 ```yaml
 agents:
-  - id: discovery
+  - id: retrieval_planner
     model_ref: openai_fast
 
   - id: judge
@@ -500,10 +500,10 @@ Use `.env.example` as the template for repo-safe configuration.
 
 ## 15. Prompting patterns
 
-### 15.1 Discovery only
+### 15.1 Source finding only
 
 ```text
-Use discovery only.
+Use retrieval_planner only.
 
 Search my personal OneDrive, not SharePoint sites, and find all documents related to the integration strategy.
 
@@ -518,7 +518,7 @@ Return the final result as a markdown table with these columns:
 | File name | Path / Location | Last modified | Why relevant |
 ```
 
-### 15.2 Discovery + design
+### 15.2 Source material + design
 
 ```text
 Find the most relevant source material on federated data architecture operating models, then draft a one-page HLD skeleton based on the strongest sources.
@@ -552,7 +552,7 @@ A good way to use crisAI in practice:
 2. check `/list servers`
 3. check `/list agents`
 4. begin in an unpinned state when possible
-5. use `discovery` for source finding
+5. use `retrieval_planner` for source finding
 6. use `design` when you want drafting
 7. let review follow the routing decision unless you have a reason to pin behaviour
 8. use `peer` for more serious challenge and refinement

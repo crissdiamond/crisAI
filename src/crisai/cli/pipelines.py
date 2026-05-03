@@ -27,8 +27,8 @@ from .prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
     build_design_prompt,
-    build_discovery_prompt,
-    build_single_discovery_prompt,
+    build_retrieval_planner_prompt,
+    build_single_retrieval_planner_prompt,
     build_context_retrieval_prompt,
     build_judge_prompt,
     build_peer_final_prompt,
@@ -158,8 +158,8 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
 def build_context_synthesizer_prompt(message: str, discovery_text: str) -> str:
     """Build a grounded prompt for the context synthesizer agent.
 
-    The context_synthesizer stage is intentionally separate from both discovery
-    and design: discovery identifies candidate source material, while
+    The context_synthesizer stage is intentionally separate from both the retrieval
+    planner and design: context_retrieval fetches sources from the planner handoff, while
     context_synthesizer converts that material into an evidence-led brief that a
     downstream design agent can use.
 
@@ -355,7 +355,9 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
             metadata={"mode": "single", "agent_id": agent_id},
         )
         agent = environment.factory.build_agent(agent_spec, active_servers)
-        prompt = build_single_discovery_prompt(message) if agent_id == "discovery" else message
+        prompt = (
+            build_single_retrieval_planner_prompt(message) if agent_id == "retrieval_planner" else message
+        )
         result = await _run_agent_silently(agent, prompt)
         _append_trace_compat(
             environment.trace_file,
@@ -378,7 +380,7 @@ async def run_pipeline(
     agent_specs,
     model_specs=None,
 ) -> str:
-    """Run the standard discovery → context_retrieval → context_synthesizer → design pipeline."""
+    """Run the standard retrieval_planner → context_retrieval → context_synthesizer → design pipeline."""
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
 
@@ -386,7 +388,7 @@ async def run_pipeline(
 
     specs = resolve_required_agents(
         agent_specs,
-        ["discovery", "context_retrieval", "context_synthesizer", "design", "review", "orchestrator"],
+        ["retrieval_planner", "context_retrieval", "context_synthesizer", "design", "review", "orchestrator"],
         mode_name="Pipeline mode",
     )
 
@@ -399,18 +401,18 @@ async def run_pipeline(
         )
         workflow.trace_user_input(message)
 
-        discovery_text = await workflow.run_stage(
-            spec=specs["discovery"],
-            ui_agent_id="discovery",
-            prompt=build_discovery_prompt(message),
-            trace_label="DISCOVERY OUTPUT",
+        retrieval_plan_text = await workflow.run_stage(
+            spec=specs["retrieval_planner"],
+            ui_agent_id="retrieval_planner",
+            prompt=build_retrieval_planner_prompt(message),
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
             verbose=verbose,
         )
 
         context_retrieval_text = await workflow.run_stage(
             spec=specs["context_retrieval"],
             ui_agent_id="context_retrieval",
-            prompt=build_context_retrieval_prompt(message, discovery_text),
+            prompt=build_context_retrieval_prompt(message, retrieval_plan_text),
             trace_label="CONTEXT RETRIEVAL OUTPUT",
             verbose=verbose,
         )
@@ -489,7 +491,7 @@ async def run_peer_pipeline(
         "orchestrator",
     ]
     if needs_retrieval:
-        required_agents.insert(0, "discovery")
+        required_agents.insert(0, "retrieval_planner")
     if use_context_retrieval:
         required_agents.insert(1, "context_retrieval")
 
@@ -508,21 +510,21 @@ async def run_peer_pipeline(
         )
         workflow.trace_user_input(message)
 
-        discovery_text = ""
+        retrieval_plan_text = ""
         context_retrieval_text = ""
         if needs_retrieval:
-            discovery_text = await workflow.run_stage(
-                spec=specs["discovery"],
-                ui_agent_id="discovery",
-                prompt=build_discovery_prompt(message),
-                trace_label="DISCOVERY OUTPUT",
+            retrieval_plan_text = await workflow.run_stage(
+                spec=specs["retrieval_planner"],
+                ui_agent_id="retrieval_planner",
+                prompt=build_retrieval_planner_prompt(message),
+                trace_label="RETRIEVAL_PLANNER OUTPUT",
                 verbose=verbose,
             )
             if use_context_retrieval:
                 context_retrieval_text = await workflow.run_stage(
                     spec=specs["context_retrieval"],
                     ui_agent_id="context_retrieval",
-                    prompt=build_context_retrieval_prompt(message, discovery_text),
+                    prompt=build_context_retrieval_prompt(message, retrieval_plan_text),
                     trace_label="CONTEXT RETRIEVAL OUTPUT",
                     verbose=verbose,
                 )
@@ -534,9 +536,9 @@ async def run_peer_pipeline(
                 )
         else:
             workflow.skip_stage(
-                "DISCOVERY OUTPUT",
-                "Discovery skipped because this peer task does not require retrieval.",
-                agent_id="discovery",
+                "RETRIEVAL_PLANNER OUTPUT",
+                "Retrieval planner skipped because this peer task does not require retrieval.",
+                agent_id="retrieval_planner",
             )
             workflow.skip_stage(
                 "CONTEXT RETRIEVAL OUTPUT",
@@ -544,7 +546,7 @@ async def run_peer_pipeline(
                 agent_id="context_retrieval",
             )
 
-        discovery_basis = context_retrieval_text or discovery_text or "None."
+        discovery_basis = context_retrieval_text or retrieval_plan_text or "None."
 
         author_text = await workflow.run_stage(
             spec=specs["design_author"],
@@ -606,7 +608,7 @@ def build_peer_run_result(
     final_text: str,
 ) -> PeerRunResult:
     transcript = []
-    append_peer_message(transcript, "discovery", discovery_text)
+    append_peer_message(transcript, "retrieval_planner", discovery_text)
     append_peer_message(transcript, "design_author", author_text)
     append_peer_message(transcript, "design_challenger", challenger_text)
     append_peer_message(transcript, "design_refiner", refiner_text)

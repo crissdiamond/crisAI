@@ -3,9 +3,12 @@ from crisai.cli.status_views import route_display
 from crisai.orchestration.router import RoutingDecision
 
 
-def test_role_led_summary_for_discovery_is_plain_language():
-    summary = _role_led_summary("discovery", "Found three relevant documents about the integration strategy and the newest one is the best match.")
-    assert summary.startswith("Discovery finds that")
+def test_role_led_summary_for_retrieval_planner_is_plain_language():
+    summary = _role_led_summary(
+        "retrieval_planner",
+        "Search OneDrive under /Projects/Integration for the latest strategy memo and the constraints doc.",
+    )
+    assert summary.startswith("The Retrieval planner outlines that")
 
 
 def test_role_led_summary_for_review_is_plain_language():

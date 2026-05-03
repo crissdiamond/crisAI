@@ -123,7 +123,7 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
 
     assert result == "orchestrator-output"
     assert [name for name, _ in stage_calls] == [
-        "discovery",
+        "retrieval_planner",
         "context_retrieval",
         "context_synthesizer",
         "design",
@@ -138,7 +138,7 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
 
 
 @pytest.mark.anyio
-async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monkeypatch, tmp_path):
+async def test_run_peer_pipeline_skips_retrieval_planner_when_retrieval_not_needed(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
     stage_calls: list[tuple[str, str]] = []
     session = FakeWorkflowSession(trace_calls, stage_calls, "Final recommendation\nKeep it simple.")
@@ -183,7 +183,7 @@ async def test_run_peer_pipeline_skips_discovery_when_retrieval_not_needed(monke
     assert trace_calls == [
         ("WORKFLOW_START", "Starting peer workflow."),
         ("USER INPUT", "hello"),
-        ("DISCOVERY OUTPUT", "Discovery skipped because this peer task does not require retrieval."),
+        ("RETRIEVAL_PLANNER OUTPUT", "Retrieval planner skipped because this peer task does not require retrieval."),
         ("CONTEXT RETRIEVAL OUTPUT", "Context retrieval skipped because this peer task does not require retrieval."),
         ("WORKFLOW_END", "Peer workflow completed."),
     ]
@@ -204,7 +204,7 @@ async def test_run_single_raises_for_unknown_agent(monkeypatch, tmp_path):
 
 
 @pytest.mark.anyio
-async def test_run_single_discovery_uses_retrieval_execution_prompt(monkeypatch, tmp_path):
+async def test_run_single_retrieval_planner_uses_retrieval_execution_prompt(monkeypatch, tmp_path):
     captured_prompt = None
 
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
@@ -232,10 +232,10 @@ async def test_run_single_discovery_uses_retrieval_execution_prompt(monkeypatch,
 
     result = await pipelines.run_single(
         "Find files in my OneDrive related to integration strategy.",
-        "discovery",
+        "retrieval_planner",
         settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
         server_specs={},
-        agent_specs={"discovery": SimpleNamespace(id="discovery", allowed_servers=[])},
+        agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
     )
 
     assert result == "ok"

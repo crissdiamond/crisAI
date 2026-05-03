@@ -29,7 +29,7 @@
 
 ```text
 /agent auto
-/agent discovery
+/agent retrieval_planner
 /agent design
 /agent review
 /agent operations
@@ -67,7 +67,7 @@ crisAI shows the current session state in chat, including:
 You may see output such as:
 
 ```text
-[router:auto] single • discovery • review:off • retrieval:on • Prompt primarily asks for finding or inspecting sources.
+[router:auto] single • retrieval_planner • review:off • retrieval:on • Prompt primarily asks for finding or inspecting sources.
 ```
 
 or:

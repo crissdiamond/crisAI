@@ -12,6 +12,21 @@ class RoutingDecision:
     reason: str
 
 
+# Pins and saved sessions may still use the pre-rename agent id.
+_LEGACY_AGENT_ALIASES = {"discovery": "retrieval_planner"}
+
+
+def _normalize_explicit_agent(agent_id: str | None) -> str | None:
+    if agent_id is None:
+        return None
+    return _LEGACY_AGENT_ALIASES.get(agent_id, agent_id)
+
+
+def normalize_agent_id(agent_id: str | None) -> str | None:
+    """Return the registry agent id, mapping legacy ids (e.g. ``discovery``)."""
+    return _normalize_explicit_agent(agent_id)
+
+
 DISCOVERY_TERMS = {
     "find", "search", "locate", "identify", "list",
     "documents", "document", "docs", "sources", "files", "inspect", "onedrive",
@@ -189,7 +204,7 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
         return RoutingDecision(
             intent="discovery",
             mode="single",
-            agent="discovery",
+            agent="retrieval_planner",
             needs_retrieval=True,
             needs_review=False,
             confidence=0.99,
@@ -253,7 +268,7 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
         return RoutingDecision(
             intent="discovery_design",
             mode="pipeline",
-            agent="discovery",
+            agent="retrieval_planner",
             needs_retrieval=True,
             needs_review=review_enabled or has_review_signal,
             confidence=0.89,
@@ -297,7 +312,7 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
         return RoutingDecision(
             intent="discovery",
             mode="single",
-            agent="discovery",
+            agent="retrieval_planner",
             needs_retrieval=True,
             needs_review=False,
             confidence=0.82,
@@ -327,7 +342,7 @@ def _apply_explicit_overrides(
             intent="explicit",
             mode="single",
             agent=selected_agent,
-            needs_retrieval=selected_agent in {"discovery", "publisher"},
+            needs_retrieval=selected_agent in {"retrieval_planner", "publisher"},
             needs_review=selected_agent == "review",
             confidence=1.0,
             reason="Agent explicitly selected by user.",
@@ -351,7 +366,7 @@ def _apply_explicit_overrides(
         return RoutingDecision(
             intent="explicit",
             mode="pipeline",
-            agent=base.agent if base.agent in {"discovery", "design"} else "design",
+            agent=base.agent if base.agent in {"retrieval_planner", "design"} else "design",
             needs_retrieval=base.needs_retrieval,
             needs_review=review_enabled or base.needs_review,
             confidence=1.0,
@@ -362,7 +377,7 @@ def _apply_explicit_overrides(
         intent="explicit",
         mode="single",
         agent=base.agent,
-        needs_retrieval=base.agent in {"discovery", "publisher"},
+        needs_retrieval=base.agent in {"retrieval_planner", "publisher"},
         needs_review=base.agent == "review",
         confidence=1.0,
         reason="Mode explicitly set to single by user.",
@@ -380,6 +395,6 @@ def decide_route(
     return _apply_explicit_overrides(
         base,
         current_mode=current_mode,
-        selected_agent=selected_agent,
+        selected_agent=_normalize_explicit_agent(selected_agent),
         review_enabled=review_enabled,
     )

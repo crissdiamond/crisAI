@@ -20,7 +20,7 @@ Use the same `##` headings so humans can skim any file predictably.
 
 ## Naming files
 
-- Prefer **`prompts/{registry_id}_agent.md`** for role agents (e.g. `discovery_agent.md`).
+- Prefer **`prompts/{registry_id}_agent.md`** for role agents (e.g. `retrieval_planner_agent.md`).
 - Short ids may use **`prompts/{registry_id}.md`** when it reads naturally (`orchestrator.md`, `judge.md`, `publisher.md`).
 - The **registry `id`** and the **Identity** section must agree (e.g. `context_synthesizer` → `context_synthesizer_agent.md`).
 

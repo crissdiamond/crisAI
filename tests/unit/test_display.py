@@ -27,6 +27,6 @@ def test_print_status_message_keeps_router_literal_text(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
 
-    display.print_status_message("router:auto • pipeline • discovery", title="🧭 Routing decision")
+    display.print_status_message("router:auto • pipeline • retrieval_planner", title="🧭 Routing decision")
 
     assert len(captured) == 1

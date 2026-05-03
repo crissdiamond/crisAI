@@ -53,6 +53,7 @@ _EXPLICIT_MODE_PATTERNS: dict[str, tuple[str, ...]] = {
         r"\buse\s+pipeline\s+mode\b",
         r"\brun\s+the\s+pipeline\b",
         r"\bdiscovery\b.*\bdesign\b.*\breview\b.*\borchestrator\b",
+        r"\bretrieval\s+planner\b.*\bdesign\b.*\breview\b.*\borchestrator\b",
     ),
     "single": (
         r"\buse\s+single\s+mode\b",
@@ -136,7 +137,7 @@ def _detect_explicit_mode(user_input: str) -> str | None:
 
 
 def _should_disable_peer_retrieval(user_input: str, explicit_mode: str | None, decision: RoutingDecision) -> bool:
-    """Return whether discovery should be skipped for a peer design task.
+    """Return whether retrieval stages should be skipped for a peer design task.
 
     For generation-first peer requests, retrieval can bias the entire workflow
     toward stale workspace artefacts. This override only applies when the user
@@ -397,8 +398,8 @@ async def _run_with_routing(
 def ask(
     message: str = typer.Option(..., "--message", "-m"),
     agent_id: str = typer.Option("orchestrator", "--agent"),
-    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible discovery/design/review/orchestrator pipeline."),
-    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: discovery -> author -> challenger -> refiner -> judge -> orchestrator."),
+    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible retrieval planner / design / review / orchestrator pipeline."),
+    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
@@ -430,8 +431,8 @@ def ask(
 def chat(
     agent_id: str = typer.Option("orchestrator", "--agent"),
     session: str = typer.Option("default", "--session", "-s", help="Persistent chat session name."),
-    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible discovery/design/review/orchestrator pipeline."),
-    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: discovery -> author -> challenger -> refiner -> judge -> orchestrator."),
+    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible retrieval planner / design / review / orchestrator pipeline."),
+    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:

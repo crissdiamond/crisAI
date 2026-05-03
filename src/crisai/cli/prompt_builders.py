@@ -7,10 +7,10 @@ def _section(title: str, body: str) -> str:
     return f"{title}:\n{clean}"
 
 
-def build_discovery_prompt(message: str) -> str:
-    """Build the runtime prompt for the discovery stage.
+def build_retrieval_planner_prompt(message: str) -> str:
+    """Build the runtime prompt for the retrieval planner stage.
 
-    Discovery prepares a **retrieval handoff** for ``context_retrieval``. The CLI
+    The retrieval planner prepares a **retrieval handoff** for ``context_retrieval``. The CLI
     router already surfaces mode, pipeline shape, and retrieval intent, so this
     stage must not repeat that recap.
     """
@@ -38,10 +38,10 @@ def build_discovery_prompt(message: str) -> str:
     )
 
 
-def build_single_discovery_prompt(message: str) -> str:
-    """Build the runtime prompt for single-mode discovery execution.
+def build_single_retrieval_planner_prompt(message: str) -> str:
+    """Build the runtime prompt for single-mode retrieval-planner execution.
 
-    In single mode, discovery is the terminal agent for retrieval-only asks, so
+    In single mode, the retrieval planner agent is the terminal agent for retrieval-only asks, so
     it must perform retrieval now instead of only framing a downstream stage.
     """
     return "\n\n".join(
@@ -80,7 +80,7 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
     return "\n\n".join(
         [
             _section("User request", message),
-            _section("Retrieval handoff (from discovery)", discovery_text),
+            _section("Retrieval handoff (from retrieval planner)", discovery_text),
             "Task:\nRetrieve the most relevant material for this request from available context sources. "
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "

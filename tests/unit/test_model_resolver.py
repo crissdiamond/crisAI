@@ -20,7 +20,7 @@ def model_specs() -> list[ModelSpec]:
 def test_resolve_openai_model_ref(model_specs, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     resolver = ModelResolver(model_specs)
-    agent = AgentSpec(id="discovery", name="Discovery", prompt_file="p.md", allowed_servers=[], model_ref="openai_fast")
+    agent = AgentSpec(id="retrieval_planner", name="Retrieval Planner", prompt_file="p.md", allowed_servers=[], model_ref="openai_fast")
     resolved = resolver.resolve_for_agent(agent)
     assert resolved.provider == "openai"
     assert resolved.runtime_model == "gpt-5.4-mini"

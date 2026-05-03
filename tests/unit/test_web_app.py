@@ -18,7 +18,7 @@ from crisai.apps.web import (
 
 def test_select_latest_run_filters_by_last_run_id():
     entries = [
-        {"run_id": "run-1", "event_type": "stage_output", "stage": "DISCOVERY", "content": "a"},
+        {"run_id": "run-1", "event_type": "stage_output", "stage": "RETRIEVAL_PLANNER OUTPUT", "content": "a"},
         {"run_id": "run-2", "event_type": "stage_output", "stage": "DESIGN", "content": "b"},
         {"run_id": "run-2", "event_type": "stage_output", "stage": "FINAL", "content": "c"},
     ]
@@ -34,27 +34,27 @@ def test_trace_line_maps_single_agent_workflow_output_to_agent_tab():
     entry = {
         "event_type": "workflow_output",
         "stage": "FINAL_OUTPUT",
-        "agent_id": "discovery",
+        "agent_id": "retrieval_planner",
         "content": "Listed 3 matching files.",
         "run_id": "run-x",
     }
     out = _trace_line_to_stage_output(entry)
     assert out is not None
-    assert out["key"] == "discovery"
-    assert out["agent_id"] == "discovery"
+    assert out["key"] == "retrieval_planner"
+    assert out["agent_id"] == "retrieval_planner"
     assert out["event_type"] == "stage_output"
     assert out["content"] == "Listed 3 matching files."
 
 
 def test_trace_line_ignores_unrelated_workflow_output():
-    entry = {"event_type": "workflow_output", "stage": "OTHER", "agent_id": "discovery", "content": "x"}
+    entry = {"event_type": "workflow_output", "stage": "OTHER", "agent_id": "retrieval_planner", "content": "x"}
     assert _trace_line_to_stage_output(entry) is None
 
 
 def test_collect_stage_outputs_keeps_only_renderable_stage_events():
     entries = [
         {"event_type": "workflow_event", "stage": "WORKFLOW_START", "content": "start"},
-        {"event_type": "stage_output", "stage": "DISCOVERY_OUTPUT", "content": "discovery", "agent_id": "discovery"},
+        {"event_type": "stage_output", "stage": "RETRIEVAL_PLANNER OUTPUT", "content": "plan", "agent_id": "retrieval_planner"},
         {"event_type": "stage_skipped", "stage": "REVIEW_OUTPUT", "content": "skipped", "agent_id": "review"},
     ]
 
@@ -62,10 +62,10 @@ def test_collect_stage_outputs_keeps_only_renderable_stage_events():
 
     assert result == [
         {
-            "agent_id": "discovery",
-            "stage": "DISCOVERY_OUTPUT",
+            "agent_id": "retrieval_planner",
+            "stage": "RETRIEVAL_PLANNER OUTPUT",
             "event_type": "stage_output",
-            "content": "discovery",
+            "content": "plan",
         },
         {
             "agent_id": "review",
@@ -81,9 +81,9 @@ def test_run_endpoint_returns_execution_payload(monkeypatch):
 
     async def fake_execute(_payload):
         return {
-            "decision": {"mode": "pipeline", "agent": "discovery"},
+            "decision": {"mode": "pipeline", "agent": "retrieval_planner"},
             "final_output": "ok",
-            "stage_outputs": [{"agent_id": "discovery", "stage": "DISCOVERY_OUTPUT", "event_type": "stage_output", "content": "x"}],
+            "stage_outputs": [{"agent_id": "retrieval_planner", "stage": "RETRIEVAL_PLANNER OUTPUT", "event_type": "stage_output", "content": "x"}],
         }
 
     monkeypatch.setattr("crisai.apps.web.load_history", lambda session_name: [])

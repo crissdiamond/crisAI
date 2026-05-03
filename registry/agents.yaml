@@ -10,10 +10,10 @@ agents:
       - diagrams
       - documents
 
-  - id: discovery
-    name: Discovery Agent
+  - id: retrieval_planner
+    name: Retrieval Planner
     model_ref: openai_fast
-    prompt_file: prompts/discovery_agent.md
+    prompt_file: prompts/retrieval_planner_agent.md
     allowed_servers:
       - workspace
       - documents

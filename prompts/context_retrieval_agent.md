@@ -65,7 +65,7 @@ Use this structure:
 
 **Retrieval approach (operational):**
 
-1. Understand the user request and the **retrieval handoff** from discovery (not a repeat of the router line).
+1. Understand the user request and the **retrieval handoff** from the retrieval planner (not a repeat of the router line).
 2. When paths are explicit, open them with `read_workspace_file` or `read_document` before relying only on broad search.
 3. Use short `search_workspace_text` queries or index tools; scope under `context/…` when appropriate.
 4. Retrieve the most relevant chunks or documents; include source information for downstream verification.

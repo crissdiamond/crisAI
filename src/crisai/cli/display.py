@@ -17,8 +17,10 @@ console = Console()
 RenderKind = Literal["status", "stage", "final"]
 
 _ICONS = {
-    "discovery": "🔎",
+    # Clipboard: plans retrieval handoff before Context Retrieval fetches sources.
+    "retrieval_planner": "📋",
     "context_retrieval": "📚",
+    # Puzzle: assembles retrieved facts into a brief for design.
     "context_synthesizer": "🧩",
     "design": "✍",
     "design_author": "✍",
@@ -27,11 +29,14 @@ _ICONS = {
     "review": "🛡",
     "judge": "⚖",
     "orchestrator": "🧭",
-    "operations": "🖧",
+    # Wrench: local tooling, debugging, and environment fixes.
+    "operations": "🔧",
+    # Package: templates and formal artefacts.
+    "publisher": "📦",
 }
 
 _LABELS = {
-    "discovery": "Discovery",
+    "retrieval_planner": "Retrieval planner",
     "context_retrieval": "Context Retrieval",
     "context_synthesizer": "Context Synthesizer",
     "design": "Design",
@@ -42,10 +47,11 @@ _LABELS = {
     "judge": "Judge",
     "orchestrator": "Orchestrator",
     "operations": "Operations",
+    "publisher": "Publisher",
 }
 
 _STYLES = {
-    "discovery": "yellow",
+    "retrieval_planner": "yellow",
     "context_retrieval": "cyan",
     "context_synthesizer": "magenta",
     "design": "green",
@@ -56,6 +62,7 @@ _STYLES = {
     "judge": "white",
     "orchestrator": "bright_black",
     "operations": "blue",
+    "publisher": "magenta",
 }
 
 _RENDER_TITLES = {
@@ -206,10 +213,10 @@ def _judge_summary(text: str) -> str:
     return f"The Judge concludes that {_normalise_fragment(fragment)}."
 
 
-def _discovery_summary(text: str) -> str:
+def _retrieval_planner_summary(text: str) -> str:
     clean = _clean_agent_text(text)
     fragment = _pick_first_substantive_sentence(clean)
-    return f"Discovery finds that {_normalise_fragment(fragment)}."
+    return f"The Retrieval planner outlines that {_normalise_fragment(fragment)}."
 
 
 def _review_summary(text: str) -> str:
@@ -237,8 +244,8 @@ def _role_led_summary(agent_id: str, body: str, width: int = 118) -> str:
         summary = _challenger_summary(body)
     elif agent_id == "judge":
         summary = _judge_summary(body)
-    elif agent_id == "discovery":
-        summary = _discovery_summary(body)
+    elif agent_id == "retrieval_planner":
+        summary = _retrieval_planner_summary(body)
     elif agent_id == "review":
         summary = _review_summary(body)
     elif agent_id == "operations":

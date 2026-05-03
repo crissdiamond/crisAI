@@ -69,14 +69,16 @@ def test_server_icon_covers_known_types():
 
 def test_agent_icon_covers_known_types():
     assert status_views.agent_icon("orchestrator") == "🧭"
-    assert status_views.agent_icon("discovery") == "🔎"
+    assert status_views.agent_icon("retrieval_planner") == "📋"
+    assert status_views.agent_icon("discovery") == "📋"
     assert status_views.agent_icon("design_author") == "✍"
     assert status_views.agent_icon("design_challenger") == "⚔"
     assert status_views.agent_icon("design_refiner") == "🛠"
     assert status_views.agent_icon("design") == "🏗"
     assert status_views.agent_icon("review") == "🛡"
     assert status_views.agent_icon("judge") == "⚖"
-    assert status_views.agent_icon("operations") == "🖧"
+    assert status_views.agent_icon("operations") == "🔧"
+    assert status_views.agent_icon("publisher") == "📦"
     assert status_views.agent_icon("something_else") == "🧠"
 
 
