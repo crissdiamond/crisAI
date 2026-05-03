@@ -23,7 +23,8 @@ The aim is to create a personal AI workstation that can retrieve source material
   - `.xlsx`
 - Mermaid diagram generation support
 - SharePoint / OneDrive retrieval via delegated Microsoft Graph access
-- Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools include search, fetch, and hub link following)
+- Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools: `intranet_search`, `intranet_fetch`, `intranet_list_page_links`, **`intranet_list_all_pages`** for deterministic full-catalogue discovery)
+- Configurable on-disk page catalogue cache (default 4 h, `INTRANET_PAGE_CACHE_TTL_HOURS`) so agents can list every available page without repeated Graph API scans
 - Optional **architecture context** corpus under `workspace/context/`, with **draft staging** in `workspace/context_staging/` for human review before promotion
 - Multi-agent orchestration with three execution modes:
   - `single`
@@ -260,14 +261,19 @@ GEMINI_API_KEY=your_gemini_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 ```
 
-Optional SharePoint settings:
+Optional SharePoint / intranet settings:
 
 ```dotenv
 MS_TENANT_ID=your_tenant_id
 MS_CLIENT_ID=your_client_id
-MS_TOKEN_CACHE_PATH=.tokens/msal_token_cache.json
-MS_GRAPH_SCOPES=User.Read,Files.Read.All,Sites.Read.All
+MS_CLIENT_SECRET=your_client_secret   # optional; "Allow public client flows" must be on in Azure
+MS_REDIRECT_URI=http://localhost
+
+# Intranet page catalogue cache TTL (used by intranet_list_all_pages)
+INTRANET_PAGE_CACHE_TTL_HOURS=4
 ```
+
+> **WSL2 note:** crisAI uses the OAuth 2.0 **device code flow** for Microsoft Entra login in WSL2 environments. When the token is missing or expired a URL and short code are printed to the terminal — open the URL in any browser and enter the code to authenticate. No localhost redirect is required. Your Azure app registration must have **"Allow public client flows"** enabled (App registrations → Authentication → Advanced settings).
 
 ### 5. Make the launcher executable
 
@@ -310,8 +316,10 @@ Dependency note:
 - `pytest` and `traced` are part of the base install and should be available after `pip install -e .`.
 
 Microsoft Graph auth note:
-- when SharePoint/Graph token cache is missing or expired, crisAI now forces interactive Microsoft Entra login again (CLI and web)
-- on WSL, browser opening uses WSL-aware fallbacks (`wslview`, then `explorer.exe`)
+- SharePoint (documents) and Intranet (site pages) each have an **independent token cache** — losing or resetting one does not affect the other
+- when a token cache is missing or expired, crisAI triggers interactive Microsoft Entra login automatically (CLI and web)
+- on WSL2 the **device code flow** is used: a URL and short user code are printed to the terminal; open the URL in any browser and enter the code — no localhost redirect is needed
+- your Azure app registration must have **"Allow public client flows"** enabled under Authentication → Advanced settings
 - for a manual login smoke test, run:
 
 ```bash
@@ -511,13 +519,23 @@ The expected flow is:
 3. MSAL token caching
 4. Graph access through `sharepoint_server.py` (documents) and, when enabled, `intranet_server.py` (published **site pages** on configured sites)
 
-**Documents** (libraries, drives) use the SharePoint docs MCP. **Modern intranet / Site Pages** (aspx content) use the separate **intranet** MCP so retrieval can search and fetch pages without treating them as generic file search. Configuration, tools (`intranet_search`, `intranet_fetch`, `intranet_list_page_links`, …), and guardrails are described in **DOCUMENTATION.md** (SharePoint / intranet section).
+**Documents** (libraries, drives) use the SharePoint docs MCP. **Modern intranet / Site Pages** (aspx content) use the separate **intranet** MCP so retrieval can search and fetch pages without treating them as generic file search.
+
+SharePoint and Intranet maintain **independent token caches**; authenticating or clearing one does not affect the other.
+
+Intranet MCP tools:
+- `intranet_list_all_pages` — full page catalogue across all configured sites (cached locally for `INTRANET_PAGE_CACHE_TTL_HOURS`, default 4 h)
+- `intranet_search` — keyword search against page titles and descriptions
+- `intranet_fetch` — retrieve full page text by Graph site/page id
+- `intranet_list_page_links` — enumerate child Site Page links from a hub or catalogue page
+- `intranet_login` / `intranet_auth_status` — manual auth control
+
+Configuration, guardrails, and prompting patterns are in **DOCUMENTATION.md**.
 
 Operational recommendation:
-- check auth status before search
-- expect interactive Microsoft Entra login when cached token is missing or expired
-- prefer predictable auth checks over surprise browser popups during source retrieval
-- for Site Pages and hub-style navigation, use intranet tools—not drive document search—unless you explicitly need library files
+- for broad discovery, call `intranet_list_all_pages` first — it is deterministic and cached
+- check auth status before search; expect the device code prompt when the token is missing or expired
+- for Site Pages and hub-style navigation, use intranet tools — not drive document search — unless you explicitly need library files
 
 ---
 

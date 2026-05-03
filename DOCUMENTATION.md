@@ -61,7 +61,7 @@ Typical examples:
 - document reader server
 - diagram server
 - SharePoint / OneDrive documents server
-- intranet **site pages** server (scoped to `registry/intranet.yaml`; same Graph auth cache as SharePoint)
+- intranet **site pages** server (scoped to `registry/intranet.yaml`; **independent** Graph auth token cache from the SharePoint docs server)
 
 ### 2.4 Router
 A lightweight heuristic layer that decides which agent or mode is most suitable when you have not explicitly chosen one.
@@ -422,30 +422,55 @@ crisAI supports delegated Microsoft Graph access for:
 
 ### Intranet site pages (scoped MCP server)
 
-For **published SharePoint site pages** (modern intranet content), use the separate **`intranet`** MCP server—not a generic web browser. Tools: `intranet_search`, `intranet_fetch`, **`intranet_list_page_links`** (hyperlinks on a page—use on hub/catalog pages to reach child Site Pages), plus `intranet_login` / `intranet_auth_status` (same delegated Microsoft account and token cache as the SharePoint docs server). Search paginates the site page list and scores **webUrl** so slugs like `integration-patterns.aspx` match. Operational logs for hit counts and fetch sizes are written to **`logs/intranet_mcp.log`** (alongside other MCP logs under `CRISAI_LOG_DIR`).
+For **published SharePoint site pages** (modern intranet content), use the separate **`intranet`** MCP server — not a generic web browser.
 
-Configuration lives in `registry/intranet.yaml`:
+**Available tools:**
+
+| Tool | Purpose |
+|---|---|
+| `intranet_list_all_pages` | Full page catalogue across all configured sites (deterministic; uses local cache) |
+| `intranet_search` | Keyword search against page titles, names, and descriptions |
+| `intranet_fetch` | Retrieve full page text by `graph_site_id` + `graph_page_id` |
+| `intranet_list_page_links` | Enumerate child Site Page links from a hub or catalogue page |
+| `intranet_login` | Trigger interactive Microsoft Entra authentication for the intranet token cache |
+| `intranet_auth_status` | Check authentication status without prompting |
+
+`intranet_search` paginates the site page list and scores against **webUrl** so slugs like `integration-patterns.aspx` match even when OData title filtering returns nothing. For open-ended or broad requests, **prefer `intranet_list_all_pages`** — it returns every page regardless of keyword matching and is served from a local cache.
+
+Operational logs for hit counts and fetch sizes are written to **`logs/intranet_mcp.log`** (alongside other MCP logs under `CRISAI_LOG_DIR`).
+
+**Configuration in `registry/intranet.yaml`:**
 
 - **`provider`**: `sharepoint_pages` (default) or `wiki` (placeholder for future adapters).
-- **`allow_hosts`**: optional lowercase hostnames; page `webUrl` hosts must match exactly. If omitted, hosts are **derived only** from the configured sites’ `webUrl` values (still not open internet).
+- **`allow_hosts`**: optional lowercase hostnames; page `webUrl` hosts must match exactly. If omitted, hosts are **derived only** from the configured sites' `webUrl` values (still not open internet).
 - **`sharepoint_pages.sites`**: list entries with either `site_path` (for example `contoso.sharepoint.com:/sites/Intranet`) or `graph_site_id`.
-- **`limits`**: `max_fetch_chars`, `graph_timeout_seconds`.
+- **`limits`**:
+  - `max_fetch_chars` — maximum characters returned by `intranet_fetch`.
+  - `graph_timeout_seconds` — Graph API call timeout.
+  - `page_cache_ttl_hours` — how long the `intranet_list_all_pages` catalogue is kept on disk before re-fetching (default `4`). Override at runtime with **`INTRANET_PAGE_CACHE_TTL_HOURS`** in `.env`.
+
+**Page catalogue cache:**
+
+`intranet_list_all_pages` stores results at `workspace/.cache/intranet_pages_cache.json`. The cache is reused until it is older than `INTRANET_PAGE_CACHE_TTL_HOURS` (env var) or `limits.page_cache_ttl_hours` (YAML). A cache miss triggers a full paginated Graph scan and updates the file. Each entry contains `title`, `web_url`, `graph_site_id`, `graph_page_id`, and `site_label`.
 
 `intranet_fetch` only accepts `graph_site_id` values that came from that configuration, so agents cannot pivot to arbitrary Graph sites.
 
 ### Best practice
 
-- check auth status first
+- for broad or open-ended intranet requests, start with `intranet_list_all_pages` to get the complete catalogue, filter by relevance, then fetch candidate pages
+- for targeted retrieval, use `intranet_search` with exact pattern names or slug keywords
+- after fetching any hub or catalogue page, call `intranet_list_page_links` to enumerate child pages — search often misses pages reachable only via navigation links
+- check auth status first when uncertain whether the token is still valid
+- do not let the system guess identifiers; only inspect results returned in the current run
 - prefer personal OneDrive when you explicitly say so
-- do not let the system guess identifiers
-- search before read
-- only inspect matching results from the current run
 
 ### Authentication behaviour
 
-- if the cached Graph token is missing or expired, crisAI forces interactive Microsoft Entra authentication
-- this applies to both CLI and web runtime paths
-- on WSL, interactive Microsoft Entra login opens the browser using WSL-aware fallbacks (`wslview` or `explorer.exe`)
+- SharePoint (documents) and Intranet (site pages) have **independent Microsoft Graph token caches** — resetting or re-authenticating one does not affect the other
+- if a cached token is missing or expired, crisAI triggers interactive Microsoft Entra authentication automatically (CLI and web)
+- on **WSL2**, crisAI uses the OAuth 2.0 **device code flow**: a URL (`https://microsoft.com/devicelogin`) and a short user code are printed to the terminal — open the URL in any browser and enter the code; no localhost redirect is required
+- your Azure AD app registration must have **"Allow public client flows"** enabled (App registrations → Authentication → Advanced settings) for the device code flow to work
+- site resolution (Graph `/sites/...` lookup) is **lazy**: the MCP server starts immediately and the first real tool call triggers authentication, so the CLI is never blocked during server startup
 
 ### Manual Graph auth smoke test
 
@@ -520,7 +545,14 @@ Use `.env.example` as the template for repo-safe configuration.
 
 ### 15.1 Intranet Site Pages (SharePoint publishing)
 
-For **published site pages** (intranet articles, integration pattern pages, hub catalogues), use **`intranet_search`** / **`intranet_fetch`** (and **`intranet_list_page_links`** on hub or index pages to follow curated links). Do **not** use generic SharePoint **document** search for `.aspx` Site Pages unless you intend library files. Same Microsoft account and token cache as the SharePoint docs server; check **`intranet_auth_status`** first when unsure.
+For **published site pages** (intranet articles, integration pattern pages, hub catalogues):
+
+1. Call **`intranet_list_all_pages`** first for any broad or open-ended request — it returns the full page catalogue across all configured sites and is served from a local cache (TTL set by `INTRANET_PAGE_CACHE_TTL_HOURS`, default 4 h). Filter by title/URL relevance to identify candidates.
+2. Use **`intranet_search`** for targeted lookup by keyword or exact slug when you already know what you are looking for.
+3. Call **`intranet_fetch`** to retrieve the full body of each candidate page.
+4. After fetching any hub or catalogue page, call **`intranet_list_page_links`** to enumerate child pages reachable via navigation links — search often misses these.
+
+Do **not** use generic SharePoint **document** search for `.aspx` Site Pages unless you intend library files. The Intranet MCP has its own independent Microsoft Graph token cache; check **`intranet_auth_status`** first when unsure.
 
 ### 15.2 Source finding only
 
