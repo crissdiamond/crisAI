@@ -10,14 +10,27 @@ def _section(title: str, body: str) -> str:
 def build_discovery_prompt(message: str) -> str:
     """Build the runtime prompt for the discovery stage.
 
-    Discovery should classify and frame the request. Retrieval is handled by the
-    dedicated context_retrieval stage so that source lookup remains observable
-    and independently tunable.
+    Discovery prepares a **retrieval handoff** for ``context_retrieval``. The CLI
+    router already surfaces mode, pipeline shape, and retrieval intent, so this
+    stage must not repeat that recap.
     """
     return "\n\n".join(
         [
             _section("User request", message),
-            "Task:\nFrame the request for the downstream workflow. Identify the user goal, likely output type, and what knowledge areas may need retrieval. Do not retrieve or read source documents in this stage.",
+            "Session context:\n"
+            "The crisAI router has already shown the user a routing decision (mode, "
+            "pipeline vs single, retrieval on/off, and a short rationale). Treat "
+            "that summary as authoritative for workflow shape.\n"
+            "**Do not** repeat, paraphrase, or re-argue that routing recap.",
+            "Task:\n"
+            "Produce a **compact retrieval handoff** for the Context Retrieval stage.\n"
+            "- Do **not** retrieve or read source documents in this stage.\n"
+            "- Provide only what helps search: 3–7 concrete angles (folders, doc "
+            "types, product areas, keywords, standards IDs), ambiguities that change "
+            "search strategy, and user constraints that materially affect retrieval.\n"
+            "- Skip generic restatements of the user goal unless they add a retrieval "
+            "signal the routing line did not cover.\n"
+            "Keep the response brief (about one screen of tight bullets).",
         ]
     )
 
@@ -64,7 +77,7 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
     return "\n\n".join(
         [
             _section("User request", message),
-            _section("Discovery framing", discovery_text),
+            _section("Retrieval handoff (from discovery)", discovery_text),
             "Task:\nRetrieve the most relevant material for this request from available context sources. "
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "

@@ -31,6 +31,13 @@ _NOISY_LOGGERS: dict[str, int] = {
 }
 
 
+class DropBootstrapFromConsoleFilter(logging.Filter):
+    """Keeps bootstrap diagnostics in the log file but off the interactive console."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.name != "crisai.bootstrap"
+
+
 class DropListToolsRequestFilter(logging.Filter):
     """Filters out repetitive MCP tool listing noise.
 
@@ -143,6 +150,7 @@ def configure_logging(settings) -> None:
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(ConsoleFormatter())
     console_handler.addFilter(common_filter)
+    console_handler.addFilter(DropBootstrapFromConsoleFilter())
 
     file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(root_logger.level)
