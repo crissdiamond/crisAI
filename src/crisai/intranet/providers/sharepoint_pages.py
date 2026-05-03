@@ -380,11 +380,14 @@ class SharePointPagesProvider:
             return []
         per_site = max(3, min(25, max(1, max_hits // max(1, len(self._sites)))))
 
-        def _to_hit(page: dict[str, Any], site_label: str, site_id: str) -> dict[str, Any]:
+        def _to_hit(page: dict[str, Any], site_label: str, site_id: str, *, include_snippet: bool = True) -> dict[str, Any]:
             web_url = str(page.get("webUrl") or page.get("web_url") or "")
             title = str(page.get("title") or page.get("name") or "")
-            desc = str(page.get("description") or "")
-            snippet = (desc or title)[:280]
+            # Stage-1 (OData) hits carry a description snippet as a relevance hint.
+            # Stage-2 (cache expansion) hits deliberately carry NO snippet so agents
+            # cannot treat the cached description as a substitute for intranet_fetch.
+            # Without snippet content, the agent must fetch the page to write anything.
+            snippet = (str(page.get("description") or "") or title)[:280] if include_snippet else ""
             return {
                 "site_label": site_label,
                 "graph_site_id": site_id,
@@ -437,7 +440,7 @@ class SharePointPagesProvider:
                     seen_urls.add(norm)
                     site_id = str(page.get("graph_site_id") or "")
                     label = site_label_map.get(site_id, page.get("site_label", ""))
-                    hits.append(_to_hit(page, label, site_id))
+                    hits.append(_to_hit(page, label, site_id, include_snippet=False))
 
         return hits
 
