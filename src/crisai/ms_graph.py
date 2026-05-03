@@ -13,14 +13,13 @@ import logging
 import os
 import shutil
 import sys
-import time
 import webbrowser
 from pathlib import Path
-from typing import Any, Callable, Union
+from typing import Any, Callable
 
 import requests
 from dotenv import load_dotenv
-from msal import ConfidentialClientApplication, PublicClientApplication, SerializableTokenCache
+from msal import PublicClientApplication, SerializableTokenCache
 
 load_dotenv()
 
@@ -36,11 +35,7 @@ DEFAULT_SCOPES = [
 
 TENANT_ID = os.getenv("MS_TENANT_ID", "")
 CLIENT_ID = os.getenv("MS_CLIENT_ID", "")
-CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET", "")
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}" if TENANT_ID else ""
-
-# Type alias covering both MSAL application classes used here.
-_MsalApp = Union[PublicClientApplication, ConfidentialClientApplication]
 
 _token_cache_path: Path | None = None
 _token_info_path: Path | None = None
@@ -116,36 +111,15 @@ def _save_token_cache(cache: SerializableTokenCache) -> None:
         _token_cache_path.write_text(cache.serialize(), encoding="utf-8")
 
 
-def _build_public_app(cache: SerializableTokenCache) -> PublicClientApplication:
+def _build_app(cache: SerializableTokenCache) -> PublicClientApplication:
     """Return a ``PublicClientApplication`` backed by *cache*.
 
-    Always public, regardless of ``MS_CLIENT_SECRET``, because only the public
-    client supports ``initiate_device_flow`` / ``acquire_token_interactive``.
-    Used exclusively for the interactive flow phase.
+    Delegated user auth (device code flow / interactive) always uses the
+    public-client flow.  This requires "Allow public client flows" to be
+    enabled on the Azure AD app registration (Authentication → Advanced
+    settings).  A ``MS_CLIENT_SECRET`` in the environment is not used for
+    auth flows; it is ignored here.
     """
-    return PublicClientApplication(
-        client_id=CLIENT_ID,
-        authority=AUTHORITY,
-        token_cache=cache,
-    )
-
-
-def _build_app(cache: SerializableTokenCache) -> _MsalApp:
-    """Return the MSAL application used for silent token operations.
-
-    When ``MS_CLIENT_SECRET`` is set the Azure AD app is a confidential client:
-    ``ConfidentialClientApplication`` includes the secret in token-endpoint
-    requests so silent refresh satisfies ``AADSTS7000218``.  Falls back to
-    ``PublicClientApplication`` when no secret is configured (Azure app must
-    then have "Allow public client flows" enabled).
-    """
-    if CLIENT_SECRET:
-        return ConfidentialClientApplication(
-            client_id=CLIENT_ID,
-            client_credential=CLIENT_SECRET,
-            authority=AUTHORITY,
-            token_cache=cache,
-        )
     return PublicClientApplication(
         client_id=CLIENT_ID,
         authority=AUTHORITY,
@@ -184,7 +158,7 @@ def _open_interactive_browser(url: str) -> bool:
 
 
 def _acquire_token_interactive_compat(
-    app: _MsalApp,
+    app: PublicClientApplication,
     scopes: list[str],
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
@@ -236,79 +210,6 @@ def _acquire_token_device_code(
     return app.acquire_token_by_device_flow(flow)
 
 
-def _acquire_token_device_code_confidential(scopes: list[str]) -> dict[str, Any]:
-    """Device code flow for confidential client apps (``MS_CLIENT_SECRET`` present).
-
-    ``ConfidentialClientApplication`` does not expose ``initiate_device_flow``.
-    Per RFC 8628 §3.1, confidential clients MUST include their credentials in
-    the device authorization request (not only in the token exchange), so both
-    steps are done via raw ``requests`` with ``client_secret`` included.
-
-    After a successful exchange the ``refresh_token`` is stored in
-    ``_token_info_path`` so that subsequent silent refreshes can use
-    ``ConfidentialClientApplication.acquire_token_by_refresh_token``.
-    """
-    # Step 1 – initiate with client_secret (required by RFC 8628 §3.1 for
-    # confidential clients; public-client MSAL flows omit it, causing
-    # AADSTS7000218 on the subsequent token exchange).
-    dc_resp = requests.post(
-        f"{AUTHORITY}/oauth2/v2.0/devicecode",
-        data={
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "scope": " ".join(scopes),
-        },
-        timeout=30,
-    )
-    flow: dict[str, Any] = dc_resp.json()
-    if "user_code" not in flow:
-        raise RuntimeError(
-            f"Failed to initiate device code flow: {flow.get('error_description') or flow}"
-        )
-    _show_device_code_instruction(flow)
-
-    # Step 2 – poll the token endpoint with client_secret included.
-    token_endpoint = f"{AUTHORITY}/oauth2/v2.0/token"
-    device_code = str(flow.get("device_code", ""))
-    interval = max(int(flow.get("interval", 5)), 5)
-    expires_in = int(flow.get("expires_in", 900))
-    deadline = time.monotonic() + expires_in
-
-    while time.monotonic() < deadline:
-        time.sleep(interval)
-        resp = requests.post(
-            token_endpoint,
-            data={
-                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "device_code": device_code,
-            },
-            timeout=30,
-        )
-        result: dict[str, Any] = resp.json()
-
-        if "access_token" in result:
-            # Persist the refresh_token so _acquire_silent_confidential can
-            # use it on the next run to bootstrap the MSAL CCA cache.
-            info = read_token_info()
-            info["refresh_token"] = result.get("refresh_token", "")
-            write_token_info(info)
-            return result
-
-        error = str(result.get("error", ""))
-        if error == "authorization_pending":
-            continue
-        if error == "slow_down":
-            interval += 5
-            continue
-        raise RuntimeError(
-            f"Device code flow failed: {result.get('error_description', result)}"
-        )
-
-    raise RuntimeError("Device code flow timed out – user did not complete authentication.")
-
-
 def _format_interactive_auth_failure(result: dict[str, Any] | None, scopes: list[str]) -> str:
     payload = result or {}
     error_code = str(payload.get("error") or "unknown_error")
@@ -351,29 +252,11 @@ def delegated_auth_status() -> dict[str, Any]:
     """Return token cache and silent-acquire state for MCP auth_status tools."""
     _require_env()
     info = read_token_info()
+    cache = _load_token_cache()
+    app = _build_app(cache)
+    accounts = app.get_accounts()
     has_valid_silent_token = False
     silent_error = None
-
-    if CLIENT_SECRET:
-        # Confidential client: try _acquire_silent_confidential which checks
-        # both the MSAL CCA cache and the stored refresh_token.
-        result = _acquire_silent_confidential(list(DEFAULT_SCOPES))
-        has_valid_silent_token = bool(result and "access_token" in result)
-        if result and "access_token" not in result:
-            silent_error = result.get("error_description") or str(result)
-        has_refresh_token = bool(info.get("refresh_token"))
-        return {
-            "has_cached_token_info": bool(info),
-            "account": info.get("account"),
-            "scopes": info.get("scope"),
-            "has_refresh_token": has_refresh_token,
-            "has_valid_silent_token": has_valid_silent_token,
-            "silent_error": silent_error,
-        }
-
-    cache = _load_token_cache()
-    app = _build_public_app(cache)
-    accounts = app.get_accounts()
     if accounts:
         silent_result = app.acquire_token_silent(scopes=list(DEFAULT_SCOPES), account=accounts[0])
         if silent_result and "access_token" in silent_result:
@@ -390,53 +273,12 @@ def delegated_auth_status() -> dict[str, Any]:
     }
 
 
-def _acquire_silent_confidential(scopes: list[str]) -> dict[str, Any] | None:
-    """Silent token acquisition for confidential client apps.
-
-    Tries the MSAL cache first.  When the cache has no account (e.g. after a
-    fresh device-code exchange that bypassed MSAL), falls back to the
-    ``refresh_token`` stored in ``_token_info_path`` and calls
-    ``ConfidentialClientApplication.acquire_token_by_refresh_token`` – which
-    includes ``client_secret``, satisfies AADSTS7000218, and also populates
-    the MSAL cache so future calls hit the faster silent path.
-    """
-    cache = _load_token_cache()
-    cca = ConfidentialClientApplication(
-        client_id=CLIENT_ID,
-        client_credential=CLIENT_SECRET,
-        authority=AUTHORITY,
-        token_cache=cache,
-    )
-    accounts = cca.get_accounts()
-    if accounts:
-        result = cca.acquire_token_silent(scopes=scopes, account=accounts[0])
-        _save_token_cache(cache)
-        if result and "access_token" in result:
-            return result
-
-    # Cache miss – try the persisted refresh_token from the manual device-code flow.
-    info = read_token_info()
-    refresh_token = info.get("refresh_token", "")
-    if not refresh_token:
-        return None
-    result = cca.acquire_token_by_refresh_token(refresh_token, scopes=scopes)
-    _save_token_cache(cache)
-    if result and "access_token" in result:
-        # Update stored refresh_token (rotated by server).
-        info["refresh_token"] = result.get("refresh_token", refresh_token)
-        write_token_info(info)
-        return result
-    return None
-
-
 def acquire_token_silent_only(scopes: list[str] | None = None) -> dict[str, Any] | None:
     """Return MSAL result dict or None if no cached account or silent refresh failed."""
     _require_env()
     scopes = scopes or list(DEFAULT_SCOPES)
-    if CLIENT_SECRET:
-        return _acquire_silent_confidential(scopes)
     cache = _load_token_cache()
-    app = _build_public_app(cache)
+    app = _build_app(cache)
     accounts = app.get_accounts()
     if not accounts:
         return None
@@ -465,26 +307,24 @@ def acquire_token(*, scopes: list[str] | None = None, force_interactive: bool = 
     if not force_interactive:
         force_interactive = True
 
-    # Confidential client path: device code flow with client_secret in the
-    # token exchange.  MSAL's ConfidentialClientApplication does not expose
-    # initiate_device_flow, so we handle the exchange ourselves via requests.
-    if CLIENT_SECRET:
-        _emit(f"interactive_login_device_code_confidential scopes={scopes}")
-        result = _acquire_token_device_code_confidential(scopes)
-    elif _is_wsl_environment():
-        # Public client in WSL2: device code flow avoids the broken localhost
-        # redirect (Windows browser cannot reach the WSL2 MSAL listener).
-        cache = _load_token_cache()
-        app = _build_public_app(cache)
+    cache = _load_token_cache()
+    app = _build_app(cache)
+
+    # In WSL2 the Windows browser cannot reach the MSAL localhost redirect
+    # listener inside WSL, so the browser-redirect interactive flow hangs
+    # until the MCP client timeout fires.  Device code flow is used instead:
+    # it opens the browser to the device-login URL (user code printed to stderr
+    # and pre-filled in the browser) and polls for completion without requiring
+    # a localhost redirect.  Requires "Allow public client flows" on the Azure
+    # AD app registration (Authentication → Advanced settings).
+    if _is_wsl_environment():
         _emit(f"interactive_login_device_code scopes={scopes}")
         result = _acquire_token_device_code(app, scopes)
-        _save_token_cache(cache)
     else:
-        cache = _load_token_cache()
-        app = _build_public_app(cache)
         _emit(f"interactive_login scopes={scopes}")
         result = _acquire_token_interactive_compat(app, scopes)
-        _save_token_cache(cache)
+
+    _save_token_cache(cache)
 
     if not result or "access_token" not in result:
         message = _format_interactive_auth_failure(result, scopes)
@@ -493,13 +333,7 @@ def acquire_token(*, scopes: list[str] | None = None, force_interactive: bool = 
 
     granted = result.get("scope")
     account = result.get("id_token_claims", {}).get("preferred_username")
-    # Merge so that fields written by _acquire_token_device_code_confidential
-    # (e.g. refresh_token) are preserved rather than overwritten.
-    info = read_token_info()
-    info.update({"account": account, "scope": granted, "has_access_token": True})
-    if result.get("refresh_token"):
-        info["refresh_token"] = result["refresh_token"]
-    write_token_info(info)
+    write_token_info({"account": account, "scope": granted, "has_access_token": True})
     _emit(f"token_acquired scopes={granted} account={account}")
     return str(result["access_token"])
 
