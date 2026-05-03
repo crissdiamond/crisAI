@@ -2,8 +2,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-# Do not ignore *.log globally: IDE file trees hide gitignored paths, and
-# crisAI writes diagnostics under logs/*.log (see CRISAI_LOG_DIR).
+# Local diagnostics and traces (see CRISAI_LOG_DIR); not versioned.
+logs/
 .venv/
 venv/
 env/
@@ -20,7 +20,6 @@ htmlcov/
 .env
 .cursor
 .cursor/
-logs/agent_trace.jsonl
 workspace/.cli_history
 workspace/chat_sessions/*.json
 chat_session/
