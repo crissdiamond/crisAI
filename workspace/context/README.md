@@ -121,6 +121,83 @@ Goal: **structured, searchable text** under `context/…`, not a dump of the ori
 
 ---
 
+## Using GitHub Copilot to transform existing architecture documents
+
+You can paste **exported text** (from Word/PDF/PowerPoint or `pandoc`) into the editor, or open a rough `.md`/`.txt` draft, and use **GitHub Copilot Chat** (or inline Copilot) with the prompts below. The goal is a **single crisAI-ready artefact** per file: YAML front matter + short sections + bullets—aligned with `workspace/context/README.md` and `_templates/artefact-template.txt`.
+
+**Before you start**
+
+1. Open this README and **`_templates/artefact-template.txt`** in the IDE so Copilot can follow the same metadata rules.
+2. Decide the target **folder** (`standards/`, `patterns/`, `decisions/`, etc.) and a **proposed filename** (e.g. `context/standards/integration/API-error-handling.txt`).
+3. Paste or attach the **source text** (anonymise secrets and personal data first).
+
+**Base prompt (adapt the bracketed parts)**
+
+```text
+You are helping build the architecture context corpus for crisAI under workspace/context.
+
+Source material is below between ---SOURCE--- markers.
+
+Task:
+1. Produce ONE artefact as UTF-8 plain text suitable for saving as [FILENAME under context/…].
+2. Start with a YAML front matter block exactly as described in workspace/context/README.md (fields: id, title, type, status, owner, last_reviewed, applies_to, tags, related). Use type=[principle|standard|pattern|design|decision|landscape|domain|integration|intake]. Set status=draft unless I say otherwise. Invent a sensible stable id prefix (e.g. STD-INT-001). Leave related: empty or list plausible context/ paths only if you are sure they exist.
+3. Body: use ## headings and bullets; short paragraphs; line-oriented phrasing for search. Include explicit "Anti-pattern" or "When not to use" sections where relevant.
+4. Remove boilerplate, version history tables, and duplicate slides. Do not invent organisation-specific facts not in the source.
+5. End with no extra commentary outside the file content.
+
+---SOURCE---
+[paste source text here]
+---SOURCE---
+```
+
+**Prompt: split a long policy pack into multiple files**
+
+```text
+The source is a long document mixing several topics. Split it into separate crisAI artefacts.
+
+For EACH distinct topic, output:
+- A suggested path under workspace/context/ (folder + filename).
+- The full file content (YAML front matter + body) for that topic only.
+
+Rules: one main topic per file; cross-link using related: paths between files you create in this batch; same metadata conventions as workspace/context/README.md.
+```
+
+**Prompt: turn a slide deck export into a landscape or pattern file**
+
+```text
+Source is bullet text from a PowerPoint deck (titles and bullets pasted below). Transform into one markdown or plain-text artefact for context/reference/landscape/ OR context/patterns/ (you choose based on content). Preserve slide structure only as ## headings, not as "Slide 3". Add YAML front matter; type=landscape or pattern; tags from HE architecture (integration, data platform, identity, etc.).
+```
+
+**Prompt: draft an ADR in `decisions/`**
+
+```text
+From the source narrative below, produce a lightweight ADR for workspace/context/decisions/. YAML front matter with type=decision. Body sections: ## Context, ## Decision, ## Consequences, ## Alternatives considered (short). No solution design detail that belongs in patterns/; focus on why we decided.
+```
+
+**Prompt: raw workshop notes → `intake/`**
+
+```text
+Turn these messy workshop notes into a single intake file for context/intake/. YAML: type=intake, status=draft. Body: ## Attendees (optional anonymised), ## Raw themes, ## Open questions, ## Suspected links to standards/patterns (hypotheses only). Keep informal tone; flag uncertainty.
+```
+
+**Prompt: add `related:` links after files already exist**
+
+```text
+Here is the body of an existing context file (below). List 3–8 other plausible paths under context/ that should be linked. Output ONLY an updated YAML front matter block with a filled related: list using paths that exist in this repo (infer from workspace/context tree if needed). Do not change the body.
+
+---FILE---
+[paste file content]
+---FILE---
+```
+
+**Tips**
+
+- **Iterate:** run the base prompt, then a follow-up: “Shorten section X to 8 bullets” or “Add anti-patterns.”
+- **Inline Copilot:** select a wall of text and ask: “Reflow into ## sections and bullets per workspace/context/README.md metadata rules.”
+- **Verification:** run through the **Quality checklist** above and have a human architect set `status: approved` after review.
+
+---
+
 ## Retrieval behaviour (for authors)
 
 - Agents work best when **no single file** contains the entire answer to a complex question; **cross-link** related artefacts.
