@@ -31,7 +31,7 @@ agents:
   - id: context_synthesizer
     name: Context Synthesizer Agent
     model_ref: openai_fast
-    prompt_file: prompts/context_agent.md
+    prompt_file: prompts/context_synthesizer_agent.md
     allowed_servers:
       - workspace
       - documents

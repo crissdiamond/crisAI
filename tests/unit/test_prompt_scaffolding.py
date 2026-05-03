@@ -62,3 +62,13 @@ def test_registry_prompt_files_exist() -> None:
             missing.append(f"{entry.get('id')!r}: {rel} -> not a file")
 
     assert not missing, "prompt_file paths must exist:\n" + "\n".join(missing)
+
+
+def test_context_synthesizer_prompt_file_matches_registry_id() -> None:
+    """Avoid regression to opaque names like context_agent.md for this id."""
+    data = yaml.safe_load(_AGENTS_PATH.read_text(encoding="utf-8")) or {}
+    agents = data.get("agents") or []
+    synth = next((a for a in agents if a.get("id") == "context_synthesizer"), None)
+    assert synth is not None
+    path = str(synth.get("prompt_file", ""))
+    assert "context_synthesizer" in path.replace("-", "_"), path
