@@ -42,6 +42,7 @@ compose step exists.
 - `_shared/link-formatting.md` — workspace and Graph markdown links.
 - `_shared/locale-tone.md` — British English and tone.
 - `_shared/sharepoint-vs-onedrive.md` — retrieval scope for SharePoint vs OneDrive.
+- `_shared/context-staging.md` — agent drafts under `workspace/context_staging/` vs canonical `context/`.
 
 ## Tests
 

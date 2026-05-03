@@ -30,6 +30,7 @@ Produce the **best possible first draft** for the user’s request in a **peer w
 ## Tooling and data
 
 - **Workspace** and **diagrams** per registry when needed for the draft.
+- Curated **context corpus** file writes (if any) go to **`workspace/context_staging/`** per **`prompts/_shared/context-staging.md`** unless the user explicitly asks to write under **`context/`** directly.
 
 ## Output contract
 

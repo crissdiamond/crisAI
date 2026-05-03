@@ -388,6 +388,7 @@ workspace/inputs/
 workspace/reference/
 workspace/outputs/
 workspace/scratch/
+workspace/context_staging/
 workspace/chat_sessions/
 ```
 

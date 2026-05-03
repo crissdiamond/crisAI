@@ -5,6 +5,10 @@ Curated knowledge for **Higher Education (HE)** architecture work: colleges, uni
 **Audience:** Enterprise / solution architects maintaining the corpus.  
 **Consumers:** crisAI agents (retrieval planner → context retrieval → synthesizer → design).
 
+## Context staging (drafts)
+
+**Agent-generated** context files (e.g. from intranet extraction or Copilot drafts awaiting review) belong under **`workspace/context_staging/`**, mirroring the folder layout you intend in `context/`. Humans **promote** approved files into **`workspace/context/`**; the approved tree is what retrieval searches by default. Rules: **`prompts/_shared/context-staging.md`** and **`workspace/context_staging/README.md`**.
+
 ---
 
 ## Folder structure
@@ -123,26 +127,26 @@ Goal: **structured, searchable text** under `context/…`, not a dump of the ori
 
 ## Using Microsoft 365 Copilot to transform existing architecture documents
 
-Use **Microsoft 365 Copilot** (the institution’s **Microsoft 365 / Office 365** assistant—e.g. in **Word**, **PowerPoint**, **Outlook**, **Teams**, or **Copilot** in the browser where your tenant allows it). Paste the prompts below into the Copilot chat alongside your source, or paste the **output** into a new Word document and then **Save As** plain text / Markdown into `workspace/context/…`.
+Use **Microsoft 365 Copilot** (the institution’s **Microsoft 365 / Office 365** assistant—e.g. in **Word**, **PowerPoint**, **Outlook**, **Teams**, or **Copilot** in the browser where your tenant allows it). Paste the prompts below into the Copilot chat alongside your source, or paste the **output** into a new Word document and then **Save As** plain text / Markdown into **`workspace/context_staging/…`** first; after human review, promote into **`workspace/context/…`**.
 
 The goal is a **single crisAI-ready artefact** per file: YAML front matter + short sections + bullets—aligned with this README and **`_templates/artefact-template.txt`**.
 
 **Before you start**
 
 1. Keep this README and **`_templates/artefact-template.txt`** open (in the repo, SharePoint, or pasted at the top of your Copilot prompt) so the model follows the same metadata rules.
-2. Decide the target **folder** (`standards/`, `patterns/`, `decisions/`, etc.) and a **proposed filename** (e.g. `context/standards/integration/API-error-handling.txt`).
+2. Decide the target **folder** (`standards/`, `patterns/`, `decisions/`, etc.) and a **proposed filename** under staging (e.g. `context_staging/standards/integration/API-error-handling.txt`); move to `context/…` after approval.
 3. Provide the **source text** in the Copilot conversation or attach a file **your tenant policy allows** (anonymise secrets and personal data first).
 4. **Respect your organisation’s Copilot and data policies** (what may be uploaded, retention, and approval for `status: approved`).
 
 **Base prompt (adapt the bracketed parts)**
 
 ```text
-You are helping build the architecture context corpus for crisAI under workspace/context.
+You are helping build the architecture context corpus for crisAI. Save drafts under workspace/context_staging (mirror of context/ layout); humans promote to workspace/context after review.
 
 Source material is below between ---SOURCE--- markers.
 
 Task:
-1. Produce ONE artefact as UTF-8 plain text suitable for saving as [FILENAME under context/…].
+1. Produce ONE artefact as UTF-8 plain text suitable for saving as [FILENAME under context_staging/…].
 2. Start with a YAML front matter block exactly as described in workspace/context/README.md (fields: id, title, type, status, owner, last_reviewed, applies_to, tags, related). Use type=[principle|standard|pattern|design|decision|landscape|domain|integration|intake]. Set status=draft unless I say otherwise. Invent a sensible stable id prefix (e.g. STD-INT-001). Leave related: empty or list plausible context/ paths only if you are sure they exist.
 3. Body: use ## headings and bullets; short paragraphs; line-oriented phrasing for search. Include explicit "Anti-pattern" or "When not to use" sections where relevant.
 4. Remove boilerplate, version history tables, and duplicate slides. Do not invent organisation-specific facts not in the source.
@@ -159,7 +163,7 @@ Task:
 The source is a long document mixing several topics. Split it into separate crisAI artefacts.
 
 For EACH distinct topic, output:
-- A suggested path under workspace/context/ (folder + filename).
+- A suggested path under workspace/context_staging/ (folder + filename); final promotion to context/ is human-led.
 - The full file content (YAML front matter + body) for that topic only.
 
 Rules: one main topic per file; cross-link using related: paths between files you create in this batch; same metadata conventions as workspace/context/README.md.
@@ -168,19 +172,19 @@ Rules: one main topic per file; cross-link using related: paths between files yo
 **Prompt: turn a slide deck export into a landscape or pattern file**
 
 ```text
-Source is bullet text from a PowerPoint deck (titles and bullets pasted below). Transform into one markdown or plain-text artefact for context/reference/landscape/ OR context/patterns/ (you choose based on content). Preserve slide structure only as ## headings, not as "Slide 3". Add YAML front matter; type=landscape or pattern; tags from HE architecture (integration, data platform, identity, etc.).
+Source is bullet text from a PowerPoint deck (titles and bullets pasted below). Transform into one markdown or plain-text artefact for context_staging/reference/landscape/ OR context_staging/patterns/ (you choose based on content). Preserve slide structure only as ## headings, not as "Slide 3". Add YAML front matter; type=landscape or pattern; tags from HE architecture (integration, data platform, identity, etc.). Promote to context/… after review.
 ```
 
 **Prompt: draft an ADR in `decisions/`**
 
 ```text
-From the source narrative below, produce a lightweight ADR for workspace/context/decisions/. YAML front matter with type=decision. Body sections: ## Context, ## Decision, ## Consequences, ## Alternatives considered (short). No solution design detail that belongs in patterns/; focus on why we decided.
+From the source narrative below, produce a lightweight ADR for workspace/context_staging/decisions/ (promote to context/decisions/ after review). YAML front matter with type=decision. Body sections: ## Context, ## Decision, ## Consequences, ## Alternatives considered (short). No solution design detail that belongs in patterns/; focus on why we decided.
 ```
 
 **Prompt: raw workshop notes → `intake/`**
 
 ```text
-Turn these messy workshop notes into a single intake file for context/intake/. YAML: type=intake, status=draft. Body: ## Attendees (optional anonymised), ## Raw themes, ## Open questions, ## Suspected links to standards/patterns (hypotheses only). Keep informal tone; flag uncertainty.
+Turn these messy workshop notes into a single intake file for context_staging/intake/. YAML: type=intake, status=draft. Body: ## Attendees (optional anonymised), ## Raw themes, ## Open questions, ## Suspected links to standards/patterns (hypotheses only). Keep informal tone; flag uncertainty. Promote to context/intake/ after review if appropriate.
 ```
 
 **Prompt: add `related:` links after files already exist**

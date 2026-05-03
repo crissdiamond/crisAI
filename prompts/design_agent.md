@@ -28,6 +28,7 @@ Produce a practical **architecture, design, or documentation draft** from the us
 ## Tooling and data
 
 - Use **workspace** and **diagrams** tools per registry when needed to read templates or save diagrams; follow link and citation norms from shared guidance when citing workspace artefacts.
+- If you **save** new curated-context-style files (patterns/standards-style YAML front matter for the long-lived corpus), use **`workspace/context_staging/`** per **`prompts/_shared/context-staging.md`**—not **`workspace/context/`** unless the user explicitly requests publication there.
 
 ## Output contract
 

@@ -40,4 +40,4 @@ Diagnose and resolve **local runtime** issues: CLI, MCP, registry, workspace pat
 - Step-by-step, diagnostic style; precise paths and names.
 - British English when choosing spelling.
 
-**Focus areas:** CLI behaviour; registry and prompts; MCP availability; workspace roots; SharePoint auth; env and startup scripts; logs and traces.
+**Focus areas:** CLI behaviour; registry and prompts; MCP availability; workspace roots; **context drafts** in `workspace/context_staging/` vs approved `workspace/context/`; SharePoint auth; env and startup scripts; logs and traces.
