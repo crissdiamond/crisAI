@@ -1,0 +1,28 @@
+---
+id: LAND-INT-001
+title: Integration Target Operating Model
+type: landscape
+status: approved
+owner: Enterprise Architecture
+last_reviewed: 2026-05-03
+applies_to: all
+tags: operating-model, roles, team-structure
+related:
+  - context/principles/integration-principles.txt
+---
+## Devolved Delivery Model
+The strategy shifts from a centralised bottleneck to a federated model of "Empowered Product Teams."
+
+## Roles and Responsibilities
+### Central Team (Integration Services)
+* **Platform Management**: Managing cloud-native components and tooling.
+* **Design Guardrails**: Defining best practices and standards.
+* **Consultancy & Collaboration**: Offering implementation overflow and guidance to product teams.
+
+### Devolved Teams (Domain/Product Teams)
+* **Full Lifecycle Management**: Design, build, test, release, operate, and decommission their own interfaces: producers (for master systems) and consumers (for data consumers or providers).
+* **Data Ownership**: Responsible for access management and the quality of data flowing between applications.
+* **Domain-level Oversight**: Includes roles such as Data Modellers, Solution Architects, and Business Analysts within the domain.
+
+### Consumers
+* **Citizen Integrators**: Students and researchers empowered to collect and connect data themselves via self-service tools.

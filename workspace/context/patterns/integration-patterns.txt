@@ -1,0 +1,22 @@
+---
+id: PATT-INT-001
+title: Integration Solution Patterns
+type: pattern
+status: draft
+owner: Enterprise Architecture
+last_reviewed: 2026-05-03
+applies_to: all
+tags: api, events, pub-sub, real-time
+related:
+  - context/standards/integration/architectural-guardrails.txt
+  - context/reference/landscape/integration-operating-model.txt
+---
+## Core Patterns
+* **API-First**: Used for real-time synchronous integration (e.g., User Experience) to enable direct communication with responsible domains.
+* **Event-Driven (Pub/Sub)**: Used for continuous synchronisation between services to ensure loose coupling and scalability.
+* **Self-Service Publishing**: Devolved publishing and subscribing to interfaces, including the instantiation of access models by the domain team.
+
+## Data Integration Patterns
+* **Golden Source Retrieval**: Discoverable and high-quality data retrieved directly from golden sources to eliminate manual processes.
+* **Standardised Data Model**: Data served in a standardised model from the source for operational purposes, aligned with the UCL Enterprise Data Model.
+* **Anonymisation at Source**: Security applied at the point data leaves the source (connectors/interfaces), especially for development and QA environments.

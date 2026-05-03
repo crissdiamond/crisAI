@@ -1,0 +1,27 @@
+---
+id: LAND-INT-002
+title: Integration Strategy Roadmap (2021-2024)
+type: landscape
+status: retired
+owner: Enterprise Architecture
+last_reviewed: 2026-05-03
+applies_to: all
+tags: roadmap, timeline, transition
+related:
+  - context/reference/landscape/integration-operating-model.txt
+---
+## Implementation Phases
+Note: This document reflects the historical roadmap established in September 2021.
+
+### Phase 1: Initialisation & Early Adoption (Term 1, 21/22)
+* Definition of patterns, standards, and processes for self-service.
+* Platform Team training and onboarding.
+* First integrations with early adopters (e.g., Student Records, Estates).
+
+### Phase 2: Controlled Rollout (Academic Year 21/22)
+* Go-live of first integrations (e.g., SITS to StarRez).
+* Definition of training and rollout frameworks.
+
+### Phase 3: ISD-wide Release (Academic Year 22/23 onwards)
+* Full go-live and continual central support.
+* Transition to a 3-year delivery roadmap for the Central Team.

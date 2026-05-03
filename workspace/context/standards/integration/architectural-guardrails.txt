@@ -1,0 +1,27 @@
+---
+id: STD-INT-001
+title: Integration Architectural Guardrails
+type: standard
+status: approved
+owner: Enterprise Architecture
+last_reviewed: 2026-05-03
+applies_to: all
+tags: governance, integration, api-first, devops
+related:
+  - context/principles/integration-principles.txt
+  - context/patterns/integration-patterns.txt
+---
+## Governance and Process Standards
+* **Integrated by Design**: Integration capabilities of new applications must be evaluated during the procurement process. Funds must be allocated to enable integration if not natively supported.
+* **Lean Governance**: Governance within Domains and Product Teams is based on adherence to these architectural guardrails.
+* **Devolved Ownership**: Product teams own the interfaces in and out of their products, including compliance and ongoing service improvement.
+
+## Technical Standards
+* **API-First & Event-Driven**: Data exposure from source systems must be agnostic of consuming systems. Business processes should prefer orchestration of events and APIs.
+* **Cloud Native Implementation**: Move away from on-premise toolkits to platforms offering high availability and zero manual intervention.
+* **Continuous Synchronisation**: Synchronisation between services must be based on event-driven publish/subscribe patterns.
+* **Simplified Development**: Prefer UI-driven abstractions and low-code environments over low-level coding for standard integrations.
+
+## Anti-Patterns
+* **Point-to-Point (P2P)**: Custom-built, point-to-point integrations are difficult to maintain and impossible to reuse.
+* **Tactical Silos**: Solutions requested after service procurement often result in disconnected experiences and data silos.

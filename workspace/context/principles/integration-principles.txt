@@ -1,0 +1,27 @@
+---
+id: PRIN-INT-001
+title: Core Integration Principles
+type: principle
+status: approved
+owner: Enterprise Architecture
+last_reviewed: 2026-05-03
+applies_to: all
+tags: integration, cloud-native, security, sustainability
+related:
+  - context/standards/integration/architectural-guardrails.txt
+  - context/patterns/integration-patterns.txt
+---
+## Overarching Principles
+Durable statements that align integration work with UCL’s broader institutional goals.
+
+* **Secure by Design**: Cloud native organisation with inherent security, privacy, and compliance by design to reduce reputational risk.
+* **Reskilled Workforce**: Focus on enabling modern, advanced capabilities rather than just providing operational functions.
+* **Scalable, Optimised Estate**: An estate that scales based on business demand.
+* **Everything as a Service**: Consumption as a service irrespective of delivery model, defined by clear objective criteria.
+* **Sustainable Solutions**: Environmental, technical, and cost perspective sustainability to ensure supportability throughout the lifecycle.
+
+## Strategic Principles
+* **Cloud-Optimised**: Integrations are designed to run in cloud environments, reducing information transfer to only what is required.
+* **Ease of Development and Maintenance**: Easing development effort and building solutions that adapt quickly to demand.
+* **Reusable**: Guidelines and design patterns applied consistently across the enterprise to increase ROI and reduce duplication.
+* **Clear Ownership**: Domain areas are accountable for the implementation, operation, and oversight of their interfaces.
