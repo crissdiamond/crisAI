@@ -311,11 +311,17 @@ The critique specialist.
 ### `operations`
 The troubleshooting specialist.
 
-### Peer-specialist agents
-- `design_author`
-- `design_challenger`
-- `design_refiner`
-- `judge`
+### `design_author`
+The peer-mode authoring specialist. Produces the initial design proposal that the challenger and refiner then work from.
+
+### `design_challenger`
+The peer-mode adversarial specialist. Stress-tests assumptions and identifies weaknesses in the author's proposal.
+
+### `design_refiner`
+The peer-mode synthesis specialist. Reconciles the author's proposal with the challenger's critique into an improved position.
+
+### `judge`
+The peer-mode arbitration specialist. Evaluates the full author → challenger → refiner exchange, rules on the strongest position, and produces the final peer verdict.
 
 ### `publisher`
 The packaging specialist for turning approved outputs or user requests into more formal artefacts when supported by the available tools.
