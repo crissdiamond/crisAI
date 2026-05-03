@@ -15,11 +15,11 @@ import shutil
 import sys
 import webbrowser
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import requests
 from dotenv import load_dotenv
-from msal import PublicClientApplication, SerializableTokenCache
+from msal import ConfidentialClientApplication, PublicClientApplication, SerializableTokenCache
 
 load_dotenv()
 
@@ -35,7 +35,11 @@ DEFAULT_SCOPES = [
 
 TENANT_ID = os.getenv("MS_TENANT_ID", "")
 CLIENT_ID = os.getenv("MS_CLIENT_ID", "")
+CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET", "")
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}" if TENANT_ID else ""
+
+# Type alias covering both MSAL application classes used here.
+_MsalApp = Union[PublicClientApplication, ConfidentialClientApplication]
 
 _token_cache_path: Path | None = None
 _token_info_path: Path | None = None
@@ -111,7 +115,21 @@ def _save_token_cache(cache: SerializableTokenCache) -> None:
         _token_cache_path.write_text(cache.serialize(), encoding="utf-8")
 
 
-def _build_app(cache: SerializableTokenCache) -> PublicClientApplication:
+def _build_app(cache: SerializableTokenCache) -> _MsalApp:
+    """Return an MSAL application instance backed by *cache*.
+
+    Uses ``ConfidentialClientApplication`` when ``MS_CLIENT_SECRET`` is set
+    (Azure AD app registered as a confidential client requiring AADSTS7000218
+    compliance), and falls back to ``PublicClientApplication`` otherwise
+    (requires "Allow public client flows" enabled on the app registration).
+    """
+    if CLIENT_SECRET:
+        return ConfidentialClientApplication(
+            client_id=CLIENT_ID,
+            client_credential=CLIENT_SECRET,
+            authority=AUTHORITY,
+            token_cache=cache,
+        )
     return PublicClientApplication(
         client_id=CLIENT_ID,
         authority=AUTHORITY,
@@ -150,7 +168,7 @@ def _open_interactive_browser(url: str) -> bool:
 
 
 def _acquire_token_interactive_compat(
-    app: PublicClientApplication,
+    app: _MsalApp,
     scopes: list[str],
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
@@ -168,7 +186,7 @@ def _acquire_token_interactive_compat(
 
 
 def _acquire_token_device_code(
-    app: PublicClientApplication,
+    app: _MsalApp,
     scopes: list[str],
 ) -> dict[str, Any]:
     """Acquire a token via the OAuth 2.0 device code flow.
