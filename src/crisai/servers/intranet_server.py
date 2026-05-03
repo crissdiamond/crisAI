@@ -86,8 +86,16 @@ def intranet_search(query: str, max_hits: int = 20) -> list[dict[str, Any]]:
 
     Returns graph_site_id and graph_page_id for use with intranet_fetch.
     """
-    log_event(f"intranet_search query={query!r} max_hits={max_hits}")
-    return PROVIDER.search(query, max_hits=max(1, min(max_hits, 50)))
+    cap = max(1, min(max_hits, 50))
+    log_event(f"intranet_search query={query!r} max_hits={cap}")
+    try:
+        hits = PROVIDER.search(query, max_hits=cap)
+    except Exception as exc:
+        log_event(f"intranet_search error={exc!r}")
+        raise
+    titles = [str(h.get("title") or "")[:80] for h in hits[:5]]
+    log_event(f"intranet_search done hits={len(hits)} sample_titles={titles!r}")
+    return hits
 
 
 @mcp.tool()
@@ -95,7 +103,13 @@ def intranet_fetch(graph_site_id: str, graph_page_id: str) -> str:
     """Fetch normalized text for a SharePoint site page from intranet_search results."""
     log_event(f"intranet_fetch site={graph_site_id!r} page={graph_page_id!r}")
     max_chars = max(4_000, INTRANET_CFG.max_fetch_chars)
-    return PROVIDER.fetch(graph_site_id, graph_page_id, max_chars=max_chars)
+    try:
+        text = PROVIDER.fetch(graph_site_id, graph_page_id, max_chars=max_chars)
+    except Exception as exc:
+        log_event(f"intranet_fetch error={exc!r}")
+        raise
+    log_event(f"intranet_fetch done chars={len(text)} max_chars={max_chars}")
+    return text
 
 
 if __name__ == "__main__":
