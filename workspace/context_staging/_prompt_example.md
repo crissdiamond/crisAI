@@ -27,8 +27,14 @@ Build crisAI **architecture-context** artefacts from the UCL IT Architecture **i
 ---
 
 ## Task 1 — Find the catalogue page
-**Do:** `intranet_search` with keywords such as: `integration-patterns`, `integration`, `pattern`, `Pattern Library`, `Architecture Patterns`. Use `intranet_list_page_links` + `intranet_fetch` until you hold the page that **enumerates** the integration pattern **names** (e.g. `integration-patterns.aspx` or equivalent).  
-**Done when:** You have **one** primary catalogue fetch whose body **lists all pattern names** you will treat as in-scope — the correct catalogue page enumerates **all three groups: Consumer patterns (0–4), Producer patterns (1–3), and Ingestion patterns (1–3)**. If the fetched page only contains an overview or explanation without numbered leaf patterns, it is not the catalogue — continue searching.
+**Do:** Search for the page whose URL slug is **`integration-patterns.aspx`** (all lowercase, no number suffix). Use `intranet_search` with query `integration-patterns` then check the `web_url` of every result. If the slug is not in the search results, call `intranet_list_all_pages(query="integration pattern")` and filter for an entry whose `web_url` ends with `/SitePages/integration-patterns.aspx`. Fetch that page with `intranet_fetch`.
+
+**Catalogue imposters to reject** — if you land on any of these pages, discard them and keep searching:
+- `allPatterns.aspx` — generic pattern library (not integration-specific)
+- `Integration-Patterns(1).aspx` — integration architecture overview, not the leaf catalogue
+- `Architecture-Patterns.aspx` — thematic browse page
+
+**Done when:** You have an `intranet_fetch` of **`integration-patterns.aspx`** (lowercase) whose body enumerates all three groups with numbered leaf patterns: Consumer (0–4), Producer (1–3), Ingestion (1–3). A page that lists fewer than 10 numbered patterns is not the catalogue.
 
 ---
 
