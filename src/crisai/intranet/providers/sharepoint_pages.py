@@ -334,11 +334,42 @@ class SharePointPagesProvider:
         return [page for _, page in scored][:per_site_cap]
 
     def search(self, query: str, max_hits: int) -> list[dict[str, Any]]:
+        """Search intranet pages and return up to *max_hits* results.
+
+        Two-stage strategy:
+        1. **OData / scored pass** (fast, capped per site): surfaces the most
+           relevant pages first using Graph OData filters and token scoring.
+        2. **Cache expansion** (uncapped, any-token match): merges additional
+           pages from the local catalogue that match any query token.  This
+           ensures leaf pages (e.g. ``Consumer-Pattern-1``) are included even
+           when they score below the OData cap — without requiring the caller
+           to separately call ``intranet_list_all_pages``.
+
+        Results are deduplicated by ``web_url``; OData hits always appear first.
+        """
         self._ensure_sites()
         if not self._sites:
             return []
         per_site = max(3, min(25, max(1, max_hits // max(1, len(self._sites)))))
+
+        def _to_hit(page: dict[str, Any], site_label: str, site_id: str) -> dict[str, Any]:
+            web_url = str(page.get("webUrl") or page.get("web_url") or "")
+            title = str(page.get("title") or page.get("name") or "")
+            desc = str(page.get("description") or "")
+            snippet = (desc or title)[:280]
+            return {
+                "site_label": site_label,
+                "graph_site_id": site_id,
+                "graph_page_id": str(page.get("id") or page.get("graph_page_id") or ""),
+                "title": title,
+                "web_url": web_url,
+                "open_url": web_url,
+                "snippet": snippet,
+            }
+
+        # --- Stage 1: OData / scored pass ---
         hits: list[dict[str, Any]] = []
+        seen_urls: set[str] = set()
         for site in self._sites:
             if len(hits) >= max_hits:
                 break
@@ -350,23 +381,36 @@ class SharePointPagesProvider:
                 if len(hits) >= max_hits:
                     break
                 web_url = str(page.get("webUrl") or "")
-                host = _host_of(web_url)
-                if self._allowed_hosts and host not in self._allowed_hosts:
+                if self._allowed_hosts and _host_of(web_url) not in self._allowed_hosts:
                     continue
-                title = str(page.get("title") or page.get("name") or "")
-                desc = str(page.get("description") or "")
-                snippet = (desc or title)[:280]
-                hits.append(
-                    {
-                        "site_label": site.label,
-                        "graph_site_id": site.graph_site_id,
-                        "graph_page_id": str(page.get("id") or ""),
-                        "title": title,
-                        "web_url": web_url,
-                        "open_url": web_url,
-                        "snippet": snippet,
-                    }
-                )
+                norm = web_url.rstrip("/").lower()
+                if norm not in seen_urls:
+                    seen_urls.add(norm)
+                    hits.append(_to_hit(page, site.label, site.graph_site_id))
+
+        # --- Stage 2: Cache expansion ---
+        # Add any pages the OData pass missed (leaf pages that score below the
+        # per-site cap).  Only runs when the cache is warm; skipped on a miss to
+        # avoid triggering a full paginated Graph scan inside a search call.
+        if len(hits) < max_hits:
+            cached = self._load_cached_pages()
+            if cached:
+                filtered = self._filter_pages(cached, query)
+                site_label_map = {s.graph_site_id: s.label for s in (self._sites or [])}
+                for page in filtered:
+                    if len(hits) >= max_hits:
+                        break
+                    web_url = str(page.get("web_url") or "")
+                    if self._allowed_hosts and _host_of(web_url) not in self._allowed_hosts:
+                        continue
+                    norm = web_url.rstrip("/").lower()
+                    if norm in seen_urls:
+                        continue
+                    seen_urls.add(norm)
+                    site_id = str(page.get("graph_site_id") or "")
+                    label = site_label_map.get(site_id, page.get("site_label", ""))
+                    hits.append(_to_hit(page, label, site_id))
+
         return hits
 
     def fetch(self, graph_site_id: str, graph_page_id: str, max_chars: int) -> str:
@@ -546,16 +590,36 @@ class SharePointPagesProvider:
         return self._filter_pages(all_pages, query)
 
     @staticmethod
+    def _query_tokens(query: str) -> list[str]:
+        """Expand query into a deduplicated set of lowercase match tokens.
+
+        Each raw token is kept as-is and, when it ends in ``s`` or ``es``,
+        also added without the suffix (e.g. ``"patterns"`` → ``"pattern"``,
+        ``"processes"`` → ``"process"``).  This lets plural query terms match
+        singular URL slugs and vice versa without a full stemmer dependency.
+        """
+        raw = [t.lower() for t in re.split(r"\s+", query.strip()) if len(t) >= 2]
+        expanded: list[str] = []
+        seen: set[str] = set()
+        for tok in raw:
+            for variant in (tok, tok.rstrip("s"), tok.rstrip("es")):
+                if len(variant) >= 2 and variant not in seen:
+                    seen.add(variant)
+                    expanded.append(variant)
+        return expanded
+
+    @staticmethod
     def _filter_pages(pages: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
         """Return pages whose title or web_url slug contain any token from *query*.
 
         When *query* is empty, all pages are returned unchanged.  Matching is
         case-insensitive substring search with no scoring cap — every page that
-        matches at least one token is included.
+        matches at least one token is included.  Plural tokens (e.g.
+        ``"patterns"``) also match their singular forms (``"pattern"``).
         """
         if not query or not query.strip():
             return pages
-        tokens = [t.lower() for t in re.split(r"\s+", query.strip()) if len(t) >= 2]
+        tokens = SharePointPagesProvider._query_tokens(query)
         if not tokens:
             return pages
         result: list[dict[str, Any]] = []
