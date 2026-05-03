@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import webbrowser
 from pathlib import Path
 from typing import Any, Callable
@@ -183,15 +184,26 @@ def _acquire_token_device_code(
         raise RuntimeError(
             f"Failed to initiate device code flow: {flow.get('error_description') or flow}"
         )
-    # ``verification_uri_complete`` pre-fills the user_code in the browser so
-    # the user only has to click Continue rather than typing the code manually.
-    browser_url = str(flow.get("verification_uri_complete") or flow.get("verification_uri", ""))
+    user_code = str(flow.get("user_code", ""))
+    verification_uri = str(flow.get("verification_uri", ""))
+
+    # Print the instruction to stderr so it appears in the terminal regardless
+    # of how stdout is wired (MCP stdio transport uses stdout for the protocol
+    # wire; stderr reaches the user's shell).
+    instruction = (
+        str(flow.get("message", ""))
+        or f"Go to {verification_uri} and enter the code: {user_code}"
+    )
+    print(f"\n[crisAI auth] {instruction}\n", file=sys.stderr, flush=True)
+
+    # ``verification_uri_complete`` includes the user_code as a query parameter
+    # so the browser pre-fills the field automatically when the URL is opened.
+    browser_url = str(flow.get("verification_uri_complete") or verification_uri)
     if browser_url:
         _open_interactive_browser(browser_url)
-    _emit(
-        f"device_code_flow user_code={flow.get('user_code')!r} "
-        f"verification_uri={flow.get('verification_uri')!r}"
-    )
+
+    _emit(f"device_code_flow user_code={user_code!r} verification_uri={verification_uri!r}")
+
     # Block until the user completes auth in the browser or the flow expires.
     return app.acquire_token_by_device_flow(flow)
 
