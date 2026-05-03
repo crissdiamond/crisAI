@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -26,9 +27,18 @@ from crisai.cli.session_store import (
     session_dir,
 )
 from crisai.config import load_settings
+from crisai.logging_utils import configure_logging
 from crisai.apps.ui_config import UI_CONFIG
 
-app = FastAPI(title="crisAI Web")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Create log directory and application log file when the server starts."""
+    configure_logging(load_settings())
+    yield
+
+
+app = FastAPI(title="crisAI Web", lifespan=_lifespan)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
 _UI_DIR = Path(__file__).parent / "ui"
 

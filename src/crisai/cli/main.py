@@ -28,6 +28,17 @@ from .pipelines import run_peer_pipeline, run_pipeline, run_single
 
 app = typer.Typer(help="crisAI CLI")
 logger = get_logger(__name__)
+
+
+@app.callback()
+def _cli_bootstrap(ctx: typer.Context) -> None:
+    """Ensure log directory and crisai.log exist before any subcommand runs.
+
+    Bare ``crisai`` (no subcommand) only prints help and skips this setup.
+    """
+    if ctx.invoked_subcommand is None:
+        return
+    configure_logging(load_settings())
 _EXPECTED_RUNTIME_ERRORS = (typer.BadParameter, ValueError, RuntimeError, FileNotFoundError)
 
 _EXPLICIT_MODE_PATTERNS: dict[str, tuple[str, ...]] = {
@@ -321,16 +332,12 @@ def _run_async(coro: Awaitable[Any]) -> Any:
 @app.command("list-servers")
 def list_servers() -> None:
     """List registered MCP servers."""
-    settings = load_settings()
-    configure_logging(settings)
     print_servers_table()
 
 
 @app.command("list-agents")
 def list_agents() -> None:
     """List registered agents."""
-    settings = load_settings()
-    configure_logging(settings)
     print_agents_table()
 
 
@@ -429,9 +436,6 @@ def chat(
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Start the interactive crisAI chat session."""
-    settings = load_settings()
-    configure_logging(settings)
-
     state = ChatRuntimeState(
         current_session=session,
         history=load_history(session),

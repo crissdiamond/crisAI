@@ -124,10 +124,13 @@ def configure_logging(settings) -> None:
         settings: Loaded application settings.
     """
     global _CONFIGURED
+    # Recreate the directory if the user removed ``logs/`` while a long-lived
+    # process was idle; handlers still work, but other writers (trace) need
+    # the path to exist again.
+    settings.log_dir.mkdir(parents=True, exist_ok=True)
     if _CONFIGURED:
         return
 
-    settings.log_dir.mkdir(parents=True, exist_ok=True)
     log_file = settings.log_dir / "crisai.log"
 
     root_logger = logging.getLogger()
