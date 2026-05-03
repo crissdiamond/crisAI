@@ -18,3 +18,8 @@ class WikiProvider:
         raise RuntimeError(
             "intranet.provider is set to 'wiki', but the wiki adapter is not implemented yet."
         )
+
+    def list_page_links(self, graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
+        raise RuntimeError(
+            "intranet.provider is set to 'wiki', but list_page_links is not implemented for wiki."
+        )

@@ -112,5 +112,18 @@ def intranet_fetch(graph_site_id: str, graph_page_id: str) -> str:
     return text
 
 
+@mcp.tool()
+def intranet_list_page_links(graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
+    """List same-host Site Pages URLs linked from a page (use after intranet_fetch on hub/catalog pages)."""
+    log_event(f"intranet_list_page_links site={graph_site_id!r} page={graph_page_id!r}")
+    try:
+        links = PROVIDER.list_page_links(graph_site_id, graph_page_id)
+    except Exception as exc:
+        log_event(f"intranet_list_page_links error={exc!r}")
+        raise
+    log_event(f"intranet_list_page_links done count={len(links)}")
+    return links
+
+
 if __name__ == "__main__":
     mcp.run()

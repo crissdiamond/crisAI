@@ -4,10 +4,21 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from crisai import ms_graph
 from crisai.intranet.config import IntranetSettings, SharePointSiteEntry
+
+# Site page list pagination (Graph returns @odata.nextLink; deep pages are often past the first batch).
+_PAGE_LIST_BATCH = 100
+_MAX_SITE_PAGES_TO_SCAN = 500
+
+
+def _hrefs_from_html_fragment(html: str) -> list[str]:
+    out: list[str] = []
+    out += re.findall(r'href\s*=\s*"([^"]+)"', html, flags=re.IGNORECASE)
+    out += re.findall(r"href\s*=\s*'([^']+)'", html, flags=re.IGNORECASE)
+    return [h.strip() for h in out if h.strip()]
 
 
 def _strip_html(html: str) -> str:
@@ -56,6 +67,40 @@ def _host_of(url: str) -> str | None:
         return (urlparse(url).hostname or "").lower() or None
     except ValueError:
         return None
+
+
+def _collect_hrefs_from_canvas(canvas: dict[str, Any] | None) -> list[str]:
+    """Extract raw href targets from text web part HTML on a modern page."""
+    if not canvas:
+        return []
+    hrefs: list[str] = []
+    for section in canvas.get("horizontalSections") or []:
+        for col in section.get("columns") or []:
+            for wp in col.get("webparts") or []:
+                inner = wp.get("innerHtml")
+                if isinstance(inner, str):
+                    hrefs.extend(_hrefs_from_html_fragment(inner))
+    return hrefs
+
+
+def _fetch_site_pages_paginated(site_id: str, timeout: int) -> list[dict[str, Any]]:
+    """Collect up to ``_MAX_SITE_PAGES_TO_SCAN`` site pages using Graph nextLink."""
+    accumulated: list[dict[str, Any]] = []
+    data = ms_graph.graph_get(
+        f"/sites/{site_id}/pages/microsoft.graph.sitePage",
+        params={"$top": _PAGE_LIST_BATCH},
+        timeout=timeout,
+    )
+    accumulated.extend(data.get("value") or [])
+    rounds = 0
+    while len(accumulated) < _MAX_SITE_PAGES_TO_SCAN and rounds < 25:
+        next_link = data.get("@odata.nextLink")
+        if not next_link:
+            break
+        rounds += 1
+        data = ms_graph.graph_get_url(str(next_link), timeout=timeout)
+        accumulated.extend(data.get("value") or [])
+    return accumulated[:_MAX_SITE_PAGES_TO_SCAN]
 
 
 def resolve_site_entries(
@@ -150,14 +195,17 @@ class SharePointPagesProvider:
                 if "400" not in str(exc) and "501" not in str(exc):
                     raise
 
-        data = ms_graph.graph_get(
-            f"/sites/{site_id}/pages/microsoft.graph.sitePage",
-            params={"$top": fetch_limit},
-            timeout=self._timeout,
-        )
-        pages = list(data.get("value") or [])
         if not q:
+            data = ms_graph.graph_get(
+                f"/sites/{site_id}/pages/microsoft.graph.sitePage",
+                params={"$top": fetch_limit},
+                timeout=self._timeout,
+            )
+            pages = list(data.get("value") or [])
             return pages[:per_site_cap]
+
+        # Paginate: leaf pages (for example integration-patterns.aspx) are often beyond the first batch.
+        pages = _fetch_site_pages_paginated(site_id, self._timeout)
 
         tokens = [t for t in re.split(r"\s+", q) if len(t) >= 2]
         if not tokens:
@@ -170,6 +218,8 @@ class SharePointPagesProvider:
                 + str(page.get("name") or "")
                 + " "
                 + str(page.get("description") or "")
+                + " "
+                + str(page.get("webUrl") or "")
             ).lower()
 
         scored: list[tuple[int, dict[str, Any]]] = []
@@ -238,3 +288,45 @@ class SharePointPagesProvider:
         if len(text) > max_chars:
             text = text[: max_chars - 20] + "\n...[truncated]"
         return text
+
+    def list_page_links(self, graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
+        """Return same-site Site Pages URLs linked from a page's web-part HTML (hub → child navigation)."""
+        if not graph_site_id or not graph_page_id:
+            raise ValueError("graph_site_id and graph_page_id are required.")
+        allowed_site_ids = {s.graph_site_id for s in self._sites}
+        if graph_site_id not in allowed_site_ids:
+            raise RuntimeError(
+                "graph_site_id is not one of the configured intranet sites. "
+                "Use intranet_search hits only."
+            )
+        page = ms_graph.graph_get(
+            f"/sites/{graph_site_id}/pages/{graph_page_id}/microsoft.graph.sitePage",
+            params={"$expand": "canvasLayout"},
+            timeout=self._timeout,
+        )
+        web_url = str(page.get("webUrl") or "")
+        self._ensure_page_host_allowed(web_url)
+        canvas = page.get("canvasLayout")
+        raw_hrefs = _collect_hrefs_from_canvas(canvas if isinstance(canvas, dict) else None)
+        results: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for href in raw_hrefs:
+            h = href.strip()
+            if not h or h.startswith("#") or h.lower().startswith("javascript:"):
+                continue
+            absolute = urljoin(web_url, h)
+            parsed = urlparse(absolute)
+            host = (parsed.hostname or "").lower()
+            path_l = (parsed.path or "").lower()
+            if self._allowed_hosts and host not in self._allowed_hosts:
+                continue
+            if "sitepages" not in path_l:
+                continue
+            norm = absolute.split("?")[0].rstrip("/")
+            base_norm = web_url.split("?")[0].rstrip("/")
+            if norm == base_norm:
+                continue
+            if norm not in seen:
+                seen.add(norm)
+                results.append({"web_url": norm, "open_url": norm})
+        return results

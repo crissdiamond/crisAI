@@ -134,6 +134,7 @@ servers:
         - intranet_auth_status
         - intranet_search
         - intranet_fetch
+        - intranet_list_page_links
     approval:
       required_for: []
       mode: none

@@ -94,6 +94,63 @@ def test_wiki_provider_raises() -> None:
     wiki = WikiProvider()
     with pytest.raises(RuntimeError, match="not implemented"):
         wiki.search("q", 5)
+    with pytest.raises(RuntimeError, match="list_page_links"):
+        wiki.list_page_links("s", "p")
+
+
+def test_list_page_links_filters_same_host_sitepages(monkeypatch: pytest.MonkeyPatch) -> None:
+    canvas = {
+        "horizontalSections": [
+            {
+                "columns": [
+                    {
+                        "webparts": [
+                            {
+                                "innerHtml": (
+                                    '<a href="integration-patterns.aspx">Patterns</a> '
+                                    '<a href="https://evil.example/page">bad</a> '
+                                    '<a href="/sites/it-architecture/SitePages/integration.aspx">i</a>'
+                                )
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    def fake_get(path: str, params: dict | None = None, timeout: int = 60) -> dict:
+        assert "$expand" in (params or {})
+        return {
+            "webUrl": "https://contoso.sharepoint.com/sites/it-architecture/SitePages/Hub.aspx",
+            "canvasLayout": canvas,
+        }
+
+    monkeypatch.setattr(sharepoint_pages.ms_graph, "graph_get", fake_get)
+    settings = IntranetSettings(
+        provider="sharepoint_pages",
+        allow_hosts=["contoso.sharepoint.com"],
+        max_fetch_chars=5000,
+        graph_timeout_seconds=60,
+        raw_sharepoint_sites=[],
+    )
+    sites = [
+        SharePointSiteEntry(
+            label="ea",
+            graph_site_id="site-a",
+            web_url="https://contoso.sharepoint.com/sites/it-architecture",
+        )
+    ]
+    prov = SharePointPagesProvider(
+        settings=settings,
+        sites=sites,
+        allowed_hosts={"contoso.sharepoint.com"},
+    )
+    links = prov.list_page_links("site-a", "page-1")
+    urls = {x["web_url"] for x in links}
+    assert "https://contoso.sharepoint.com/sites/it-architecture/SitePages/integration-patterns.aspx" in urls
+    assert "https://contoso.sharepoint.com/sites/it-architecture/SitePages/integration.aspx" in urls
+    assert not any("evil.example" in u for u in urls)
 
 
 def test_sharepoint_search_token_fallback_when_odata_title_empty(monkeypatch: pytest.MonkeyPatch) -> None:

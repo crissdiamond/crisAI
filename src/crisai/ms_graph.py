@@ -283,6 +283,19 @@ def graph_get(path: str, params: dict[str, Any] | None = None, timeout: int = 60
     return resp.json()
 
 
+def graph_get_url(url: str, timeout: int = 60) -> dict[str, Any]:
+    """GET an absolute Microsoft Graph URL (for example ``@odata.nextLink`` pagination)."""
+    token = acquire_token()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    }
+    resp = requests.get(url, headers=headers, timeout=timeout)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Graph GET URL failed: {resp.status_code} {resp.text}")
+    return resp.json()
+
+
 def graph_get_bytes(url: str, timeout: int = 120) -> bytes:
     token = acquire_token()
     headers = {"Authorization": f"Bearer {token}"}

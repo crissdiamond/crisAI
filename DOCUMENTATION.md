@@ -417,7 +417,7 @@ crisAI supports delegated Microsoft Graph access for:
 
 ### Intranet site pages (scoped MCP server)
 
-For **published SharePoint site pages** (modern intranet content), use the separate **`intranet`** MCP server—not a generic web browser. Tools: `intranet_search`, `intranet_fetch`, plus `intranet_login` / `intranet_auth_status` (same delegated Microsoft account and token cache as the SharePoint docs server).
+For **published SharePoint site pages** (modern intranet content), use the separate **`intranet`** MCP server—not a generic web browser. Tools: `intranet_search`, `intranet_fetch`, **`intranet_list_page_links`** (hyperlinks on a page—use on hub/catalog pages to reach child Site Pages), plus `intranet_login` / `intranet_auth_status` (same delegated Microsoft account and token cache as the SharePoint docs server). Search paginates the site page list and scores **webUrl** so slugs like `integration-patterns.aspx` match.
 
 Configuration lives in `registry/intranet.yaml`:
 
