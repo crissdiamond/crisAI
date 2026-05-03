@@ -9,6 +9,7 @@ agents:
       - workspace
       - diagrams
       - documents
+      - intranet
 
   - id: retrieval_planner
     name: Retrieval Planner
@@ -18,6 +19,7 @@ agents:
       - workspace
       - documents
       - sharepoint_docs
+      - intranet
 
   - id: context_retrieval
     name: Context Retrieval Agent
@@ -27,6 +29,7 @@ agents:
       - workspace
       - documents
       - sharepoint_docs
+      - intranet
 
   - id: context_synthesizer
     name: Context Synthesizer Agent
@@ -35,6 +38,7 @@ agents:
     allowed_servers:
       - workspace
       - documents
+      - intranet
 
   - id: design
     name: Design Agent
@@ -51,6 +55,7 @@ agents:
     allowed_servers:
       - workspace
       - documents
+      - intranet
 
   - id: operations
     name: Operations Agent
@@ -67,6 +72,7 @@ agents:
       - workspace
       - documents
       - diagrams
+      - intranet
 
   - id: design_author
     name: Design Author

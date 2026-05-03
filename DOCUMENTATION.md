@@ -415,6 +415,19 @@ crisAI supports delegated Microsoft Graph access for:
 - personal OneDrive
 - drives, items, and documents
 
+### Intranet site pages (scoped MCP server)
+
+For **published SharePoint site pages** (modern intranet content), use the separate **`intranet`** MCP server—not a generic web browser. Tools: `intranet_search`, `intranet_fetch`, plus `intranet_login` / `intranet_auth_status` (same delegated Microsoft account and token cache as the SharePoint docs server).
+
+Configuration lives in `registry/intranet.yaml`:
+
+- **`provider`**: `sharepoint_pages` (default) or `wiki` (placeholder for future adapters).
+- **`allow_hosts`**: optional lowercase hostnames; page `webUrl` hosts must match exactly. If omitted, hosts are **derived only** from the configured sites’ `webUrl` values (still not open internet).
+- **`sharepoint_pages.sites`**: list entries with either `site_path` (for example `contoso.sharepoint.com:/sites/Intranet`) or `graph_site_id`.
+- **`limits`**: `max_fetch_chars`, `graph_timeout_seconds`.
+
+`intranet_fetch` only accepts `graph_site_id` values that came from that configuration, so agents cannot pivot to arbitrary Graph sites.
+
 ### Best practice
 
 - check auth status first
@@ -571,6 +584,7 @@ logs/workspace_mcp.log
 logs/document_mcp.log
 logs/diagram_mcp.log
 logs/sharepoint_mcp.log
+logs/intranet_mcp.log
 ```
 
 The **workspace** directory is for your documents and generated files; MCP server logs are written under the log directory with the main trace and `crisai.log`.

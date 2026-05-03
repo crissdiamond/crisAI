@@ -141,6 +141,7 @@ crisAI/
         document_server.py
         diagram_server.py
         sharepoint_server.py
+        intranet_server.py
       config.py
       model_resolver.py
       registry.py

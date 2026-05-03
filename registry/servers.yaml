@@ -110,3 +110,31 @@ servers:
       required_for: []
       mode: none
     risk_level: medium
+
+  - id: intranet
+    name: Intranet Pages Server
+    description: >-
+      Search and read SharePoint site pages from configured intranet sites only
+      (see registry/intranet.yaml). Same delegated Microsoft Graph auth as SharePoint.
+    enabled: true
+    transport: stdio
+    client_timeout_seconds: 240
+    command: python
+    args:
+      - src/crisai/servers/intranet_server.py
+      - ./workspace
+    working_directory: .
+    tags: [intranet, sharepoint, pages, graph]
+    auth:
+      type: delegated_oauth
+      provider: microsoft_graph
+    tools:
+      allow:
+        - intranet_login
+        - intranet_auth_status
+        - intranet_search
+        - intranet_fetch
+    approval:
+      required_for: []
+      mode: none
+    risk_level: medium

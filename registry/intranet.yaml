@@ -1,0 +1,29 @@
+# Intranet content for MCP tools (read-only). Scope is limited to configured backends
+# and host allow rules — not the public internet.
+#
+# provider:
+#   - sharepoint_pages: Microsoft Graph site pages (delegated; same MS env as SharePoint MCP)
+#   - wiki: reserved for future wiki adapters (currently not implemented)
+#
+# SharePoint permissions: Sites.Read.All (delegated), same as existing SharePoint tools.
+#
+version: 1
+
+intranet:
+  provider: sharepoint_pages
+  # If empty, hosts are derived from configured sites' webUrl (fail-closed for unrelated pages).
+  allow_hosts: []
+  limits:
+    max_fetch_chars: 120000
+    graph_timeout_seconds: 90
+  sharepoint_pages:
+    sites: [
+      - label: UCL Sharepoint
+        site_path: "liveuclac.sharepoint.com/_layouts/15/sharepoint.aspx"
+    ]
+    # Example:
+    # sites:
+    #   - label: main-intranet
+    #     site_path: "contoso.sharepoint.com:/sites/Intranet"
+    #   - label: hr-root
+    #     graph_site_id: "contoso.sharepoint.com,abc...,def..."

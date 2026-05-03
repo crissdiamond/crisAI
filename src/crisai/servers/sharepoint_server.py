@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-import logging
 import csv
 import io
-import inspect
-import json
-import os
-import shutil
 import sys
-import webbrowser
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -19,13 +13,13 @@ import requests
 from docx import Document as DocxDocument
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
-from msal import PublicClientApplication, SerializableTokenCache
 from openpyxl import load_workbook
 from pptx import Presentation
 from pypdf import PdfReader
 
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
+from crisai import ms_graph
 
 load_dotenv()
 
@@ -37,75 +31,9 @@ ROOT.mkdir(parents=True, exist_ok=True)
 LOG_FILE = load_settings().log_dir / "sharepoint_mcp.log"
 CACHE_DIR = ROOT / ".auth"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
-TOKEN_CACHE_PATH = Path(os.getenv("MS_TOKEN_CACHE_PATH", CACHE_DIR / "msal_token_cache.json"))
-
-TENANT_ID = os.getenv("MS_TENANT_ID", "")
-CLIENT_ID = os.getenv("MS_CLIENT_ID", "")
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}" if TENANT_ID else ""
-GRAPH_BASE = "https://graph.microsoft.com/v1.0"
-
-DEFAULT_SCOPES = [
-    "User.Read",
-    "Sites.Read.All",
-    "Files.Read.All",
-]
 
 SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".json", ".yaml", ".yml", ".py", ".log", ".csv"}
 SUPPORTED_DOC_SUFFIXES = {".docx", ".pdf", ".pptx", ".xlsx"}
-
-TOKEN_INFO_PATH = Path(os.getenv("MS_TOKEN_INFO_PATH", CACHE_DIR / "msal_token_info.json"))
-
-def _acquire_token_silent_only(scopes: list[str] | None = None) -> dict[str, Any] | None:
-    _require_env()
-    scopes = scopes or DEFAULT_SCOPES
-
-    cache = _load_token_cache()
-    app = _build_app(cache)
-
-    accounts = app.get_accounts()
-    if not accounts:
-        return None
-
-    result = app.acquire_token_silent(scopes=scopes, account=accounts[0])
-    _save_token_cache(cache)
-    return result
-
-
-def _format_interactive_auth_failure(result: dict[str, Any] | None, scopes: list[str]) -> str:
-    """Build a user-facing diagnostic for interactive Microsoft login failures."""
-    payload = result or {}
-    error_code = str(payload.get("error") or "unknown_error")
-    description = str(payload.get("error_description") or payload.get("error_message") or "No description returned.")
-    suberror = payload.get("suberror")
-    correlation_id = payload.get("correlation_id")
-
-    lines = [
-        "Microsoft interactive login did not return an access token.",
-        f"Error code: {error_code}",
-        f"Description: {description}",
-        f"Requested scopes: {', '.join(scopes)}",
-        "Troubleshooting:",
-        "- Complete the browser flow in the same local session and wait for redirect to localhost.",
-        "- If prompted multiple times, close stale auth tabs and retry once.",
-        "- If this persists on clean install, run `sharepoint_auth_status` and `login_sharepoint` to inspect auth state.",
-    ]
-    if suberror:
-        lines.append(f"Suberror: {suberror}")
-    if correlation_id:
-        lines.append(f"Correlation ID: {correlation_id}")
-    return "\n".join(lines)
-
-
-def _write_token_info(info: dict[str, Any]) -> None:
-    TOKEN_INFO_PATH.parent.mkdir(parents=True, exist_ok=True)
-    TOKEN_INFO_PATH.write_text(json.dumps(info, indent=2), encoding="utf-8")
-
-
-def _read_token_info() -> dict[str, Any]:
-    if TOKEN_INFO_PATH.exists():
-        return json.loads(TOKEN_INFO_PATH.read_text(encoding="utf-8"))
-    return {}
-
 
 
 def _configure_mcp_logging() -> None:
@@ -125,219 +53,16 @@ def log_event(message: str) -> None:
     )
 
 
-def _require_env() -> None:
-    missing = []
-    if not TENANT_ID:
-        missing.append("MS_TENANT_ID")
-    if not CLIENT_ID:
-        missing.append("MS_CLIENT_ID")
-    if missing:
-        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+ms_graph.configure_workspace(ROOT)
+ms_graph.set_telemetry_hook(log_event)
 
-
-def _load_token_cache() -> SerializableTokenCache:
-    cache = SerializableTokenCache()
-    if TOKEN_CACHE_PATH.exists():
-        cache.deserialize(TOKEN_CACHE_PATH.read_text(encoding="utf-8"))
-    return cache
-
-
-def _save_token_cache(cache: SerializableTokenCache) -> None:
-    if cache.has_state_changed:
-        TOKEN_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        TOKEN_CACHE_PATH.write_text(cache.serialize(), encoding="utf-8")
-
-
-def _build_app(cache: SerializableTokenCache) -> PublicClientApplication:
-    return PublicClientApplication(
-        client_id=CLIENT_ID,
-        authority=AUTHORITY,
-        token_cache=cache,
-    )
-
-
-def _is_wsl_environment() -> bool:
-    """Return whether the current process runs inside WSL."""
-    if os.environ.get("WSL_DISTRO_NAME"):
-        return True
-    try:
-        content = Path("/proc/version").read_text(encoding="utf-8").lower()
-    except OSError:
-        return False
-    return "microsoft" in content or "wsl" in content
-
-
-def _open_interactive_browser(url: str) -> bool:
-    """Open browser URL with WSL-aware fallback launchers.
-
-    MSAL expects ``open_browser`` callbacks to return a boolean indicating
-    whether the URL launch succeeded. Returning ``None`` is treated as failure
-    and surfaces an ``open_browser`` auth error even when a URL is printed.
-    """
-    launched = False
-
-    if _is_wsl_environment():
-        # Prefer wslview when installed; fall back to explorer.exe.
-        for candidate in ("wslview", "explorer.exe"):
-            if shutil.which(candidate):
-                try:
-                    os.spawnlp(os.P_NOWAIT, candidate, candidate, url)
-                    launched = True
-                    break
-                except OSError:
-                    continue
-
-    if not launched:
-        launched = bool(webbrowser.open(url, new=1))
-
-    if not launched:
-        # Keep interactive login alive even when no launcher is available:
-        # user can still open the URL manually in any browser.
-        print("Open a browser on this device to visit:")
-        print(url)
-        log_event("interactive_browser_manual_fallback")
-
-    # Returning True tells MSAL the interactive flow can proceed.
-    return True
-
-
-def _acquire_token_interactive_compat(
-    app: PublicClientApplication,
-    scopes: list[str],
-) -> dict[str, Any]:
-    """Acquire token interactively across MSAL versions.
-
-    Some MSAL versions support ``open_browser`` in ``acquire_token_interactive``.
-    Others reject unknown kwargs and fail with errors such as:
-    ``Session.request() got an unexpected keyword argument 'open_browser'``.
-    """
-    kwargs: dict[str, Any] = {
-        "scopes": scopes,
-        "prompt": "select_account",
-        "domain_hint": "organizations",
-    }
-    try:
-        parameters = inspect.signature(app.acquire_token_interactive).parameters
-    except (TypeError, ValueError):
-        parameters = {}
-    if "open_browser" in parameters:
-        kwargs["open_browser"] = _open_interactive_browser
-    return app.acquire_token_interactive(**kwargs)
-
-
-#def _acquire_token(scopes: list[str] | None = None) -> str:
-#    _require_env()
-#    scopes = scopes or DEFAULT_SCOPES
-#
-#    cache = _load_token_cache()
-#    app = _build_app(cache)
-#
-#    accounts = app.get_accounts()
-#    result: dict[str, Any] | None = None
-#
-#    if accounts:
-#        result = app.acquire_token_silent(scopes=scopes, account=accounts[0])
-#
-#    if not result:
-#        log_event(f"interactive_login scopes={scopes}")
-#        result = app.acquire_token_interactive(
-#            scopes=scopes,
-#            prompt="select_account",
-#            domain_hint="organizations",
-#        )
-#
-#    _save_token_cache(cache)
-#
-#    if not result or "access_token" not in result:
-#        raise RuntimeError(f"Could not acquire token: {result}")
-#
-#    granted = result.get("scope")
-#    log_event(f"token_acquired scopes={granted}")
-#    return str(result["access_token"])
-
-def _acquire_token(scopes: list[str] | None = None, force_interactive: bool = False) -> str:
-    _require_env()
-    scopes = scopes or DEFAULT_SCOPES
-
-    result = _acquire_token_silent_only(scopes=scopes)
-
-    if result and "access_token" in result:
-        granted = result.get("scope")
-        account = result.get("id_token_claims", {}).get("preferred_username")
-        if account or granted:
-            _write_token_info(
-                {
-                    "account": account,
-                    "scope": granted,
-                    "has_access_token": True,
-                }
-            )
-        return str(result["access_token"])
-
-    if not force_interactive:
-        # Restore previous behavior: automatically trigger interactive sign-in
-        # when cache is missing or expired so CLI/web recover without manual steps.
-        force_interactive = True
-
-    log_event(f"interactive_login scopes={scopes}")
-    cache = _load_token_cache()
-    app = _build_app(cache)
-
-    result = _acquire_token_interactive_compat(app, scopes)
-
-    _save_token_cache(cache)
-
-    if not result or "access_token" not in result:
-        message = _format_interactive_auth_failure(result, scopes)
-        log_event(f"interactive_login_failed error={result}")
-        raise RuntimeError(message)
-
-    granted = result.get("scope")
-    account = result.get("id_token_claims", {}).get("preferred_username")
-    _write_token_info(
-        {
-            "account": account,
-            "scope": granted,
-            "has_access_token": True,
-        }
-    )
-    log_event(f"token_acquired scopes={granted} account={account}")
-    return str(result["access_token"])
-
-#def _graph_get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-#    token = _acquire_token()
-#    headers = {
-#        "Authorization": f"Bearer {token}",
-#        "Accept": "application/json",
-#    }
-#    url = f"{GRAPH_BASE}{path}"
-#    resp = requests.get(url, headers=headers, params=params, timeout=60)
-#    if resp.status_code >= 400:
-#        raise RuntimeError(f"Graph GET {path} failed: {resp.status_code} {resp.text}")
-#    return resp.json()
 
 def _graph_get(path: str, params: dict[str, Any] | None = None, timeout: int = 60) -> dict[str, Any]:
-    token = _acquire_token()
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-    }
-    url = f"{GRAPH_BASE}{path}"
-    resp = requests.get(url, headers=headers, params=params, timeout=timeout)
-    if resp.status_code >= 400:
-        raise RuntimeError(f"Graph GET {path} failed: {resp.status_code} {resp.text}")
-    return resp.json()
+    return ms_graph.graph_get(path, params=params, timeout=timeout)
 
 
 def _graph_get_bytes(url: str) -> bytes:
-    token = _acquire_token()
-    headers = {
-        "Authorization": f"Bearer {token}",
-    }
-    resp = requests.get(url, headers=headers, timeout=120)
-    if resp.status_code >= 400:
-        raise RuntimeError(f"Graph content download failed: {resp.status_code} {resp.text}")
-    return resp.content
+    return ms_graph.graph_get_bytes(url)
 
 
 def _detect_text_encoding(data: bytes) -> str:
@@ -481,8 +206,8 @@ def _normalise_item(item: dict[str, Any]) -> dict[str, Any]:
 def login_sharepoint() -> str:
     """Force interactive Microsoft login and cache tokens for later SharePoint calls."""
     log_event("login_sharepoint")
-    _acquire_token(force_interactive=True)
-    info = _read_token_info()
+    ms_graph.acquire_token(force_interactive=True)
+    info = ms_graph.read_token_info()
     return f"SharePoint login successful. Account={info.get('account')} Scopes={info.get('scope')}"
 
 
@@ -490,31 +215,7 @@ def login_sharepoint() -> str:
 def sharepoint_auth_status() -> dict[str, Any]:
     """Return SharePoint auth status without forcing interactive login."""
     log_event("sharepoint_auth_status")
-
-    info = _read_token_info()
-    cache = _load_token_cache()
-    app = _build_app(cache)
-    accounts = app.get_accounts()
-
-    silent_result = None
-    has_valid_silent_token = False
-    silent_error = None
-
-    if accounts:
-        silent_result = app.acquire_token_silent(scopes=DEFAULT_SCOPES, account=accounts[0])
-        if silent_result and "access_token" in silent_result:
-            has_valid_silent_token = True
-        elif silent_result:
-            silent_error = silent_result.get("error_description") or str(silent_result)
-
-    return {
-        "has_cached_token_info": bool(info),
-        "account": info.get("account"),
-        "scopes": info.get("scope"),
-        "cached_accounts": [a.get("username") for a in accounts],
-        "has_valid_silent_token": has_valid_silent_token,
-        "silent_error": silent_error,
-    }
+    return ms_graph.delegated_auth_status()
 
 @mcp.tool()
 def who_am_i() -> dict[str, Any]:
@@ -724,7 +425,7 @@ def read_sharepoint_document(drive_id: str, item_id: str) -> str:
     if not suffix:
         raise ValueError(f"Cannot determine file type for item name: {name}")
 
-    content_url = f"{GRAPH_BASE}/drives/{drive_id}/items/{item_id}/content"
+    content_url = f"{ms_graph.GRAPH_BASE}/drives/{drive_id}/items/{item_id}/content"
     data = _graph_get_bytes(content_url)
 
     extracted = _extract_bytes_by_suffix(data, suffix)
