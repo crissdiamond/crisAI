@@ -17,6 +17,14 @@ related:
 Body: keep sections short. crisAI workspace search works line-by-line; use `## Section`
 headings and bullets so retrieval can hit distinctive phrases.
 
+## Design overview
+- Name: <full pattern name from source>
+- Description: <one-line description from source>
+- Version / status / date: <if stated on the fetched page>
+- Classification: <source, target, delivery mode — e.g. consumer pattern; source: Enterprise Channel; target: System; delivery: synchronous>
+- NFRs: <observability, reliability, reconciliation, operational limits — only if stated on the fetched page>
+- Security: <any security constraints stated on the fetched page>
+
 ## When to use
 
 ## Anti-patterns
