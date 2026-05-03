@@ -171,7 +171,11 @@ def test_list_page_links_filters_same_host_sitepages(monkeypatch: pytest.MonkeyP
 
 
 def test_sharepoint_search_token_fallback_when_odata_title_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    """OData exact title substring can be empty; provider should list pages and match tokens."""
+    """OData exact title substring can be empty; provider should list pages and match tokens.
+
+    The fallback now goes through list_all_pages() (which populates the cache) so
+    graph_get_url must also be stubbed to prevent nextLink pagination calls.
+    """
 
     def fake_graph_get(path: str, params: dict | None = None, timeout: int = 60) -> dict:
         p = params or {}
@@ -197,6 +201,7 @@ def test_sharepoint_search_token_fallback_when_odata_title_empty(monkeypatch: py
         }
 
     monkeypatch.setattr(sharepoint_pages.ms_graph, "graph_get", fake_graph_get)
+    monkeypatch.setattr(sharepoint_pages.ms_graph, "graph_get_url", lambda *a, **kw: {"value": []})
     settings = IntranetSettings(
         provider="sharepoint_pages",
         allow_hosts=["contoso.sharepoint.com"],
@@ -314,6 +319,59 @@ def _make_sites() -> list[SharePointSiteEntry]:
             web_url="https://contoso.sharepoint.com/sites/hr",
         )
     ]
+
+
+def test_search_token_fallback_populates_cache_and_second_call_is_cache_hit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """First search (OData miss) populates the page cache; second search fallback uses cache.
+
+    The OData filter call is always made (fast, returns immediately).  What must NOT happen
+    on the second search is the slow paginated scan — that is the non-filter Graph call.
+    """
+    # Track only the slow paginated-scan calls (no $filter param).
+    paginated_scan_calls: list[str] = []
+
+    def fake_graph_get(path: str, params: dict | None = None, timeout: int = 60) -> dict:
+        p = params or {}
+        if "$filter" not in p:
+            paginated_scan_calls.append(path)
+            return {
+                "value": [
+                    {
+                        "id": "p1",
+                        "title": "Integration overview",
+                        "name": "Integration-overview.aspx",
+                        "webUrl": "https://contoso.sharepoint.com/sites/hr/SitePages/a.aspx",
+                        "description": "Design patterns for services",
+                    },
+                ]
+            }
+        # OData filter call — fast, always returns empty for this test.
+        return {"value": []}
+
+    monkeypatch.setattr(sharepoint_pages.ms_graph, "graph_get", fake_graph_get)
+    monkeypatch.setattr(sharepoint_pages.ms_graph, "graph_get_url", lambda *a, **kw: {"value": []})
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    prov = SharePointPagesProvider(
+        settings=_make_settings(), sites=_make_sites(), workspace_root=workspace
+    )
+
+    # First search — OData fails, falls back to list_all_pages which hits Graph (paginated scan).
+    hits1 = prov.search("integration", max_hits=10)
+    assert paginated_scan_calls, "First search should trigger the paginated Graph scan"
+    assert any(h["title"] == "Integration overview" for h in hits1)
+
+    # Cache should now be on disk.
+    assert (workspace / ".cache" / "intranet_pages_cache.json").exists()
+
+    # Second search — cache is warm; the slow paginated scan must not happen again.
+    paginated_scan_calls.clear()
+    hits2 = prov.search("integration", max_hits=10)
+    assert paginated_scan_calls == [], "Second search fallback must use page cache, not Graph scan"
+    assert [h["title"] for h in hits1] == [h["title"] for h in hits2]
 
 
 def test_list_all_pages_fetches_from_graph_and_caches(

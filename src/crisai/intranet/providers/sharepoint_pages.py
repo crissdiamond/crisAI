@@ -292,8 +292,22 @@ class SharePointPagesProvider:
             pages = list(data.get("value") or [])
             return pages[:per_site_cap]
 
-        # Paginate: leaf pages (for example integration-patterns.aspx) are often beyond the first batch.
-        pages = _fetch_site_pages_paginated(site_id, self._timeout)
+        # Paginate: leaf pages (e.g. integration-patterns.aspx) are often beyond the first batch.
+        # Re-use the shared page catalogue cache so repeated intranet_search calls within the
+        # cache TTL skip the expensive Graph paginated scan.  list_all_pages() handles cache
+        # read/write; on a cache miss it fetches all sites once and stores the result.
+        all_cached = self.list_all_pages()
+        pages = [
+            {
+                "id": p["graph_page_id"],
+                "title": p["title"],
+                "name": p.get("name", ""),
+                "description": p.get("description", ""),
+                "webUrl": p["web_url"],
+            }
+            for p in all_cached
+            if p.get("graph_site_id") == site_id
+        ]
 
         tokens = [t for t in re.split(r"\s+", q) if len(t) >= 2]
         if not tokens:
@@ -477,8 +491,10 @@ class SharePointPagesProvider:
         ``INTRANET_PAGE_CACHE_TTL_HOURS`` env var or ``registry/intranet.yaml``).  A cache miss
         triggers a full Graph paginated scan.
 
-        Each returned dict has: ``title``, ``web_url``, ``graph_site_id``, ``graph_page_id``,
-        ``site_label``.
+        Each returned dict has: ``title``, ``name``, ``description``, ``web_url``,
+        ``graph_site_id``, ``graph_page_id``, ``site_label``.  The ``name`` and
+        ``description`` fields are included so that the cached data is fully compatible
+        with ``intranet_search``'s token-matching fallback.
         """
         self._ensure_sites()
 
@@ -493,6 +509,8 @@ class SharePointPagesProvider:
                 all_pages.append(
                     {
                         "title": str(page.get("title") or ""),
+                        "name": str(page.get("name") or ""),
+                        "description": str(page.get("description") or ""),
                         "web_url": str(page.get("webUrl") or ""),
                         "graph_site_id": site.graph_site_id,
                         "graph_page_id": str(page.get("id") or ""),
