@@ -138,6 +138,30 @@ def _pick_first_substantive_sentence(text: str) -> str:
     return text.strip()
 
 
+def _truncate_for_summary(text: str, limit: int) -> str:
+    """Shorten *text* to *limit* characters near a word boundary, then add an ellipsis.
+
+    Used so markdown-heavy agent output without sentence-ending punctuation cannot
+    bypass ``/verbose off`` by appearing as a single giant "sentence".
+
+    Args:
+        text: Plain or stripped text to shorten.
+        limit: Maximum character length including the trailing ellipsis character.
+
+    Returns:
+        Trimmed text ending with ``…`` when truncation occurred.
+    """
+    text = (text or "").strip()
+    if limit <= 1:
+        return "…"
+    if len(text) <= limit:
+        return text
+    chunk = text[: limit - 1]
+    if " " in chunk:
+        chunk = chunk.rsplit(" ", 1)[0]
+    return chunk.rstrip(" ,;:") + "…"
+
+
 def _substantive_sentence_list(
     text: str,
     *,
@@ -167,10 +191,16 @@ def _substantive_sentence_list(
     out: list[str] = []
     total = 0
     for s in sentences:
-        if out and total + len(s) + 1 > max_chars:
+        space = 1 if out else 0
+        room = max_chars - total - space
+        if room < min_sentence_len:
             break
+        if len(s) > room:
+            s = _truncate_for_summary(s, room)
+        if len(s) < min_sentence_len:
+            continue
+        total += len(s) + space
         out.append(s)
-        total += len(s) + 1
         if len(out) >= max_count:
             return out
 
@@ -190,20 +220,27 @@ def _substantive_sentence_list(
             continue
         if out and key in " ".join(out).lower():
             continue
+        space = 1 if out else 0
+        room = max_chars - total - space
+        if room < min_sentence_len:
+            break
+        if len(ln) > room:
+            ln = _truncate_for_summary(ln, room)
+        if len(ln) < min_sentence_len:
+            continue
+        total += len(ln) + space
         out.append(ln)
         seen_lower.add(key)
-        total += len(ln) + 1
         if len(out) >= max_count:
-            break
-        if total >= max_chars:
             break
 
     if out:
         return out
 
-    # Last resort: first chunk of the cleaned body.
-    fallback = clean[:max_chars].strip()
-    return [fallback] if fallback else []
+    # Last resort: excerpt only (model output may lack ``.?!`` so never return unbounded text).
+    if len(clean) <= max_chars:
+        return [clean] if clean else []
+    return [_truncate_for_summary(clean, max_chars)]
 
 
 def _join_recap_sentences(parts: list[str], *, max_chars: int = 1100) -> str:
@@ -432,7 +469,8 @@ def _role_led_summary(agent_id: str, body: str, width: int = 100, *, compact: bo
             for ``/verbose off`` panels.
     """
     mf = 1 if compact else 4
-    mc = 380 if compact else 1100
+    # Tight cap for /verbose off: one short line the user can scan between stages.
+    mc = 220 if compact else 1100
     if agent_id in {"design", "design_author", "design_refiner"}:
         summary = (
             _author_like_summary(agent_id, body, max_fragments=mf, max_chars=mc)
@@ -464,7 +502,7 @@ def _role_led_summary(agent_id: str, body: str, width: int = 100, *, compact: bo
         else:
             summary = f"{_label(agent_id)}: (no recap; use verbose output)"
 
-    max_lines = 4 if compact else 14
+    max_lines = 2 if compact else 14
     wrapped = textwrap.wrap(summary, width=width, break_long_words=False, break_on_hyphens=False)
     if len(wrapped) <= max_lines:
         return "\n".join(wrapped)

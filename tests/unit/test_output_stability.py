@@ -1,4 +1,4 @@
-from crisai.cli.display import _role_led_summary
+from crisai.cli.display import _role_led_summary, _substantive_sentence_list
 from crisai.cli.status_views import route_display
 from crisai.orchestration.router import RoutingDecision
 
@@ -27,6 +27,15 @@ def test_role_led_summary_includes_multiple_sentences_for_context_synthesizer():
     assert summary.startswith("Context Synthesizer:")
     assert "staged approach" in summary
     assert "Gaps remain" in summary or "lineage" in summary
+
+
+def test_substantive_sentence_list_caps_run_on_without_sentence_endings():
+    """Regression: a single 'sentence' must not be the entire model output."""
+    blob = "a" * 800 + " word " + "b" * 800
+    parts = _substantive_sentence_list(blob, max_count=1, max_chars=120, min_sentence_len=10)
+    assert len(parts) == 1
+    assert len(parts[0]) <= 125
+    assert parts[0].endswith("…")
 
 
 def test_role_led_summary_compact_uses_single_fragment():
