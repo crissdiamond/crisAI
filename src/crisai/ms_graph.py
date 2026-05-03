@@ -240,19 +240,27 @@ def _acquire_token_device_code_confidential(scopes: list[str]) -> dict[str, Any]
     """Device code flow for confidential client apps (``MS_CLIENT_SECRET`` present).
 
     ``ConfidentialClientApplication`` does not expose ``initiate_device_flow``.
-    Instead we initiate via ``PublicClientApplication`` (secret not needed for
-    the devicecode endpoint) and then perform the token-endpoint polling
-    ourselves using ``requests`` with ``client_secret`` included — satisfying
-    the ``AADSTS7000218`` requirement.
+    Per RFC 8628 §3.1, confidential clients MUST include their credentials in
+    the device authorization request (not only in the token exchange), so both
+    steps are done via raw ``requests`` with ``client_secret`` included.
 
     After a successful exchange the ``refresh_token`` is stored in
     ``_token_info_path`` so that subsequent silent refreshes can use
     ``ConfidentialClientApplication.acquire_token_by_refresh_token``.
     """
-    # Step 1 – initiate (no secret required for the /devicecode endpoint).
-    dummy_cache = SerializableTokenCache()
-    pub_app = _build_public_app(dummy_cache)
-    flow = pub_app.initiate_device_flow(scopes=scopes)
+    # Step 1 – initiate with client_secret (required by RFC 8628 §3.1 for
+    # confidential clients; public-client MSAL flows omit it, causing
+    # AADSTS7000218 on the subsequent token exchange).
+    dc_resp = requests.post(
+        f"{AUTHORITY}/oauth2/v2.0/devicecode",
+        data={
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "scope": " ".join(scopes),
+        },
+        timeout=30,
+    )
+    flow: dict[str, Any] = dc_resp.json()
     if "user_code" not in flow:
         raise RuntimeError(
             f"Failed to initiate device code flow: {flow.get('error_description') or flow}"
