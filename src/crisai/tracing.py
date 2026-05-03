@@ -55,6 +55,7 @@ def append_trace(
     """
     event: dict[str, Any] = {
         "timestamp": _utc_now_iso(),
+        "service": {"name": "crisai", "component": "agent_trace"},
         "event_type": event_type,
         "stage": stage,
         "content": content.strip(),

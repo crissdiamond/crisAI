@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import logging
 import re
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
 from crisai.config import load_settings
+from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
 
 mcp = FastMCP("crisai-workspace")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
@@ -23,29 +22,16 @@ def _configure_mcp_logging() -> None:
 
     Warnings and errors are still written to this server log file.
     """
-    logger_names = [
-        "mcp",
-        "mcp.server",
-        "mcp.server.fastmcp",
-        "mcp.server.lowlevel",
-        "mcp.server.lowlevel.server",
-    ]
+    configure_mcp_framework_logging(LOG_FILE, service_component="workspace_mcp")
 
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-    file_handler.setLevel(logging.WARNING)
-    file_handler.setFormatter(formatter)
-
-    for name in logger_names:
-        logger = logging.getLogger(name)
-        logger.setLevel(logging.WARNING)
-        logger.handlers.clear()
-        logger.addHandler(file_handler)
-        logger.propagate = False
 
 def log_event(message: str) -> None:
-    with LOG_FILE.open("a", encoding="utf-8") as f:
-        f.write(f"{datetime.now().isoformat()} {message}\n")
+    append_json_log_line(
+        LOG_FILE,
+        message,
+        logger_name="crisai.mcp.workspace",
+        service_component="workspace_mcp",
+    )
 
 
 #def _safe_path(relative_path: str) -> Path:

@@ -21,6 +21,7 @@ from pypdf import PdfReader
 from pptx import Presentation
 
 from crisai.config import load_settings
+from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
 
 
 mcp = FastMCP("crisai-document-reader")
@@ -92,30 +93,16 @@ def _configure_mcp_logging() -> None:
 
     Warnings and errors are still written to this server log file.
     """
-    logger_names = [
-        "mcp",
-        "mcp.server",
-        "mcp.server.fastmcp",
-        "mcp.server.lowlevel",
-        "mcp.server.lowlevel.server",
-    ]
-
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-    file_handler.setLevel(logging.WARNING)
-    file_handler.setFormatter(formatter)
-
-    for name in logger_names:
-        logger = logging.getLogger(name)
-        logger.setLevel(logging.WARNING)
-        logger.handlers.clear()
-        logger.addHandler(file_handler)
-        logger.propagate = False
+    configure_mcp_framework_logging(LOG_FILE, service_component="document_mcp")
 
 
 def log_event(message: str) -> None:
-    with LOG_FILE.open("a", encoding="utf-8") as f:
-        f.write(f"{datetime.now().isoformat()} {message}\n")
+    append_json_log_line(
+        LOG_FILE,
+        message,
+        logger_name="crisai.mcp.document",
+        service_component="document_mcp",
+    )
 
 
 _configure_mcp_logging()
