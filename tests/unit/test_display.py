@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from rich.markdown import Markdown
 from rich.panel import Panel
 
 from crisai.cli import display
@@ -13,16 +14,27 @@ def test_render_peer_message_returns_panel() -> None:
     assert isinstance(panel, Panel)
 
 
-def test_print_agent_output_compact_mode_renders_recap_panel(monkeypatch) -> None:
+def test_print_agent_output_non_verbose_uses_markdown_panel(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
 
-    display.print_agent_output("design", "Use a staged rollout with validation gates.", verbose=False)
+    display.print_agent_output("design", "**Bold** rollout with `gates`.", verbose=False)
 
     assert len(captured) == 1
     assert isinstance(captured[0], Panel)
     panel = captured[0]
-    assert panel.renderable is not None
+    assert isinstance(panel.renderable, Markdown)
+
+
+def test_print_agent_output_verbose_uses_markdown_panel(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+
+    display.print_agent_output("design", "- one\n- two", verbose=True)
+
+    assert len(captured) == 1
+    panel = captured[0]
+    assert isinstance(panel.renderable, Markdown)
 
 
 def test_print_status_message_keeps_router_literal_text(monkeypatch) -> None:

@@ -454,25 +454,23 @@ def print_status_message(body: str, *, title: str | None = None) -> None:
 
 
 def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
+    """Print one agent stage result in a bordered panel.
+
+    The body is always rendered with Rich ``Markdown`` so lists, headings, code
+    fences, and emphasis stay structured in the terminal—whether or not the user
+    enabled verbose mode elsewhere in the session.
+
+    Args:
+        agent_id: Registry agent identifier for icons and styling.
+        body: Stage text (Markdown-friendly) from the model.
+        verbose: Reserved for callers (e.g. pipeline engine); stage panels use the
+            same Markdown rendering regardless so output stays readable with
+            ``/verbose off``.
+    """
+    _ = verbose
     icon = _icon(agent_id)
     label = _label(agent_id)
     style = _style(agent_id)
-    if not verbose:
-        # Title already shows agent; body is a multi-line recap (no 1-line hard cap).
-        summary = _role_led_summary(agent_id, body).strip()
-        title = Text(f"{icon} {label}", style=f"bold {style}")
-        console.print(
-            Panel(
-                Text(summary, style="dim"),
-                title=title,
-                subtitle=Text(_RENDER_TITLES["stage"], style=f"italic {_RENDER_STYLES['stage']}"),
-                border_style=style,
-                padding=(0, 1),
-                expand=True,
-            )
-        )
-        return
-
     title = Text(f"{icon} {label}", style=f"bold {style}")
     rendered_body = Markdown(body.strip() or "_empty_")
     console.print(
