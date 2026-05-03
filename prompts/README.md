@@ -31,9 +31,23 @@ Use the same `##` headings so humans can skim any file predictably.
 3. Add an entry to `registry/agents.yaml` with `id`, `name`, `model_ref`, `prompt_file`, `allowed_servers`.
 4. Run tests: `pytest tests/unit/test_prompt_scaffolding.py` (and full suite before merge).
 
+## Shared snippets (`prompts/_shared/`)
+
+Small, reusable fragments for **human maintainers** (copy into an agent’s
+**Tooling and data** section when needed). The runtime loader currently reads
+**one file per agent** from `registry/agents.yaml`—it does **not** auto-include
+`_shared` files; keep critical rules duplicated in the agent prompt until a
+compose step exists.
+
+- `_shared/link-formatting.md` — workspace and Graph markdown links.
+- `_shared/locale-tone.md` — British English and tone.
+- `_shared/sharepoint-vs-onedrive.md` — retrieval scope for SharePoint vs OneDrive.
+
 ## Tests
 
 `tests/unit/test_prompt_scaffolding.py` checks that:
 
 - `TEMPLATE.md` contains all required section headings.
 - Every `prompt_file` in `registry/agents.yaml` exists on disk.
+- Every registry agent prompt uses the canonical `##` sections **in order**.
+- Each `_shared/*.md` snippet exists and is non-empty.

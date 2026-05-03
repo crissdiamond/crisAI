@@ -29,7 +29,9 @@ TODO: What this agent must not do — especially responsibilities owned by neigh
 
 ## Tooling and data
 
-TODO: Preferred tools, scopes (workspace vs Graph), link/citation rules — or write *See `prompts/_shared/...` (step 5)* once shared snippets exist.
+TODO: Preferred tools, scopes (workspace vs Graph), link/citation rules. Reuse or
+copy from `prompts/_shared/` (`link-formatting.md`, `sharepoint-vs-onedrive.md`,
+etc.) when the same guidance applies; the loader does not merge files automatically.
 
 ## Output contract
 

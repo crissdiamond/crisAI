@@ -85,6 +85,25 @@ def test_registry_agent_prompts_canonical_sections_in_order(rel: str) -> None:
     assert positions == sorted(positions), f"{rel}: canonical ## sections must appear in template order"
 
 
+_SHARED_SNIPPET_NAMES: tuple[str, ...] = (
+    "link-formatting.md",
+    "locale-tone.md",
+    "sharepoint-vs-onedrive.md",
+)
+
+
+@pytest.mark.parametrize("name", _SHARED_SNIPPET_NAMES)
+def test_shared_prompt_snippets_exist_and_non_empty(name: str) -> None:
+    path = _REPO_ROOT / "prompts" / "_shared" / name
+    assert path.is_file(), f"missing shared snippet {path}"
+    assert path.stat().st_size > 20, f"shared snippet too small: {path}"
+
+
+def test_prompt_readme_documents_shared_snippets() -> None:
+    body = _README_PATH.read_text(encoding="utf-8")
+    assert "_shared/" in body
+
+
 def test_context_synthesizer_prompt_file_matches_registry_id() -> None:
     """Avoid regression to opaque names like context_agent.md for this id."""
     data = yaml.safe_load(_AGENTS_PATH.read_text(encoding="utf-8")) or {}
