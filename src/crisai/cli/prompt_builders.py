@@ -30,6 +30,9 @@ def build_discovery_prompt(message: str) -> str:
             "search strategy, and user constraints that materially affect retrieval.\n"
             "- Skip generic restatements of the user goal unless they add a retrieval "
             "signal the routing line did not cover.\n"
+            "- When the user names explicit workspace-relative paths (for example "
+            "``context/patterns/foo.txt``), list them verbatim under **Paths to open** "
+            "so the retrieval stage can call ``read_workspace_file`` immediately.\n"
             "Keep the response brief (about one screen of tight bullets).",
         ]
     )
@@ -81,6 +84,11 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
             "Task:\nRetrieve the most relevant material for this request from available context sources. "
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "
+            "Workspace semantics:\n"
+            "- ``search_workspace_text`` matches a **literal substring on one line**; long sentences often return nothing. "
+            "Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``context`` / ``context/patterns`` etc., "
+            "or call ``read_workspace_file`` / ``read_document`` when the user request or handoff names a concrete relative path.\n"
+            "- When in doubt, ``list_workspace_files('context')`` (or a deeper subfolder) then open the best candidates.\n"
             "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
             "For each source row, include **Link:** `[file_name](url)` only — visible text is the **file name**, URL **only** inside parentheses; do not duplicate the URL as plain text "
             "and never append `&action=edit` or other query text to the file name. "

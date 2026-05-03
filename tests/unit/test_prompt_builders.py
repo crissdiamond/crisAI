@@ -1,6 +1,7 @@
 from crisai.cli.prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
+    build_context_retrieval_prompt,
     build_design_prompt,
     build_discovery_prompt,
     build_single_discovery_prompt,
@@ -17,8 +18,15 @@ def test_build_discovery_prompt_contains_only_runtime_context():
     assert "User request:\nFind the latest design note" in text
     assert "Do not" in text and "repeat" in text.lower()
     assert "retrieval handoff" in text.lower()
+    assert "Paths to open" in text
     assert "Rules:" not in text
     assert "Return:" not in text
+
+
+def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
+    text = build_context_retrieval_prompt("hello", "handoff text")
+    assert "search_workspace_text" in text
+    assert "one line" in text.lower() or "single line" in text.lower()
 
 
 def test_build_single_discovery_prompt_requires_verbatim_tool_errors():

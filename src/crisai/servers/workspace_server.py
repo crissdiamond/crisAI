@@ -100,8 +100,40 @@ def append_workspace_file(path: str, content: str) -> str:
     return str(file_path.relative_to(ROOT))
 
 
+def _append_workspace_text_hits(
+    lines: list[str],
+    pattern: re.Pattern,
+    *,
+    rel_path: str,
+    file_uri: str,
+    results: list[dict[str, str | int]],
+    max_hits: int,
+) -> bool:
+    """Append line matches for one file; return True when ``max_hits`` is reached."""
+    for idx, line in enumerate(lines, start=1):
+        if pattern.search(line):
+            results.append(
+                {
+                    "path": rel_path,
+                    "line": idx,
+                    "text": line.strip(),
+                    "file_uri": file_uri,
+                }
+            )
+            if len(results) >= max_hits:
+                return True
+    return False
+
+
 @mcp.tool()
 def search_workspace_text(query: str, subdir: str = ".", max_hits: int = 20) -> list[dict[str, str | int]]:
+    """Search workspace files for a literal substring on a single line.
+
+    The full ``query`` must appear on one line. Long natural-language strings
+    often match nothing; the implementation then retries a few distinctive
+    tokens extracted from ``query``. Prefer ``read_workspace_file`` when the
+    relative path is already known.
+    """
     log_event(f"search_workspace_text query={query!r} subdir={subdir} max_hits={max_hits}")
     base = _safe_path(subdir)
     if not base.exists():
@@ -115,17 +147,34 @@ def search_workspace_text(query: str, subdir: str = ".", max_hits: int = 20) -> 
             lines = file_path.read_text(encoding="utf-8").splitlines()
         except UnicodeDecodeError:
             continue
-        for idx, line in enumerate(lines, start=1):
-            if pattern.search(line):
-                results.append(
-                    {
-                        "path": str(file_path.relative_to(ROOT)),
-                        "line": idx,
-                        "text": line.strip(),
-                        "file_uri": file_path.resolve().as_uri(),
-                    }
-                )
-                if len(results) >= max_hits:
+        rel_path = str(file_path.relative_to(ROOT))
+        file_uri = file_path.resolve().as_uri()
+        if _append_workspace_text_hits(lines, pattern, rel_path=rel_path, file_uri=file_uri, results=results, max_hits=max_hits):
+            return results
+
+    if not results and len(query) > 12:
+        seen_keys: set[str] = set()
+        for match in re.finditer(r"[A-Za-z][A-Za-z0-9_.-]{4,}", query):
+            token = match.group(0)
+            key = token.lower()
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            if len(seen_keys) > 6:
+                break
+            token_pattern = re.compile(re.escape(token), flags=re.IGNORECASE)
+            for file_path in base.rglob("*"):
+                if not file_path.is_file():
+                    continue
+                try:
+                    lines = file_path.read_text(encoding="utf-8").splitlines()
+                except UnicodeDecodeError:
+                    continue
+                rel_path = str(file_path.relative_to(ROOT))
+                file_uri = file_path.resolve().as_uri()
+                if _append_workspace_text_hits(
+                    lines, token_pattern, rel_path=rel_path, file_uri=file_uri, results=results, max_hits=max_hits
+                ):
                     return results
     return results
 
