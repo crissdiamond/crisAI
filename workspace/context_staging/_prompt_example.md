@@ -28,7 +28,7 @@ Build crisAI **architecture-context** artefacts from the UCL IT Architecture **i
 
 ## Task 1 — Find the catalogue page
 **Do:** `intranet_search` with keywords such as: `integration-patterns`, `integration`, `pattern`, `Pattern Library`, `Architecture Patterns`. Use `intranet_list_page_links` + `intranet_fetch` until you hold the page that **enumerates** the integration pattern **names** (e.g. `integration-patterns.aspx` or equivalent).  
-**Done when:** You have **one** primary catalogue fetch whose body **lists all pattern names** you will treat as in-scope.
+**Done when:** You have **one** primary catalogue fetch whose body **lists all pattern names** you will treat as in-scope — the correct catalogue page enumerates **all three groups: Consumer patterns (0–4), Producer patterns (1–3), and Ingestion patterns (1–3)**. If the fetched page only contains an overview or explanation without numbered leaf patterns, it is not the catalogue — continue searching.
 
 ---
 
