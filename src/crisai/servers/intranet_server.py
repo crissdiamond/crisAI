@@ -82,7 +82,7 @@ def intranet_auth_status() -> dict[str, Any]:
 
 
 @mcp.tool()
-def intranet_search(query: str, max_hits: int = 20) -> list[dict[str, Any]]:
+def intranet_search(query: str, max_hits: int = 40) -> list[dict[str, Any]]:
     """Search configured intranet sites (SharePoint site pages). Not a general web search.
 
     Returns graph_site_id and graph_page_id for use with intranet_fetch.
@@ -123,6 +123,11 @@ def intranet_fetch(graph_site_id: str, graph_page_id: str) -> str:
 @mcp.tool()
 def intranet_list_page_links(graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
     """List same-host Site Pages URLs linked from a page (use after intranet_fetch on hub/catalog pages).
+
+    Each result always contains web_url and open_url.  When the page catalogue
+    cache is warm, results are also enriched with title, graph_site_id,
+    graph_page_id, and site_label — so you can call intranet_fetch directly on
+    each entry without a separate search step to resolve the IDs.
 
     If the token has expired and cannot be silently refreshed, an interactive
     re-authentication flow is triggered automatically.

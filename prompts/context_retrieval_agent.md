@@ -47,7 +47,8 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
     3. Call `intranet_fetch(graph_site_id, graph_page_id)` for each candidate. This gives the page body.
     4. If the fetch returns non-empty content: **record the page as a Retrieved Source** using the `web_url` as the Link URL and a meaningful extract from the fetch body.
     5. If the fetch fails or returns empty: record the page as a gap with the attempted `web_url`.
-  - **After fetching ANY hub or catalogue page, you MUST call `intranet_list_page_links`** on that page to discover child `/SitePages/...` links, even when search already returned results. This is mandatory — search often misses hub pages that are only reachable via link traversal. Fetch each child page that matches an expected pattern name.
+  - **After fetching ANY hub or catalogue page, you MUST call `intranet_list_page_links`** on that page to discover child `/SitePages/...` links, even when search already returned results. This is mandatory — search often misses leaf pages reachable only via navigation links.
+  - **`intranet_list_page_links` returns enriched results when the page cache is warm.** Each entry includes `web_url` and, when available, `title`, `graph_site_id`, `graph_page_id`, and `site_label`. **When `graph_page_id` is present in a result, call `intranet_fetch(graph_site_id, graph_page_id)` directly — do not run another search to resolve the IDs.**
   - **Recognising hub/catalogue pages:** any page whose body contains a list of named patterns, links to pattern pages, or navigation items like "Pattern 1", "Pattern 2", "Consumer patterns", "Producer patterns" is a hub page. You MUST call `intranet_list_page_links` on it immediately.
   - **Catalogue trap:** a page that lists pattern names only is not sufficient for "which pattern to use" or for **`context_staging/`** pattern artefacts—you must `intranet_fetch` each **detail/leaf** page. See **`prompts/_shared/context-staging.md`**.
   - If a pattern name still cannot be resolved after both search and link traversal, record it as a gap with the queries tried and the outcome.
@@ -99,7 +100,8 @@ Use this structure exactly. The intranet source format is mandatory when intrane
 
 1. Understand the user request and the **retrieval handoff** from the retrieval planner (not a repeat of the router line).
 2. When paths are explicit, open them with `read_workspace_file` or `read_document` before relying only on broad search.
-3. For intranet tasks: call `intranet_list_all_pages` first to get the full catalogue; filter by relevance. Then for hub/catalogue pages call `intranet_list_page_links` to enumerate child pages.
-4. For each expected pattern name: if not found in the catalogue or via link traversal, run a targeted `intranet_search` using the exact pattern name.
-5. Call `intranet_fetch` for every candidate page found. Record the `web_url` from the catalogue or search result before calling fetch.
+3. For intranet tasks: call `intranet_list_all_pages` first to get the full catalogue; filter by relevance (title AND URL slug). Then for hub/catalogue pages call `intranet_list_page_links` to enumerate child pages.
+4. For each `intranet_list_page_links` result that includes `graph_page_id`: call `intranet_fetch(graph_site_id, graph_page_id)` directly — no extra search needed.
+5. For each expected pattern name: if not found in the catalogue or via link traversal, run a targeted `intranet_search` using the exact pattern name.
+6. Call `intranet_fetch` for every candidate page found. Record the `web_url` from the catalogue or search result before calling fetch.
 6. Report results using the intranet source format above. Fetched pages go in Retrieved Sources; unfetched or failed pages go in Retrieval Gaps.

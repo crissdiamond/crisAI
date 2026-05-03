@@ -434,6 +434,24 @@ class SharePointPagesProvider:
             if norm not in seen:
                 seen.add(norm)
                 results.append({"web_url": norm, "open_url": norm})
+
+        # Enrich results with graph IDs and title from the page cache so the
+        # caller can call intranet_fetch directly without an extra search step.
+        cached = self._load_cached_pages()
+        if cached:
+            url_index: dict[str, dict[str, Any]] = {
+                p["web_url"].split("?")[0].rstrip("/").lower(): p
+                for p in cached
+            }
+            for entry in results:
+                norm_key = entry["web_url"].lower()
+                match = url_index.get(norm_key)
+                if match:
+                    entry["title"] = match["title"]
+                    entry["graph_site_id"] = match["graph_site_id"]
+                    entry["graph_page_id"] = match["graph_page_id"]
+                    entry["site_label"] = match["site_label"]
+
         return results
 
     # ------------------------------------------------------------------
