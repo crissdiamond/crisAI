@@ -206,14 +206,24 @@ class SharePointPagesProvider:
             # calls so this provider's credentials are isolated from other
             # MCP servers that also use ms_graph.
             ms_graph.configure_workspace(workspace_root, namespace="intranet")
-        if sites is None:
-            sites = resolve_site_entries(settings) if settings.raw_sharepoint_sites else []
-        if allowed_hosts is None:
-            allowed_hosts = effective_allow_hosts(settings, sites)
         self._settings = settings
-        self._sites = sites
-        self._allowed_hosts = allowed_hosts
+        # Site resolution is deferred to the first tool call (_ensure_sites).
+        # Resolving here would block on interactive auth during server startup,
+        # preventing the MCP server from responding to protocol handshakes.
+        self._sites: list[SharePointSiteEntry] | None = sites
+        self._allowed_hosts: set[str] | None = allowed_hosts
         self._timeout = max(30, settings.graph_timeout_seconds)
+
+    def _ensure_sites(self) -> None:
+        """Resolve site entries on first use (lazy auth)."""
+        if self._sites is not None:
+            return
+        self._sites = (
+            resolve_site_entries(self._settings)
+            if self._settings.raw_sharepoint_sites
+            else []
+        )
+        self._allowed_hosts = effective_allow_hosts(self._settings, self._sites)
 
     # ------------------------------------------------------------------
     # Auth interface (satisfies IntranetProvider protocol)
@@ -233,6 +243,7 @@ class SharePointPagesProvider:
         return ms_graph.delegated_auth_status()
 
     def _ensure_page_host_allowed(self, web_url: str) -> None:
+        self._ensure_sites()
         host = _host_of(web_url)
         if not host:
             raise RuntimeError("Page has no webUrl host; refusing fetch.")
@@ -306,6 +317,7 @@ class SharePointPagesProvider:
         return [page for _, page in scored][:per_site_cap]
 
     def search(self, query: str, max_hits: int) -> list[dict[str, Any]]:
+        self._ensure_sites()
         if not self._sites:
             return []
         per_site = max(3, min(25, max(1, max_hits // max(1, len(self._sites)))))
@@ -343,7 +355,8 @@ class SharePointPagesProvider:
     def fetch(self, graph_site_id: str, graph_page_id: str, max_chars: int) -> str:
         if not graph_site_id or not graph_page_id:
             raise ValueError("graph_site_id and graph_page_id are required.")
-        allowed_site_ids = {s.graph_site_id for s in self._sites}
+        self._ensure_sites()
+        allowed_site_ids = {s.graph_site_id for s in self._sites}  # type: ignore[arg-type]
         if graph_site_id not in allowed_site_ids:
             raise RuntimeError(
                 "graph_site_id is not one of the configured intranet sites. "
@@ -367,7 +380,8 @@ class SharePointPagesProvider:
         """Return same-site Site Pages URLs linked from a page's web-part HTML (hub → child navigation)."""
         if not graph_site_id or not graph_page_id:
             raise ValueError("graph_site_id and graph_page_id are required.")
-        allowed_site_ids = {s.graph_site_id for s in self._sites}
+        self._ensure_sites()
+        allowed_site_ids = {s.graph_site_id for s in self._sites}  # type: ignore[arg-type]
         if graph_site_id not in allowed_site_ids:
             raise RuntimeError(
                 "graph_site_id is not one of the configured intranet sites. "
