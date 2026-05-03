@@ -274,6 +274,13 @@ def _acquire_token_device_code_confidential(scopes: list[str]) -> dict[str, Any]
     expires_in = int(flow.get("expires_in", 900))
     deadline = time.monotonic() + expires_in
 
+    # Diagnostic: verify the secret is set before we start polling.
+    print(
+        f"[ms_graph] token exchange: client_secret present={bool(CLIENT_SECRET)} "
+        f"len={len(CLIENT_SECRET)} first3={CLIENT_SECRET[:3]!r}",
+        file=sys.stderr, flush=True,
+    )
+
     while time.monotonic() < deadline:
         time.sleep(interval)
         resp = requests.post(

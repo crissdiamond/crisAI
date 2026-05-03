@@ -17,6 +17,16 @@ from crisai.logging_utils import append_json_log_line, configure_mcp_framework_l
 
 load_dotenv()
 
+# Diagnostic: confirm MS_CLIENT_SECRET is visible to this subprocess.
+import os as _os
+_secret_preview = _os.getenv("MS_CLIENT_SECRET", "")
+print(
+    f"[intranet_server] MS_CLIENT_SECRET present={bool(_secret_preview)} "
+    f"len={len(_secret_preview)} first3={_secret_preview[:3]!r}",
+    file=sys.stderr, flush=True,
+)
+del _os, _secret_preview
+
 mcp = FastMCP("crisai-intranet")
 
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
