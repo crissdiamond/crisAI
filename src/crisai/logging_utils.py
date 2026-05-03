@@ -153,6 +153,15 @@ def configure_logging(settings) -> None:
         logging.getLogger(logger_name).setLevel(logger_level)
         logging.getLogger(logger_name).propagate = True
 
+    # One bootstrap line so tailing crisai.log confirms path and format.
+    logging.getLogger("crisai.bootstrap").info(
+        "Logging initialized.",
+        extra={
+            "log_dir": str(settings.log_dir.resolve()),
+            "crisai_log": str(log_file.resolve()),
+        },
+    )
+
     _CONFIGURED = True
 
 

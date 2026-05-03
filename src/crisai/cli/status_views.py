@@ -160,6 +160,7 @@ def print_chat_state(
     history_count: int,
 ) -> None:
     """Render the current interactive chat state."""
+    log_dir = load_settings().log_dir.resolve()
     lines = [
         f"Session: {current_session}",
         f"Routing: {mode_status(current_mode, mode_pinned)}",
@@ -167,6 +168,7 @@ def print_chat_state(
         f"Review preference: {'on' if current_review else 'off'}",
         f"Verbose: {'on' if current_verbose else 'off'}",
         f"Loaded history entries: {history_count}",
+        f"Logs: {log_dir} (crisai.log, agent_trace.jsonl, *_mcp.log when servers run)",
         "Commands: /mode auto|single|pipeline|peer • /agent auto|<agent_id> • /status • /help",
     ]
     print_status_message("\n".join(lines), title="💬 Chat state")

@@ -129,6 +129,7 @@ def test_print_chat_state_uses_status_message(monkeypatch):
     assert "Review preference: on" in captured["body"]
     assert "Verbose: off" in captured["body"]
     assert "Loaded history entries: 4" in captured["body"]
+    assert "Logs:" in captured["body"]
 
 
 def test_print_session_history_handles_empty(monkeypatch):
