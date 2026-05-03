@@ -121,15 +121,18 @@ Goal: **structured, searchable text** under `context/…`, not a dump of the ori
 
 ---
 
-## Using GitHub Copilot to transform existing architecture documents
+## Using Microsoft 365 Copilot to transform existing architecture documents
 
-You can paste **exported text** (from Word/PDF/PowerPoint or `pandoc`) into the editor, or open a rough `.md`/`.txt` draft, and use **GitHub Copilot Chat** (or inline Copilot) with the prompts below. The goal is a **single crisAI-ready artefact** per file: YAML front matter + short sections + bullets—aligned with `workspace/context/README.md` and `_templates/artefact-template.txt`.
+Use **Microsoft 365 Copilot** (the institution’s **Microsoft 365 / Office 365** assistant—e.g. in **Word**, **PowerPoint**, **Outlook**, **Teams**, or **Copilot** in the browser where your tenant allows it). Paste the prompts below into the Copilot chat alongside your source, or paste the **output** into a new Word document and then **Save As** plain text / Markdown into `workspace/context/…`.
+
+The goal is a **single crisAI-ready artefact** per file: YAML front matter + short sections + bullets—aligned with this README and **`_templates/artefact-template.txt`**.
 
 **Before you start**
 
-1. Open this README and **`_templates/artefact-template.txt`** in the IDE so Copilot can follow the same metadata rules.
+1. Keep this README and **`_templates/artefact-template.txt`** open (in the repo, SharePoint, or pasted at the top of your Copilot prompt) so the model follows the same metadata rules.
 2. Decide the target **folder** (`standards/`, `patterns/`, `decisions/`, etc.) and a **proposed filename** (e.g. `context/standards/integration/API-error-handling.txt`).
-3. Paste or attach the **source text** (anonymise secrets and personal data first).
+3. Provide the **source text** in the Copilot conversation or attach a file **your tenant policy allows** (anonymise secrets and personal data first).
+4. **Respect your organisation’s Copilot and data policies** (what may be uploaded, retention, and approval for `status: approved`).
 
 **Base prompt (adapt the bracketed parts)**
 
@@ -192,8 +195,8 @@ Here is the body of an existing context file (below). List 3–8 other plausible
 
 **Tips**
 
-- **Iterate:** run the base prompt, then a follow-up: “Shorten section X to 8 bullets” or “Add anti-patterns.”
-- **Inline Copilot:** select a wall of text and ask: “Reflow into ## sections and bullets per workspace/context/README.md metadata rules.”
+- **Iterate:** send the base prompt, then a follow-up in the same Copilot thread: e.g. “Shorten section X to 8 bullets” or “Add anti-patterns.”
+- **In Word:** paste rough text, open **Copilot**, and ask it to rewrite the selection using the metadata and heading rules from the prompt you pasted; copy the result into a `.txt`/`.md` file in the repo.
 - **Verification:** run through the **Quality checklist** above and have a human architect set `status: approved` after review.
 
 ---
