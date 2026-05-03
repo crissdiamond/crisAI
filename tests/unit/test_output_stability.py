@@ -8,12 +8,25 @@ def test_role_led_summary_for_retrieval_planner_is_plain_language():
         "retrieval_planner",
         "Search OneDrive under /Projects/Integration for the latest strategy memo and the constraints doc.",
     )
-    assert summary.startswith("The Retrieval planner outlines that")
+    assert summary.startswith("The Retrieval planner:")
+    assert "strategy memo" in summary
 
 
 def test_role_led_summary_for_review_is_plain_language():
     summary = _role_led_summary("review", "The draft has two weak assumptions around ownership and monitoring.")
-    assert summary.startswith("The Review notes that")
+    assert summary.startswith("The Review notes:")
+    assert "weak assumptions" in summary
+
+
+def test_role_led_summary_includes_multiple_sentences_for_context_synthesizer():
+    body = (
+        "The retrieved context is strong. It supports a staged approach. "
+        "Gaps remain on lineage ownership for Excel-fed datasets."
+    )
+    summary = _role_led_summary("context_synthesizer", body)
+    assert summary.startswith("Context Synthesizer:")
+    assert "staged approach" in summary
+    assert "Gaps remain" in summary or "lineage" in summary
 
 
 def test_route_display_includes_review_and_retrieval_flags():
