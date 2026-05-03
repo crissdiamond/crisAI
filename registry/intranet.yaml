@@ -11,19 +11,21 @@ version: 1
 
 intranet:
   provider: sharepoint_pages
-  # If empty, hosts are derived from configured sites' webUrl (fail-closed for unrelated pages).
-  allow_hosts: []
+  # Exact hostnames for page webUrl checks (recommended). If empty, derived from site webUrl.
+  allow_hosts:
+    - liveuclac.sharepoint.com
   limits:
     max_fetch_chars: 120000
     graph_timeout_seconds: 90
   sharepoint_pages:
-    sites: [
-      - label: UCL Sharepoint
-        site_path: "liveuclac.sharepoint.com/_layouts/15/sharepoint.aspx"
-    ]
-    # Example:
-    # sites:
-    #   - label: main-intranet
-    #     site_path: "contoso.sharepoint.com:/sites/Intranet"
-    #   - label: hr-root
-    #     graph_site_id: "contoso.sharepoint.com,abc...,def..."
+    sites:
+      # Graph site path: {hostname}:/{server-relative-site-url}
+      # Use the site path from the address bar on the site home (not /_layouts/... pages).
+      # Example: https://liveuclac.sharepoint.com/sites/YourSite -> path below.
+      - label: "UCL Sharepoint"
+        site_path: "liveuclac.sharepoint.com:/sites/YourSite"
+    # Examples:
+    # - label: main-intranet
+    #   site_path: "contoso.sharepoint.com:/sites/Intranet"
+    # - label: hr-root
+    #   graph_site_id: "contoso.sharepoint.com,abc...,def..."
