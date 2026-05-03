@@ -23,7 +23,7 @@ intranet:
       # Use the site path from the address bar on the site home (not /_layouts/... pages).
       # Example: https://liveuclac.sharepoint.com/sites/YourSite -> path below.
       - label: "UCL Sharepoint"
-        site_path: "liveuclac.sharepoint.com:/sites/YourSite"
+        site_path: "liveuclac.sharepoint.com:/sites/it-architecture"
     # Examples:
     # - label: main-intranet
     #   site_path: "contoso.sharepoint.com:/sites/Intranet"
