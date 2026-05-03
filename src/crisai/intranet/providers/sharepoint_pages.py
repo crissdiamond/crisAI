@@ -501,13 +501,19 @@ class SharePointPagesProvider:
         except OSError:
             pass
 
-    def list_all_pages(self) -> list[dict[str, Any]]:
+    def list_all_pages(self, query: str = "") -> list[dict[str, Any]]:
         """Return the complete page catalogue for all configured sites.
 
         Results are served from an on-disk cache (``workspace/.cache/intranet_pages_cache.json``)
         when the cache is younger than ``page_cache_ttl_hours`` (default 4 h, configurable via
         ``INTRANET_PAGE_CACHE_TTL_HOURS`` env var or ``registry/intranet.yaml``).  A cache miss
         triggers a full Graph paginated scan.
+
+        When ``query`` is non-empty, the returned list is filtered to pages
+        whose ``title`` or ``web_url`` slug contain **any** whitespace-split token
+        from the query (case-insensitive substring, no scoring cap).  This lets
+        callers retrieve a comprehensive, uncapped set of pages for a topic
+        without running a scored ``intranet_search``.
 
         Each returned dict has: ``title``, ``name``, ``description``, ``web_url``,
         ``graph_site_id``, ``graph_page_id``, ``site_label``.  The ``name`` and
@@ -518,7 +524,7 @@ class SharePointPagesProvider:
 
         cached = self._load_cached_pages()
         if cached is not None:
-            return cached
+            return self._filter_pages(cached, query)
 
         all_pages: list[dict[str, Any]] = []
         for site in self._sites or []:
@@ -537,4 +543,28 @@ class SharePointPagesProvider:
                 )
 
         self._save_page_cache(all_pages)
-        return all_pages
+        return self._filter_pages(all_pages, query)
+
+    @staticmethod
+    def _filter_pages(pages: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+        """Return pages whose title or web_url slug contain any token from *query*.
+
+        When *query* is empty, all pages are returned unchanged.  Matching is
+        case-insensitive substring search with no scoring cap — every page that
+        matches at least one token is included.
+        """
+        if not query or not query.strip():
+            return pages
+        tokens = [t.lower() for t in re.split(r"\s+", query.strip()) if len(t) >= 2]
+        if not tokens:
+            return pages
+        result: list[dict[str, Any]] = []
+        for page in pages:
+            blob = (
+                str(page.get("title") or "").lower()
+                + " "
+                + str(page.get("web_url") or "").lower()
+            )
+            if any(token in blob for token in tokens):
+                result.append(page)
+        return result

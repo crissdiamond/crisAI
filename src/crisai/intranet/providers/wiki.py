@@ -34,7 +34,7 @@ class WikiProvider:
             "intranet.provider is set to 'wiki', but list_page_links is not implemented for wiki."
         )
 
-    def list_all_pages(self) -> list[dict[str, Any]]:
+    def list_all_pages(self, query: str = "") -> list[dict[str, Any]]:
         raise RuntimeError(
             "intranet.provider is set to 'wiki', but list_all_pages is not implemented for wiki."
         )

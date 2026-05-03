@@ -143,23 +143,29 @@ def intranet_list_page_links(graph_site_id: str, graph_page_id: str) -> list[dic
 
 
 @mcp.tool()
-def intranet_list_all_pages() -> list[dict[str, Any]]:
-    """Return the complete page catalogue for all configured intranet sites.
+def intranet_list_all_pages(query: str = "") -> list[dict[str, Any]]:
+    """Return the page catalogue for all configured intranet sites, optionally filtered.
 
-    Use this tool for comprehensive, deterministic discovery — it returns every
-    available page regardless of keyword matching, so pages that intranet_search
-    might miss (e.g. hub pages reachable only via navigation) are always included.
+    **When to use instead of intranet_search:**
+    - "List all X pages", "find every page about Y", or any comprehensive enumeration request.
+    - When you need ALL matching pages without a scoring cap (intranet_search caps results).
+    - Consumer/Producer/Ingestion pattern leaf pages are found here even when their titles
+      do not contain the hub keyword (e.g. query "integration pattern" → matches all 30
+      pattern pages because "pattern" appears in every page URL slug).
 
-    Results are served from an on-disk cache (workspace/.cache/intranet_pages_cache.json)
-    valid for INTRANET_PAGE_CACHE_TTL_HOURS (default 4 h, set in .env or registry/intranet.yaml).
-    A cache miss triggers a full paginated Graph scan across all configured sites.
+    **query** (optional): whitespace-separated keywords. Pages whose title OR web_url slug
+    contain ANY of the tokens are returned (case-insensitive substring, no cap). Leave empty
+    to get the full unfiltered catalogue (~768 pages for a typical EA site).
+
+    Results come from an on-disk cache (workspace/.cache/intranet_pages_cache.json) valid for
+    INTRANET_PAGE_CACHE_TTL_HOURS (default 4 h). A cache miss triggers a full Graph scan.
 
     Each entry contains: title, web_url, graph_site_id, graph_page_id, site_label.
-    Use graph_site_id + graph_page_id with intranet_fetch to retrieve page content.
+    Use graph_site_id + graph_page_id with intranet_fetch to retrieve page body.
     """
-    log_event("intranet_list_all_pages")
+    log_event(f"intranet_list_all_pages query={query!r}")
     try:
-        pages = PROVIDER.list_all_pages()
+        pages = PROVIDER.list_all_pages(query=query)
     except Exception as exc:
         log_event(f"intranet_list_all_pages error={exc!r}")
         raise

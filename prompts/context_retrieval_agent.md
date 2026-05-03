@@ -38,9 +38,9 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
 - **SharePoint vs OneDrive:** for SharePoint **document libraries** (files: .pptx, .pdf, ...) without OneDrive-only scope, prefer **`search_sharepoint_site_documents`** or site-scoped search after `list_sites`; avoid satisfying those asks with only `list_my_drives` + `search_drive_documents`.
 - **Intranet site pages (not library files):** **`intranet_search`** / **`intranet_fetch`** are for **Site Pages** on the configured intranet. Do **not** treat **`search_sharepoint_site_documents`** results as a substitute when the user asked for the **intranet site** / **portal pages**—that tool searches **libraries**, not the page list.
   - **Deterministic discovery — start here for any broad or open-ended intranet request:**
-    1. Call `intranet_list_all_pages` to get the **complete page catalogue** across all configured sites. This always succeeds regardless of keyword matching and is served from a local cache (TTL 4 h by default).
-    2. Filter the returned list by `title` and `web_url` relevance to the request. **Apply URL-slug matching, not just title matching** — leaf pages are often named `Consumer-Pattern-1.aspx`, `Producer-Pattern-2.aspx`, `Ingestion-Pattern-3.aspx` etc., so substring-match the `web_url` slug as well as the title. Select every candidate page, including numbered leaf pages.
-    3. Proceed to the mandatory fetch loop below for all selected candidates.
+    1. Call `intranet_list_all_pages(query="<keywords from request>")` to get a pre-filtered catalogue. Pass 1–3 topic keywords (e.g. `query="integration pattern"`). The tool matches ANY token against title OR URL slug with no cap, so leaf pages like `Consumer-Pattern-1`, `Producer-Pattern-2`, `Ingestion-Pattern-3` are included even though they don't contain "integration". For a pure listing request this single call is sufficient — no need to call `intranet_search` first.
+    2. Select every returned page as a candidate (filtering is already done server-side). Proceed to the mandatory fetch loop below.
+    3. If the query returns unexpectedly few results, retry with a broader query or call `intranet_list_all_pages()` (no query) and filter manually.
   - **Mandatory intranet fetch loop — follow this order for every candidate page:**
     1. Call `intranet_search` with a targeted query when you need additional candidates beyond the catalogue (use the exact pattern name, slug, or key phrase).
     2. From search results or the catalogue, **immediately note the `web_url`, `graph_site_id`, and `graph_page_id`** for every candidate page — you will need these for the Link field.
@@ -100,7 +100,7 @@ Use this structure exactly. The intranet source format is mandatory when intrane
 
 1. Understand the user request and the **retrieval handoff** from the retrieval planner (not a repeat of the router line).
 2. When paths are explicit, open them with `read_workspace_file` or `read_document` before relying only on broad search.
-3. For intranet tasks: call `intranet_list_all_pages` first to get the full catalogue; filter by relevance (title AND URL slug). Then for hub/catalogue pages call `intranet_list_page_links` to enumerate child pages.
+3. For intranet tasks: call `intranet_list_all_pages(query="<topic keywords>")` to get a pre-filtered catalogue with no cap (any-token match on title + URL slug). For hub/catalogue pages in the results, call `intranet_list_page_links` to find additional child pages.
 4. For each `intranet_list_page_links` result that includes `graph_page_id`: call `intranet_fetch(graph_site_id, graph_page_id)` directly — no extra search needed.
 5. For each expected pattern name: if not found in the catalogue or via link traversal, run a targeted `intranet_search` using the exact pattern name.
 6. Call `intranet_fetch` for every candidate page found. Record the `web_url` from the catalogue or search result before calling fetch.
