@@ -17,6 +17,28 @@ _PAGE_LIST_BATCH = 100
 _MAX_SITE_PAGES_TO_SCAN = 500
 
 
+def _load_synonym_groups(path: "Path | None") -> "list[frozenset[str]] | None":
+    """Load synonym groups from a YAML file and return them as frozensets.
+
+    Returns ``None`` when *path* is ``None`` or the file cannot be parsed, so
+    callers can treat ``None`` as "no synonym expansion".
+    """
+    if path is None or not path.exists():
+        return None
+    try:
+        import yaml  # local import — yaml is already a project dependency
+
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        groups: list[frozenset[str]] = []
+        for group in data.get("groups") or []:
+            members = frozenset(str(t).strip().lower() for t in group if str(t).strip())
+            if len(members) >= 2:
+                groups.append(members)
+        return groups or None
+    except Exception:
+        return None
+
+
 def _hrefs_from_html_fragment(html: str) -> list[str]:
     out: list[str] = []
     out += re.findall(r'href\s*=\s*"([^"]+)"', html, flags=re.IGNORECASE)
@@ -216,6 +238,12 @@ class SharePointPagesProvider:
         self._sites: list[SharePointSiteEntry] | None = sites
         self._allowed_hosts: set[str] | None = allowed_hosts
         self._timeout = max(30, settings.graph_timeout_seconds)
+        # Synonym groups loaded once from registry/search_synonyms.yaml.
+        # Each group is a frozenset of lowercase equivalent terms; None when the
+        # file is absent so the search falls back to raw token matching.
+        self._synonym_groups: list[frozenset[str]] | None = _load_synonym_groups(
+            settings.synonyms_path
+        )
 
     def _ensure_sites(self) -> None:
         """Resolve site entries on first use (lazy auth)."""
@@ -589,37 +617,38 @@ class SharePointPagesProvider:
         self._save_page_cache(all_pages)
         return self._filter_pages(all_pages, query)
 
-    @staticmethod
-    def _query_tokens(query: str) -> list[str]:
-        """Expand query into a deduplicated set of lowercase match tokens.
+    def _query_tokens(self, query: str) -> list[str]:
+        """Expand *query* into a deduplicated list of lowercase match tokens.
 
-        Each raw token is kept as-is and, when it ends in ``s`` or ``es``,
-        also added without the suffix (e.g. ``"patterns"`` → ``"pattern"``,
-        ``"processes"`` → ``"process"``).  This lets plural query terms match
-        singular URL slugs and vice versa without a full stemmer dependency.
+        For each raw token the method looks up every synonym group that contains
+        it and adds all members of that group.  No hardcoded linguistic rules are
+        applied — domain knowledge lives entirely in ``registry/search_synonyms.yaml``.
         """
         raw = [t.lower() for t in re.split(r"\s+", query.strip()) if len(t) >= 2]
         expanded: list[str] = []
         seen: set[str] = set()
         for tok in raw:
-            for variant in (tok, tok.rstrip("s"), tok.rstrip("es")):
+            candidates = [tok]
+            if self._synonym_groups:
+                for group in self._synonym_groups:
+                    if tok in group:
+                        candidates.extend(group)
+            for variant in candidates:
                 if len(variant) >= 2 and variant not in seen:
                     seen.add(variant)
                     expanded.append(variant)
         return expanded
 
-    @staticmethod
-    def _filter_pages(pages: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
-        """Return pages whose title or web_url slug contain any token from *query*.
+    def _filter_pages(self, pages: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+        """Return pages whose title or web_url slug contain any expanded token from *query*.
 
         When *query* is empty, all pages are returned unchanged.  Matching is
         case-insensitive substring search with no scoring cap — every page that
-        matches at least one token is included.  Plural tokens (e.g.
-        ``"patterns"``) also match their singular forms (``"pattern"``).
+        matches at least one token (including synonyms) is included.
         """
         if not query or not query.strip():
             return pages
-        tokens = SharePointPagesProvider._query_tokens(query)
+        tokens = self._query_tokens(query)
         if not tokens:
             return pages
         result: list[dict[str, Any]] = []

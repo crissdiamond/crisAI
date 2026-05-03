@@ -32,6 +32,8 @@ class IntranetSettings:
     # TTL for the intranet_list_all_pages local disk cache (in hours).
     # Override with INTRANET_PAGE_CACHE_TTL_HOURS env variable.
     page_cache_ttl_hours: int = 4
+    # Absolute path to search_synonyms.yaml; None disables synonym expansion.
+    synonyms_path: Path | None = None
 
 
 def load_intranet_settings(registry_dir: Path) -> IntranetSettings:
@@ -55,6 +57,12 @@ def load_intranet_settings(registry_dir: Path) -> IntranetSettings:
     _ttl_env = os.getenv("INTRANET_PAGE_CACHE_TTL_HOURS")
     page_cache_ttl_hours = int(_ttl_env) if _ttl_env and _ttl_env.strip().isdigit() else int(limits.get("page_cache_ttl_hours") or 4)
 
+    # Resolve synonyms file: explicit YAML key overrides the default location.
+    synonyms_filename = str(block.get("search_synonyms_file") or "search_synonyms.yaml").strip()
+    synonyms_path: Path | None = registry_dir / synonyms_filename
+    if not synonyms_path.exists():
+        synonyms_path = None
+
     return IntranetSettings(
         provider=str(block.get("provider") or "sharepoint_pages").strip(),
         allow_hosts=[str(h).strip().lower() for h in (block.get("allow_hosts") or []) if str(h).strip()],
@@ -63,4 +71,5 @@ def load_intranet_settings(registry_dir: Path) -> IntranetSettings:
         sharepoint_sites=[],
         raw_sharepoint_sites=sites_raw,
         page_cache_ttl_hours=page_cache_ttl_hours,
+        synonyms_path=synonyms_path,
     )

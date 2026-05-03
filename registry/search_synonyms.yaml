@@ -1,0 +1,40 @@
+# Synonym groups for intranet page search.
+#
+# Each group is a list of equivalent terms.  When any term in a group appears
+# in a user query, all other terms in the same group are added as additional
+# match tokens.  This lets short queries surface pages that use alternate
+# phrasings, acronyms, or singular/plural variants.
+#
+# Guidelines for maintainers:
+#   - Add a group when a user query consistently misses pages that are clearly
+#     relevant (e.g. searching "hld" misses pages titled "High Level Design").
+#   - Keep terms lowercase; the search code lowercases everything before matching.
+#   - Prefer multi-word terms that appear verbatim in page titles or URL slugs.
+#   - Avoid very short tokens (< 3 chars) — they produce too many false positives.
+#   - One group per line is fine for short groups; use block style for larger ones.
+
+groups:
+  # Plural / singular variants that cannot be covered by a simple suffix rule
+  - [pattern, patterns]
+  - [principle, principles]
+  - [standard, standards]
+  - [design, designs]
+  - [guide, guideline, guidelines]
+  - [process, processes]
+  - [service, services]
+
+  # Abbreviations and full phrases
+  - [hld, high-level-design, high level design]
+  - [lld, low-level-design, low level design]
+  - [api, endpoint, endpoints, interface, interfaces]
+
+  # Domain-specific synonyms for UCL IT Architecture
+  - [integration, integrations, integrate]
+  - [consumer, consumers]
+  - [producer, producers]
+  - [ingestion, ingest]
+  - [architecture, architectural]
+  - [security, secure, securing]
+  - [identity, identities, iam]
+  - [hosting, host, infrastructure]
+  - [data, dataset, datasets]
