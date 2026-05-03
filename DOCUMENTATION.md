@@ -441,15 +441,33 @@ For **published SharePoint site pages** (modern intranet content), use the separ
 | `intranet_login` | Trigger interactive Microsoft Entra authentication for the intranet token cache |
 | `intranet_auth_status` | Check authentication status without prompting |
 
-`intranet_search` paginates the site page list and scores against **webUrl** so slugs like `integration-patterns.aspx` match even when OData title filtering returns nothing. For open-ended or broad requests, **prefer `intranet_list_all_pages`** — it returns every page regardless of keyword matching and is served from a local cache.
+**Two-stage search strategy:**
+
+`intranet_search` runs a two-stage strategy to ensure leaf pages (e.g. `Consumer-Pattern-1`, `Producer-Pattern-2`) are never silently dropped:
+
+1. **OData / scored pass** — Graph OData filter returns the most relevant pages first (fast, capped per site).
+2. **Cache expansion** — any pages in the local catalogue that match at least one expanded query token are merged in, deduplicated, up to `max_hits`. This stage only runs when the cache is warm and adds no Graph API calls.
+
+Both stages use **synonym-expanded tokens** (see below), so a search for "integration patterns" automatically includes "integration", "integrate", "integrations", "pattern", and "patterns" as match tokens.
 
 Operational logs for hit counts and fetch sizes are written to **`logs/intranet_mcp.log`** (alongside other MCP logs under `CRISAI_LOG_DIR`).
+
+**Search synonym dictionary (`registry/search_synonyms.yaml`):**
+
+A YAML file of equivalent-term groups loaded once at provider start-up. When any token from a user query appears in a group, all other members of that group are added as additional match tokens. This allows:
+
+- plural/singular pairs: `patterns` → also matches `pattern`
+- abbreviations: `hld` → also matches `high-level-design`, `high level design`
+- domain synonyms: `integration` → also matches `integrate`, `integrations`
+
+The file is maintained independently of code — add a group when a query consistently misses relevant pages. Restart the CLI to pick up changes. The default path is `registry/search_synonyms.yaml`; override with `search_synonyms_file:` in `intranet.yaml`.
 
 **Configuration in `registry/intranet.yaml`:**
 
 - **`provider`**: `sharepoint_pages` (default) or `wiki` (placeholder for future adapters).
 - **`allow_hosts`**: optional lowercase hostnames; page `webUrl` hosts must match exactly. If omitted, hosts are **derived only** from the configured sites' `webUrl` values (still not open internet).
 - **`sharepoint_pages.sites`**: list entries with either `site_path` (for example `contoso.sharepoint.com:/sites/Intranet`) or `graph_site_id`.
+- **`search_synonyms_file`**: path to a synonym YAML file relative to `registry/` (default `search_synonyms.yaml`).
 - **`limits`**:
   - `max_fetch_chars` — maximum characters returned by `intranet_fetch`.
   - `graph_timeout_seconds` — Graph API call timeout.
@@ -459,13 +477,16 @@ Operational logs for hit counts and fetch sizes are written to **`logs/intranet_
 
 `intranet_list_all_pages` stores results at `workspace/.cache/intranet_pages_cache.json`. The cache is reused until it is older than `INTRANET_PAGE_CACHE_TTL_HOURS` (env var) or `limits.page_cache_ttl_hours` (YAML). A cache miss triggers a full paginated Graph scan and updates the file. Each entry contains `title`, `web_url`, `graph_site_id`, `graph_page_id`, and `site_label`.
 
+`intranet_list_all_pages(query="<keywords>")` accepts an optional query parameter that filters the full catalogue using the same synonym-expanded any-token matching, with no scoring cap — useful when an agent needs a comprehensive list without fetching every page.
+
 `intranet_fetch` only accepts `graph_site_id` values that came from that configuration, so agents cannot pivot to arbitrary Graph sites.
 
 ### Best practice
 
-- for broad or open-ended intranet requests, start with `intranet_list_all_pages` to get the complete catalogue, filter by relevance, then fetch candidate pages
-- for targeted retrieval, use `intranet_search` with exact pattern names or slug keywords
-- after fetching any hub or catalogue page, call `intranet_list_page_links` to enumerate child pages — search often misses pages reachable only via navigation links
+- for broad or open-ended intranet requests, `intranet_search` now returns comprehensive results via cache expansion — no extra steps required for most queries
+- for explicit exhaustive listing, use `intranet_list_all_pages(query="<keywords>")` — returns all catalogue matches with no cap
+- after fetching any hub or catalogue page, call `intranet_list_page_links` to enumerate child pages — search may still miss pages reachable only via navigation links
+- add synonym groups to `registry/search_synonyms.yaml` when a user query misses obviously relevant pages — no code change needed
 - check auth status first when uncertain whether the token is still valid
 - do not let the system guess identifiers; only inspect results returned in the current run
 - prefer personal OneDrive when you explicitly say so
@@ -553,10 +574,10 @@ Use `.env.example` as the template for repo-safe configuration.
 
 For **published site pages** (intranet articles, integration pattern pages, hub catalogues):
 
-1. Call **`intranet_list_all_pages`** first for any broad or open-ended request — it returns the full page catalogue across all configured sites and is served from a local cache (TTL set by `INTRANET_PAGE_CACHE_TTL_HOURS`, default 4 h). Filter by title/URL relevance to identify candidates.
-2. Use **`intranet_search`** for targeted lookup by keyword or exact slug when you already know what you are looking for.
+1. Use **`intranet_search`** for targeted or broad lookup — it now runs a two-stage strategy (OData scored pass + cache expansion with synonym-expanded tokens) so leaf pages like `Consumer-Pattern-1` are included even when they score below the OData cap.
+2. For **exhaustive listing** without a scoring cap, call **`intranet_list_all_pages(query="<keywords>")`** — it filters the full catalogue with synonym expansion and no result limit.
 3. Call **`intranet_fetch`** to retrieve the full body of each candidate page.
-4. After fetching any hub or catalogue page, call **`intranet_list_page_links`** to enumerate child pages reachable via navigation links — search often misses these.
+4. After fetching any hub or catalogue page, call **`intranet_list_page_links`** to enumerate child pages reachable only via navigation links.
 
 Do **not** use generic SharePoint **document** search for `.aspx` Site Pages unless you intend library files. The Intranet MCP has its own independent Microsoft Graph token cache; check **`intranet_auth_status`** first when unsure.
 

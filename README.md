@@ -23,7 +23,9 @@ The aim is to create a personal AI workstation that can retrieve source material
   - `.xlsx`
 - Mermaid diagram generation support
 - SharePoint / OneDrive retrieval via delegated Microsoft Graph access
-- Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools: `intranet_search`, `intranet_fetch`, `intranet_list_page_links`, **`intranet_list_all_pages`** for deterministic full-catalogue discovery)
+- Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools: `intranet_search`, `intranet_fetch`, `intranet_list_page_links`, **`intranet_list_all_pages`**)
+- Two-stage `intranet_search`: OData scored pass + cache expansion ensures leaf pages (e.g. `Consumer-Pattern-1`) are never silently dropped
+- Synonym dictionary (`registry/search_synonyms.yaml`) — maintainable YAML of equivalent-term groups (plural/singular, abbreviations, domain synonyms) applied to all intranet search; no code change needed to extend it
 - Configurable on-disk page catalogue cache (default 4 h, `INTRANET_PAGE_CACHE_TTL_HOURS`) so agents can list every available page without repeated Graph API scans
 - Optional **architecture context** corpus under `workspace/context/`, with **draft staging** in `workspace/context_staging/` for human review before promotion
 - Multi-agent orchestration with three execution modes:
@@ -103,6 +105,7 @@ crisAI/
     models.yaml
     policies.yaml
     intranet.yaml
+    search_synonyms.yaml
 
   prompts/
     TEMPLATE.md
@@ -524,18 +527,21 @@ The expected flow is:
 SharePoint and Intranet maintain **independent token caches**; authenticating or clearing one does not affect the other.
 
 Intranet MCP tools:
-- `intranet_list_all_pages` — full page catalogue across all configured sites (cached locally for `INTRANET_PAGE_CACHE_TTL_HOURS`, default 4 h)
-- `intranet_search` — keyword search against page titles and descriptions
+- `intranet_search` — two-stage search: OData scored pass + cache expansion with synonym-expanded tokens; leaf pages are included even when they score below the OData cap
+- `intranet_list_all_pages(query="<keywords>")` — full catalogue filtered by synonym-expanded tokens, no scoring cap; use for exhaustive listing
 - `intranet_fetch` — retrieve full page text by Graph site/page id
-- `intranet_list_page_links` — enumerate child Site Page links from a hub or catalogue page
+- `intranet_list_page_links` — enumerate child Site Page links from a hub or catalogue page, enriched with Graph IDs from the cache
 - `intranet_login` / `intranet_auth_status` — manual auth control
+
+**Synonym dictionary** (`registry/search_synonyms.yaml`): add a group when a query misses relevant pages. Restart the CLI to apply. No code change needed.
 
 Configuration, guardrails, and prompting patterns are in **DOCUMENTATION.md**.
 
 Operational recommendation:
-- for broad discovery, call `intranet_list_all_pages` first — it is deterministic and cached
-- check auth status before search; expect the device code prompt when the token is missing or expired
-- for Site Pages and hub-style navigation, use intranet tools — not drive document search — unless you explicitly need library files
+- `intranet_search` is now comprehensive for most queries — cache expansion runs automatically when the catalogue is warm
+- for explicit exhaustive listing without a cap, use `intranet_list_all_pages(query="...")`
+- check auth status before the first search; expect the device code prompt when the token is missing or expired
+- use intranet tools for Site Pages; use document search only when you need library files
 
 ---
 
