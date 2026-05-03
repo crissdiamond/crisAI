@@ -1,0 +1,24 @@
+---
+id: EXAMPLE-001
+title: Short human-readable title
+type: pattern
+status: draft
+owner: Architecture (team or role)
+last_reviewed: 2026-05-03
+applies_to: all | corporate | student-systems | research | ...
+tags: reporting, lineage, integration
+related:
+  - context/standards/governance-standard.txt
+  - context/patterns/reporting-patterns.txt
+---
+
+# Heading matching title (optional if title in metadata is enough)
+
+Body: keep sections short. crisAI workspace search works line-by-line; use `## Section`
+headings and bullets so retrieval can hit distinctive phrases.
+
+## When to use
+
+## Anti-patterns
+
+## References
