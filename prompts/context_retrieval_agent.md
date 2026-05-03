@@ -43,7 +43,12 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
     3. Call `intranet_fetch(graph_site_id, graph_page_id)` for each candidate. This gives the page body.
     4. If the fetch returns non-empty content: **record the page as a Retrieved Source** using the `web_url` from step 2 as the Link URL and a meaningful extract from the fetch body.
     5. If the fetch fails or returns empty: record the page as a gap with the attempted `web_url`.
-  - **After fetching any hub or catalogue page, always call `intranet_list_page_links`** on that page to discover child `/SitePages/...` links. Fetch each child page that matches an expected pattern name. Do not skip this step even if search already found some patterns—link traversal often surfaces pages that search misses.
+  - **After fetching ANY hub or catalogue page, you MUST call `intranet_list_page_links`** on that page to discover child `/SitePages/...` links, even when search already returned results. This is mandatory — search often misses hub pages that are only reachable via link traversal. Fetch each child page that matches an expected pattern name.
+  - **Recognising hub/catalogue pages:** any page whose body contains a list of named patterns, links to pattern pages, or navigation items like "Pattern 1", "Pattern 2", "Consumer patterns", "Producer patterns" is a hub page. You MUST call `intranet_list_page_links` on it immediately.
+  - **Known integration entry-points on the EA it-architecture site** — always check these for integration-pattern tasks:
+    - Search query `"integration patterns"` → expect a page at slug `integration-patterns` (lists consumer, producer, and ingestion patterns).
+    - Search query `"integration strategy"` → expect a page at slug `integration-strategy`.
+    - After finding either, call `intranet_list_page_links` to enumerate all linked pattern pages.
   - **Catalogue trap:** a page that lists pattern names only is not sufficient for "which pattern to use" or for **`context_staging/`** pattern artefacts—you must `intranet_fetch` each **detail/leaf** page. See **`prompts/_shared/context-staging.md`**.
   - If a pattern name still cannot be resolved after both search and link traversal, record it as a gap with the queries tried and the outcome.
   - Do not answer from `workspace/context` alone when the user scoped **intranet pages**.

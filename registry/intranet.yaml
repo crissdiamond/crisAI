@@ -23,6 +23,11 @@ intranet:
       # Use the site path from the address bar on the site home (not /_layouts/... pages).
       # intranet_search matches page title/name/description from the list API—not full page body
       # until intranet_fetch. Child pages (e.g. Guides / Patterns) need matching keywords or browse.
+      #
+      # Known important hub pages on this site (use these as search seeds for link traversal):
+      #   /SitePages/integration-patterns.aspx  — consumer / producer / ingestion pattern catalogue
+      #   /SitePages/integration-strategy.aspx  — overarching integration strategy
+      #   /SitePages/Architecture-Patterns.aspx — all pattern areas
       - label: "EA it-architecture"
         site_path: "liveuclac.sharepoint.com:/sites/it-architecture"
       # Legacy / migration copy linked from the EA home page (patterns may still live here).
