@@ -53,7 +53,7 @@ def log_event(message: str) -> None:
     )
 
 
-ms_graph.configure_workspace(ROOT)
+ms_graph.configure_workspace(ROOT, namespace="sharepoint")
 ms_graph.set_telemetry_hook(log_event)
 
 

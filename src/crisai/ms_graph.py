@@ -41,13 +41,33 @@ _token_info_path: Path | None = None
 _telemetry: Callable[[str], None] | None = None
 
 
-def configure_workspace(workspace_root: Path) -> None:
-    """Set token cache paths under ``workspace_root/.auth`` (overridable via env)."""
+def configure_workspace(workspace_root: Path, namespace: str = "default") -> None:
+    """Set token cache paths under ``workspace_root/.auth`` (overridable via env).
+
+    Args:
+        workspace_root: Root of the local workspace; the ``.auth`` subdirectory
+            is created automatically.
+        namespace: Logical service identifier used to derive independent cache
+            file names so that different MCP servers (e.g. ``sharepoint`` and
+            ``intranet``) do not share credentials.  The special value
+            ``"default"`` preserves the original file names
+            (``msal_token_cache.json`` / ``msal_token_info.json``) for
+            backward compatibility.  Any other value produces
+            ``{namespace}_token_cache.json`` / ``{namespace}_token_info.json``.
+            Environment variables ``MS_TOKEN_CACHE_PATH`` and
+            ``MS_TOKEN_INFO_PATH`` override the derived paths when set.
+    """
     global _token_cache_path, _token_info_path
     cache_dir = workspace_root / ".auth"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    _token_cache_path = Path(os.getenv("MS_TOKEN_CACHE_PATH", cache_dir / "msal_token_cache.json"))
-    _token_info_path = Path(os.getenv("MS_TOKEN_INFO_PATH", cache_dir / "msal_token_info.json"))
+    if namespace == "default":
+        default_cache = cache_dir / "msal_token_cache.json"
+        default_info = cache_dir / "msal_token_info.json"
+    else:
+        default_cache = cache_dir / f"{namespace}_token_cache.json"
+        default_info = cache_dir / f"{namespace}_token_info.json"
+    _token_cache_path = Path(os.getenv("MS_TOKEN_CACHE_PATH", str(default_cache)))
+    _token_info_path = Path(os.getenv("MS_TOKEN_INFO_PATH", str(default_info)))
 
 
 def set_telemetry_hook(hook: Callable[[str], None] | None) -> None:

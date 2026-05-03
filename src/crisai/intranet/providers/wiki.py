@@ -8,6 +8,16 @@ from typing import Any
 class WikiProvider:
     """Reserved adapter for wiki-style intranets (not implemented yet)."""
 
+    def login(self) -> str:
+        raise NotImplementedError(
+            "intranet.provider is set to 'wiki', but the wiki adapter is not implemented yet."
+        )
+
+    def auth_status(self) -> dict[str, Any]:
+        raise NotImplementedError(
+            "intranet.provider is set to 'wiki', but the wiki adapter is not implemented yet."
+        )
+
     def search(self, query: str, max_hits: int) -> list[dict[str, Any]]:
         raise RuntimeError(
             "intranet.provider is set to 'wiki', but the wiki adapter is not implemented yet. "

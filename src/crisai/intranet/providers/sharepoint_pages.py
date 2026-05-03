@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -184,19 +185,52 @@ def effective_allow_hosts(settings: IntranetSettings, resolved: list[SharePointS
 
 
 class SharePointPagesProvider:
-    """List and fetch SharePoint site pages within configured sites."""
+    """List and fetch SharePoint site pages within configured sites.
+
+    This provider owns its own Microsoft Graph token cache so that it remains
+    independent of other MCP servers (e.g. sharepoint_docs) that may share the
+    same workspace.  Pass ``workspace_root`` to isolate the cache under
+    ``workspace_root/.auth/intranet_token_cache.json``.
+    """
 
     def __init__(
         self,
         *,
         settings: IntranetSettings,
-        sites: list[SharePointSiteEntry],
-        allowed_hosts: set[str],
+        sites: list[SharePointSiteEntry] | None = None,
+        allowed_hosts: set[str] | None = None,
+        workspace_root: "Path | None" = None,
     ) -> None:
+        if workspace_root is not None:
+            # Configure the intranet-specific Graph token cache before any API
+            # calls so this provider's credentials are isolated from other
+            # MCP servers that also use ms_graph.
+            ms_graph.configure_workspace(workspace_root, namespace="intranet")
+        if sites is None:
+            sites = resolve_site_entries(settings) if settings.raw_sharepoint_sites else []
+        if allowed_hosts is None:
+            allowed_hosts = effective_allow_hosts(settings, sites)
         self._settings = settings
         self._sites = sites
         self._allowed_hosts = allowed_hosts
         self._timeout = max(30, settings.graph_timeout_seconds)
+
+    # ------------------------------------------------------------------
+    # Auth interface (satisfies IntranetProvider protocol)
+    # ------------------------------------------------------------------
+
+    def login(self) -> str:
+        """Trigger interactive Microsoft Graph login for the intranet token cache."""
+        ms_graph.acquire_token(force_interactive=True)
+        info = ms_graph.read_token_info()
+        return (
+            f"Intranet (SharePoint pages) login successful. "
+            f"Account={info.get('account')} Scopes={info.get('scope')}"
+        )
+
+    def auth_status(self) -> dict[str, Any]:
+        """Return Microsoft Graph delegated auth status without prompting."""
+        return ms_graph.delegated_auth_status()
 
     def _ensure_page_host_allowed(self, web_url: str) -> None:
         host = _host_of(web_url)
