@@ -146,6 +146,36 @@ def _acquire_token_interactive_compat(
     return app.acquire_token_interactive(**kwargs)
 
 
+def _acquire_token_device_code(
+    app: PublicClientApplication,
+    scopes: list[str],
+) -> dict[str, Any]:
+    """Acquire a token via the OAuth 2.0 device code flow.
+
+    This is the reliable alternative to ``acquire_token_interactive`` in
+    environments where the localhost redirect cannot be reached from the
+    browser (e.g. WSL2: the Windows browser cannot hit the WSL2 MSAL listener
+    on localhost). The flow opens the browser to the device-login URL with the
+    user code pre-filled so the user only needs to confirm and authenticate.
+    """
+    flow = app.initiate_device_flow(scopes=scopes)
+    if "user_code" not in flow:
+        raise RuntimeError(
+            f"Failed to initiate device code flow: {flow.get('error_description') or flow}"
+        )
+    # ``verification_uri_complete`` pre-fills the user_code in the browser so
+    # the user only has to click Continue rather than typing the code manually.
+    browser_url = str(flow.get("verification_uri_complete") or flow.get("verification_uri", ""))
+    if browser_url:
+        _open_interactive_browser(browser_url)
+    _emit(
+        f"device_code_flow user_code={flow.get('user_code')!r} "
+        f"verification_uri={flow.get('verification_uri')!r}"
+    )
+    # Block until the user completes auth in the browser or the flow expires.
+    return app.acquire_token_by_device_flow(flow)
+
+
 def _format_interactive_auth_failure(result: dict[str, Any] | None, scopes: list[str]) -> str:
     payload = result or {}
     error_code = str(payload.get("error") or "unknown_error")
@@ -246,10 +276,21 @@ def acquire_token(*, scopes: list[str] | None = None, force_interactive: bool = 
     if not force_interactive:
         force_interactive = True
 
-    _emit(f"interactive_login scopes={scopes}")
     cache = _load_token_cache()
     app = _build_app(cache)
-    result = _acquire_token_interactive_compat(app, scopes)
+
+    # In WSL2 the Windows browser cannot reach the MSAL localhost redirect
+    # listener inside WSL, so the browser-redirect interactive flow hangs
+    # until the MCP client timeout fires.  Device code flow is used instead:
+    # it opens the browser to the device-login URL (user code pre-filled) and
+    # polls for completion without requiring a localhost redirect.
+    if _is_wsl_environment():
+        _emit(f"interactive_login_device_code scopes={scopes}")
+        result = _acquire_token_device_code(app, scopes)
+    else:
+        _emit(f"interactive_login scopes={scopes}")
+        result = _acquire_token_interactive_compat(app, scopes)
+
     _save_token_cache(cache)
 
     if not result or "access_token" not in result:

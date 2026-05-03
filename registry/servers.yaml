@@ -118,7 +118,7 @@ servers:
       (see registry/intranet.yaml). Same delegated Microsoft Graph auth as SharePoint.
     enabled: true
     transport: stdio
-    client_timeout_seconds: 240
+    client_timeout_seconds: 600
     command: python
     args:
       - src/crisai/servers/intranet_server.py
