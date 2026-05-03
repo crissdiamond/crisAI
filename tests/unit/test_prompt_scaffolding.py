@@ -64,6 +64,29 @@ def test_registry_prompt_files_exist() -> None:
     assert not missing, "prompt_file paths must exist:\n" + "\n".join(missing)
 
 
+_PIPELINE_AGENT_PROMPTS: tuple[str, ...] = (
+    "prompts/discovery_agent.md",
+    "prompts/context_retrieval_agent.md",
+    "prompts/context_synthesizer_agent.md",
+    "prompts/design_agent.md",
+)
+
+
+@pytest.mark.parametrize("rel", _PIPELINE_AGENT_PROMPTS)
+def test_pipeline_agent_prompts_include_all_canonical_sections(rel: str) -> None:
+    text = (_REPO_ROOT / rel).read_text(encoding="utf-8")
+    missing = [h for h in _REQUIRED_TEMPLATE_SECTIONS if h not in text]
+    assert not missing, f"{rel} missing sections: {missing}"
+
+
+@pytest.mark.parametrize("rel", _PIPELINE_AGENT_PROMPTS)
+def test_pipeline_agent_prompts_canonical_sections_in_order(rel: str) -> None:
+    text = (_REPO_ROOT / rel).read_text(encoding="utf-8")
+    positions = [text.find(h) for h in _REQUIRED_TEMPLATE_SECTIONS]
+    assert all(p >= 0 for p in positions), f"{rel} missing a canonical section"
+    assert positions == sorted(positions), f"{rel}: canonical ## sections must appear in template order"
+
+
 def test_context_synthesizer_prompt_file_matches_registry_id() -> None:
     """Avoid regression to opaque names like context_agent.md for this id."""
     data = yaml.safe_load(_AGENTS_PATH.read_text(encoding="utf-8")) or {}

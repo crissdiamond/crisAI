@@ -68,7 +68,7 @@ def test_build_context_synthesizer_prompt_creates_grounded_context_brief_prompt(
     assert "You are the Context Synthesizer agent" in prompt
     assert "Draft a solution design from local documents." in prompt
     assert "Found design_notes.md and constraints.md" in prompt
-    assert "Use only facts supported by the discovery output." in prompt
+    assert "Use only facts supported by the context retrieval output." in prompt
     assert "Do not draft, recommend, or optimise the solution design." in prompt
     assert "## Relevant Facts" in prompt
     assert "## Gaps and Uncertainties" in prompt
