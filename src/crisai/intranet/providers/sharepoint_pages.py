@@ -124,7 +124,16 @@ class SharePointPagesProvider:
             )
 
     def _list_pages_for_site(self, site_id: str, query: str, per_site_cap: int) -> list[dict[str, Any]]:
+        """List site pages; match query against titles with OData when possible, then token fallback.
+
+        Graph ``contains(title,'integration pattern')`` requires that **exact** substring in the
+        title. Real titles often have only ``Integration`` or ``Patterns``, so an empty OData
+        result falls back to a capped unfiltered list and **any-token** matching on
+        title, file name, and description.
+        """
         q = (query or "").strip().lower()
+        fetch_limit = min(max(per_site_cap * 4, 20), 100)
+
         if q:
             safe = q.replace("'", "''")
             try:
@@ -133,24 +142,44 @@ class SharePointPagesProvider:
                     params={"$top": per_site_cap, "$filter": f"contains(title,'{safe}')"},
                     timeout=self._timeout,
                 )
-                return list(data.get("value") or [])[:per_site_cap]
+                odata_hits = list(data.get("value") or [])[:per_site_cap]
+                if odata_hits:
+                    return odata_hits
             except RuntimeError as exc:
                 # Some tenants reject OData filters on sitePage; fall back to a capped list.
                 if "400" not in str(exc) and "501" not in str(exc):
                     raise
+
         data = ms_graph.graph_get(
             f"/sites/{site_id}/pages/microsoft.graph.sitePage",
-            params={"$top": min(max(per_site_cap * 4, 20), 100)},
+            params={"$top": fetch_limit},
             timeout=self._timeout,
         )
         pages = list(data.get("value") or [])
-        if q:
-            pages = [
-                p
-                for p in pages
-                if q in str(p.get("title") or "").lower() or q in str(p.get("name") or "").lower()
-            ]
-        return pages[:per_site_cap]
+        if not q:
+            return pages[:per_site_cap]
+
+        tokens = [t for t in re.split(r"\s+", q) if len(t) >= 2]
+        if not tokens:
+            tokens = [q]
+
+        def _blob(page: dict[str, Any]) -> str:
+            return (
+                str(page.get("title") or "")
+                + " "
+                + str(page.get("name") or "")
+                + " "
+                + str(page.get("description") or "")
+            ).lower()
+
+        scored: list[tuple[int, dict[str, Any]]] = []
+        for page in pages:
+            blob = _blob(page)
+            score = sum(1 for token in tokens if token in blob)
+            if score:
+                scored.append((score, page))
+        scored.sort(key=lambda item: -item[0])
+        return [page for _, page in scored][:per_site_cap]
 
     def search(self, query: str, max_hits: int) -> list[dict[str, Any]]:
         if not self._sites:

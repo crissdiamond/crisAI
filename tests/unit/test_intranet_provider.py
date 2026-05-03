@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from crisai.intranet.config import IntranetSettings, SharePointSiteEntry, load_intranet_settings
+import crisai.intranet.providers.sharepoint_pages as sharepoint_pages
 from crisai.intranet.providers.sharepoint_pages import (
     SharePointPagesProvider,
     effective_allow_hosts,
@@ -93,6 +94,58 @@ def test_wiki_provider_raises() -> None:
     wiki = WikiProvider()
     with pytest.raises(RuntimeError, match="not implemented"):
         wiki.search("q", 5)
+
+
+def test_sharepoint_search_token_fallback_when_odata_title_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OData exact title substring can be empty; provider should list pages and match tokens."""
+
+    def fake_graph_get(path: str, params: dict | None = None, timeout: int = 60) -> dict:
+        p = params or {}
+        if "$filter" in p:
+            return {"value": []}
+        return {
+            "value": [
+                {
+                    "id": "p1",
+                    "title": "Integration overview",
+                    "name": "Integration-overview.aspx",
+                    "webUrl": "https://contoso.sharepoint.com/sites/hr/SitePages/a.aspx",
+                    "description": "Design patterns for services",
+                },
+                {
+                    "id": "p2",
+                    "title": "Holiday notice",
+                    "name": "Holiday.aspx",
+                    "webUrl": "https://contoso.sharepoint.com/sites/hr/SitePages/b.aspx",
+                    "description": "",
+                },
+            ]
+        }
+
+    monkeypatch.setattr(sharepoint_pages.ms_graph, "graph_get", fake_graph_get)
+    settings = IntranetSettings(
+        provider="sharepoint_pages",
+        allow_hosts=["contoso.sharepoint.com"],
+        max_fetch_chars=5000,
+        graph_timeout_seconds=60,
+        raw_sharepoint_sites=[],
+    )
+    sites = [
+        SharePointSiteEntry(
+            label="hr",
+            graph_site_id="site-a",
+            web_url="https://contoso.sharepoint.com/sites/hr",
+        )
+    ]
+    prov = SharePointPagesProvider(
+        settings=settings,
+        sites=sites,
+        allowed_hosts={"contoso.sharepoint.com"},
+    )
+    hits = prov.search("integration pattern", max_hits=10)
+    assert len(hits) == 1
+    assert hits[0]["graph_page_id"] == "p1"
+    assert "Integration" in hits[0]["title"]
 
 
 def test_sharepoint_fetch_rejects_unknown_site() -> None:
