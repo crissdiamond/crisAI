@@ -21,9 +21,13 @@ intranet:
     sites:
       # Graph site path: {hostname}:/{server-relative-site-url}
       # Use the site path from the address bar on the site home (not /_layouts/... pages).
-      # Example: https://liveuclac.sharepoint.com/sites/YourSite -> path below.
-      - label: "UCL Sharepoint"
+      # intranet_search matches page title/name/description from the list API—not full page body
+      # until intranet_fetch. Child pages (e.g. Guides / Patterns) need matching keywords or browse.
+      - label: "EA it-architecture"
         site_path: "liveuclac.sharepoint.com:/sites/it-architecture"
+      # Legacy / migration copy linked from the EA home page (patterns may still live here).
+      - label: "ISD Architecture Wiki Copy"
+        site_path: "liveuclac.sharepoint.com:/sites/ISDArchitectureWikiCopy"
     # Examples:
     # - label: main-intranet
     #   site_path: "contoso.sharepoint.com:/sites/Intranet"
