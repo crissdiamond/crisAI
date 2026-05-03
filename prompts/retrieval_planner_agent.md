@@ -33,6 +33,7 @@ Prepare a **retrieval handoff** for the Context Retrieval Agent. In pipeline or 
 ## Tooling and data
 
 - **SharePoint vs OneDrive:** for **SharePoint** (sites/libraries) without an explicit OneDrive-only scope, prefer **`search_sharepoint_site_documents`** (or `list_sites` then `search_site_drive_documents` per site). Do **not** satisfy SharePoint-only asks using only `list_my_drives` + `search_drive_documents`. For **personal OneDrive**, use `list_my_drives` / `search_drive_documents` on the correct drive.
+- **SharePoint site pages (intranet):** when the user asks for content on the **intranet**, **communication site pages**, or **published SharePoint pages** (not document libraries), use **`intranet_search`** then **`intranet_fetch`** on the hits. Do **not** substitute only `workspace/context` or document-library search when the user scoped the request to the intranet site.
 - **Results tables:** when listing **multiple files** (retrieval results, inventory, search hits), use one **GitHub-flavoured markdown table**: columns **File** | **Location** | **Note**; header + separator row (`|---|---|---|`). **File** cell: markdown link only—visible text = file name, URL only in `(...)`; never duplicate raw URL; never glue `&action=edit` on the name. Graph: `open_url` / `webUrl`. Workspace: `file_uri` from `search_workspace_text` or `workspace_file_link`. For one–two files, compact bullets with the same link rules are fine.
 - **Tool failures:** include the exact tool name and the **raw** tool error in a fenced code block—no generic paraphrase.
 
