@@ -26,7 +26,7 @@ groups:
   # Abbreviations and full phrases
   - [hld, high-level-design, high level design]
   - [lld, low-level-design, low level design]
-  - [api, endpoint, endpoints, interface, interfaces]
+  - [api, apis, topic, topics channel, channels, endpoint, endpoints, interface, interfaces]
 
   # Domain-specific synonyms for UCL IT Architecture
   - [integration, integrations, integrate]
