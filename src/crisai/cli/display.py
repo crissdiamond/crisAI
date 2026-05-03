@@ -159,7 +159,48 @@ def _truncate_for_summary(text: str, limit: int) -> str:
     chunk = text[: limit - 1]
     if " " in chunk:
         chunk = chunk.rsplit(" ", 1)[0]
-    return chunk.rstrip(" ,;:") + "…"
+    # Avoid a dangling article or other 1–2 character tail before "…" (e.g. "needs a…").
+    while " " in chunk:
+        _head, tail = chunk.rsplit(" ", 1)
+        if len(tail) >= 3:
+            break
+        chunk = _head
+    chunk = chunk.rstrip(" ,;:")
+    if not chunk:
+        return text[: max(1, limit - 1)] + "…"
+    return chunk + "…"
+
+
+def _strip_compact_agent_prefix(agent_id: str, summary: str) -> str:
+    """Remove role lead-in text when the panel title already names the agent.
+
+    Args:
+        agent_id: Registry agent id for this stage.
+        summary: Plain-text line from ``_role_led_summary(..., compact=True)``.
+
+    Returns:
+        *summary* without a redundant "Agent: …" prefix when a pattern matches.
+    """
+    patterns: tuple[tuple[str, re.Pattern[str]], ...] = (
+        ("retrieval_planner", re.compile(r"^The Retrieval planner:\s*", re.I)),
+        ("context_retrieval", re.compile(r"^Context Retrieval:\s*")),
+        ("context_synthesizer", re.compile(r"^Context Synthesizer:\s*")),
+        ("review", re.compile(r"^The Review notes:\s*", re.I)),
+        ("operations", re.compile(r"^Operations:\s*")),
+        ("orchestrator", re.compile(r"^The Orchestrator:\s*")),
+        ("design", re.compile(r"^The Author proposes\s+", re.I)),
+        ("design_author", re.compile(r"^The Author proposes\s+", re.I)),
+        ("design_refiner", re.compile(r"^The Refiner suggests\s+", re.I)),
+        ("design_challenger", re.compile(r"^The Challenger highlights that\s+", re.I)),
+        ("judge", re.compile(r"^The Judge concludes that\s+", re.I)),
+    )
+    for aid, pattern in patterns:
+        if aid == agent_id:
+            stripped = pattern.sub("", summary, count=1).strip()
+            return stripped if stripped else summary
+    label = _label(agent_id)
+    stripped = re.sub(rf"^{re.escape(label)}:\s*", "", summary, count=1, flags=re.I).strip()
+    return stripped if stripped else summary
 
 
 def _substantive_sentence_list(
@@ -469,8 +510,8 @@ def _role_led_summary(agent_id: str, body: str, width: int = 100, *, compact: bo
             for ``/verbose off`` panels.
     """
     mf = 1 if compact else 4
-    # Tight cap for /verbose off: one short line the user can scan between stages.
-    mc = 220 if compact else 1100
+    # /verbose off: one scannable recap; panel title already names the agent.
+    mc = 400 if compact else 1100
     if agent_id in {"design", "design_author", "design_refiner"}:
         summary = (
             _author_like_summary(agent_id, body, max_fragments=mf, max_chars=mc)
@@ -502,7 +543,13 @@ def _role_led_summary(agent_id: str, body: str, width: int = 100, *, compact: bo
         else:
             summary = f"{_label(agent_id)}: (no recap; use verbose output)"
 
-    max_lines = 2 if compact else 14
+    if compact:
+        # Length is already capped via *mc* and ``_truncate_for_summary``. Do not run a
+        # second ``textwrap`` slice: taking the first N wrapped lines dropped tail content
+        # and left stub lines such as ``a…`` when a word wrapped across the boundary.
+        return summary
+
+    max_lines = 14
     wrapped = textwrap.wrap(summary, width=width, break_long_words=False, break_on_hyphens=False)
     if len(wrapped) <= max_lines:
         return "\n".join(wrapped)
@@ -570,6 +617,7 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
     title = Text(f"{icon} {label}", style=f"bold {style}")
     if not verbose:
         recap = _role_led_summary(agent_id, body, compact=True).strip()
+        recap = _strip_compact_agent_prefix(agent_id, recap)
         md = f"**Summary:** {recap}" if recap else "**Summary:** _(empty)_"
         rendered_body = Markdown(md)
     else:

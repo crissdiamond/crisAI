@@ -1,4 +1,9 @@
-from crisai.cli.display import _role_led_summary, _substantive_sentence_list
+from crisai.cli.display import (
+    _role_led_summary,
+    _strip_compact_agent_prefix,
+    _substantive_sentence_list,
+    _truncate_for_summary,
+)
 from crisai.cli.status_views import route_display
 from crisai.orchestration.router import RoutingDecision
 
@@ -27,6 +32,22 @@ def test_role_led_summary_includes_multiple_sentences_for_context_synthesizer():
     assert summary.startswith("Context Synthesizer:")
     assert "staged approach" in summary
     assert "Gaps remain" in summary or "lineage" in summary
+
+
+def test_strip_compact_agent_prefix_removes_duplicate_role_label():
+    raw = "The Retrieval planner: Search notes and patterns for governance."
+    assert _strip_compact_agent_prefix("retrieval_planner", raw) == "Search notes and patterns for governance."
+
+
+def test_truncate_for_summary_drops_dangling_short_tail_word():
+    blob = (
+        "Retrieval focus: search local context for a pattern around a dashboard "
+        "that starts from Excel and needs a controlled ingestion path for governance"
+    )
+    out = _truncate_for_summary(blob, 95)
+    assert out.endswith("…")
+    assert not out.endswith(" a…")
+    assert "needs" in out or "Excel" in out
 
 
 def test_substantive_sentence_list_caps_run_on_without_sentence_endings():
