@@ -270,8 +270,47 @@ def acquire_token(*, scopes: list[str] | None = None, force_interactive: bool = 
     return str(result["access_token"])
 
 
-def graph_get(path: str, params: dict[str, Any] | None = None, timeout: int = 60) -> dict[str, Any]:
-    token = acquire_token()
+def require_silent_token(scopes: list[str] | None = None) -> str:
+    """Return a valid access token using silent MSAL refresh only.
+
+    Raises ``RuntimeError`` immediately when the cache holds no account or
+    silent refresh fails. Never launches an interactive browser flow. Callers
+    (e.g. MCP server tools) should catch this error and surface it to the agent
+    as an instruction to call the explicit login tool (``intranet_login`` /
+    ``login_sharepoint``).
+    """
+    _require_env()
+    scopes = scopes or list(DEFAULT_SCOPES)
+    result = acquire_token_silent_only(scopes=scopes)
+    if result and "access_token" in result:
+        return str(result["access_token"])
+    error_hint = ""
+    if result:
+        error_hint = f": {result.get('error_description') or result.get('error') or result}"
+    raise RuntimeError(
+        f"No valid Microsoft Graph token available (silent refresh failed{error_hint}). "
+        "Call intranet_login or login_sharepoint to re-authenticate."
+    )
+
+
+def graph_get(
+    path: str,
+    params: dict[str, Any] | None = None,
+    timeout: int = 60,
+    *,
+    silent_only: bool = False,
+) -> dict[str, Any]:
+    """GET a Microsoft Graph API path.
+
+    Args:
+        path: Graph API path relative to ``/v1.0``.
+        params: Optional query parameters.
+        timeout: Request timeout in seconds.
+        silent_only: When ``True``, use only the cached token (no interactive
+            browser prompt). Raises ``RuntimeError`` immediately when auth is
+            required, rather than hanging on a browser flow.
+    """
+    token = require_silent_token() if silent_only else acquire_token()
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
@@ -283,9 +322,15 @@ def graph_get(path: str, params: dict[str, Any] | None = None, timeout: int = 60
     return resp.json()
 
 
-def graph_get_url(url: str, timeout: int = 60) -> dict[str, Any]:
-    """GET an absolute Microsoft Graph URL (for example ``@odata.nextLink`` pagination)."""
-    token = acquire_token()
+def graph_get_url(url: str, timeout: int = 60, *, silent_only: bool = False) -> dict[str, Any]:
+    """GET an absolute Microsoft Graph URL (for example ``@odata.nextLink`` pagination).
+
+    Args:
+        url: Absolute Graph URL.
+        timeout: Request timeout in seconds.
+        silent_only: When ``True``, use only the cached token (no interactive browser prompt).
+    """
+    token = require_silent_token() if silent_only else acquire_token()
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
@@ -296,8 +341,15 @@ def graph_get_url(url: str, timeout: int = 60) -> dict[str, Any]:
     return resp.json()
 
 
-def graph_get_bytes(url: str, timeout: int = 120) -> bytes:
-    token = acquire_token()
+def graph_get_bytes(url: str, timeout: int = 120, *, silent_only: bool = False) -> bytes:
+    """Download raw bytes from an absolute Graph URL.
+
+    Args:
+        url: Absolute URL.
+        timeout: Request timeout in seconds.
+        silent_only: When ``True``, use only the cached token (no interactive browser prompt).
+    """
+    token = require_silent_token() if silent_only else acquire_token()
     headers = {"Authorization": f"Bearer {token}"}
     resp = requests.get(url, headers=headers, timeout=timeout)
     if resp.status_code >= 400:

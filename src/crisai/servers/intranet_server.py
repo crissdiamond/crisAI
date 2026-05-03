@@ -80,6 +80,16 @@ def intranet_auth_status() -> dict[str, Any]:
     return ms_graph.delegated_auth_status()
 
 
+def _require_auth() -> None:
+    """Fail fast if no valid Graph token is available.
+
+    Raises ``RuntimeError`` immediately rather than blocking on an interactive
+    browser flow inside the MCP server process. The agent should catch this
+    error and call ``intranet_login`` to re-authenticate.
+    """
+    ms_graph.require_silent_token()
+
+
 @mcp.tool()
 def intranet_search(query: str, max_hits: int = 20) -> list[dict[str, Any]]:
     """Search configured intranet sites (SharePoint site pages). Not a general web search.
@@ -89,6 +99,7 @@ def intranet_search(query: str, max_hits: int = 20) -> list[dict[str, Any]]:
     cap = max(1, min(max_hits, 50))
     log_event(f"intranet_search query={query!r} max_hits={cap}")
     try:
+        _require_auth()
         hits = PROVIDER.search(query, max_hits=cap)
     except Exception as exc:
         log_event(f"intranet_search error={exc!r}")
@@ -104,6 +115,7 @@ def intranet_fetch(graph_site_id: str, graph_page_id: str) -> str:
     log_event(f"intranet_fetch site={graph_site_id!r} page={graph_page_id!r}")
     max_chars = max(4_000, INTRANET_CFG.max_fetch_chars)
     try:
+        _require_auth()
         text = PROVIDER.fetch(graph_site_id, graph_page_id, max_chars=max_chars)
     except Exception as exc:
         log_event(f"intranet_fetch error={exc!r}")
@@ -117,6 +129,7 @@ def intranet_list_page_links(graph_site_id: str, graph_page_id: str) -> list[dic
     """List same-host Site Pages URLs linked from a page (use after intranet_fetch on hub/catalog pages)."""
     log_event(f"intranet_list_page_links site={graph_site_id!r} page={graph_page_id!r}")
     try:
+        _require_auth()
         links = PROVIDER.list_page_links(graph_site_id, graph_page_id)
     except Exception as exc:
         log_event(f"intranet_list_page_links error={exc!r}")
