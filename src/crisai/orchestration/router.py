@@ -30,10 +30,12 @@ def normalize_agent_id(agent_id: str | None) -> str | None:
 DISCOVERY_TERMS = {
     "find", "search", "locate", "identify", "list",
     "documents", "document", "docs", "sources", "files", "inspect", "onedrive",
-    "sharepoint", "drive", "site", "path", "read",
+    "sharepoint", "intranet", "drive", "site", "path", "read",
+    "pages", "page",
     "find me", "look up", "look for",
     "trova", "cerca", "individua", "elenca",
     "documenti", "documento", "sorgenti", "fonti", "file", "leggi",
+    "pagine", "pagina",
 }
 
 DESIGN_TERMS = {
@@ -181,8 +183,9 @@ def _has_source_signal(text: str, discovery_score: int) -> bool:
     if discovery_score >= 2:
         return True
     source_markers = {
-        "onedrive", "sharepoint", "documents", "document", "docs", "documenti",
+        "onedrive", "sharepoint", "intranet", "documents", "document", "docs", "documenti",
         "files", "file", "sources", "fonti", "sorgenti", "site", "drive", "path", "read",
+        "pages", "page", "pagine", "pagina",
     }
     return any(marker in text for marker in source_markers)
 
