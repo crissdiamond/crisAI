@@ -44,6 +44,7 @@ from .prompt_builders import (
 )
 from .workflow_policy import (
     WorkflowPolicyViolation,
+    changed_paths,
     enforce_intranet_fetch_policy,
     enforce_workspace_write_policy,
     infer_workflow_policy,
@@ -366,6 +367,47 @@ def _parse_judge_decision(text: str) -> str:
     return "unknown"
 
 
+def _judge_reason_excerpt(text: str, max_chars: int = 240) -> str:
+    """Return a compact reason excerpt from judge output."""
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+    match = re.search(r"(?:^|\n)\s*reason\s*:\s*(.+)", raw, flags=re.IGNORECASE)
+    if match:
+        reason = " ".join(match.group(1).strip().split())
+    else:
+        # Fallback: first non-empty non-decision line.
+        reason = ""
+        for line in raw.splitlines():
+            clean = line.strip()
+            if not clean:
+                continue
+            if re.match(r"^decision\s*[:\-]", clean, flags=re.IGNORECASE):
+                continue
+            reason = " ".join(clean.split())
+            break
+    if len(reason) <= max_chars:
+        return reason
+    return reason[: max_chars - 3].rstrip() + "..."
+
+
+def _trace_peer_flow_event(
+    workflow: Any,
+    stage: str,
+    content: str,
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Emit structured peer timeline events to the trace log."""
+    _trace_workflow_policy_event(
+        workflow,
+        stage,
+        content,
+        event_type="peer_timeline",
+        metadata=metadata,
+    )
+
+
 def _resolve_peer_max_refinement_rounds() -> int:
     """Return max extra refiner/judge rounds after the first judge pass."""
     raw = os.getenv(
@@ -392,6 +434,46 @@ def _resolve_peer_max_escalations() -> int:
     return max(0, parsed)
 
 
+def _build_peer_filesystem_evidence(
+    *,
+    root_dir: Path,
+    before_snapshot: dict[str, int],
+    target_subdir: str | None,
+    max_files: int = 20,
+) -> str:
+    """Return compact runtime evidence about changed workspace artefacts."""
+    after_snapshot = snapshot_tree(root_dir, target_subdir)
+    changed = changed_paths(before_snapshot, after_snapshot)
+    changed_md = [
+        p
+        for p in changed
+        if p.startswith("workspace/") and Path(p).suffix.lower() in {".md", ".txt"}
+    ]
+    if not changed_md:
+        return "No changed workspace markdown/txt files detected yet in this run."
+
+    lines = [f"Changed markdown/txt files ({len(changed_md)}):"]
+    for rel_path in changed_md[:max_files]:
+        abs_path = (root_dir / rel_path).resolve()
+        if not abs_path.exists():
+            lines.append(f"- {rel_path} | exists: no")
+            continue
+        text = abs_path.read_text(encoding="utf-8", errors="ignore")
+        has_front_matter = text.startswith("---") and "\n---" in text[3:]
+        has_source = "## Source" in text
+        header_count = sum(1 for line in text.splitlines() if line.strip().startswith("## "))
+        lines.append(
+            "- "
+            + rel_path
+            + f" | exists: yes | front_matter: {'yes' if has_front_matter else 'no'}"
+            + f" | has_source: {'yes' if has_source else 'no'} | h2_sections: {header_count}"
+        )
+    omitted = len(changed_md) - min(len(changed_md), max_files)
+    if omitted > 0:
+        lines.append(f"- ... {omitted} additional changed files omitted from evidence summary")
+    return "\n".join(lines)
+
+
 async def _run_judge_with_acceptance_audit(
     *,
     workflow: Any,
@@ -404,18 +486,27 @@ async def _run_judge_with_acceptance_audit(
     trace_label: str,
     quality_trace_label: str,
     run_contract_text: str = "",
+    filesystem_evidence_text: str = "",
 ) -> tuple[str, str]:
     """Run judge stage and validate accepts with a second-pass quality audit.
 
     Returns:
         Tuple of (judge_text, parsed_decision).
     """
+    effective_refiner_text = refiner_text
+    if filesystem_evidence_text.strip():
+        effective_refiner_text = (
+            refiner_text.rstrip()
+            + "\n\n## Filesystem evidence (runtime)\n"
+            + filesystem_evidence_text.strip()
+        )
+
     judge_prompt = _build_prompt_with_contract(
         build_judge_prompt,
         message,
         discovery_basis,
         challenger_text,
-        refiner_text,
+        effective_refiner_text,
         run_contract_text=run_contract_text,
     )
     judge_text = await workflow.run_stage(
@@ -426,6 +517,16 @@ async def _run_judge_with_acceptance_audit(
         verbose=verbose,
     )
     judge_decision = _parse_judge_decision(judge_text)
+    _trace_peer_flow_event(
+        workflow,
+        "PEER_JUDGE_DECISION",
+        judge_text,
+        metadata={
+            "trace_label": trace_label,
+            "decision": judge_decision,
+            "reason_excerpt": _judge_reason_excerpt(judge_text),
+        },
+    )
     if judge_decision != "accept":
         return judge_text, judge_decision
 
@@ -434,7 +535,7 @@ async def _run_judge_with_acceptance_audit(
         message,
         discovery_basis,
         challenger_text,
-        refiner_text,
+        effective_refiner_text,
         judge_text,
         run_contract_text=run_contract_text,
     )
@@ -446,6 +547,16 @@ async def _run_judge_with_acceptance_audit(
         verbose=verbose,
     )
     quality_decision = _parse_judge_decision(quality_gate_text)
+    _trace_peer_flow_event(
+        workflow,
+        "PEER_QUALITY_GATE_DECISION",
+        quality_gate_text,
+        metadata={
+            "trace_label": quality_trace_label,
+            "decision": quality_decision,
+            "reason_excerpt": _judge_reason_excerpt(quality_gate_text),
+        },
+    )
     if quality_decision == "revise":
         combined = (
             judge_text.strip()
@@ -850,6 +961,17 @@ async def run_peer_pipeline(
             trace_label="REFINER OUTPUT",
             verbose=verbose,
         )
+        filesystem_evidence = _build_peer_filesystem_evidence(
+            root_dir=root_dir,
+            before_snapshot=write_before,
+            target_subdir=policy.write_target_subdir,
+        )
+        _trace_peer_flow_event(
+            workflow,
+            "PEER_FILESYSTEM_EVIDENCE",
+            filesystem_evidence,
+            metadata={"phase": "initial"},
+        )
 
         judge_text, judge_decision = await _run_judge_with_acceptance_audit(
             workflow=workflow,
@@ -862,6 +984,7 @@ async def run_peer_pipeline(
             trace_label="JUDGE OUTPUT",
             quality_trace_label="JUDGE QUALITY GATE",
             run_contract_text=run_contract_text,
+            filesystem_evidence_text=filesystem_evidence,
         )
         previous_refiner_text = refiner_text
         stagnation_detected = False
@@ -873,6 +996,16 @@ async def run_peer_pipeline(
         for round_index in range(1, max_refinement_rounds + 1):
             if judge_decision != "revise":
                 break
+            _trace_peer_flow_event(
+                workflow,
+                "PEER_REFINEMENT_ROUND_START",
+                judge_text,
+                metadata={
+                    "round_index": round_index,
+                    "decision_before_round": judge_decision,
+                    "reason_excerpt": _judge_reason_excerpt(judge_text),
+                },
+            )
             rounds_executed = round_index
             revision_challenge = "\n\n".join(
                 [
@@ -894,6 +1027,17 @@ async def run_peer_pipeline(
                 trace_label=f"REFINER OUTPUT (ROUND {round_index})",
                 verbose=verbose,
             )
+            filesystem_evidence = _build_peer_filesystem_evidence(
+                root_dir=root_dir,
+                before_snapshot=write_before,
+                target_subdir=policy.write_target_subdir,
+            )
+            _trace_peer_flow_event(
+                workflow,
+                "PEER_FILESYSTEM_EVIDENCE",
+                filesystem_evidence,
+                metadata={"phase": "refinement", "round_index": round_index},
+            )
             if refiner_text.strip() == previous_refiner_text.strip():
                 stagnation_detected = True
                 judge_text = (
@@ -901,6 +1045,12 @@ async def run_peer_pipeline(
                     + "\n\nDecision: revise\nReason: Refinement stalled; additional peer rounds produced no material change."
                 )
                 judge_decision = "revise"
+                _trace_peer_flow_event(
+                    workflow,
+                    "PEER_REFINEMENT_STAGNATION",
+                    judge_text,
+                    metadata={"round_index": round_index},
+                )
                 break
             previous_refiner_text = refiner_text
             judge_text, judge_decision = await _run_judge_with_acceptance_audit(
@@ -914,6 +1064,7 @@ async def run_peer_pipeline(
                 trace_label=f"JUDGE OUTPUT (ROUND {round_index})",
                 quality_trace_label=f"JUDGE QUALITY GATE (ROUND {round_index})",
                 run_contract_text=run_contract_text,
+                filesystem_evidence_text=filesystem_evidence,
             )
 
         # Escalation path: if revise loop cannot reach accept, rerun
@@ -922,6 +1073,16 @@ async def run_peer_pipeline(
             if judge_decision == "accept":
                 break
             escalations_executed = escalation_index
+            _trace_peer_flow_event(
+                workflow,
+                "PEER_ESCALATION_START",
+                judge_text,
+                metadata={
+                    "escalation_index": escalation_index,
+                    "decision_before_escalation": judge_decision,
+                    "reason_excerpt": _judge_reason_excerpt(judge_text),
+                },
+            )
             escalation_context = "\n\n".join(
                 [
                     discovery_basis,
@@ -967,6 +1128,17 @@ async def run_peer_pipeline(
                 trace_label=f"REFINER OUTPUT (ESCALATION {escalation_index})",
                 verbose=verbose,
             )
+            filesystem_evidence = _build_peer_filesystem_evidence(
+                root_dir=root_dir,
+                before_snapshot=write_before,
+                target_subdir=policy.write_target_subdir,
+            )
+            _trace_peer_flow_event(
+                workflow,
+                "PEER_FILESYSTEM_EVIDENCE",
+                filesystem_evidence,
+                metadata={"phase": "escalation", "escalation_index": escalation_index},
+            )
             judge_text, judge_decision = await _run_judge_with_acceptance_audit(
                 workflow=workflow,
                 specs=specs,
@@ -978,6 +1150,7 @@ async def run_peer_pipeline(
                 trace_label=f"JUDGE OUTPUT (ESCALATION {escalation_index})",
                 quality_trace_label=f"JUDGE QUALITY GATE (ESCALATION {escalation_index})",
                 run_contract_text=run_contract_text,
+                filesystem_evidence_text=filesystem_evidence,
             )
 
         if rounds_executed > 0 and judge_decision != "accept":
@@ -1003,6 +1176,17 @@ async def run_peer_pipeline(
                 " without an explicit accept decision."
             )
         if judge_decision != "accept":
+            _trace_peer_flow_event(
+                workflow,
+                "PEER_FINAL_DECISION",
+                judge_text,
+                metadata={
+                    "decision": judge_decision,
+                    "rounds_executed": rounds_executed,
+                    "escalations_executed": escalations_executed,
+                    "reason_excerpt": _judge_reason_excerpt(judge_text),
+                },
+            )
             _trace_workflow_policy_event(
                 workflow,
                 "POLICY_VIOLATION",
@@ -1014,6 +1198,17 @@ async def run_peer_pipeline(
                 "Peer quality gate failed: judge did not accept the refined draft. "
                 "Run stopped before final recommendation."
             )
+        _trace_peer_flow_event(
+            workflow,
+            "PEER_FINAL_DECISION",
+            judge_text,
+            metadata={
+                "decision": judge_decision,
+                "rounds_executed": rounds_executed,
+                "escalations_executed": escalations_executed,
+                "reason_excerpt": _judge_reason_excerpt(judge_text),
+            },
+        )
 
         final_text = await workflow.run_stage(
             spec=specs["orchestrator"],

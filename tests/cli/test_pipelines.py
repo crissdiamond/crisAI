@@ -203,6 +203,41 @@ def test_parse_judge_decision_handles_accept_revise_unknown():
     assert pipelines._parse_judge_decision("Looks good but no explicit label") == "unknown"
 
 
+def test_judge_reason_excerpt_prefers_reason_field():
+    text = "Decision: revise\nReason: Missing file coverage for ingestion patterns."
+    excerpt = pipelines._judge_reason_excerpt(text)
+    assert excerpt == "Missing file coverage for ingestion patterns."
+
+
+def test_judge_reason_excerpt_fallbacks_to_first_non_decision_line():
+    text = "Decision: accept\nLooks complete and grounded."
+    excerpt = pipelines._judge_reason_excerpt(text)
+    assert excerpt == "Looks complete and grounded."
+
+
+def test_build_peer_filesystem_evidence_reports_changed_markdown_files(tmp_path):
+    root = tmp_path
+    target = root / "workspace/context_staging/patterns"
+    target.mkdir(parents=True, exist_ok=True)
+    before = pipelines.snapshot_tree(root, "workspace/context_staging")
+    sample = target / "consumer-pattern-1.md"
+    sample.write_text(
+        "---\nid: PATT-1\n---\n\n## Source\n- x\n\n## Design overview\n- y\n",
+        encoding="utf-8",
+    )
+
+    evidence = pipelines._build_peer_filesystem_evidence(
+        root_dir=root,
+        before_snapshot=before,
+        target_subdir="workspace/context_staging",
+    )
+
+    assert "Changed markdown/txt files (1):" in evidence
+    assert "workspace/context_staging/patterns/consumer-pattern-1.md" in evidence
+    assert "front_matter: yes" in evidence
+    assert "has_source: yes" in evidence
+
+
 @pytest.mark.anyio
 async def test_run_peer_pipeline_revises_once_when_judge_requests_revision(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
@@ -267,6 +302,8 @@ async def test_run_peer_pipeline_revises_once_when_judge_requests_revision(monke
         "judge",
         "orchestrator",
     ]
+    judge_prompts = [prompt for name, prompt in stage_calls if name == "judge"]
+    assert any("## Filesystem evidence (runtime)" in prompt for prompt in judge_prompts)
 
 
 @pytest.mark.anyio
