@@ -100,3 +100,19 @@ def test_save_history_persists_expected_payload(tmp_path, monkeypatch):
     assert [item["role"] for item in payload] == ["user", "assistant"]
     assert [item["content"] for item in payload] == ["hello", "hi"]
     assert all(item["saved_at"].endswith("Z") for item in payload)
+
+
+def test_clear_history_rewrites_session_to_empty_json_array(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+    session_store.save_history("demo", [("user", "hello"), ("assistant", "hi")])
+
+    session_store.clear_history("demo")
+
+    target = session_store.session_file("demo")
+    assert target.exists()
+    assert json.loads(target.read_text(encoding="utf-8")) == []
+    assert session_store.load_history("demo") == []

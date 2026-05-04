@@ -78,3 +78,19 @@ def save_history(session_name: str, history: list[HistoryEntry]) -> None:
         for role, content in history
     ]
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def clear_history(session_name: str) -> None:
+    """Clears persisted history for a session.
+
+    The session file is rewritten to an empty JSON array instead of being
+    deleted. This keeps the cleared session as a concrete, newest session file
+    so chat startup does not silently resume a different older session.
+    """
+    path = session_file(session_name)
+    try:
+        path.write_text("[]", encoding="utf-8")
+    except OSError:
+        # Keep command flow resilient; unreadable/locked files can be safely
+        # ignored because load_history falls back to [].
+        pass
