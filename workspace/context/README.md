@@ -28,7 +28,7 @@ Curated knowledge for **Higher Education (HE)** architecture work: colleges, uni
 | **`reference/integrations/`** | System-to-system patterns, vendor touchpoints (no secrets). | “How we connect SIS to warehouse” at architecture level. |
 | **`intake/`** | **Non-authoritative** workshop notes, raw discovery, “what we heard”. | Replace ad-hoc `notes/` over time for new material. |
 | **`notes/`** | **Legacy / demo** informal notes (kept for existing crisAI tests). | Prefer **`intake/`** for new HE corpus material. |
-| **`_templates/`** | Copy-paste starters. | `artefact-template.txt` |
+| **`_templates/`** | Copy-paste starters. | `integration-pattern-artefact-template.txt` |
 
 **Rule of thumb:** If it is **approved policy**, put it under **`standards/`** or **`principles/`**. If it is **how we usually build**, use **`patterns/`**. If it is **what we decided and why**, use **`decisions/`**. If it is **background or inventory**, use **`reference/`**. If it is **raw or unapproved**, use **`intake/`**.
 
@@ -76,7 +76,7 @@ related:
 | `tags` | Optional | Comma-separated keywords for humans / future catalogues. |
 | `related` | Optional | Repo-relative paths to linked artefacts under `context/`. |
 
-Copy from **`_templates/artefact-template.txt`** when creating a new file.
+Copy from **`_templates/integration-pattern-artefact-template.txt`** when creating a new integration pattern file.
 
 ---
 
@@ -129,11 +129,11 @@ Goal: **structured, searchable text** under `context/…`, not a dump of the ori
 
 Use **Microsoft 365 Copilot** (the institution’s **Microsoft 365 / Office 365** assistant—e.g. in **Word**, **PowerPoint**, **Outlook**, **Teams**, or **Copilot** in the browser where your tenant allows it). Paste the prompts below into the Copilot chat alongside your source, or paste the **output** into a new Word document and then **Save As** plain text / Markdown into **`workspace/context_staging/…`** first; after human review, promote into **`workspace/context/…`**.
 
-The goal is a **single crisAI-ready artefact** per file: YAML front matter + short sections + bullets—aligned with this README and **`_templates/artefact-template.txt`**.
+The goal is a **single crisAI-ready artefact** per file: YAML front matter + short sections + bullets—aligned with this README and **`_templates/integration-pattern-artefact-template.txt`**.
 
 **Before you start**
 
-1. Keep this README and **`_templates/artefact-template.txt`** open (in the repo, SharePoint, or pasted at the top of your Copilot prompt) so the model follows the same metadata rules.
+1. Keep this README and **`_templates/integration-pattern-artefact-template.txt`** open (in the repo, SharePoint, or pasted at the top of your Copilot prompt) so the model follows the same metadata rules.
 2. Decide the target **folder** (`standards/`, `patterns/`, `decisions/`, etc.) and a **proposed filename** under staging (e.g. `context_staging/standards/integration/API-error-handling.txt`); move to `context/…` after approval.
 3. Provide the **source text** in the Copilot conversation or attach a file **your tenant policy allows** (anonymise secrets and personal data first).
 4. **Respect your organisation’s Copilot and data policies** (what may be uploaded, retention, and approval for `status: approved`).

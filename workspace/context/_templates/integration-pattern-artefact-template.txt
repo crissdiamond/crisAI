@@ -1,0 +1,38 @@
+---
+id: PATT-INT-001
+title: <Group> Pattern <Number> - <Pattern title from source>
+type: pattern
+status: draft
+owner: Architecture
+last_reviewed: YYYY-MM-DD
+applies_to: all
+tags: integration, <group>, <keywords>
+related: []
+---
+
+## Design overview
+- Name: <full pattern name from fetched page>
+- Description: <short description from fetched page>
+- Version / status / date: <only if stated on fetched page>
+- Classification: <classification, source, target, invocation, delivery, core pattern flags if stated>
+
+## When to use
+- <use case bullets only when supported by fetched page>
+
+## Implementation
+- <implementation flow, components, and processing steps from fetched page>
+
+## NFRS
+- <observability / reconciliation / reliability / SLA / volumetric / limits; include only when supported>
+
+## Anti-patterns or when not to use
+- <only when supported by fetched page; otherwise omit this section>
+
+## Source
+- Title: <page title>
+- web_url: <exact page URL used for factual claims>
+- graph_site_id: <optional but recommended>
+- graph_page_id: <optional but recommended>
+
+## References
+- <optional non-source references only when supported>

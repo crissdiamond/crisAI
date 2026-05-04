@@ -13,7 +13,7 @@ Build draft architecture-context artefacts from UCL IT Architecture intranet Sit
 ## Task 0 — Baseline format and metadata
 Read:
 - `workspace/context/README.md`
-- `workspace/context/_templates/artefact-template.txt`
+- `workspace/context/_templates/integration-pattern-artefact-template.txt`
 
 Apply these front matter rules to every generated pattern file:
 - `status: draft`
