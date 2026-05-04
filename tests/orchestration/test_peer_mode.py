@@ -53,6 +53,12 @@ def fake_specs():
             prompt_file="prompts/context_retrieval.md",
             allowed_servers=["workspace"],
         ),
+        "context_synthesizer": AgentSpec(
+            id="context_synthesizer",
+            name="Context Synthesizer",
+            prompt_file="prompts/context_synthesizer_agent.md",
+            allowed_servers=["workspace"],
+        ),
         "design_author": AgentSpec(
             id="design_author",
             name="Design Author",
@@ -135,6 +141,7 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
     assert calls == [
         "retrieval_planner",
         "context_retrieval",
+        "context_synthesizer",
         "design_author",
         "design_challenger",
         "design_refiner",
@@ -170,6 +177,7 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
     assert calls == [
         "retrieval_planner",
         "context_retrieval",
+        "context_synthesizer",
         "design_author",
         "design_challenger",
         "design_refiner",

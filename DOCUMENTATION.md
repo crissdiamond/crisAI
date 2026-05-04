@@ -257,29 +257,32 @@ Best for:
 - direct design drafting
 - review only
 - operations/debug
+- bounded/simple tasks where one specialist is enough
 
 ### 7.2 `pipeline`
 Structured flow:
 
 ```text
-retrieval_planner -> context_retrieval -> context_synthesizer -> design -> optional review -> orchestrator
+retrieval_planner -> context_retrieval -> context_synthesizer -> design -> review -> orchestrator
 ```
 
 Best for:
 - find source material
 - turn source material into a draft
-- critique and polish the draft when the routing decision says review is needed
+- critique and polish complex retrieval+drafting outputs with a mandatory review gate on that route
 
 ### 7.3 `peer`
 Collaborative critique flow:
 
 ```text
-optional retrieval_planner -> optional context_retrieval -> design_author -> design_challenger -> design_refiner -> judge -> orchestrator
+optional retrieval_planner -> optional context_retrieval -> optional context_synthesizer -> design_author -> design_challenger -> design_refiner -> judge -> [refiner <-> judge iterative loop when decision=revise] -> orchestrator
 ```
 
 Notes:
 - `retrieval_planner` and `context_retrieval` can be skipped when retrieval is not needed for the peer task.
-- when retrieval is needed, `context_retrieval` runs after the retrieval planner to provide a stronger evidence basis for peer stages.
+- when retrieval is needed and the agent is configured, `context_synthesizer` runs after context retrieval to provide a stronger evidence basis for peer stages.
+- judge output is now actionable: `Decision: revise` triggers bounded extra refiner/judge rounds (`CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`) before orchestration.
+- loop safeguards: max rounds bound, and a convergence guard that stops early when refiner output stops changing materially.
 
 Best for:
 - debated design work
@@ -340,11 +343,11 @@ Its purpose is simple:
 | Prompt type | Likely route |
 |---|---|
 | Find documents only | `single` + `retrieval_planner` |
-| Find documents and draft a note | `pipeline` |
+| Find documents and draft a note | `pipeline` + review |
 | Propose and critique a design | `pipeline` with review |
 | Review this draft | `single` + `review` |
 | Why is SharePoint login popping up? | `single` + `operations` |
-| Broad mixed request | `single` + `orchestrator` |
+| Broad mixed request | `pipeline` + `design` + review |
 | Ask for author/challenger/refiner/judge debate | `peer` |
 
 ### Important rule

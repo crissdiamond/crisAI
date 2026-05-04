@@ -273,9 +273,9 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
             mode="pipeline",
             agent="retrieval_planner",
             needs_retrieval=True,
-            needs_review=review_enabled or has_review_signal,
+            needs_review=True,
             confidence=0.89,
-            reason="Prompt combines source lookup with drafting or synthesis, so pipeline is more suitable than a single agent.",
+            reason="Prompt combines source lookup with drafting or synthesis; pipeline runs with review for quality control on complex multi-stage work.",
         )
 
     if has_design_signal and has_review_signal:
@@ -320,6 +320,18 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
             needs_review=False,
             confidence=0.82,
             reason="Prompt primarily asks for finding or inspecting sources.",
+        )
+
+    mixed_complexity_score = discovery_score + design_score + review_score + peer_score
+    if mixed_complexity_score >= 3:
+        return RoutingDecision(
+            intent="mixed_complexity",
+            mode="pipeline",
+            agent="design",
+            needs_retrieval=False,
+            needs_review=True,
+            confidence=0.78,
+            reason="Prompt contains mixed design/review/retrieval signals; pipeline with review is safer than single-agent fallback.",
         )
 
     return RoutingDecision(

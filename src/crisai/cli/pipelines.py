@@ -293,6 +293,11 @@ _FINAL_RECOMMENDATION_PATTERNS = [
 ]
 
 
+_PEER_ACCEPT_MARKERS = {"accept", "acceptable", "approved", "ship"}
+_PEER_REVISE_MARKERS = {"revise", "revision", "reject", "rejected", "not acceptable"}
+_DEFAULT_PEER_MAX_REFINEMENT_ROUNDS = 2
+
+
 def _extract_final_recommendation(text: str) -> str:
     stripped = text.strip()
     for pattern in _FINAL_RECOMMENDATION_PATTERNS:
@@ -302,6 +307,36 @@ def _extract_final_recommendation(text: str) -> str:
             if extracted:
                 return extracted
     return stripped
+
+
+def _parse_judge_decision(text: str) -> str:
+    """Parse judge output into ``accept``/``revise``/``unknown``."""
+    clean = (text or "").lower()
+    decision_match = re.search(r"\bdecision\s*[:\-]?\s*([a-z ]{3,40})\b", clean)
+    if decision_match:
+        decision_blob = decision_match.group(1).strip()
+        if any(marker in decision_blob for marker in _PEER_ACCEPT_MARKERS):
+            return "accept"
+        if any(marker in decision_blob for marker in _PEER_REVISE_MARKERS):
+            return "revise"
+    if any(marker in clean for marker in _PEER_ACCEPT_MARKERS):
+        return "accept"
+    if any(marker in clean for marker in _PEER_REVISE_MARKERS):
+        return "revise"
+    return "unknown"
+
+
+def _resolve_peer_max_refinement_rounds() -> int:
+    """Return max extra refiner/judge rounds after the first judge pass."""
+    raw = os.getenv(
+        "CRISAI_PEER_MAX_REFINEMENT_ROUNDS",
+        str(_DEFAULT_PEER_MAX_REFINEMENT_ROUNDS),
+    )
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return _DEFAULT_PEER_MAX_REFINEMENT_ROUNDS
+    return max(0, parsed)
 
 
 def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
@@ -475,13 +510,19 @@ async def run_peer_pipeline(
     del review  # Unused in peer mode today; kept for API compatibility.
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
+    max_refinement_rounds = _resolve_peer_max_refinement_rounds()
 
     logger.info(
         "Running peer workflow.",
-        extra={"run_id": _get_run_id(environment), "needs_retrieval": needs_retrieval},
+        extra={
+            "run_id": _get_run_id(environment),
+            "needs_retrieval": needs_retrieval,
+            "max_refinement_rounds": max_refinement_rounds,
+        },
     )
 
     use_context_retrieval = needs_retrieval and "context_retrieval" in agent_specs
+    use_context_synthesizer = needs_retrieval and "context_synthesizer" in agent_specs
 
     required_agents = [
         "design_author",
@@ -494,6 +535,8 @@ async def run_peer_pipeline(
         required_agents.insert(0, "retrieval_planner")
     if use_context_retrieval:
         required_agents.insert(1, "context_retrieval")
+    if use_context_synthesizer:
+        required_agents.insert(2, "context_synthesizer")
 
     specs = resolve_required_agents(
         agent_specs,
@@ -512,6 +555,7 @@ async def run_peer_pipeline(
 
         retrieval_plan_text = ""
         context_retrieval_text = ""
+        context_text = ""
         if needs_retrieval:
             retrieval_plan_text = await workflow.run_stage(
                 spec=specs["retrieval_planner"],
@@ -534,6 +578,20 @@ async def run_peer_pipeline(
                     "Context retrieval stage skipped in peer mode.",
                     agent_id="context_retrieval",
                 )
+            if use_context_synthesizer:
+                context_text = await workflow.run_stage(
+                    spec=specs["context_synthesizer"],
+                    ui_agent_id="context_synthesizer",
+                    prompt=build_context_synthesizer_prompt(message, context_retrieval_text),
+                    trace_label="CONTEXT OUTPUT",
+                    verbose=verbose,
+                )
+            else:
+                workflow.skip_stage(
+                    "CONTEXT OUTPUT",
+                    "Context synthesizer skipped in peer mode (agent unavailable).",
+                    agent_id="context_synthesizer",
+                )
         else:
             workflow.skip_stage(
                 "RETRIEVAL_PLANNER OUTPUT",
@@ -545,8 +603,13 @@ async def run_peer_pipeline(
                 "Context retrieval skipped because this peer task does not require retrieval.",
                 agent_id="context_retrieval",
             )
+            workflow.skip_stage(
+                "CONTEXT OUTPUT",
+                "Context synthesizer skipped because this peer task does not require retrieval.",
+                agent_id="context_synthesizer",
+            )
 
-        discovery_basis = context_retrieval_text or retrieval_plan_text or "None."
+        discovery_basis = context_text or context_retrieval_text or retrieval_plan_text or "None."
 
         author_text = await workflow.run_stage(
             spec=specs["design_author"],
@@ -579,6 +642,68 @@ async def run_peer_pipeline(
             trace_label="JUDGE OUTPUT",
             verbose=verbose,
         )
+        judge_decision = _parse_judge_decision(judge_text)
+        previous_refiner_text = refiner_text
+        stagnation_detected = False
+        rounds_executed = 0
+
+        # Judge-gated refinement loop. If the judge says "revise", feed the
+        # judge feedback back into the refiner and ask for another judgement.
+        for round_index in range(1, max_refinement_rounds + 1):
+            if judge_decision != "revise":
+                break
+            rounds_executed = round_index
+            revision_challenge = "\n\n".join(
+                [
+                    challenger_text,
+                    f"Judge feedback (round {round_index - 1}):\n{judge_text}",
+                ]
+            )
+            refiner_text = await workflow.run_stage(
+                spec=specs["design_refiner"],
+                ui_agent_id="design_refiner",
+                prompt=build_refiner_prompt(
+                    message,
+                    discovery_basis,
+                    author_text,
+                    revision_challenge,
+                ),
+                trace_label=f"REFINER OUTPUT (ROUND {round_index})",
+                verbose=verbose,
+            )
+            if refiner_text.strip() == previous_refiner_text.strip():
+                stagnation_detected = True
+                judge_text = (
+                    judge_text.strip()
+                    + "\n\nDecision: revise\nReason: Refinement stalled; additional peer rounds produced no material change."
+                )
+                judge_decision = "revise"
+                break
+            previous_refiner_text = refiner_text
+            judge_text = await workflow.run_stage(
+                spec=specs["judge"],
+                ui_agent_id="judge",
+                prompt=build_judge_prompt(
+                    message,
+                    discovery_basis,
+                    revision_challenge,
+                    refiner_text,
+                ),
+                trace_label=f"JUDGE OUTPUT (ROUND {round_index})",
+                verbose=verbose,
+            )
+            judge_decision = _parse_judge_decision(judge_text)
+
+        if rounds_executed > 0 and judge_decision != "accept":
+            unresolved_reason = (
+                "Peer refinement reached convergence with no material changes."
+                if stagnation_detected
+                else f"Peer refinement reached max rounds ({max_refinement_rounds}) without an explicit accept decision."
+            )
+            judge_text = (
+                judge_text.strip()
+                + f"\n\nStatus: unresolved after peer refinement loop.\nReason: {unresolved_reason}"
+            )
 
         final_text = await workflow.run_stage(
             spec=specs["orchestrator"],
@@ -595,7 +720,15 @@ async def run_peer_pipeline(
             verbose=verbose,
             print_output=False,
         )
-        workflow.finish_workflow("Peer workflow completed.", metadata={"mode": "peer"})
+        workflow.finish_workflow(
+            "Peer workflow completed.",
+            metadata={
+                "mode": "peer",
+                "judge_decision": judge_decision,
+                "refinement_rounds_executed": rounds_executed,
+                "refinement_stagnation": stagnation_detected,
+            },
+        )
         return _extract_final_recommendation(final_text)
 
 

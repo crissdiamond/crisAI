@@ -274,6 +274,9 @@ MS_REDIRECT_URI=http://localhost
 
 # Intranet page catalogue cache TTL (used by intranet_list_all_pages)
 INTRANET_PAGE_CACHE_TTL_HOURS=4
+
+# Peer mode: max extra refiner/judge rounds after initial judge decision
+CRISAI_PEER_MAX_REFINEMENT_ROUNDS=2
 ```
 
 > **WSL2 note:** crisAI uses the OAuth 2.0 **device code flow** for Microsoft Entra login in WSL2 environments. When the token is missing or expired a URL and short code are printed to the terminal — open the URL in any browser and enter the code to authenticate. No localhost redirect is required. Your Azure app registration must have **"Allow public client flows"** enabled (App registrations → Authentication → Advanced settings).
@@ -394,25 +397,26 @@ python -m crisai.cli.main ask -m "Find the most relevant document for integratio
 ## CLI modes
 
 ### `single`
-Runs one selected agent directly.
+Runs one selected agent directly (best for bounded/simple tasks).
 
 ### `pipeline`
 Runs the main structured flow:
 
 1. `retrieval_planner` → `context_retrieval` → `context_synthesizer`
 2. `design`
-3. optional `review`, when the routing decision says it is needed
+3. `review` for retrieval+drafting routes (quality gate on complex multi-stage work)
 4. `orchestrator`
 
 ### `peer`
 Runs the peer-style flow:
 
-1. optional `retrieval_planner` → `context_retrieval`, when retrieval is needed
+1. optional `retrieval_planner` → `context_retrieval` → `context_synthesizer`, when retrieval is needed
 2. `design_author`
 3. `design_challenger`
 4. `design_refiner`
 5. `judge`
-6. `orchestrator`
+6. if judge says `revise`, run extra refiner/judge rounds (bounded by `CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`)
+7. `orchestrator`
 
 ---
 
@@ -423,12 +427,12 @@ crisAI includes a Phase 1 heuristic router.
 Typical behaviour:
 
 - pure retrieval task → `single` + `retrieval_planner`
-- retrieval + drafting task → `pipeline`
+- retrieval + drafting task → `pipeline` (with review)
 - proposal + critique task → `pipeline` with review
 - critique-only task → `single` + `review`
 - platform/debug task → `single` + `operations`
 - peer-style debate request → `peer`
-- vague or mixed task → `single` + `orchestrator`
+- vague or mixed multi-signal task → `pipeline` + `design` + review
 
 Explicit user instructions always win:
 - `/mode ...` and `/agent ...` pin behaviour

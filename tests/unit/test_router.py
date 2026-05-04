@@ -34,7 +34,7 @@ def test_route_pipeline_for_source_based_design():
     assert decision.mode == "pipeline"
     assert decision.agent == "retrieval_planner"
     assert decision.needs_retrieval is True
-    assert decision.needs_review is False
+    assert decision.needs_review is True
 
 
 def test_route_pipeline_for_design_plus_review_without_sources():
@@ -57,6 +57,18 @@ def test_route_peer_when_peer_workflow_is_requested():
 
     assert decision.mode == "peer"
     assert decision.agent == "design_author"
+    assert decision.needs_review is True
+
+
+def test_route_pipeline_for_broad_mixed_prompt():
+    decision = decide_route(
+        "Summarise this architecture, critique weak assumptions, and improve the proposal.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "pipeline"
+    assert decision.agent == "design"
+    assert decision.needs_retrieval is False
     assert decision.needs_review is True
 
 

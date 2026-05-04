@@ -185,7 +185,79 @@ async def test_run_peer_pipeline_skips_retrieval_planner_when_retrieval_not_need
         ("USER INPUT", "hello"),
         ("RETRIEVAL_PLANNER OUTPUT", "Retrieval planner skipped because this peer task does not require retrieval."),
         ("CONTEXT RETRIEVAL OUTPUT", "Context retrieval skipped because this peer task does not require retrieval."),
+        ("CONTEXT OUTPUT", "Context synthesizer skipped because this peer task does not require retrieval."),
         ("WORKFLOW_END", "Peer workflow completed."),
+    ]
+
+
+def test_parse_judge_decision_handles_accept_revise_unknown():
+    assert pipelines._parse_judge_decision("Decision: accept") == "accept"
+    assert pipelines._parse_judge_decision("Decision - revise") == "revise"
+    assert pipelines._parse_judge_decision("Looks good but no explicit label") == "unknown"
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_revises_once_when_judge_requests_revision(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+
+    class RevisionSession(FakeWorkflowSession):
+        def __init__(self):
+            super().__init__(trace_calls, stage_calls, "Final recommendation\nShip this.")
+            self.judge_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            del kwargs
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "judge":
+                self.judge_calls += 1
+                return "Decision: revise\nReason: tighten quality." if self.judge_calls == 1 else "Decision: accept"
+            if ui_agent_id == "orchestrator":
+                return self._final_output
+            if ui_agent_id == "design_refiner" and self.judge_calls >= 1:
+                return "refined-draft-round-2"
+            return f"{ui_agent_id}-output"
+
+    session = RevisionSession()
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "2")
+
+    result = await pipelines.run_peer_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+    )
+
+    assert result == "Final recommendation\nShip this."
+    # Base peer stages plus one extra refiner/judge pair from revision loop.
+    assert [name for name, _ in stage_calls] == [
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "design_refiner",
+        "judge",
+        "orchestrator",
     ]
 
 
