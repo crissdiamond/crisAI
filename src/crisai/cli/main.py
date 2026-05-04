@@ -6,6 +6,7 @@ import re
 import ssl
 from contextlib import contextmanager
 from dataclasses import is_dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Awaitable
 
@@ -21,6 +22,7 @@ from crisai.cli.session_store import clear_cli_history, clear_history, cli_histo
 from crisai.cli.status_views import print_agents_table, print_chat_state, print_servers_table, route_display
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
+from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
 
@@ -449,6 +451,44 @@ def clear_session(session: str = typer.Option("default", "--session", "-s", help
         f"Conversation history cleared for session '{session}'.",
         title="🧹 Session cleared",
     )
+
+
+@app.command("validate-artefacts")
+def validate_artefacts(
+    path: list[str] | None = typer.Option(
+        None,
+        "--path",
+        "-p",
+        help="Repo-relative Markdown path(s). Omit to scan workspace/context "
+        "and workspace/context_staging recursively.",
+    ),
+) -> None:
+    """Validate Markdown artefacts against ``registry/workspace_artifact_profiles.yaml``."""
+    settings = load_settings()
+    root = Path(settings.root_dir)
+    registry_dir = Path(settings.registry_dir)
+    targets: list[str]
+    if path:
+        targets = sorted({str(Path(p).as_posix().lstrip("./")) for p in path})
+    else:
+        targets = []
+        for base in (
+            settings.workspace_dir / "context",
+            settings.workspace_dir / "context_staging",
+        ):
+            if not base.is_dir():
+                continue
+            for fp in sorted(base.rglob("*.md")):
+                targets.append(fp.resolve().relative_to(root).as_posix())
+    result = validate_workspace_artefact_paths(
+        root_dir=root, relative_paths=targets, registry_dir=registry_dir
+    )
+    if result.ok:
+        print_status_message("All checked files passed artefact profiles.", title="✅ validate-artefacts")
+        raise typer.Exit(0)
+    body = "- " + "\n- ".join(result.violations)
+    print_status_message(body, title="❌ Artefact validation failed")
+    raise typer.Exit(1)
 
 
 async def _run_with_routing(

@@ -115,6 +115,10 @@ Goal: **structured, searchable text** under `context/…`, not a dump of the ori
 3. One deck often maps to **one** `reference/` or `patterns/` file per major theme; split if slides cover unrelated decisions.
 4. Speaker notes can hold nuance—include them under a `## Speaker notes` section only if approved for the corpus.
 
+### Artefact structural validation
+
+For automated checks beyond this README (required headings per `type`, integration-pattern slug dedup, and similar rules), configure profiles in **`registry/workspace_artifact_profiles.yaml`** and run **`crisai validate-artefacts`** from the repo root. Peer mode applies the same rules to changed Markdown under `context/` and `context_staging/`.
+
 ### Quality checklist before commit
 
 - [ ] Metadata block present with `id`, `type`, `status`.

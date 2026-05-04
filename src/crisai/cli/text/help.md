@@ -9,6 +9,7 @@
 /list agents
 /history
 /clear
+/clear-session [name]
 /session <name>
 /exit
 ```
@@ -94,3 +95,12 @@ Start unpinned when possible:
 ```
 
 Then either let the router decide, or pin behaviour when you want tighter control.
+
+## Non-interactive artefact validation
+
+Checks Markdown under `workspace/context/` and `workspace/context_staging/` against declarative profiles in `registry/workspace_artifact_profiles.yaml` (also applied automatically during peer filesystem verification for changed corpus files):
+
+```bash
+crisai validate-artefacts
+crisai validate-artefacts -p workspace/context_staging/patterns/foo.md
+```

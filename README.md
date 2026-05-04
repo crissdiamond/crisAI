@@ -30,7 +30,7 @@ The aim is to create a personal AI workstation that can retrieve source material
 - Configurable on-disk page catalogue cache (default 4 h, `INTRANET_PAGE_CACHE_TTL_HOURS`) so agents can list every available page without repeated Graph API scans
 - Runtime workflow policy layer (`registry/workflow_policy.yaml`) with hard capability gates (for example: require intranet fetch evidence for intranet-scoped requests; require file writes for artefact-producing requests)
 - Peer run-contract inference (`src/crisai/orchestration/peer_contract.py`) to turn user intent into explicit peer role focus and acceptance dimensions; file-backed staging requests default to `artifact_package` unless clear code targets are present
-- Peer post-run verifier gate (`src/crisai/orchestration/peer_verifier.py`) to validate final peer claims against filesystem outputs
+- Peer post-run verifier gate (`src/crisai/orchestration/peer_verifier.py`) to validate final peer claims against filesystem outputs and **registry artefact profiles** (`registry/workspace_artifact_profiles.yaml`) for integration patterns, standards, decision records, HLD/LLD, data models, and related architecture artefacts; run `crisai validate-artefacts` standalone to check the corpus without a full peer run
 - Optional **architecture context** corpus under `workspace/context/`, with **draft staging** in `workspace/context_staging/` for human review before promotion
 - Multi-agent orchestration with three execution modes:
   - `single`
@@ -489,7 +489,15 @@ Inside the interactive CLI:
 /history
 /session architecture
 /clear
+/clear-session
+/clear-session architecture
 /exit
+```
+
+One-off reset outside chat:
+
+```bash
+crisai clear-session --session architecture
 ```
 
 ---

@@ -33,11 +33,17 @@ def test_verify_peer_final_deliverable_flags_duplicate_front_matter_ids(tmp_path
     file_b = tmp_path / "workspace/context_staging/patterns/b.md"
     _write(
         file_a,
-        "---\nid: PATT-001\n---\n\n## Source\n- x\n",
+        (
+            "---\nid: PATT-001\ntitle: A\ntype: intake\nstatus: draft\n---\n\n"
+            "## Source\n- x\n"
+        ),
     )
     _write(
         file_b,
-        "---\nid: PATT-001\n---\n\n## Source\n- y\n",
+        (
+            "---\nid: PATT-001\ntitle: B\ntype: intake\nstatus: draft\n---\n\n"
+            "## Source\n- y\n"
+        ),
     )
     result = verify_peer_final_deliverable(
         root_dir=tmp_path,
@@ -59,7 +65,10 @@ def test_enforce_peer_final_deliverable_verification_detects_unbacked_mismatch_c
     file_a = tmp_path / "workspace/context_staging/patterns/a.md"
     _write(
         file_a,
-        "---\nid: PATT-001\n---\n\n## Source\n- x\n## Design overview\n- fine\n",
+        (
+            "---\nid: PATT-001\ntitle: A\ntype: intake\nstatus: draft\n---\n\n"
+            "## Source\n- x\n## Design overview\n- fine\n"
+        ),
     )
     with pytest.raises(PeerVerificationViolation) as exc:
         enforce_peer_final_deliverable_verification(
@@ -78,8 +87,14 @@ def test_verify_peer_final_deliverable_flags_closeout_omitting_changed_files(tmp
     contract = infer_peer_run_contract("Create files under workspace/context_staging/patterns.")
     file_a = tmp_path / "workspace/context_staging/patterns/a.md"
     file_b = tmp_path / "workspace/context_staging/patterns/b.md"
-    _write(file_a, "---\nid: P1\n---\n\n## Source\n- a\n")
-    _write(file_b, "---\nid: P2\n---\n\n## Source\n- b\n")
+    _write(
+        file_a,
+        "---\nid: P1\ntitle: A\ntype: intake\nstatus: draft\n---\n\n## Source\n- a\n",
+    )
+    _write(
+        file_b,
+        "---\nid: P2\ntitle: B\ntype: intake\nstatus: draft\n---\n\n## Source\n- b\n",
+    )
     result = verify_peer_final_deliverable(
         root_dir=tmp_path,
         contract=contract,
@@ -99,14 +114,16 @@ def test_verify_peer_final_deliverable_flags_gap_and_leaf_inconsistency(tmp_path
     _write(
         gaps,
         (
-            "---\nid: G1\n---\n\n## Source\n- x\n\n## Retrieval gaps\n"
+            "---\nid: G1\ntitle: G\ntype: intake\nstatus: draft\n---\n\n"
+            "## Source\n- x\n\n## Retrieval gaps\n"
             "- Consumer Pattern 1: no grounded leaf content available in this run\n"
         ),
     )
     _write(
         leaf,
         (
-            "---\nid: P1\n---\n\n## Source\n- y\n\n## Design overview\n"
+            "---\nid: P1\ntitle: Leaf\ntype: intake\nstatus: draft\n---\n\n## Source\n- y\n\n"
+            "## Design overview\n"
             "- Name: Consumer Pattern 1\n- Description: grounded details\n"
         ),
     )

@@ -1,0 +1,208 @@
+# Workspace artefact validation profiles — declarative checks for Markdown under
+# `workspace/context/` and `workspace/context_staging/` (see validate_path_prefixes).
+#
+# Match semantics (first wins): profiles are evaluated top to bottom; the first profile
+# whose `match` clauses all pass applies. If none apply, `defaults.rules` apply.
+#
+# `type_aliases` expands YAML `type:` values so authors can write `type: HLD`
+# while matching `high_level_design` rules where configured.
+
+version: 1
+
+validate_path_prefixes:
+  - workspace/context/
+  - workspace/context_staging/
+
+defaults:
+  rules:
+    required_front_matter:
+      - id
+      - title
+      - type
+      - status
+    min_h2_headings: 1
+    require_source_section: false
+
+type_aliases:
+  high_level_design: [hld, high-level-design, high_level_design]
+  low_level_design: [lld, low-level-design, low_level_design]
+  option_paper: [options_paper, options]
+  enterprise_data_model: [edm, enterprise-data-model]
+
+profiles:
+  - id: folder_readme
+    description: Exploratory folder README files are not corpus artefacts with stable IDs.
+    match:
+      path_globs:
+        - "**/README.md"
+    rules:
+      skip_front_matter: true
+      min_h2_headings: 1
+
+  - id: retrieval_gaps
+    description: Retrieval gap logs — relax metadata requirements for peer runs.
+    match:
+      path_globs:
+        - "**/*retrieval-gaps*.md"
+        - "**/*retrieval-gap*.md"
+    rules:
+      require_source_section: false
+      skip_front_matter: true
+      min_h2_headings: 1
+
+  - id: integration_patterns_index
+    description: Integration pattern catalogue/index files under patterns/.
+    match:
+      all_of:
+        - path_globs:
+            - workspace/context/patterns/*index*.md
+            - workspace/context_staging/patterns/*index*.md
+        - type_equals: pattern
+    rules:
+      required_h2_sections:
+        - Design overview
+        - When to use
+        - Implementation
+        - Source
+
+  - id: integration_pattern_leaf
+    description: Integration pattern leaf detail under patterns/ with corpus type pattern.
+    match:
+      all_of:
+        - path_globs:
+            - workspace/context/patterns/*.md
+            - workspace/context_staging/patterns/*.md
+        - type_equals: pattern
+    rules:
+      required_front_matter:
+        - id
+        - title
+        - type
+        - status
+        - owner
+      required_h2_sections:
+        - Design overview
+        - When to use
+        - Implementation
+        - NFRS
+        - Anti-patterns or when not to use
+        - Source
+        - References
+      require_source_section: true
+      builtin_checks:
+        - integration_pattern_slug_dedup
+
+  - id: principle
+    match:
+      type_equals: principle
+    rules:
+      required_h2_sections:
+        - Scope
+        - Statement
+        - Implications
+
+  - id: high_level_design
+    match:
+      type_equals: high_level_design
+    rules:
+      required_h2_sections:
+        - Context
+        - Target architecture
+        - Key decisions
+
+  - id: low_level_design
+    match:
+      type_equals: low_level_design
+    rules:
+      required_h2_sections:
+        - Design overview
+        - Components and interfaces
+        - Deployment and operations
+
+  - id: option_paper
+    match:
+      type_equals: option_paper
+    rules:
+      required_h2_sections:
+        - Problem
+        - Options
+        - Recommendation
+
+  - id: guideline
+    match:
+      type_equals: guideline
+    rules:
+      required_h2_sections:
+        - Audience
+        - Guidance
+
+  - id: data_model
+    match:
+      type_equals: data_model
+    rules:
+      required_h2_sections:
+        - Entities and relationships
+
+  - id: enterprise_data_model
+    match:
+      type_equals: enterprise_data_model
+    rules:
+      required_h2_sections:
+        - Scope
+        - Core entities
+
+  - id: mapping
+    match:
+      type_equals: mapping
+    rules:
+      required_h2_sections:
+        - Source and target
+
+  - id: standard
+    match:
+      type_equals: standard
+    rules:
+      required_h2_sections:
+        - Requirements
+
+  - id: design
+    match:
+      type_equals: design
+    rules:
+      required_h2_sections:
+        - Overview
+
+  - id: decision
+    match:
+      type_equals: decision
+    rules:
+      required_h2_sections:
+        - Context
+        - Decision
+
+  - id: landscape
+    match:
+      type_equals: landscape
+    rules:
+      required_h2_sections:
+        - Summary
+
+  - id: domain
+    match:
+      type_equals: domain
+    rules:
+      required_h2_sections:
+        - Overview
+
+  - id: integration
+    match:
+      type_equals: integration
+    rules:
+      required_h2_sections:
+        - Overview
+
+  - id: intake
+    match:
+      type_equals: intake
+    rules:
+      min_h2_headings: 1

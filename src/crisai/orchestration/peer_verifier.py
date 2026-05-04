@@ -7,6 +7,7 @@ from pathlib import Path
 
 from crisai.orchestration.peer_contract import PeerRunContract
 from crisai.orchestration.semantic_catalog import load_semantic_catalog
+from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
 
 
 _WORKSPACE_FILE_PATTERN = re.compile(r"(workspace/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)")
@@ -157,6 +158,7 @@ def verify_peer_final_deliverable(
     contract: PeerRunContract,
     final_text: str,
     changed_paths: list[str],
+    registry_dir: Path | None = None,
 ) -> PeerVerificationResult:
     """Verify peer final output claims against on-disk artefacts.
 
@@ -165,6 +167,15 @@ def verify_peer_final_deliverable(
     - validates basic markdown artefact shape
     - enforces unique front-matter ids when present
     - validates "documented in-file" mismatch claims against file content
+    - applies registry-backed artefact profile rules to changed corpus paths
+
+    Args:
+        root_dir: Repository root containing ``workspace/`` and ``registry/``.
+        contract: Derived peer-run contract hints.
+        final_text: Final orchestrator prose that may cite workspace paths.
+        changed_paths: Markdown/text paths changed during the run (typically
+            workspace-relative with forward slashes).
+        registry_dir: Optional explicit registry directory for artefact profiles.
     """
     violations: list[str] = []
     mentioned_files = _extract_workspace_file_paths(final_text)
@@ -270,6 +281,13 @@ def verify_peer_final_deliverable(
                     "is not listed in retrieval gaps."
                 )
 
+    artefact_check = validate_workspace_artefact_paths(
+        root_dir=root_dir,
+        relative_paths=normalized_changed,
+        registry_dir=registry_dir,
+    )
+    violations.extend(artefact_check.violations)
+
     return PeerVerificationResult(
         checked_files=tuple(existing_files),
         violations=tuple(violations),
@@ -282,6 +300,7 @@ def enforce_peer_final_deliverable_verification(
     contract: PeerRunContract,
     final_text: str,
     changed_paths: list[str],
+    registry_dir: Path | None = None,
 ) -> PeerVerificationResult:
     """Raise when peer final output fails post-run filesystem verification."""
     result = verify_peer_final_deliverable(
@@ -289,6 +308,7 @@ def enforce_peer_final_deliverable_verification(
         contract=contract,
         final_text=final_text,
         changed_paths=changed_paths,
+        registry_dir=registry_dir,
     )
     if not result.violations:
         return result
