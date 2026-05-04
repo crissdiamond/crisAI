@@ -88,6 +88,22 @@ _RETRIEVAL_REQUIRED_PATTERNS: tuple[str, ...] = (
     r"\bcontext\s+from\b",
 )
 
+_PEER_RETRIEVAL_FORCE_PATTERNS: tuple[str, ...] = (
+    # Intranet/source-grounded requests should keep retrieval on in peer mode.
+    r"\bintranet\b",
+    r"\bsharepoint\b",
+    r"\bsitepages?\b",
+    r"\bintegration-patterns?\.aspx\b",
+    # File-backed deliverables should not skip retrieval evidence.
+    r"\bwrite_workspace_file\b",
+    r"\bcreate\s+files?\b",
+    r"\bsave\s+files?\b",
+    r"\bcontext_staging\b",
+    r"\bworkspace\/\b",
+    r"\bartifacts?\b",
+    r"\bartefacts?\b",
+)
+
 
 def _load_registry():
     """Load runtime settings and enabled registry entries.
@@ -159,6 +175,12 @@ def _should_disable_peer_retrieval(user_input: str, explicit_mode: str | None, d
         return False
 
     normalized = " ".join(user_input.lower().split())
+
+    # Hard keep-on: for intranet-grounded or file-backed peer requests,
+    # retrieval should remain enabled even in explicit generative peer mode.
+    for pattern in _PEER_RETRIEVAL_FORCE_PATTERNS:
+        if re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL):
+            return False
 
     for pattern in _RETRIEVAL_REQUIRED_PATTERNS:
         if re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL):

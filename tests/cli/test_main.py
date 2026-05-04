@@ -39,6 +39,16 @@ def test_should_keep_peer_retrieval_when_prompt_requests_existing_sources():
     assert main._should_disable_peer_retrieval(prompt, "peer", decision) is False
 
 
+def test_should_keep_peer_retrieval_for_intranet_file_backed_peer_request():
+    prompt = (
+        "Use peer mode. Create files under workspace/context_staging/patterns grounded on "
+        "SharePoint intranet SitePages integration-patterns.aspx and leaf pages."
+    )
+    decision = SimpleNamespace(mode="peer", needs_retrieval=True)
+
+    assert main._should_disable_peer_retrieval(prompt, "peer", decision) is False
+
+
 def test_apply_decision_overrides_turns_off_retrieval_for_generative_peer_request():
     prompt = (
         "Use peer mode. Propose a simple design for improving crisAI command handling in the CLI. "
