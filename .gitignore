@@ -22,6 +22,7 @@ htmlcov/
 .cursor/
 workspace/.cli_history
 workspace/chat_sessions/*.json
+workspace/context_staging/
 chat_session/
 .secrets/
 *.sqlite

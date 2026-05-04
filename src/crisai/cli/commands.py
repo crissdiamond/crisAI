@@ -7,6 +7,7 @@ CommandAction = Literal[
     "exit",
     "help",
     "clear",
+    "clear_session",
     "history",
     "list_servers",
     "list_agents",
@@ -41,6 +42,12 @@ def parse_chat_command(user_input: str) -> CommandResult:
 
     if raw == "/clear":
         return CommandResult(handled=True, action="clear")
+
+    if raw.startswith("/clear-session"):
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(handled=True, action="clear_session", value=None)
+        return CommandResult(handled=True, action="clear_session", value=parts[1].strip())
 
     if raw in {"/list servers", "/list-servers"}:
         return CommandResult(handled=True, action="list_servers")

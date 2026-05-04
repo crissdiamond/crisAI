@@ -11,6 +11,8 @@ from crisai.cli.commands import parse_chat_command
         ("/quit", "exit", None, None),
         ("/help", "help", None, None),
         ("/clear", "clear", None, None),
+        ("/clear-session", "clear_session", None, None),
+        ("/clear-session design-review", "clear_session", "design-review", None),
         ("/history", "history", None, None),
         ("/status", "noop", None, "status"),
         ("/list-servers", "list_servers", None, None),
