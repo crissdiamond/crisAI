@@ -21,7 +21,9 @@ Build crisAI **architecture-context** artefacts from the UCL IT Architecture **i
 **Body sections (each file):**
 - `## Source` — page **title** and **`web_url` / `open_url`** from the fetch used for that file’s grounded content (no secrets).
 - `## Design overview` — structured metadata from the fetched page: pattern name, one-line description, version/status/date (if stated), classification (source, target, delivery mode), NFRs (observability, reliability, reconciliation, operational limits), and any security constraints. Include only fields the fetched text explicitly supports; omit the rest.
-- `## When to use` / `## Anti-patterns or when not to use` — only if the **fetched** text supports them.
+- `## When to use`
+- `## Implementation` structured metadata from the fetched page: low level implementation, list of components and flow.
+- `## Anti-patterns or when not to use` — only if the **fetched** text supports them.
 - `## References` — intranet links only (from fetches or link lists).
 
 ---
