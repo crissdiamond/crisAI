@@ -897,6 +897,18 @@ async def run_peer_pipeline(
                 judge_text.strip()
                 + f"\n\nStatus: unresolved after peer refinement loop.\nReason: {unresolved_reason}"
             )
+        if judge_decision != "accept":
+            _trace_workflow_policy_event(
+                workflow,
+                "POLICY_VIOLATION",
+                "Peer run stopped before finalization because judge did not return accept.",
+                event_type="policy_violation",
+                metadata={"judge_decision": judge_decision},
+            )
+            raise typer.BadParameter(
+                "Peer quality gate failed: judge did not accept the refined draft. "
+                "Run stopped before final recommendation."
+            )
 
         final_text = await workflow.run_stage(
             spec=specs["orchestrator"],

@@ -8,6 +8,11 @@ from crisai.orchestration.peer_contract import PeerRunContract
 
 
 _WORKSPACE_FILE_PATTERN = re.compile(r"(workspace/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)")
+_PATTERN_GAP_LINE = re.compile(r"^\s*-\s*(Consumer|Producer|Ingestion)\s+Pattern\s+(\d+)\s*:", re.IGNORECASE)
+_LEAF_FILE_PATTERN = re.compile(
+    r"workspace/context_staging/patterns/(consumer|producer|ingestion)-pattern-(\d+)\.md$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -42,6 +47,32 @@ def _read_text(path: Path) -> str:
         return ""
 
 
+def _is_placeholder_leaf_content(markdown_text: str) -> bool:
+    lower = (markdown_text or "").lower()
+    if "[grounded details to be added" in lower:
+        return True
+    if "details coming soon" in lower:
+        return True
+    return False
+
+
+def _has_grounded_leaf_content(markdown_text: str) -> bool:
+    if "## Design overview" not in markdown_text:
+        return False
+    if _is_placeholder_leaf_content(markdown_text):
+        return False
+    lower = markdown_text.lower()
+    signal_markers = (
+        "- name:",
+        "- description:",
+        "- version / status / date:",
+        "- classification:",
+        "- nfrs:",
+        "- security:",
+    )
+    return any(marker in lower for marker in signal_markers)
+
+
 def _markdown_front_matter_id(markdown_text: str) -> str | None:
     if not markdown_text.startswith("---"):
         return None
@@ -55,6 +86,34 @@ def _markdown_front_matter_id(markdown_text: str) -> str | None:
             value = line.split(":", 1)[1].strip()
             return value or None
     return None
+
+
+def _extract_gap_patterns(markdown_text: str) -> set[str]:
+    patterns: set[str] = set()
+    in_gaps_section = False
+    for raw_line in (markdown_text or "").splitlines():
+        line = raw_line.strip()
+        if line.lower().startswith("## "):
+            in_gaps_section = line.lower().startswith("## retrieval gap")
+            continue
+        if not in_gaps_section:
+            continue
+        match = _PATTERN_GAP_LINE.match(raw_line)
+        if not match:
+            continue
+        family = match.group(1).capitalize()
+        number = match.group(2)
+        patterns.add(f"{family} Pattern {number}")
+    return patterns
+
+
+def _pattern_name_from_leaf_path(rel_path: str) -> str | None:
+    match = _LEAF_FILE_PATTERN.search(rel_path)
+    if not match:
+        return None
+    family = match.group(1).capitalize()
+    number = match.group(2)
+    return f"{family} Pattern {number}"
 
 
 def verify_peer_final_deliverable(
@@ -88,6 +147,25 @@ def verify_peer_final_deliverable(
             "Final output did not reference any concrete workspace files, "
             "but run contract requires file-backed deliverables."
         )
+
+    # Close-out fidelity check: if final output references files, it must not
+    # omit files that changed in this run.
+    normalized_changed = sorted(
+        {
+            path
+            for path in (changed_paths or [])
+            if path.startswith("workspace/") and Path(path).suffix.lower() in {".md", ".txt"}
+        }
+    )
+    if existing_files and normalized_changed:
+        changed_set = set(normalized_changed)
+        referenced_set = set(existing_files)
+        missing_from_summary = sorted(changed_set - referenced_set)
+        if missing_from_summary:
+            violations.append(
+                "Final output close-out omitted changed files from this run: "
+                + ", ".join(missing_from_summary)
+            )
 
     markdown_files = [p for p in existing_files if p.lower().endswith(".md")]
     front_matter_ids: dict[str, str] = {}
@@ -126,6 +204,36 @@ def verify_peer_final_deliverable(
                 "Final output claims mismatch/inconsistency was documented in files, "
                 "but no referenced markdown file contains mismatch/inconsistency notes."
             )
+
+    # Cross-file consistency for gap-driven artefact packages:
+    # if a pattern is marked as missing grounded content in a gaps file, its
+    # leaf file must not carry grounded detail content; conversely if the leaf
+    # file is placeholder/stub, it should appear in retrieval gaps.
+    gap_files = [p for p in markdown_files if "retrieval-gaps" in Path(p).name]
+    leaf_files = [p for p in markdown_files if _pattern_name_from_leaf_path(p) is not None]
+    if gap_files and leaf_files:
+        gap_patterns: set[str] = set()
+        for gap_file in gap_files:
+            gap_patterns.update(_extract_gap_patterns(_read_text((root_dir / gap_file).resolve())))
+
+        for leaf_file in leaf_files:
+            pattern_name = _pattern_name_from_leaf_path(leaf_file)
+            if not pattern_name:
+                continue
+            text = _read_text((root_dir / leaf_file).resolve())
+            has_grounded = _has_grounded_leaf_content(text)
+            is_placeholder = _is_placeholder_leaf_content(text)
+
+            if pattern_name in gap_patterns and has_grounded:
+                violations.append(
+                    f"Gap inconsistency: '{pattern_name}' is listed as missing grounded content, "
+                    f"but '{leaf_file}' contains grounded detail fields."
+                )
+            if pattern_name not in gap_patterns and is_placeholder:
+                violations.append(
+                    f"Gap omission: '{leaf_file}' is placeholder/stub content but '{pattern_name}' "
+                    "is not listed in retrieval gaps."
+                )
 
     return PeerVerificationResult(
         checked_files=tuple(existing_files),

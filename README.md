@@ -427,6 +427,8 @@ Runs the peer-style flow:
 
 Notes:
 - in chat mode, peer contract inference uses the latest user message (not wrapped history transcript) to avoid intent drift from previous turns.
+- peer finalization is hard-gated on judge `accept`; unresolved judge outcomes stop the run before orchestration.
+- peer verifier cross-checks close-out vs changed files and gap/leaf consistency for staged markdown packages.
 
 ---
 

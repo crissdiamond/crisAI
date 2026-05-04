@@ -17,7 +17,7 @@ from prompt_toolkit.history import FileHistory
 from crisai.cli.chat_context import build_chat_input
 from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
 from crisai.cli.display import print_final_answer, print_final_recommendation, print_status_message
-from crisai.cli.session_store import cli_history_file, load_history, save_history
+from crisai.cli.session_store import cli_history_file, load_history, save_history, session_dir
 from crisai.cli.status_views import print_agents_table, print_chat_state, print_servers_table, route_display
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
@@ -259,6 +259,33 @@ def _resolve_route(
     )
 
 
+def _session_name_newest_by_mtime() -> str | None:
+    """Return the newest persisted chat session name by file mtime."""
+    best_mtime: float | None = None
+    best_name: str | None = None
+    for file_path in session_dir().glob("*.json"):
+        try:
+            mtime = file_path.stat().st_mtime
+        except OSError:
+            continue
+        if best_mtime is None or mtime >= best_mtime:
+            best_mtime = mtime
+            best_name = file_path.stem
+    return best_name
+
+
+def _resolve_initial_chat_session(requested_session: str) -> str:
+    """Resolve startup chat session.
+
+    When chat starts with the default session value, prefer the most recently
+    modified persisted session (if any) to resume the latest active context.
+    """
+    if requested_session != "default":
+        return requested_session
+    newest = _session_name_newest_by_mtime()
+    return newest or requested_session
+
+
 
 def _effective_pipeline_review(decision: RoutingDecision) -> bool:
     """Return whether pipeline review should execute for this decision."""
@@ -447,9 +474,10 @@ def chat(
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
     """Start the interactive crisAI chat session."""
+    initial_session = _resolve_initial_chat_session(session)
     state = ChatRuntimeState(
-        current_session=session,
-        history=load_history(session),
+        current_session=initial_session,
+        history=load_history(initial_session),
         current_mode="peer" if peer else "pipeline" if pipeline else "single",
         current_agent=agent_id,
         current_review=review,

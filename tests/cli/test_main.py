@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import time
 from types import SimpleNamespace
 
 from crisai.cli import main
@@ -90,3 +92,21 @@ def test_is_benign_ssl_shutdown_context_detects_close_notify_sslerror():
 
     ssl_context = {"exception": ssl.SSLError("application data after close notify")}
     assert main._is_benign_ssl_shutdown_context(ssl_context) is True
+
+
+def test_resolve_initial_chat_session_prefers_newest_when_default(tmp_path, monkeypatch):
+    older = tmp_path / "older.json"
+    newer = tmp_path / "newer.json"
+    older.write_text("[]", encoding="utf-8")
+    newer.write_text("[]", encoding="utf-8")
+    base = time.time()
+    os.utime(older, (base - 100, base - 100))
+    os.utime(newer, (base, base))
+    monkeypatch.setattr(main, "session_dir", lambda: tmp_path)
+
+    assert main._resolve_initial_chat_session("default") == "newer"
+
+
+def test_resolve_initial_chat_session_preserves_explicit_session(monkeypatch):
+    monkeypatch.setattr(main, "_session_name_newest_by_mtime", lambda: "newer")
+    assert main._resolve_initial_chat_session("team_review") == "team_review"

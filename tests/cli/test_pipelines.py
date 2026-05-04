@@ -42,6 +42,8 @@ class FakeWorkflowSession:
     async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
         del kwargs
         self._stage_calls.append((ui_agent_id, prompt))
+        if ui_agent_id == "judge":
+            return "Decision: accept"
         if ui_agent_id == "orchestrator":
             return self._final_output
         return f"{ui_agent_id}-output"
@@ -176,6 +178,7 @@ async def test_run_peer_pipeline_skips_retrieval_planner_when_retrieval_not_need
         "design_author",
         "design_challenger",
         "design_refiner",
+        "judge",
         "judge",
         "orchestrator",
     ]
@@ -402,6 +405,56 @@ async def test_run_peer_pipeline_uses_user_intent_message_for_contract_inference
     )
 
     assert captured_message["value"] == "latest raw user input"
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_stops_before_orchestrator_when_judge_not_accept(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+
+    class RejectingSession(FakeWorkflowSession):
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            del kwargs
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "judge":
+                return "Decision: revise\nReason: still missing."
+            if ui_agent_id == "orchestrator":
+                return self._final_output
+            return f"{ui_agent_id}-output"
+
+    session = RejectingSession(trace_calls, stage_calls, "Final recommendation\nDone.")
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "0")
+
+    with pytest.raises(typer.BadParameter) as exc:
+        await pipelines.run_peer_pipeline(
+            "hello",
+            verbose=False,
+            review=False,
+            settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+            server_specs={},
+            agent_specs={},
+            needs_retrieval=False,
+        )
+
+    assert "judge did not accept" in str(exc.value).lower()
+    assert "orchestrator" not in [name for name, _ in stage_calls]
 
 
 @pytest.mark.anyio

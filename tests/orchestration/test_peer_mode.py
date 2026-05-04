@@ -124,6 +124,8 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
         calls.append(agent.id)
         if agent.id == "orchestrator":
             return "Final recommendation\nORCHESTRATOR OUTPUT"
+        if agent.id == "judge":
+            return "Decision: accept"
         return f"{agent.id.upper()} OUTPUT"
 
     monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
@@ -146,6 +148,7 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
         "design_challenger",
         "design_refiner",
         "judge",
+        "judge",
         "orchestrator",
     ]
     assert result == "Final recommendation\nORCHESTRATOR OUTPUT"
@@ -160,6 +163,8 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
         calls.append(agent.id)
         if agent.id == "orchestrator":
             return "Final recommendation\nORCHESTRATOR OUTPUT"
+        if agent.id == "judge":
+            return "Decision: accept"
         return f"{agent.id.upper()} OUTPUT"
 
     monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
@@ -182,6 +187,7 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
         "design_challenger",
         "design_refiner",
         "judge",
+        "judge",
         "orchestrator",
     ]
     assert result == "Final recommendation\nORCHESTRATOR OUTPUT"
@@ -196,6 +202,8 @@ async def test_peer_mode_skips_retrieval_planner_when_retrieval_not_needed(monke
         calls.append(agent.id)
         if agent.id == "orchestrator":
             return "Final recommendation\nORCHESTRATOR OUTPUT"
+        if agent.id == "judge":
+            return "Decision: accept"
         return f"{agent.id.upper()} OUTPUT"
 
     monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
@@ -214,6 +222,7 @@ async def test_peer_mode_skips_retrieval_planner_when_retrieval_not_needed(monke
         "design_author",
         "design_challenger",
         "design_refiner",
+        "judge",
         "judge",
         "orchestrator",
     ]
