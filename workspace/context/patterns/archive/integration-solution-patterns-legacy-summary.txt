@@ -1,13 +1,14 @@
 ---
-id: PATT-INT-001
-title: Integration Solution Patterns
+id: PATT-INT-LEG-001
+title: Integration Solution Patterns (legacy summary, pre-catalogue split)
 type: pattern
-status: draft
+status: retired
 owner: Enterprise Architecture
 last_reviewed: 2026-05-03
 applies_to: all
-tags: api, events, pub-sub, real-time
+tags: api, events, pub-sub, real-time, legacy
 related:
+  - context/patterns/integration-patterns-index.md
   - context/standards/integration/architectural-guardrails.txt
   - context/reference/landscape/integration-operating-model.txt
 ---

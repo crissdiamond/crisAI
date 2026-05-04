@@ -21,6 +21,7 @@ Curated knowledge for **Higher Education (HE)** architecture work: colleges, uni
 | **`standards/security/`** | Security and identity-related standards. | *(Populate.)* |
 | **`standards/integration/`** | APIs, events, integration contracts, error handling. | *(Populate.)* |
 | **`patterns/`** | Reusable solution patterns and **anti-patterns**. | Reporting, ingestion, ownership models. |
+| **`patterns/archive/`** | **Retired** snapshots kept for comparison or audit. | Superseded integration summaries; canonical catalogue remains under `patterns/*.md`. |
 | **`designs/`** | Precedents and exemplar solution descriptions. | Prior dashboards, integration designs (anonymised). |
 | **`decisions/`** | Lightweight **decision records** (ADR-style): context, decision, consequences. | Why we chose hub-and-spoke, why not direct DB access from reports, etc. |
 | **`reference/landscape/`** | Platform capabilities, technology estate, hosting zones. | What the “data platform” does, regions, major products. |

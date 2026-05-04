@@ -7,7 +7,8 @@ owner: Architecture
 last_reviewed: 2026-05-04
 applies_to: all
 tags: integration, patterns, catalogue
-related: []
+related:
+  - context/patterns/archive/integration-solution-patterns-legacy-summary.txt
 ---
 
 ## Design overview
