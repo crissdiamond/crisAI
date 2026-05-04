@@ -62,10 +62,15 @@ def test_clear_empties_history_and_persists(monkeypatch, state):
 
 def test_switch_session_loads_new_history_and_prints_state(monkeypatch, state):
     notices = []
+    saved = {}
 
     monkeypatch.setattr(
         "crisai.cli.chat_controller.load_history",
         lambda session: [("user", f"loaded:{session}")],
+    )
+    monkeypatch.setattr(
+        "crisai.cli.chat_controller.save_history",
+        lambda session, history: saved.update({"session": session, "history": list(history)}),
     )
     monkeypatch.setattr(
         "crisai.cli.chat_controller.print_status_message",
@@ -74,7 +79,21 @@ def test_switch_session_loads_new_history_and_prints_state(monkeypatch, state):
     assert handle_chat_command("/session project-a", state) is True
     assert state.current_session == "project-a"
     assert state.history == [("user", "loaded:project-a")]
+    assert saved == {"session": "project-a", "history": [("user", "loaded:project-a")]}
     assert notices[-1][0] == "🔁 Session switched"
+
+
+def test_switch_session_persists_empty_history_for_new_session(monkeypatch, state):
+    saved = {}
+    monkeypatch.setattr("crisai.cli.chat_controller.load_history", lambda session: [])
+    monkeypatch.setattr(
+        "crisai.cli.chat_controller.save_history",
+        lambda session, history: saved.update({"session": session, "history": list(history)}),
+    )
+    monkeypatch.setattr("crisai.cli.chat_controller.print_status_message", lambda *args, **kwargs: None)
+
+    assert handle_chat_command("/session test-9", state) is True
+    assert saved == {"session": "test-9", "history": []}
 
 
 def test_set_mode_auto_clears_pin(monkeypatch, state):

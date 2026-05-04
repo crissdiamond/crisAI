@@ -70,6 +70,10 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
     elif action == "switch_session":
         state.current_session = str(command.value)
         state.history = load_history(state.current_session)
+        # Persist/touch the target session immediately so CLI startup can
+        # reliably resume the most recently selected session, even before the
+        # next user/assistant exchange is saved.
+        save_history(state.current_session, state.history)
         print_status_message(
             f"Switched to session '{state.current_session}'.\nLoaded history entries: {len(state.history)}",
             title="🔁 Session switched",

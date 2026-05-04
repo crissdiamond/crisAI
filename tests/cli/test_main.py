@@ -156,3 +156,33 @@ def test_resolve_initial_chat_session_prefers_newest_non_default_when_default_is
 def test_resolve_initial_chat_session_preserves_explicit_session(monkeypatch):
     monkeypatch.setattr(main, "_session_name_newest_by_mtime", lambda: "newer")
     assert main._resolve_initial_chat_session("team_review") == "team_review"
+
+
+def test_close_chat_session_persists_history_and_shows_exit_notice(monkeypatch):
+    state = main.ChatRuntimeState(
+        current_session="test-9",
+        history=[("user", "hello"), ("assistant", "hi")],
+        current_mode="single",
+        current_agent="orchestrator",
+        current_review=False,
+        current_verbose=False,
+        mode_pinned=False,
+        agent_pinned=False,
+    )
+    saved = {}
+    notices = []
+    monkeypatch.setattr(
+        main,
+        "save_history",
+        lambda session, history: saved.update({"session": session, "history": list(history)}),
+    )
+    monkeypatch.setattr(
+        main,
+        "print_status_message",
+        lambda body, title=None: notices.append((title, body)),
+    )
+
+    main._close_chat_session(state)
+
+    assert saved == {"session": "test-9", "history": [("user", "hello"), ("assistant", "hi")]}
+    assert notices[-1] == ("👋 Session closed", "Exiting.")

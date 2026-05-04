@@ -372,6 +372,12 @@ def _render_runtime_error(exc: Exception) -> None:
     )
 
 
+def _close_chat_session(state: ChatRuntimeState) -> None:
+    """Persist current session state and render a consistent exit notice."""
+    save_history(state.current_session, state.history)
+    print_status_message("Exiting.", title="👋 Session closed")
+
+
 def _is_benign_ssl_shutdown_context(context: dict[str, Any]) -> bool:
     """Return whether an asyncio loop error context is a benign SSL shutdown noise."""
     message = str(context.get("message", "")).lower()
@@ -563,7 +569,7 @@ def chat(
                 auto_suggest=AutoSuggestFromHistory(),
             ).strip()
         except (EOFError, KeyboardInterrupt):
-            print_status_message("Exiting.", title="👋 Session closed")
+            _close_chat_session(state)
             break
 
         if not user_input:
@@ -572,6 +578,7 @@ def chat(
         try:
             handled = handle_chat_command(user_input, state)
         except EOFError:
+            _close_chat_session(state)
             break
 
         if handled:
