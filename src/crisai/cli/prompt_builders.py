@@ -1,5 +1,20 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from crisai.config import load_settings
+from crisai.orchestration.retrieval_association_graph import (
+    format_retrieval_expansion_block,
+    load_retrieval_association_graph,
+)
+
+
+def _retrieval_expansion_section(message: str, *, registry_dir: Path | None) -> str:
+    """Pre-computed association-graph hints (empty when graph absent or no match)."""
+    root = registry_dir if registry_dir is not None else load_settings().registry_dir
+    graph = load_retrieval_association_graph(root)
+    return format_retrieval_expansion_block(message, graph)
+
 
 def _is_intranet_scoped_request(message: str) -> bool:
     text = (message or "").lower()
@@ -31,16 +46,25 @@ def _section(title: str, body: str) -> str:
     return f"{title}:\n{clean}"
 
 
-def build_retrieval_planner_prompt(message: str) -> str:
+def build_retrieval_planner_prompt(message: str, *, registry_dir: Path | None = None) -> str:
     """Build the runtime prompt for the retrieval planner stage.
 
     The retrieval planner prepares a **retrieval handoff** for ``context_retrieval``. The CLI
     router already surfaces mode, pipeline shape, and retrieval intent, so this
     stage must not repeat that recap.
+
+    Args:
+        message: User text for this stage.
+        registry_dir: Optional registry root; defaults to ``load_settings().registry_dir``.
     """
-    return "\n\n".join(
+    expansion = _retrieval_expansion_section(message, registry_dir=registry_dir).strip()
+    blocks = [
+        _section("User request", message),
+    ]
+    if expansion:
+        blocks.append(expansion)
+    blocks.extend(
         [
-            _section("User request", message),
             "Session context:\n"
             "The crisAI router has already shown the user a routing decision (mode, "
             "pipeline vs single, retrieval on/off, and a short rationale). Treat "
@@ -60,17 +84,25 @@ def build_retrieval_planner_prompt(message: str) -> str:
             "Keep the response brief (about one screen of tight bullets).",
         ]
     )
+    return "\n\n".join(blocks)
 
 
-def build_single_retrieval_planner_prompt(message: str) -> str:
+def build_single_retrieval_planner_prompt(message: str, *, registry_dir: Path | None = None) -> str:
     """Build the runtime prompt for single-mode retrieval-planner execution.
 
     In single mode, the retrieval planner agent is the terminal agent for retrieval-only asks, so
     it must perform retrieval now instead of only framing a downstream stage.
+
+    Args:
+        message: User text for this stage.
+        registry_dir: Optional registry root; defaults to ``load_settings().registry_dir``.
     """
-    return "\n\n".join(
+    expansion = _retrieval_expansion_section(message, registry_dir=registry_dir).strip()
+    blocks = [_section("User request", message)]
+    if expansion:
+        blocks.append(expansion)
+    blocks.extend(
         [
-            _section("User request", message),
             "Task:\nPerform retrieval now and return concrete results for the user request.",
             "Execution rules:\n"
             "- Use available retrieval tools for OneDrive/SharePoint/workspace as needed.\n"
@@ -92,9 +124,15 @@ def build_single_retrieval_planner_prompt(message: str) -> str:
             "- For one or two files, a short bullet with the same link rules is acceptable.",
         ]
     )
+    return "\n\n".join(blocks)
 
 
-def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
+def build_context_retrieval_prompt(
+    message: str,
+    discovery_text: str,
+    *,
+    registry_dir: Path | None = None,
+) -> str:
     """Build the runtime prompt for the context retrieval stage.
 
     This stage performs source lookup only. It should return evidence and source
@@ -109,13 +147,19 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
             "- Do NOT treat existing workspace draft files under `context_staging/` as evidence for factual claims.\n"
             "- If no successful intranet fetch happened in this turn, report retrieval failure clearly rather than producing a workspace-only evidence set.\n"
         )
-    return "\n\n".join(
+    expansion = _retrieval_expansion_section(message, registry_dir=registry_dir).strip()
+    blocks = [
+        _section("User request", message),
+    ]
+    if expansion:
+        blocks.append(expansion)
+    blocks.extend(
         [
-            _section("User request", message),
             _section("Retrieval handoff (from retrieval planner)", discovery_text),
             "Task:\nRetrieve the most relevant material for this request from available context sources. "
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "
+            "When a **Deterministic retrieval expansion** block appears above, treat it as optional query hints from `registry/retrieval_association_graph.yaml`; still validate fit to the user request. "
             "Workspace semantics:\n"
             "- ``search_workspace_text`` matches a **literal substring on one line**; long sentences often return nothing. "
             "Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``context`` / ``context/patterns`` etc., "
@@ -130,6 +174,7 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
             "Do not draft, recommend, or optimise the final design response.",
         ]
     )
+    return "\n\n".join(blocks)
 
 
 def build_design_prompt(message: str, discovery_text: str) -> str:

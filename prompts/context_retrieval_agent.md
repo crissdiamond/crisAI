@@ -14,6 +14,7 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
 
 - The **user request** (runtime).
 - **Retrieval handoff** from Discovery (not a repeat of the router line).
+- **Deterministic retrieval expansion** (when present in the runtime prompt): optional topic hints pre-computed from `registry/retrieval_association_graph.yaml`. They are not sources—validate fit, then still use tools to retrieve evidence.
 - Tool results from workspace, document reader, SharePoint Graph, and (when allowed) **intranet** site pages.
 
 ## Authority

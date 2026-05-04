@@ -24,6 +24,15 @@ def test_build_retrieval_planner_prompt_contains_only_runtime_context():
     assert "Return:" not in text
 
 
+def test_build_retrieval_planner_prompt_includes_association_graph_hints():
+    text = build_retrieval_planner_prompt(
+        "Fetch consumer pattern pages from the intranet site pages corpus.",
+    )
+    assert "Deterministic retrieval expansion" in text
+    assert "retrieval_association_graph.yaml" in text
+    assert "consumer pattern" in text.lower() or "intranet_list_page_links" in text
+
+
 def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     text = build_context_retrieval_prompt("hello", "handoff text")
     assert "search_workspace_text" in text

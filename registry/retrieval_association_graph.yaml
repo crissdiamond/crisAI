@@ -1,0 +1,47 @@
+# Deterministic association graph for retrieval query expansion.
+#
+# Loaded before retrieval agents run; matching is substring / word-boundary
+# based (see crisai.orchestration.retrieval_association_graph). When user text
+# activates a vertex, all terms on that vertex and on neighbours within
+# max_hops are surfaced as **hints** in the runtime prompt—agents still must
+# align tools with the actual user request.
+#
+# Maintain associations here instead of growing prompts/retrieval_planner_agent.md.
+
+version: 1
+
+settings:
+  max_hops: 2
+
+vertices:
+  - id: intranet_site_pages
+    terms:
+      - intranet
+      - site pages
+      - sitepages
+      - intranet_fetch
+      - intranet_search
+  - id: document_library_boundary
+    terms:
+      - document library
+      - search_sharepoint_site_documents
+      - sharepoint documents
+  - id: integration_patterns_area
+    terms:
+      - integration pattern
+      - integration patterns
+      - consumer pattern
+      - producer pattern
+      - ingestion pattern
+  - id: catalogue_and_leaf_drilldown
+    terms:
+      - intranet_list_page_links
+      - intranet_list_all_pages
+      - catalogue
+      - hub page
+      - leaf page
+
+edges:
+  - [intranet_site_pages, document_library_boundary]
+  - [intranet_site_pages, integration_patterns_area]
+  - [integration_patterns_area, catalogue_and_leaf_drilldown]

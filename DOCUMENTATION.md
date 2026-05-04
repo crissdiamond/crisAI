@@ -523,6 +523,10 @@ A YAML file of equivalent-term groups loaded once at provider start-up. When any
 
 The file is maintained independently of code — add a group when a query consistently misses relevant pages. Restart the CLI to pick up changes. The default path is `registry/search_synonyms.yaml`; override with `search_synonyms_file:` in `intranet.yaml`.
 
+**Retrieval association graph (`registry/retrieval_association_graph.yaml`):**
+
+A small **declarative graph** (vertices with hint terms, undirected edges, `settings.max_hops`) used for **deterministic pre-expansion** before retrieval agents run. When the user message matches a vertex term, associated neighbour terms are merged and injected into the runtime prompts for **`retrieval_planner`** and **`context_retrieval`** as a **Deterministic retrieval expansion** block (see `src/crisai/orchestration/retrieval_association_graph.py` and `src/crisai/cli/prompt_builders.py`). This keeps `prompts/retrieval_planner_agent.md` generic while you evolve topic associations in YAML. Edit vertices/edges and restart the CLI to pick up changes.
+
 **Configuration in `registry/intranet.yaml`:**
 
 - **`provider`**: `sharepoint_pages` (default) or `wiki` (placeholder for future adapters).
