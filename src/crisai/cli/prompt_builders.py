@@ -1,6 +1,30 @@
 from __future__ import annotations
 
 
+def _is_intranet_scoped_request(message: str) -> bool:
+    text = (message or "").lower()
+    markers = (
+        "intranet",
+        "site pages",
+        "sitepages",
+        "intranet_fetch",
+        "intranet_search",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _requires_workspace_writes(message: str) -> bool:
+    text = (message or "").lower()
+    markers = (
+        "write_workspace_file",
+        "context_staging/",
+        "create files",
+        "deliver files",
+        "under workspace/",
+    )
+    return any(marker in text for marker in markers)
+
+
 def _section(title: str, body: str) -> str:
     """Render a stable prompt section with trimmed content."""
     clean = (body or "").strip() or "None."
@@ -77,6 +101,14 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
     references that the context stage can structure, without drafting the final
     design response.
     """
+    intranet_rules = ""
+    if _is_intranet_scoped_request(message):
+        intranet_rules = (
+            "Intranet-scoped hard rules:\n"
+            "- This request is scoped to intranet Site Pages. You MUST run intranet tools (`intranet_search`, `intranet_list_all_pages`, `intranet_list_page_links`, `intranet_fetch`) in this stage.\n"
+            "- Do NOT treat existing workspace draft files under `context_staging/` as evidence for factual claims.\n"
+            "- If no successful intranet fetch happened in this turn, report retrieval failure clearly rather than producing a workspace-only evidence set.\n"
+        )
     return "\n\n".join(
         [
             _section("User request", message),
@@ -89,7 +121,8 @@ def build_context_retrieval_prompt(message: str, discovery_text: str) -> str:
             "Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``context`` / ``context/patterns`` etc., "
             "or call ``read_workspace_file`` / ``read_document`` when the user request or handoff names a concrete relative path.\n"
             "- When in doubt, ``list_workspace_files('context')`` (or a deeper subfolder) then open the best candidates.\n"
-            "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
+            + intranet_rules
+            + "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
             "For each source row, include **Link:** `[file_name](url)` only — visible text is the **file name**, URL **only** inside parentheses; do not duplicate the URL as plain text "
             "and never append `&action=edit` or other query text to the file name. "
             "Graph: use `open_url`/`webUrl`; workspace: use `file_uri` from `search_workspace_text` or `workspace_file_link`. "
@@ -226,6 +259,15 @@ def build_peer_final_prompt(
     judge_text: str,
 ) -> str:
     """Build the runtime prompt for the peer final stage."""
+    execution_gate = ""
+    if _requires_workspace_writes(message):
+        execution_gate = (
+            "Execution gate:\n"
+            "- The user request requires filesystem side effects (creating/updating files in workspace).\n"
+            "- Before finalising, ensure required files are actually written via workspace tools in this turn.\n"
+            "- If previous peer stages only produced critique text, perform the missing write actions now instead of returning another critique-only answer.\n"
+            "- Final response must include a concise created/updated file list with source provenance.\n"
+        )
     return "\n\n".join(
         [
             _section("User request", message),
@@ -240,6 +282,7 @@ def build_peer_final_prompt(
             "- Incorporate only improvements justified by the critique and judge decision.\n"
             "- Show the peer conversation only if the user explicitly asked to see it.\n"
             "- If the user asked to see the peer conversation, present it only here in the final stage, not in earlier stages.\n"
-            "- Do not mention internal peer stages unless the user explicitly asked to see them.",
+            "- Do not mention internal peer stages unless the user explicitly asked to see them.\n"
+            + execution_gate,
         ]
     )

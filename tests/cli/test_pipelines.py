@@ -314,3 +314,76 @@ async def test_run_single_retrieval_planner_uses_retrieval_execution_prompt(monk
     assert captured_prompt is not None
     assert "Perform retrieval now" in captured_prompt
     assert "Do not return a planning brief" in captured_prompt
+
+
+@pytest.mark.anyio
+async def test_run_pipeline_enforces_intranet_fetch_policy(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "orchestrator-output")
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    with pytest.raises(typer.BadParameter) as exc:
+        await pipelines.run_pipeline(
+            "Use intranet site pages only and produce grounded output.",
+            verbose=False,
+            review=True,
+            settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+            server_specs={},
+            agent_specs={},
+        )
+
+    assert "requires intranet-grounded evidence" in str(exc.value)
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_enforces_workspace_write_policy(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "Final recommendation\nNo files written.")
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    with pytest.raises(typer.BadParameter) as exc:
+        await pipelines.run_peer_pipeline(
+            "Write with write_workspace_file under workspace/context_staging/patterns/",
+            verbose=False,
+            review=False,
+            settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+            server_specs={},
+            agent_specs={},
+            needs_retrieval=False,
+        )
+
+    assert "requires artefact creation/update" in str(exc.value)

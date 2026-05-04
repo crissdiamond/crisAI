@@ -29,6 +29,16 @@ def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     assert "one line" in text.lower() or "single line" in text.lower()
 
 
+def test_build_context_retrieval_prompt_enforces_intranet_tools_for_intranet_scope():
+    text = build_context_retrieval_prompt(
+        "Use intranet site pages only and fetch pattern pages.",
+        "handoff text",
+    )
+    assert "Intranet-scoped hard rules" in text
+    assert "MUST run intranet tools" in text
+    assert "Do NOT treat existing workspace draft files" in text
+
+
 def test_build_single_retrieval_planner_prompt_requires_verbatim_tool_errors():
     text = build_single_retrieval_planner_prompt("Find files in OneDrive")
 
@@ -68,6 +78,20 @@ def test_peer_builders_use_stable_section_labels():
     assert "Original draft:\ndraft" in refiner
     assert "Refined draft:\nrefined" in judge
     assert "Judge decision:\naccept" in peer_final
+
+
+def test_build_peer_final_prompt_adds_execution_gate_when_writes_required():
+    text = build_peer_final_prompt(
+        "Write with write_workspace_file under workspace/context_staging/patterns/",
+        "facts",
+        "draft",
+        "challenge",
+        "refined",
+        "accept",
+    )
+    assert "Execution gate" in text
+    assert "ensure required files are actually written" in text
+    assert "created/updated file list" in text
 
 
 def test_author_prompt_is_minimal_runtime_handoff():

@@ -36,6 +36,13 @@ from .prompt_builders import (
     build_refiner_prompt,
     build_review_prompt,
 )
+from .workflow_policy import (
+    WorkflowPolicyViolation,
+    enforce_intranet_fetch_policy,
+    enforce_workspace_write_policy,
+    infer_workflow_policy,
+    snapshot_tree,
+)
 from .pipeline_engine import WorkflowEngine
 from .workflow_support import (
     WorkflowEnvironment,
@@ -46,6 +53,20 @@ from .workflow_support import (
 
 logger = get_logger(__name__)
 _DEFAULT_AGENT_MAX_TURNS = 30
+
+
+def _trace_workflow_policy_event(
+    workflow: Any,
+    stage: str,
+    content: str,
+    *,
+    event_type: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Trace policy events when the workflow session exposes trace_event."""
+    tracer = getattr(workflow, "trace_event", None)
+    if callable(tracer):
+        tracer(stage, content, event_type=event_type, metadata=metadata)
 
 
 def _get_run_id(environment: WorkflowEnvironment | object) -> str | None:
@@ -418,6 +439,9 @@ async def run_pipeline(
     """Run the standard retrieval_planner → context_retrieval → context_synthesizer → design pipeline."""
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
+    policy = infer_workflow_policy(message)
+    root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
+    write_before = snapshot_tree(root_dir, policy.write_target_subdir)
 
     logger.info("Running pipeline workflow.", extra={"run_id": _get_run_id(environment), "review": review})
 
@@ -451,6 +475,16 @@ async def run_pipeline(
             trace_label="CONTEXT RETRIEVAL OUTPUT",
             verbose=verbose,
         )
+        try:
+            enforce_intranet_fetch_policy(policy, context_retrieval_text)
+        except WorkflowPolicyViolation as exc:
+            _trace_workflow_policy_event(
+                workflow,
+                "POLICY_VIOLATION",
+                str(exc),
+                event_type="policy_violation",
+            )
+            raise typer.BadParameter(str(exc)) from exc
 
         context_text = await workflow.run_stage(
             spec=specs["context_synthesizer"],
@@ -491,6 +525,28 @@ async def run_pipeline(
             verbose=verbose,
             print_output=False,
         )
+        try:
+            changed = enforce_workspace_write_policy(
+                policy,
+                root_dir,
+                write_before,
+            )
+            if changed:
+                _trace_workflow_policy_event(
+                    workflow,
+                    "POLICY_WRITE_CHANGES",
+                    "\n".join(changed),
+                    event_type="policy_signal",
+                    metadata={"changed_count": len(changed)},
+                )
+        except WorkflowPolicyViolation as exc:
+            _trace_workflow_policy_event(
+                workflow,
+                "POLICY_VIOLATION",
+                str(exc),
+                event_type="policy_violation",
+            )
+            raise typer.BadParameter(str(exc)) from exc
         workflow.finish_workflow("Pipeline workflow completed.", metadata={"mode": "pipeline"})
         return final_text
 
@@ -510,6 +566,9 @@ async def run_peer_pipeline(
     del review  # Unused in peer mode today; kept for API compatibility.
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
+    policy = infer_workflow_policy(message)
+    root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
+    write_before = snapshot_tree(root_dir, policy.write_target_subdir)
     max_refinement_rounds = _resolve_peer_max_refinement_rounds()
 
     logger.info(
@@ -572,6 +631,16 @@ async def run_peer_pipeline(
                     trace_label="CONTEXT RETRIEVAL OUTPUT",
                     verbose=verbose,
                 )
+                try:
+                    enforce_intranet_fetch_policy(policy, context_retrieval_text)
+                except WorkflowPolicyViolation as exc:
+                    _trace_workflow_policy_event(
+                        workflow,
+                        "POLICY_VIOLATION",
+                        str(exc),
+                        event_type="policy_violation",
+                    )
+                    raise typer.BadParameter(str(exc)) from exc
             else:
                 workflow.skip_stage(
                     "CONTEXT RETRIEVAL OUTPUT",
@@ -720,6 +789,28 @@ async def run_peer_pipeline(
             verbose=verbose,
             print_output=False,
         )
+        try:
+            changed = enforce_workspace_write_policy(
+                policy,
+                root_dir,
+                write_before,
+            )
+            if changed:
+                _trace_workflow_policy_event(
+                    workflow,
+                    "POLICY_WRITE_CHANGES",
+                    "\n".join(changed),
+                    event_type="policy_signal",
+                    metadata={"changed_count": len(changed)},
+                )
+        except WorkflowPolicyViolation as exc:
+            _trace_workflow_policy_event(
+                workflow,
+                "POLICY_VIOLATION",
+                str(exc),
+                event_type="policy_violation",
+            )
+            raise typer.BadParameter(str(exc)) from exc
         workflow.finish_workflow(
             "Peer workflow completed.",
             metadata={
