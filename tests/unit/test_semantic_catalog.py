@@ -33,3 +33,24 @@ def test_load_semantic_catalog_reads_registry_overrides(tmp_path: Path):
     assert "high level design" in catalog.peer_verifier.leaf_file_terms
     assert "playbook" in catalog.peer_verifier.leaf_file_terms
     assert "data mesh" in catalog.peer_verifier.data_architecture_terms
+
+
+def test_load_semantic_catalog_peer_contract_markers_override(tmp_path: Path):
+    registry_dir = tmp_path / "registry"
+    registry_dir.mkdir(parents=True)
+    (registry_dir / "semantic_catalog.yaml").write_text(
+        "\n".join(
+            [
+                "version: 1",
+                "peer_contract:",
+                "  file_write_markers: [my-custom-write-marker]",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    catalog = load_semantic_catalog(str(registry_dir))
+
+    assert "my-custom-write-marker" in catalog.peer_contract.file_write_markers
+    assert "write_workspace_file" not in catalog.peer_contract.file_write_markers
+    assert "implement" in catalog.peer_contract.code_change_markers

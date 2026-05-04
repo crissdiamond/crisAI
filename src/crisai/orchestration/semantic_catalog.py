@@ -34,9 +34,21 @@ class PeerVerifierPatterns:
 
 
 @dataclass(frozen=True)
+class PeerContractMarkers:
+    """Substring markers for infer_peer_run_contract (lowercased; spacing preserved)."""
+
+    file_write_markers: frozenset[str]
+    code_change_markers: frozenset[str]
+    code_target_markers: frozenset[str]
+    grounding_markers: frozenset[str]
+    assessment_markers: frozenset[str]
+
+
+@dataclass(frozen=True)
 class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
+    peer_contract: PeerContractMarkers
 
 
 _DEFAULTS: dict[str, Any] = {
@@ -211,6 +223,67 @@ _DEFAULTS: dict[str, Any] = {
             "metadata",
         ],
     },
+    "peer_contract": {
+        "file_write_markers": [
+            "write_workspace_file",
+            "create file",
+            "create files",
+            "save file",
+            "save files",
+            "under workspace/",
+            "context_staging/",
+            "deliver files",
+            "artifact",
+            "artefact",
+        ],
+        "code_change_markers": [
+            "implement",
+            "fix",
+            "refactor",
+            "code change",
+            "update code",
+            "modify code",
+            "add test",
+            "tests",
+            "function",
+            "class",
+            "module",
+        ],
+        "code_target_markers": [
+            "src/",
+            "tests/",
+            ".py",
+            ".ts",
+            ".tsx",
+            ".js",
+            ".jsx",
+            ".java",
+            ".go",
+            ".rs",
+            "function ",
+            "def ",
+            "class ",
+        ],
+        "grounding_markers": [
+            "intranet",
+            "source",
+            "sources",
+            "citation",
+            "cite",
+            "grounded",
+            "evidence",
+            "based on",
+            "from the",
+        ],
+        "assessment_markers": [
+            "review",
+            "audit",
+            "assess",
+            "evaluate",
+            "compare",
+            "critique",
+        ],
+    },
 }
 
 
@@ -219,6 +292,29 @@ def _as_frozenset(values: Any) -> frozenset[str]:
         return frozenset()
     clean = [str(v).strip().lower() for v in values if str(v).strip()]
     return frozenset(clean)
+
+
+def _peer_marker_phrases(values: Any) -> frozenset[str]:
+    """Lowercase peer-contract marker phrases; preserve trailing spaces (e.g. ``function ``)."""
+    if not isinstance(values, list):
+        return frozenset()
+    phrases: list[str] = []
+    for item in values:
+        text = str(item).lower()
+        if not text.strip():
+            continue
+        phrases.append(text)
+    return frozenset(phrases)
+
+
+def _peer_contract_marker_field(data: dict[str, Any], field: str) -> frozenset[str]:
+    """Resolve one peer_contract marker list from merged catalog data with defaults fallback."""
+    defaults = _DEFAULTS["peer_contract"]
+    block = data.get("peer_contract") if isinstance(data.get("peer_contract"), dict) else {}
+    raw = block.get(field)
+    if isinstance(raw, list) and raw:
+        return _peer_marker_phrases(raw)
+    return _peer_marker_phrases(defaults[field])
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -259,6 +355,13 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
                 verifier_block.get("data_architecture_terms")
                 or _DEFAULTS["peer_verifier"]["data_architecture_terms"]
             ),
+        ),
+        peer_contract=PeerContractMarkers(
+            file_write_markers=_peer_contract_marker_field(data, "file_write_markers"),
+            code_change_markers=_peer_contract_marker_field(data, "code_change_markers"),
+            code_target_markers=_peer_contract_marker_field(data, "code_target_markers"),
+            grounding_markers=_peer_contract_marker_field(data, "grounding_markers"),
+            assessment_markers=_peer_contract_marker_field(data, "assessment_markers"),
         ),
     )
 

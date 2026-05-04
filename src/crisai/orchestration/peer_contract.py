@@ -2,54 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
-_FILE_WRITE_MARKERS: tuple[str, ...] = (
-    "write_workspace_file",
-    "create file",
-    "create files",
-    "save file",
-    "save files",
-    "under workspace/",
-    "context_staging/",
-    "deliver files",
-    "artifact",
-    "artefact",
-)
-
-_CODE_CHANGE_MARKERS: tuple[str, ...] = (
-    "implement",
-    "fix",
-    "refactor",
-    "code change",
-    "update code",
-    "modify code",
-    "add test",
-    "tests",
-    "function",
-    "class",
-    "module",
-)
-
-_GROUNDING_MARKERS: tuple[str, ...] = (
-    "intranet",
-    "source",
-    "sources",
-    "citation",
-    "cite",
-    "grounded",
-    "evidence",
-    "based on",
-    "from the",
-)
-
-_ASSESSMENT_MARKERS: tuple[str, ...] = (
-    "review",
-    "audit",
-    "assess",
-    "evaluate",
-    "compare",
-    "critique",
-)
+from crisai.orchestration.semantic_catalog import load_semantic_catalog
 
 
 @dataclass(frozen=True)
@@ -69,16 +22,21 @@ class PeerRunContract:
 
 def infer_peer_run_contract(message: str) -> PeerRunContract:
     """Infer a generic peer contract from the user request."""
+    markers = load_semantic_catalog().peer_contract
     text = (message or "").lower()
-    must_write_files = any(marker in text for marker in _FILE_WRITE_MARKERS)
-    must_modify_code = any(marker in text for marker in _CODE_CHANGE_MARKERS)
-    must_ground_in_sources = any(marker in text for marker in _GROUNDING_MARKERS)
-    asks_assessment = any(marker in text for marker in _ASSESSMENT_MARKERS)
+    must_write_files = any(marker in text for marker in markers.file_write_markers)
+    must_modify_code = any(marker in text for marker in markers.code_change_markers)
+    has_clear_code_targets = any(marker in text for marker in markers.code_target_markers)
+    must_ground_in_sources = any(marker in text for marker in markers.grounding_markers)
+    asks_assessment = any(marker in text for marker in markers.assessment_markers)
 
-    if must_modify_code:
-        expected_output_type = "code_change"
-    elif must_write_files:
+    # Prefer file-backed artefact classification unless explicit code targets
+    # are present; this avoids over-classifying context-staging prompts as
+    # code changes due to generic words like "implement".
+    if must_write_files and not has_clear_code_targets:
         expected_output_type = "artifact_package"
+    elif must_modify_code:
+        expected_output_type = "code_change"
     elif asks_assessment:
         expected_output_type = "assessment"
     else:

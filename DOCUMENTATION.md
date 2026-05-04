@@ -282,11 +282,15 @@ Notes:
 - `retrieval_planner` and `context_retrieval` can be skipped when retrieval is not needed for the peer task.
 - when retrieval is needed and the agent is configured, `context_synthesizer` runs after context retrieval to provide a stronger evidence basis for peer stages.
 - peer mode now compiles a run contract from the user request (expected output type, required side effects, grounding needs, acceptance dimensions) and injects it into peer role prompts.
+- contract inference prefers `artifact_package` for file-backed staging requests (for example `context_staging` deliverables) unless the request includes clear code targets (`src/`, `tests/`, language file extensions, or explicit code symbols).
 - judge output is now actionable: `Decision: revise` triggers bounded extra refiner/judge rounds (`CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`) before orchestration.
 - when revise loops remain unresolved, peer mode runs a bounded structural escalation (`design_author` + `design_challenger` + `design_refiner` + `judge`) driven by judge feedback (`CRISAI_PEER_MAX_ESCALATIONS`, default `1`).
 - accepted peer output still passes through a post-run verifier that checks file-backed claims against on-disk artefacts (for example referenced files exist, markdown shape is present, front-matter ids are unique, and claimed mismatch notes are actually written).
 - peer finalization is hard-gated: if judge does not return `accept` after the allowed loop, the run fails before orchestrator final recommendation.
+- peer final prompts include a runtime changed-file manifest and require verbatim path reuse in close-out sections.
 - verifier also checks close-out fidelity against changed files and flags gap/leaf contradictions in staged markdown packages.
+- retrieval-gaps markdown files are exempt from mandatory `## Source` sections; semantic leaf/index artefacts still require source sections.
+- if verifier failure is limited to final-text reference/close-out drift, peer mode runs one bounded final-output repair pass and re-verifies before hard failing.
 - loop safeguards: max rounds bound, and a convergence guard that stops early when refiner output stops changing materially.
 - workflow policy gates still apply in peer mode (see section 9.1): requests that require intranet-grounded evidence or filesystem side effects can fail fast when those outcomes are missing.
 
@@ -368,6 +372,7 @@ Router and verifier semantics are configurable from `registry/semantic_catalog.y
 - source and architecture-location marker lists
 - peer-verifier regex patterns (for example gap-line and leaf-file matching)
 - peer-verifier semantic leaf-file terminology (`leaf_file_terms`) to classify architecture-oriented deliverables by filename terms (for example `patterns`, `template`, `hld`, `guides`, `standards`, `principles`, `toolkit`)
+- **peer_contract** marker phrase lists (`file_write_markers`, `code_change_markers`, `code_target_markers`, `grounding_markers`, `assessment_markers`) used by `infer_peer_run_contract` (substring match on lowercased user text; inference logic stays in code)
 
 This keeps semantic/heuristic tuning maintainable outside code, similar to `registry/search_synonyms.yaml`.
 

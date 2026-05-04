@@ -26,10 +26,10 @@ The aim is to create a personal AI workstation that can retrieve source material
 - Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools: `intranet_search`, `intranet_fetch`, `intranet_list_page_links`, **`intranet_list_all_pages`**)
 - Two-stage `intranet_search`: OData scored pass + cache expansion ensures leaf pages (e.g. `Consumer-Pattern-1`) are never silently dropped
 - Synonym dictionary (`registry/search_synonyms.yaml`) — maintainable YAML of equivalent-term groups (plural/singular, abbreviations, domain synonyms) applied to all intranet search; no code change needed to extend it
-- Global semantic catalogue (`registry/semantic_catalog.yaml`) for router intent terms and peer-verifier semantic patterns, including configurable `leaf_file_terms` architecture vocabulary (for example `hld`, `template`, `standards`, `toolkit`), maintained externally from code
+- Global semantic catalogue (`registry/semantic_catalog.yaml`) for router intent terms, peer-verifier semantic patterns, and **peer run-contract** substring markers (`peer_contract.*_markers`), including configurable `leaf_file_terms` architecture vocabulary (for example `hld`, `template`, `standards`, `toolkit`), maintained externally from code
 - Configurable on-disk page catalogue cache (default 4 h, `INTRANET_PAGE_CACHE_TTL_HOURS`) so agents can list every available page without repeated Graph API scans
 - Runtime workflow policy layer (`registry/workflow_policy.yaml`) with hard capability gates (for example: require intranet fetch evidence for intranet-scoped requests; require file writes for artefact-producing requests)
-- Peer run-contract inference (`src/crisai/orchestration/peer_contract.py`) to turn user intent into explicit peer role focus and acceptance dimensions
+- Peer run-contract inference (`src/crisai/orchestration/peer_contract.py`) to turn user intent into explicit peer role focus and acceptance dimensions; file-backed staging requests default to `artifact_package` unless clear code targets are present
 - Peer post-run verifier gate (`src/crisai/orchestration/peer_verifier.py`) to validate final peer claims against filesystem outputs
 - Optional **architecture context** corpus under `workspace/context/`, with **draft staging** in `workspace/context_staging/` for human review before promotion
 - Multi-agent orchestration with three execution modes:
@@ -436,7 +436,9 @@ Runs the peer-style flow:
 Notes:
 - in chat mode, peer contract inference uses the latest user message (not wrapped history transcript) to avoid intent drift from previous turns.
 - peer finalization is hard-gated on judge `accept`; unresolved judge outcomes stop the run before orchestration.
-- peer verifier cross-checks close-out vs changed files and gap/leaf consistency for staged markdown packages.
+- peer final prompt now includes a runtime changed-file manifest and requires verbatim path reuse in close-out summaries.
+- if verifier fails due to file-reference/close-out drift, peer mode runs one bounded orchestrator repair pass and re-verifies before failing.
+- peer verifier cross-checks close-out vs changed files and gap/leaf consistency for staged markdown packages; retrieval-gaps markdown files are exempt from mandatory `## Source` sections.
 
 ---
 

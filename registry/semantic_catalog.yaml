@@ -333,3 +333,61 @@ peer_verifier:
     - normalization
     - denormalization
     - metadata
+
+# Peer run-contract: substring markers (matched against lowercased user text).
+# Phrases with significant trailing spaces must be YAML-quoted (e.g. "function ").
+peer_contract:
+  file_write_markers:
+    - write_workspace_file
+    - create file
+    - create files
+    - save file
+    - save files
+    - under workspace/
+    - context_staging/
+    - deliver files
+    - artifact
+    - artefact
+  code_change_markers:
+    - implement
+    - fix
+    - refactor
+    - code change
+    - update code
+    - modify code
+    - add test
+    - tests
+    - function
+    - class
+    - module
+  code_target_markers:
+    - src/
+    - tests/
+    - .py
+    - .ts
+    - .tsx
+    - .js
+    - .jsx
+    - .java
+    - .go
+    - .rs
+    - "function "
+    - "def "
+    - "class "
+  grounding_markers:
+    - intranet
+    - source
+    - sources
+    - citation
+    - cite
+    - grounded
+    - evidence
+    - based on
+    - from the
+  assessment_markers:
+    - review
+    - audit
+    - assess
+    - evaluate
+    - compare
+    - critique
