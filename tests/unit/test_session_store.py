@@ -19,6 +19,19 @@ def test_cli_history_file_uses_workspace_dir(tmp_path, monkeypatch):
     assert path.parent.exists()
 
 
+def test_cli_history_file_is_session_scoped_when_name_is_provided(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+
+    path = session_store.cli_history_file(" test-11 ")
+
+    assert path == tmp_path / "chat_sessions" / ".cli_history_test-11"
+    assert path.parent.exists()
+
+
 def test_session_file_sanitises_session_name(tmp_path, monkeypatch):
     monkeypatch.setattr(
         session_store,
@@ -116,3 +129,18 @@ def test_clear_history_rewrites_session_to_empty_json_array(tmp_path, monkeypatc
     assert target.exists()
     assert json.loads(target.read_text(encoding="utf-8")) == []
     assert session_store.load_history("demo") == []
+
+
+def test_clear_cli_history_rewrites_session_command_history(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+    target = session_store.cli_history_file("demo")
+    target.write_text("+old-command\n+another-command\n", encoding="utf-8")
+
+    session_store.clear_cli_history("demo")
+
+    assert target.exists()
+    assert target.read_text(encoding="utf-8") == ""

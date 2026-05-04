@@ -42,12 +42,17 @@ def test_help_uses_help_template(monkeypatch, state):
 
 
 def test_clear_empties_history_and_persists(monkeypatch, state):
-    saved = {}
+    cleared = []
+    cleared_cli = []
     notices = []
 
     monkeypatch.setattr(
-        "crisai.cli.chat_controller.save_history",
-        lambda session, history: saved.update({"session": session, "history": list(history)}),
+        "crisai.cli.chat_controller.clear_history",
+        lambda session: cleared.append(session),
+    )
+    monkeypatch.setattr(
+        "crisai.cli.chat_controller.clear_cli_history",
+        lambda session: cleared_cli.append(session),
     )
     monkeypatch.setattr(
         "crisai.cli.chat_controller.print_status_message",
@@ -56,8 +61,36 @@ def test_clear_empties_history_and_persists(monkeypatch, state):
 
     assert handle_chat_command("/clear", state) is True
     assert state.history == []
-    assert saved == {"session": "default", "history": []}
+    assert cleared == ["default"]
+    assert cleared_cli == ["default"]
     assert notices[-1][0] == "🧹 Session cleared"
+
+
+def test_clear_session_named_does_not_mutate_current_history(monkeypatch, state):
+    cleared = []
+    cleared_cli = []
+    notices = []
+
+    monkeypatch.setattr(
+        "crisai.cli.chat_controller.clear_history",
+        lambda session: cleared.append(session),
+    )
+    monkeypatch.setattr(
+        "crisai.cli.chat_controller.clear_cli_history",
+        lambda session: cleared_cli.append(session),
+    )
+    monkeypatch.setattr(
+        "crisai.cli.chat_controller.print_status_message",
+        lambda body, title=None: notices.append((title, body)),
+    )
+
+    existing = list(state.history)
+    assert handle_chat_command("/clear-session architecture", state) is True
+    assert cleared == ["architecture"]
+    assert cleared_cli == ["architecture"]
+    assert state.history == existing
+    assert notices[-1][0] == "🧹 Session cleared"
+    assert "architecture" in notices[-1][1]
 
 
 def test_switch_session_loads_new_history_and_prints_state(monkeypatch, state):

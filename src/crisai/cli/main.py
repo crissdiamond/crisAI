@@ -17,7 +17,7 @@ from prompt_toolkit.history import FileHistory
 from crisai.cli.chat_context import build_chat_input
 from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
 from crisai.cli.display import print_final_answer, print_final_recommendation, print_status_message
-from crisai.cli.session_store import cli_history_file, load_history, save_history, session_dir
+from crisai.cli.session_store import clear_cli_history, clear_history, cli_history_file, load_history, save_history, session_dir
 from crisai.cli.status_views import print_agents_table, print_chat_state, print_servers_table, route_display
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
@@ -440,6 +440,17 @@ def list_agents() -> None:
     print_agents_table()
 
 
+@app.command("clear-session")
+def clear_session(session: str = typer.Option("default", "--session", "-s", help="Session name to clear.")) -> None:
+    """Clear persisted history for a named chat session."""
+    clear_history(session)
+    clear_cli_history(session)
+    print_status_message(
+        f"Conversation history cleared for session '{session}'.",
+        title="🧹 Session cleared",
+    )
+
+
 async def _run_with_routing(
     message: str,
     verbose: bool,
@@ -573,7 +584,7 @@ def chat(
         try:
             user_input = prompt(
                 "> ",
-                history=FileHistory(str(cli_history_file())),
+                history=FileHistory(str(cli_history_file(state.current_session))),
                 auto_suggest=AutoSuggestFromHistory(),
             ).strip()
         except (EOFError, KeyboardInterrupt):

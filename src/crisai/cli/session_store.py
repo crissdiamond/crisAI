@@ -16,10 +16,17 @@ def sanitize_session_name(session_name: str) -> str:
     return safe or "default"
 
 
-def cli_history_file() -> Path:
-    """Returns the prompt-toolkit history file path for the CLI."""
+def cli_history_file(session_name: str | None = None) -> Path:
+    """Returns the prompt-toolkit history file path for the CLI.
+
+    When a session name is provided, command history is isolated per session.
+    """
     settings = load_settings()
-    path = settings.workspace_dir / ".cli_history"
+    if session_name:
+        safe = sanitize_session_name(session_name)
+        path = settings.workspace_dir / "chat_sessions" / f".cli_history_{safe}"
+    else:
+        path = settings.workspace_dir / ".cli_history"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -93,4 +100,13 @@ def clear_history(session_name: str) -> None:
     except OSError:
         # Keep command flow resilient; unreadable/locked files can be safely
         # ignored because load_history falls back to [].
+        pass
+
+
+def clear_cli_history(session_name: str) -> None:
+    """Clears prompt-toolkit command history for a named session."""
+    path = cli_history_file(session_name)
+    try:
+        path.write_text("", encoding="utf-8")
+    except OSError:
         pass

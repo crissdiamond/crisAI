@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from crisai.cli.commands import parse_chat_command
 from crisai.cli.display import print_final_answer, print_status_message
-from crisai.cli.session_store import HistoryEntry, load_history, save_history
+from crisai.cli.session_store import HistoryEntry, clear_cli_history, clear_history, load_history, save_history
 from crisai.cli.status_views import (
     print_agents_table,
     print_chat_state,
@@ -54,11 +54,14 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
 
     if action == "help":
         print_final_answer(load_cli_text("help.md"), title="📘 CLI help")
-    elif action == "clear":
-        state.history.clear()
-        save_history(state.current_session, state.history)
+    elif action in {"clear", "clear_session"}:
+        target_session = str(command.value) if action == "clear_session" and command.value else state.current_session
+        clear_history(target_session)
+        clear_cli_history(target_session)
+        if target_session == state.current_session:
+            state.history.clear()
         print_status_message(
-            f"Conversation history cleared for session '{state.current_session}'.",
+            f"Conversation history cleared for session '{target_session}'.",
             title="🧹 Session cleared",
         )
     elif action == "list_servers":

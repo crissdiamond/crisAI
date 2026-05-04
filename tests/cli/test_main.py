@@ -206,3 +206,23 @@ def test_run_async_cancels_pending_background_tasks():
 
     assert main._run_async(_runner()) == "ok"
     assert observed["cancelled"] is True
+
+
+def test_clear_session_command_clears_target_and_prints_notice(monkeypatch):
+    cleared = []
+    cleared_cli = []
+    notices = []
+    monkeypatch.setattr(main, "clear_history", lambda session: cleared.append(session))
+    monkeypatch.setattr(main, "clear_cli_history", lambda session: cleared_cli.append(session))
+    monkeypatch.setattr(
+        main,
+        "print_status_message",
+        lambda body, title=None: notices.append((title, body)),
+    )
+
+    main.clear_session(session="architecture-review")
+
+    assert cleared == ["architecture-review"]
+    assert cleared_cli == ["architecture-review"]
+    assert notices[-1][0] == "🧹 Session cleared"
+    assert "architecture-review" in notices[-1][1]
