@@ -240,6 +240,39 @@ def test_build_peer_filesystem_evidence_reports_changed_markdown_files(tmp_path)
     assert "## Source" in evidence
 
 
+def test_build_peer_filesystem_evidence_prioritizes_index_section_content(tmp_path):
+    root = tmp_path
+    target = root / "workspace/context_staging/patterns"
+    target.mkdir(parents=True, exist_ok=True)
+    before = pipelines.snapshot_tree(root, "workspace/context_staging")
+    sample = target / "integration-patterns-index.md"
+    sample.write_text(
+        (
+            "---\nid: PATT-INT-001\n---\n\n"
+            "## Source\n- x\n\n"
+            "## Design overview\n"
+            "- Consumer patterns listed on the catalogue:\n"
+            "  - Pattern 0 — Direct\n"
+            "- Producer patterns listed on the catalogue:\n"
+            "  - Pattern 1 — System to Enterprise API\n"
+            "- Ingestion patterns listed on the catalogue:\n"
+            "  - Pattern 1 — Database to Ingestion API\n"
+        ),
+        encoding="utf-8",
+    )
+
+    evidence = pipelines._build_peer_filesystem_evidence(
+        root_dir=root,
+        before_snapshot=before,
+        target_subdir="workspace/context_staging",
+    )
+
+    assert "integration-patterns-index.md" in evidence
+    assert "## Design overview" in evidence
+    assert "Pattern 0 — Direct" in evidence
+    assert "Ingestion patterns listed on the catalogue" in evidence
+
+
 @pytest.mark.anyio
 async def test_run_peer_pipeline_revises_once_when_judge_requests_revision(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []

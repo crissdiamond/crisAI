@@ -442,7 +442,7 @@ def _build_peer_filesystem_evidence(
     max_files: int = 20,
 ) -> str:
     """Return compact runtime evidence about changed workspace artefacts."""
-    def _extract_excerpt_lines(text: str, *, max_lines: int = 8) -> list[str]:
+    def _extract_excerpt_lines(rel_path: str, text: str, *, max_lines: int = 8) -> list[str]:
         """Return a compact, content-bearing excerpt for judge verification."""
         body = text.strip()
         if not body:
@@ -450,6 +450,7 @@ def _build_peer_filesystem_evidence(
         lines = [line.rstrip() for line in body.splitlines()]
         # Prefer meaningful markdown structure and facts over raw front matter.
         candidates: list[str] = []
+        body_lines: list[str] = []
         in_front_matter = False
         front_matter_delims_seen = 0
         for line in lines:
@@ -462,6 +463,26 @@ def _build_peer_filesystem_evidence(
                 continue
             if in_front_matter or not stripped:
                 continue
+            body_lines.append(stripped)
+        if not body_lines:
+            return []
+
+        lower_path = rel_path.lower()
+
+        # For index-style artefacts, include the Design overview section slice so
+        # judge can see grouped lists and representative pattern entries.
+        if "index" in lower_path:
+            for idx, line in enumerate(body_lines):
+                if line.lower() == "## design overview":
+                    return body_lines[idx : idx + min(max_lines, 20)]
+
+        # For gap-style artefacts, include the Retrieval gaps section directly.
+        if "gap" in lower_path or "retrieval-gaps" in lower_path:
+            for idx, line in enumerate(body_lines):
+                if line.lower() == "## retrieval gaps":
+                    return body_lines[idx : idx + min(max_lines, 14)]
+
+        for stripped in body_lines:
             if stripped.startswith("## ") or stripped.startswith("- "):
                 candidates.append(stripped)
             elif not candidates:
@@ -498,7 +519,7 @@ def _build_peer_filesystem_evidence(
             + f" | exists: yes | front_matter: {'yes' if has_front_matter else 'no'}"
             + f" | has_source: {'yes' if has_source else 'no'} | h2_sections: {header_count}"
         )
-        excerpt_lines = _extract_excerpt_lines(text, max_lines=8)
+        excerpt_lines = _extract_excerpt_lines(rel_path, text, max_lines=8)
         if excerpt_lines:
             lines.append("  excerpt:")
             for excerpt_line in excerpt_lines:
