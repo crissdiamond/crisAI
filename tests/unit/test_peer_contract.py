@@ -19,6 +19,13 @@ def test_infer_peer_run_contract_detects_code_change_intent():
     assert "execution_fidelity" in contract.acceptance_dimensions
 
 
+def test_infer_peer_run_contract_prefers_artifact_package_without_clear_code_targets():
+    contract = infer_peer_run_contract(
+        "Implement this template and create files under workspace/context_staging/patterns."
+    )
+    assert contract.expected_output_type == "artifact_package"
+
+
 def test_infer_peer_run_contract_detects_assessment_intent():
     contract = infer_peer_run_contract("Review and compare these two architecture options.")
     assert contract.expected_output_type == "assessment"

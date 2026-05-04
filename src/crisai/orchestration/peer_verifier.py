@@ -143,6 +143,14 @@ def _is_semantic_leaf_file(rel_path: str) -> bool:
     return any(term in normalized for term in terms)
 
 
+def _requires_source_section(rel_path: str) -> bool:
+    """Return whether a markdown artefact must include a `## Source` section."""
+    name = Path(rel_path).name.lower()
+    if "retrieval-gap" in name or "retrieval-gaps" in name:
+        return False
+    return _is_semantic_leaf_file(rel_path) or "index" in name
+
+
 def verify_peer_final_deliverable(
     *,
     root_dir: Path,
@@ -199,7 +207,7 @@ def verify_peer_final_deliverable(
     for rel_path in markdown_files:
         abs_path = (root_dir / rel_path).resolve()
         content = _read_text(abs_path)
-        if "## Source" not in content:
+        if _requires_source_section(rel_path) and "## Source" not in content:
             violations.append(f"Markdown file missing required '## Source' section: {rel_path}")
         if "## " not in content:
             violations.append(f"Markdown file missing any level-2 section headers: {rel_path}")

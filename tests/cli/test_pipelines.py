@@ -744,3 +744,82 @@ async def test_run_peer_pipeline_enforces_workspace_write_policy(monkeypatch, tm
         )
 
     assert "requires artefact creation/update" in str(exc.value)
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_repairs_final_output_for_repairable_verifier_mismatch(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+
+    class RepairSession(FakeWorkflowSession):
+        def __init__(self):
+            super().__init__(trace_calls, stage_calls, "final-output-stale")
+            self.orchestrator_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            del kwargs
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "judge":
+                return "Decision: accept\nReason: done."
+            if ui_agent_id == "orchestrator":
+                self.orchestrator_calls += 1
+                return "final-output-stale" if self.orchestrator_calls == 1 else "Final recommendation\nRepair complete."
+            return f"{ui_agent_id}-output"
+
+    session = RepairSession()
+    engine = FakeWorkflowEngine(session)
+    verify_calls: list[str] = []
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(
+        pipelines,
+        "enforce_workspace_write_policy",
+        lambda policy, root_dir, write_before: [
+            "workspace/context_staging/patterns/producer-pattern-1-system-to-enterprise-api-ondemand-synchronous.md"
+        ],
+    )
+
+    def _fake_verify(*, root_dir, contract, final_text, changed_paths):
+        del root_dir, contract, changed_paths
+        verify_calls.append(final_text)
+        if len(verify_calls) == 1:
+            raise pipelines.PeerVerificationViolation(
+                "Peer verifier gate failed:\n- Referenced output file does not exist: "
+                "workspace/context_staging/patterns/producer-pattern-1-system-to-enterprise-api-synchronous.md"
+            )
+        return SimpleNamespace(
+            checked_files=(
+                "workspace/context_staging/patterns/producer-pattern-1-system-to-enterprise-api-ondemand-synchronous.md",
+            ),
+            violations=(),
+        )
+
+    monkeypatch.setattr(pipelines, "enforce_peer_final_deliverable_verification", _fake_verify)
+
+    result = await pipelines.run_peer_pipeline(
+        "Write with write_workspace_file under workspace/context_staging/patterns/",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+    )
+
+    assert result == "Final recommendation\nRepair complete."
+    assert verify_calls == ["final-output-stale", "Final recommendation\nRepair complete."]
+    assert [name for name, _ in stage_calls].count("orchestrator") == 2

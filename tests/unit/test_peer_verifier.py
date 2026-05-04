@@ -125,6 +125,22 @@ def test_verify_peer_final_deliverable_flags_gap_and_leaf_inconsistency(tmp_path
     assert any("Gap inconsistency" in violation for violation in result.violations)
 
 
+def test_verify_peer_final_deliverable_allows_retrieval_gaps_without_source_section(tmp_path: Path):
+    contract = infer_peer_run_contract("Create files under workspace/context_staging/patterns.")
+    gaps = tmp_path / "workspace/context_staging/patterns/integration-patterns-retrieval-gaps.md"
+    _write(
+        gaps,
+        "## Retrieval gaps\n- Consumer Pattern 4: no leaf content available in this run\n",
+    )
+    result = verify_peer_final_deliverable(
+        root_dir=tmp_path,
+        contract=contract,
+        final_text="Updated workspace/context_staging/patterns/integration-patterns-retrieval-gaps.md",
+        changed_paths=["workspace/context_staging/patterns/integration-patterns-retrieval-gaps.md"],
+    )
+    assert not any("missing required '## Source'" in violation for violation in result.violations)
+
+
 def test_is_semantic_leaf_file_matches_architecture_terms():
     assert _is_semantic_leaf_file("workspace/context_staging/patterns/payment-hld-guide.md")
     assert _is_semantic_leaf_file("workspace/context_staging/patterns/reference-architecture-toolkit.md")

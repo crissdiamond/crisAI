@@ -321,16 +321,26 @@ def build_peer_final_prompt(
     refiner_text: str,
     judge_text: str,
     run_contract_text: str = "",
+    runtime_changed_files_text: str = "",
 ) -> str:
     """Build the runtime prompt for the peer final stage."""
     execution_gate = ""
     if _requires_workspace_writes(message):
+        runtime_file_guidance = ""
+        if runtime_changed_files_text.strip():
+            runtime_file_guidance = (
+                "Runtime changed files:\n"
+                f"{runtime_changed_files_text.strip()}\n"
+                "- Reuse these file paths verbatim in the close-out.\n"
+                "- Do not rename, normalize, or substitute path variants.\n"
+            )
         execution_gate = (
             "Execution gate:\n"
             "- The user request requires filesystem side effects (creating/updating files in workspace).\n"
             "- Before finalising, ensure required files are actually written via workspace tools in this turn.\n"
             "- If previous peer stages only produced critique text, perform the missing write actions now instead of returning another critique-only answer.\n"
             "- Final response must include a concise created/updated file list with source provenance.\n"
+            + runtime_file_guidance
         )
     return "\n\n".join(
         [

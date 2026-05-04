@@ -631,16 +631,77 @@ def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
     return create_workflow_environment(settings)
 
 
-def _build_prompt_with_contract(builder, *args, run_contract_text: str) -> str:
+def _build_prompt_with_contract(builder, *args, run_contract_text: str, **extra_kwargs: Any) -> str:
     """Call prompt builders with optional run_contract support.
 
     Some tests monkeypatch legacy builder signatures that do not accept
     ``run_contract_text``. Fallback preserves compatibility.
     """
     try:
-        return builder(*args, run_contract_text=run_contract_text)
+        return builder(*args, run_contract_text=run_contract_text, **extra_kwargs)
     except TypeError:
         return builder(*args)
+
+
+def _format_runtime_changed_files_manifest(paths: list[str]) -> str:
+    """Render a stable, verbatim manifest of changed workspace artefact paths."""
+    normalized = [
+        path
+        for path in sorted(set(paths or []))
+        if path.startswith("workspace/") and Path(path).suffix.lower() in {".md", ".txt"}
+    ]
+    if not normalized:
+        return "None."
+    return "\n".join(f"- {path}" for path in normalized)
+
+
+def _prompt_section(title: str, body: str) -> str:
+    """Render a stable prompt section with trimmed content."""
+    clean = (body or "").strip() or "None."
+    return f"{title}:\n{clean}"
+
+
+def _is_repairable_peer_verifier_failure(message: str) -> bool:
+    """Return whether verifier failures are repairable via final-text rewrite."""
+    lower = (message or "").lower()
+    repairable_markers = (
+        "referenced output file does not exist",
+        "final output close-out omitted changed files",
+        "final output did not reference any concrete workspace files",
+    )
+    return any(marker in lower for marker in repairable_markers)
+
+
+def _build_peer_final_repair_prompt(
+    *,
+    message: str,
+    discovery_basis: str,
+    run_contract_text: str,
+    judge_text: str,
+    prior_final_text: str,
+    runtime_changed_manifest: str,
+    verifier_failures: str,
+) -> str:
+    """Build a bounded repair prompt for verifier mismatch classes."""
+    return "\n\n".join(
+        [
+            _prompt_section("User request", message),
+            _prompt_section("Discovery findings", discovery_basis),
+            _prompt_section("Run contract", run_contract_text),
+            _prompt_section("Judge decision", judge_text),
+            _prompt_section("Previous final output", prior_final_text),
+            _prompt_section("Runtime changed files", runtime_changed_manifest),
+            _prompt_section("Verifier failures", verifier_failures),
+            "Task:\nRepair the final output so verifier checks pass without changing on-disk artefacts.",
+            "Repair rules:\n"
+            "- Do not claim files that do not exist.\n"
+            "- Use runtime changed file paths verbatim.\n"
+            "- Ensure close-out file list exactly covers changed markdown/txt files.\n"
+            "- Keep source mappings aligned to those exact file paths.\n"
+            "- Do not introduce new file paths, aliases, or renamed variants.\n"
+            "- Keep the response concise and user-facing.",
+        ]
+    )
 
 
 def _create_workflow_engine(environment: WorkflowEnvironment, server_specs) -> WorkflowEngine:
@@ -1266,6 +1327,12 @@ async def run_peer_pipeline(
             },
         )
 
+        runtime_changed_manifest = _format_runtime_changed_files_manifest(
+            changed_paths(
+                write_before,
+                snapshot_tree(root_dir, policy.write_target_subdir),
+            )
+        )
         final_text = await workflow.run_stage(
             spec=specs["orchestrator"],
             ui_agent_id="orchestrator",
@@ -1278,6 +1345,7 @@ async def run_peer_pipeline(
                 refiner_text,
                 judge_text,
                 run_contract_text=run_contract_text,
+                runtime_changed_files_text=runtime_changed_manifest,
             ),
             trace_label="FINAL OUTPUT",
             verbose=verbose,
@@ -1312,6 +1380,75 @@ async def run_peer_pipeline(
                     metadata={"checked_file_count": len(verifier_result.checked_files)},
                 )
         except PeerVerificationViolation as exc:
+            if _is_repairable_peer_verifier_failure(str(exc)):
+                _trace_peer_flow_event(
+                    workflow,
+                    "PEER_FINAL_REPAIR_START",
+                    str(exc),
+                    metadata={"attempt": 1},
+                )
+                repair_prompt = _build_peer_final_repair_prompt(
+                    message=message,
+                    discovery_basis=discovery_basis,
+                    run_contract_text=run_contract_text,
+                    judge_text=judge_text,
+                    prior_final_text=final_text,
+                    runtime_changed_manifest=_format_runtime_changed_files_manifest(changed),
+                    verifier_failures=str(exc),
+                )
+                repaired_final_text = await workflow.run_stage(
+                    spec=specs["orchestrator"],
+                    ui_agent_id="orchestrator",
+                    prompt=repair_prompt,
+                    trace_label="FINAL OUTPUT (REPAIR 1)",
+                    verbose=verbose,
+                    print_output=False,
+                )
+                try:
+                    verifier_result = enforce_peer_final_deliverable_verification(
+                        root_dir=root_dir,
+                        contract=run_contract,
+                        final_text=repaired_final_text,
+                        changed_paths=changed,
+                    )
+                except PeerVerificationViolation as repair_exc:
+                    _trace_workflow_policy_event(
+                        workflow,
+                        "POLICY_VIOLATION",
+                        str(repair_exc),
+                        event_type="policy_violation",
+                        metadata={"after_repair_attempt": 1},
+                    )
+                    raise typer.BadParameter(str(repair_exc)) from repair_exc
+                final_text = repaired_final_text
+                if verifier_result.checked_files:
+                    _trace_workflow_policy_event(
+                        workflow,
+                        "PEER_VERIFIER",
+                        "\n".join(verifier_result.checked_files),
+                        event_type="policy_signal",
+                        metadata={
+                            "checked_file_count": len(verifier_result.checked_files),
+                            "after_repair_attempt": 1,
+                        },
+                    )
+                _trace_peer_flow_event(
+                    workflow,
+                    "PEER_FINAL_REPAIR_SUCCESS",
+                    "Peer final output repaired and verifier checks passed.",
+                    metadata={"attempt": 1},
+                )
+                workflow.finish_workflow(
+                    "Peer workflow completed.",
+                    metadata={
+                        "mode": "peer",
+                        "judge_decision": judge_decision,
+                        "refinement_rounds_executed": rounds_executed,
+                        "refinement_stagnation": stagnation_detected,
+                        "escalation_rounds_executed": escalations_executed,
+                    },
+                )
+                return _extract_final_recommendation(final_text)
             _trace_workflow_policy_event(
                 workflow,
                 "POLICY_VIOLATION",
