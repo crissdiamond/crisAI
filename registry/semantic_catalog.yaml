@@ -1,3 +1,7 @@
+# crisAI semantic pool — single source for router terms, peer-verifier patterns,
+# and peer-contract substring markers. Tuned during testing by editing lists here
+# (restart CLI / processes to reload). Code loads this file only; see semantic_catalog.py.
+
 version: 1
 
 router:
@@ -293,6 +297,8 @@ peer_verifier:
     - standards
     - principle
     - principles
+    - specification
+    - specifications
     - toolkit
     - playbook
     - reference architecture

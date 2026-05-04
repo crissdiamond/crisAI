@@ -374,6 +374,8 @@ Router and verifier semantics are configurable from `registry/semantic_catalog.y
 - peer-verifier semantic leaf-file terminology (`leaf_file_terms`) to classify architecture-oriented deliverables by filename terms (for example `patterns`, `template`, `hld`, `guides`, `standards`, `principles`, `toolkit`)
 - **peer_contract** marker phrase lists (`file_write_markers`, `code_change_markers`, `code_target_markers`, `grounding_markers`, `assessment_markers`) used by `infer_peer_run_contract` (substring match on lowercased user text; inference logic stays in code)
 
+The loader reads **only** this file (no in-code term defaults). A missing file raises `FileNotFoundError`; invalid YAML or a shape that fails validation raises `SemanticCatalogError` with a field-level message. Restart processes after edits so `load_semantic_catalog` picks up changes.
+
 This keeps semantic/heuristic tuning maintainable outside code, similar to `registry/search_synonyms.yaml`.
 
 ### Typical routing examples
