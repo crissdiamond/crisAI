@@ -28,6 +28,7 @@ def test_load_semantic_catalog_reads_registry_overrides(tmp_path: Path):
     assert "discover-me" in catalog.router.discovery_terms
     assert "discover-me" in catalog.router.source_markers
     assert "design" in catalog.router.design_terms  # default retained
+    assert "high accuracy" in catalog.router.criticality_terms  # default retained
     assert "custom" in catalog.peer_verifier.leaf_file_pattern
     assert "high level design" in catalog.peer_verifier.leaf_file_terms
     assert "playbook" in catalog.peer_verifier.leaf_file_terms

@@ -107,6 +107,19 @@ def test_resolve_initial_chat_session_prefers_newest_when_default(tmp_path, monk
     assert main._resolve_initial_chat_session("default") == "newer"
 
 
+def test_resolve_initial_chat_session_prefers_newest_non_default_when_default_is_newer(tmp_path, monkeypatch):
+    default_session = tmp_path / "default.json"
+    named_session = tmp_path / "architecture-review.json"
+    named_session.write_text("[]", encoding="utf-8")
+    default_session.write_text("[]", encoding="utf-8")
+    base = time.time()
+    os.utime(named_session, (base - 100, base - 100))
+    os.utime(default_session, (base, base))
+    monkeypatch.setattr(main, "session_dir", lambda: tmp_path)
+
+    assert main._resolve_initial_chat_session("default") == "architecture-review"
+
+
 def test_resolve_initial_chat_session_preserves_explicit_session(monkeypatch):
     monkeypatch.setattr(main, "_session_name_newest_by_mtime", lambda: "newer")
     assert main._resolve_initial_chat_session("team_review") == "team_review"

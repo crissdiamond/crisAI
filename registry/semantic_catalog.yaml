@@ -213,6 +213,34 @@ router:
     - sfidante dovrebbe
     - giudice dovrebbe
 
+  criticality_terms:
+    - high accuracy
+    - extremely accurate
+    - accuracy critical
+    - critical decision
+    - high confidence
+    - mission critical
+    - must be correct
+    - zero tolerance
+    - safety critical
+    - strict assurance
+    - rigorous validation
+    - high risk
+    - high-impact
+    - high impact
+    - board level
+    - executive review
+    - audit-ready
+    - production sign-off
+    - production signoff
+    - decision-grade
+    - very high quality
+    - alta accuratezza
+    - massima accuratezza
+    - decisione critica
+    - rischio alto
+    - rigoroso
+
   source_markers:
     - onedrive
     - sharepoint

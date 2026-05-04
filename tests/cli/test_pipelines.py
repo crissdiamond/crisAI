@@ -196,6 +196,10 @@ async def test_run_peer_pipeline_skips_retrieval_planner_when_retrieval_not_need
 def test_parse_judge_decision_handles_accept_revise_unknown():
     assert pipelines._parse_judge_decision("Decision: accept") == "accept"
     assert pipelines._parse_judge_decision("Decision - revise") == "revise"
+    assert pipelines._parse_judge_decision("Decision: not acceptable") == "revise"
+    assert pipelines._parse_judge_decision("Decision: acceptable but missing details") == "accept"
+    assert pipelines._parse_judge_decision("Decision: reject and revise") == "revise"
+    assert pipelines._parse_judge_decision("Result\nDecision: revise") == "revise"
     assert pipelines._parse_judge_decision("Looks good but no explicit label") == "unknown"
 
 
@@ -341,6 +345,91 @@ async def test_run_peer_pipeline_quality_gate_forces_revision_after_initial_acce
         "design_refiner",
         "judge",
         "judge",
+        "design_refiner",
+        "judge",
+        "judge",
+        "orchestrator",
+    ]
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_escalates_to_author_and_challenger_after_unresolved_refine_loop(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+
+    class EscalationSession(FakeWorkflowSession):
+        def __init__(self):
+            super().__init__(trace_calls, stage_calls, "Final recommendation\nShip this.")
+            self.normal_judge_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            del kwargs
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "judge":
+                if prompt.startswith("JUDGE_QUALITY_GATE::"):
+                    return "Decision: accept\nReason: quality gate passed."
+                self.normal_judge_calls += 1
+                return (
+                    "Decision: revise\nReason: needs structural revision."
+                    if self.normal_judge_calls == 1
+                    else "Decision: accept\nReason: escalation resolved."
+                )
+            if ui_agent_id == "orchestrator":
+                return self._final_output
+            if ui_agent_id == "design_author" and self.normal_judge_calls >= 1:
+                return "author-escalated-output"
+            if ui_agent_id == "design_challenger" and self.normal_judge_calls >= 1:
+                return "challenger-escalated-output"
+            if ui_agent_id == "design_refiner" and self.normal_judge_calls >= 1:
+                return "refiner-escalated-output"
+            return f"{ui_agent_id}-output"
+
+    session = EscalationSession()
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(
+        pipelines,
+        "build_judge_quality_gate_prompt",
+        lambda message, discovery, challenge, refiner, judge: (
+            "JUDGE_QUALITY_GATE::" + message + "::" + refiner
+        ),
+    )
+    monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "0")
+    monkeypatch.setenv("CRISAI_PEER_MAX_ESCALATIONS", "1")
+
+    result = await pipelines.run_peer_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+    )
+
+    assert result == "Final recommendation\nShip this."
+    assert [name for name, _ in stage_calls] == [
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "design_author",
+        "design_challenger",
         "design_refiner",
         "judge",
         "judge",

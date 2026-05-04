@@ -260,18 +260,35 @@ def _resolve_route(
 
 
 def _session_name_newest_by_mtime() -> str | None:
-    """Return the newest persisted chat session name by file mtime."""
-    best_mtime: float | None = None
+    """Return the newest persisted chat session name by file mtime.
+
+    Preference order:
+    1) newest non-default session when at least one exists
+    2) otherwise newest session including ``default``
+    """
+    best_non_default_mtime: int | None = None
+    best_non_default_name: str | None = None
+    best_any_mtime: int | None = None
     best_name: str | None = None
+
     for file_path in session_dir().glob("*.json"):
         try:
-            mtime = file_path.stat().st_mtime
+            mtime = file_path.stat().st_mtime_ns
         except OSError:
             continue
-        if best_mtime is None or mtime >= best_mtime:
-            best_mtime = mtime
-            best_name = file_path.stem
-    return best_name
+        stem = file_path.stem
+
+        if best_any_mtime is None or mtime >= best_any_mtime:
+            best_any_mtime = mtime
+            best_name = stem
+
+        if stem == "default":
+            continue
+        if best_non_default_mtime is None or mtime >= best_non_default_mtime:
+            best_non_default_mtime = mtime
+            best_non_default_name = stem
+
+    return best_non_default_name or best_name
 
 
 def _resolve_initial_chat_session(requested_session: str) -> str:

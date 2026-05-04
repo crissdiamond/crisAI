@@ -62,6 +62,30 @@ def test_route_peer_when_peer_workflow_is_requested():
     assert decision.needs_review is True
 
 
+def test_route_peer_for_high_criticality_design_without_peer_keywords():
+    decision = decide_route(
+        "Find source docs and propose an architecture option for a mission critical rollout with high accuracy requirements.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "peer"
+    assert decision.agent == "design_author"
+    assert decision.needs_retrieval is True
+    assert decision.needs_review is True
+
+
+def test_criticality_does_not_promote_retrieval_only_prompt_to_peer():
+    decision = decide_route(
+        "High accuracy needed: find the latest documents in SharePoint and return only a table.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "single"
+    assert decision.agent == "retrieval_planner"
+    assert decision.needs_retrieval is True
+    assert decision.needs_review is False
+
+
 def test_route_pipeline_for_broad_mixed_prompt():
     decision = decide_route(
         "Summarise this architecture, critique weak assumptions, and improve the proposal.",
@@ -120,6 +144,7 @@ def test_router_uses_loaded_semantic_catalog_terms(monkeypatch):
         publication_terms=frozenset(),
         explicit_discovery_patterns=frozenset(),
         explicit_peer_patterns=frozenset(),
+        criticality_terms=frozenset(),
         source_markers=frozenset({"needleterm"}),
         architecture_location_markers=frozenset(),
     )

@@ -70,6 +70,7 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
     operations_score = _score_terms(text, set(terms.operations_terms))
     peer_score = _score_terms(text, set(terms.peer_terms))
     publication_score = _score_terms(text, set(terms.publication_terms))
+    criticality_score = _score_terms(text, set(terms.criticality_terms))
 
     has_source_signal = _has_source_signal(text, discovery_score, terms.source_markers)
     has_design_signal = design_score >= 2
@@ -86,6 +87,7 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
         peer_score >= 2 and (design_score >= 1 or review_score >= 1)
     )
     has_publication_signal = publication_score >= 1
+    has_criticality_signal = criticality_score >= 1
 
     if operations_score >= 2:
         return RoutingDecision(
@@ -107,6 +109,21 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
             needs_review=False,
             confidence=0.93,
             reason="Prompt asks to package output into a formal artefact using templates or a requested document format.",
+        )
+
+    if has_criticality_signal and (
+        has_design_signal
+        or has_review_signal
+        or (has_source_signal and design_score >= 1)
+    ):
+        return RoutingDecision(
+            intent="critical_peer_review",
+            mode="peer",
+            agent="design_author",
+            needs_retrieval=has_source_signal,
+            needs_review=True,
+            confidence=0.93,
+            reason="Prompt signals high-criticality/high-accuracy design work; peer challenge and judgement are preferred over pipeline.",
         )
 
     if has_peer_signal:

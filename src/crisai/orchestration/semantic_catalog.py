@@ -20,6 +20,7 @@ class RouterTerms:
     publication_terms: frozenset[str]
     explicit_discovery_patterns: frozenset[str]
     explicit_peer_patterns: frozenset[str]
+    criticality_terms: frozenset[str]
     source_markers: frozenset[str]
     architecture_location_markers: frozenset[str]
 
@@ -105,6 +106,34 @@ _DEFAULTS: dict[str, Any] = {
             "usa peer mode", "mostra la conversazione peer", "autore dovrebbe",
             "sfidante dovrebbe", "giudice dovrebbe",
         ],
+        "criticality_terms": [
+            "high accuracy",
+            "extremely accurate",
+            "accuracy critical",
+            "critical decision",
+            "high confidence",
+            "mission critical",
+            "must be correct",
+            "zero tolerance",
+            "safety critical",
+            "strict assurance",
+            "rigorous validation",
+            "high risk",
+            "high-impact",
+            "high impact",
+            "board level",
+            "executive review",
+            "audit-ready",
+            "production sign-off",
+            "production signoff",
+            "decision-grade",
+            "very high quality",
+            "alta accuratezza",
+            "massima accuratezza",
+            "decisione critica",
+            "rischio alto",
+            "rigoroso",
+        ],
         "source_markers": [
             "onedrive", "sharepoint", "intranet", "documents", "document", "docs", "documenti",
             "files", "file", "sources", "fonti", "sorgenti", "site", "drive", "path", "read",
@@ -137,6 +166,8 @@ _DEFAULTS: dict[str, Any] = {
             "standards",
             "principle",
             "principles",
+            "specification",
+            "specifications",
             "toolkit",
             "playbook",
             "reference architecture",
@@ -213,6 +244,7 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             publication_terms=_as_frozenset(router_block.get("publication_terms")),
             explicit_discovery_patterns=_as_frozenset(router_block.get("explicit_discovery_patterns")),
             explicit_peer_patterns=_as_frozenset(router_block.get("explicit_peer_patterns")),
+            criticality_terms=_as_frozenset(router_block.get("criticality_terms")),
             source_markers=_as_frozenset(router_block.get("source_markers")),
             architecture_location_markers=_as_frozenset(router_block.get("architecture_location_markers")),
         ),

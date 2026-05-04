@@ -283,6 +283,7 @@ Notes:
 - when retrieval is needed and the agent is configured, `context_synthesizer` runs after context retrieval to provide a stronger evidence basis for peer stages.
 - peer mode now compiles a run contract from the user request (expected output type, required side effects, grounding needs, acceptance dimensions) and injects it into peer role prompts.
 - judge output is now actionable: `Decision: revise` triggers bounded extra refiner/judge rounds (`CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`) before orchestration.
+- when revise loops remain unresolved, peer mode runs a bounded structural escalation (`design_author` + `design_challenger` + `design_refiner` + `judge`) driven by judge feedback (`CRISAI_PEER_MAX_ESCALATIONS`, default `1`).
 - accepted peer output still passes through a post-run verifier that checks file-backed claims against on-disk artefacts (for example referenced files exist, markdown shape is present, front-matter ids are unique, and claimed mismatch notes are actually written).
 - peer finalization is hard-gated: if judge does not return `accept` after the allowed loop, the run fails before orchestrator final recommendation.
 - verifier also checks close-out fidelity against changed files and flags gap/leaf contradictions in staged markdown packages.
@@ -362,6 +363,7 @@ For peer mode specifically, there are two additional runtime guardrails:
 Router and verifier semantics are configurable from `registry/semantic_catalog.yaml`:
 
 - router term families (discovery/design/review/operations/peer/publication)
+- router criticality terms for high-accuracy/high-risk prompts that can promote complex design/review asks to peer mode
 - explicit routing phrase patterns
 - source and architecture-location marker lists
 - peer-verifier regex patterns (for example gap-line and leaf-file matching)
@@ -378,6 +380,7 @@ This keeps semantic/heuristic tuning maintainable outside code, similar to `regi
 | Propose and critique a design | `pipeline` with review |
 | Review this draft | `single` + `review` |
 | Why is SharePoint login popping up? | `single` + `operations` |
+| High-criticality/high-accuracy design request | `peer` |
 | Broad mixed request | `pipeline` + `design` + review |
 | Ask for author/challenger/refiner/judge debate | `peer` |
 

@@ -320,9 +320,10 @@ _FINAL_RECOMMENDATION_PATTERNS = [
 ]
 
 
-_PEER_ACCEPT_MARKERS = {"accept", "acceptable", "approved", "ship"}
-_PEER_REVISE_MARKERS = {"revise", "revision", "reject", "rejected", "not acceptable"}
+_PEER_ACCEPT_MARKERS = {"accept", "approved", "ship"}
+_PEER_REVISE_MARKERS = {"revise", "revision", "reject", "rejected", "not acceptable", "not approved"}
 _DEFAULT_PEER_MAX_REFINEMENT_ROUNDS = 2
+_DEFAULT_PEER_MAX_ESCALATIONS = 1
 
 
 def _extract_final_recommendation(text: str) -> str:
@@ -338,18 +339,30 @@ def _extract_final_recommendation(text: str) -> str:
 
 def _parse_judge_decision(text: str) -> str:
     """Parse judge output into ``accept``/``revise``/``unknown``."""
-    clean = (text or "").lower()
-    decision_match = re.search(r"\bdecision\s*[:\-]?\s*([a-z ]{3,40})\b", clean)
+    raw = (text or "").strip()
+    if not raw:
+        return "unknown"
+    clean = raw.lower()
+
+    # Strict contract-first parse:
+    # first non-empty line should be "Decision: accept|revise".
+    first_line = next((line.strip() for line in raw.splitlines() if line.strip()), "")
+    strict = re.match(r"^decision\s*[:\-]\s*(accept|revise)\b", first_line, flags=re.IGNORECASE)
+    if strict:
+        return strict.group(1).lower()
+
+    decision_match = re.search(r"\bdecision\s*[:\-]?\s*([a-z ]{3,80})\b", clean)
     if decision_match:
         decision_blob = decision_match.group(1).strip()
-        if any(marker in decision_blob for marker in _PEER_ACCEPT_MARKERS):
-            return "accept"
+        # Revise/reject semantics must win over accept in ambiguous phrases.
         if any(marker in decision_blob for marker in _PEER_REVISE_MARKERS):
             return "revise"
-    if any(marker in clean for marker in _PEER_ACCEPT_MARKERS):
-        return "accept"
+        if any(marker in decision_blob for marker in _PEER_ACCEPT_MARKERS):
+            return "accept"
     if any(marker in clean for marker in _PEER_REVISE_MARKERS):
         return "revise"
+    if any(marker in clean for marker in _PEER_ACCEPT_MARKERS):
+        return "accept"
     return "unknown"
 
 
@@ -363,6 +376,19 @@ def _resolve_peer_max_refinement_rounds() -> int:
         parsed = int(raw)
     except ValueError:
         return _DEFAULT_PEER_MAX_REFINEMENT_ROUNDS
+    return max(0, parsed)
+
+
+def _resolve_peer_max_escalations() -> int:
+    """Return max author/challenger escalation attempts after revise loops."""
+    raw = os.getenv(
+        "CRISAI_PEER_MAX_ESCALATIONS",
+        str(_DEFAULT_PEER_MAX_ESCALATIONS),
+    )
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return _DEFAULT_PEER_MAX_ESCALATIONS
     return max(0, parsed)
 
 
@@ -662,6 +688,7 @@ async def run_peer_pipeline(
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
     max_refinement_rounds = _resolve_peer_max_refinement_rounds()
+    max_escalations = _resolve_peer_max_escalations()
     run_contract = infer_peer_run_contract(intent_message)
     run_contract_text = render_peer_run_contract(run_contract)
 
@@ -671,6 +698,7 @@ async def run_peer_pipeline(
             "run_id": _get_run_id(environment),
             "needs_retrieval": needs_retrieval,
             "max_refinement_rounds": max_refinement_rounds,
+            "max_escalations": max_escalations,
         },
     )
 
@@ -838,6 +866,7 @@ async def run_peer_pipeline(
         previous_refiner_text = refiner_text
         stagnation_detected = False
         rounds_executed = 0
+        escalations_executed = 0
 
         # Judge-gated refinement loop. If the judge says "revise", feed the
         # judge feedback back into the refiner and ask for another judgement.
@@ -887,15 +916,91 @@ async def run_peer_pipeline(
                 run_contract_text=run_contract_text,
             )
 
+        # Escalation path: if revise loop cannot reach accept, rerun
+        # author/challenger/refiner with explicit judge feedback.
+        for escalation_index in range(1, max_escalations + 1):
+            if judge_decision == "accept":
+                break
+            escalations_executed = escalation_index
+            escalation_context = "\n\n".join(
+                [
+                    discovery_basis,
+                    f"Escalation judge feedback (attempt {escalation_index}):\n{judge_text}",
+                ]
+            )
+            author_text = await workflow.run_stage(
+                spec=specs["design_author"],
+                ui_agent_id="design_author",
+                prompt=_build_prompt_with_contract(
+                    build_author_prompt,
+                    message,
+                    escalation_context,
+                    run_contract_text=run_contract_text,
+                ),
+                trace_label=f"AUTHOR OUTPUT (ESCALATION {escalation_index})",
+                verbose=verbose,
+            )
+            challenger_text = await workflow.run_stage(
+                spec=specs["design_challenger"],
+                ui_agent_id="design_challenger",
+                prompt=_build_prompt_with_contract(
+                    build_challenger_prompt,
+                    message,
+                    escalation_context,
+                    author_text,
+                    run_contract_text=run_contract_text,
+                ),
+                trace_label=f"CHALLENGER OUTPUT (ESCALATION {escalation_index})",
+                verbose=verbose,
+            )
+            refiner_text = await workflow.run_stage(
+                spec=specs["design_refiner"],
+                ui_agent_id="design_refiner",
+                prompt=_build_prompt_with_contract(
+                    build_refiner_prompt,
+                    message,
+                    escalation_context,
+                    author_text,
+                    challenger_text,
+                    run_contract_text=run_contract_text,
+                ),
+                trace_label=f"REFINER OUTPUT (ESCALATION {escalation_index})",
+                verbose=verbose,
+            )
+            judge_text, judge_decision = await _run_judge_with_acceptance_audit(
+                workflow=workflow,
+                specs=specs,
+                message=message,
+                discovery_basis=escalation_context,
+                challenger_text=challenger_text,
+                refiner_text=refiner_text,
+                verbose=verbose,
+                trace_label=f"JUDGE OUTPUT (ESCALATION {escalation_index})",
+                quality_trace_label=f"JUDGE QUALITY GATE (ESCALATION {escalation_index})",
+                run_contract_text=run_contract_text,
+            )
+
         if rounds_executed > 0 and judge_decision != "accept":
             unresolved_reason = (
                 "Peer refinement reached convergence with no material changes."
                 if stagnation_detected
                 else f"Peer refinement reached max rounds ({max_refinement_rounds}) without an explicit accept decision."
             )
+            if escalations_executed > 0:
+                unresolved_reason += (
+                    f" Escalation attempts exhausted ({escalations_executed}/{max_escalations})"
+                    " without an explicit accept decision."
+                )
             judge_text = (
                 judge_text.strip()
                 + f"\n\nStatus: unresolved after peer refinement loop.\nReason: {unresolved_reason}"
+            )
+        elif escalations_executed > 0 and judge_decision != "accept":
+            judge_text = (
+                judge_text.strip()
+                + "\n\nStatus: unresolved after peer escalation.\nReason: "
+                f"Escalation attempts exhausted ({escalations_executed}/{max_escalations})"
+                " without an explicit accept decision."
             )
         if judge_decision != "accept":
             _trace_workflow_policy_event(
@@ -978,6 +1083,7 @@ async def run_peer_pipeline(
                 "judge_decision": judge_decision,
                 "refinement_rounds_executed": rounds_executed,
                 "refinement_stagnation": stagnation_detected,
+                "escalation_rounds_executed": escalations_executed,
             },
         )
         return _extract_final_recommendation(final_text)

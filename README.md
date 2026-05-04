@@ -286,6 +286,10 @@ INTRANET_PAGE_CACHE_TTL_HOURS=4
 
 # Peer mode: max extra refiner/judge rounds after initial judge decision
 CRISAI_PEER_MAX_REFINEMENT_ROUNDS=2
+
+# Peer mode: max structural escalation attempts (author/challenger rerun)
+# after unresolved revise loops
+CRISAI_PEER_MAX_ESCALATIONS=1
 ```
 
 > **WSL2 note:** crisAI uses the OAuth 2.0 **device code flow** for Microsoft Entra login in WSL2 environments. When the token is missing or expired a URL and short code are printed to the terminal — open the URL in any browser and enter the code to authenticate. No localhost redirect is required. Your Azure app registration must have **"Allow public client flows"** enabled (App registrations → Authentication → Advanced settings).
@@ -425,8 +429,9 @@ Runs the peer-style flow:
 4. `design_refiner`
 5. `judge`
 6. if judge says `revise`, run extra refiner/judge rounds (bounded by `CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`)
-7. `orchestrator`
-8. post-run peer verifier checks final file-backed claims against on-disk artefacts
+7. if unresolved, run bounded structural escalation (`design_author` → `design_challenger` → `design_refiner` → `judge`) using judge feedback (bounded by `CRISAI_PEER_MAX_ESCALATIONS`, default `1`)
+8. `orchestrator`
+9. post-run peer verifier checks final file-backed claims against on-disk artefacts
 
 Notes:
 - in chat mode, peer contract inference uses the latest user message (not wrapped history transcript) to avoid intent drift from previous turns.
@@ -447,6 +452,7 @@ Typical behaviour:
 - critique-only task → `single` + `review`
 - platform/debug task → `single` + `operations`
 - peer-style debate request → `peer`
+- high-criticality/high-accuracy design or review task → `peer` (even without explicit "peer mode")
 - vague or mixed multi-signal task → `pipeline` + `design` + review
 
 Explicit user instructions always win:
