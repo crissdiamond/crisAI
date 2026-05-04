@@ -283,6 +283,7 @@ Notes:
 - when retrieval is needed and the agent is configured, `context_synthesizer` runs after context retrieval to provide a stronger evidence basis for peer stages.
 - judge output is now actionable: `Decision: revise` triggers bounded extra refiner/judge rounds (`CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`) before orchestration.
 - loop safeguards: max rounds bound, and a convergence guard that stops early when refiner output stops changing materially.
+- workflow policy gates still apply in peer mode (see section 9.1): requests that require intranet-grounded evidence or filesystem side effects can fail fast when those outcomes are missing.
 
 Best for:
 - debated design work
@@ -337,6 +338,16 @@ crisAI includes a Phase 1 heuristic router.
 
 Its purpose is simple:
 - if you have not explicitly chosen a mode or agent, it picks a sensible route
+
+### 9.1 Runtime workflow policy gates
+
+After routing selects a mode/agent path, crisAI applies a generic runtime policy layer from `registry/workflow_policy.yaml`:
+
+- infer capabilities from request text (for example `intranet_grounded`, `produce_artifacts`)
+- map capabilities to hard requirements (for example intranet fetch evidence, workspace file writes)
+- fail the run with a clear error when required outcomes are missing
+
+This keeps behaviour generic and guardrail-driven, instead of relying only on prompt compliance.
 
 ### Typical routing examples
 

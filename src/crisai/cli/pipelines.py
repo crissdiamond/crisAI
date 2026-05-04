@@ -439,7 +439,10 @@ async def run_pipeline(
     """Run the standard retrieval_planner → context_retrieval → context_synthesizer → design pipeline."""
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
-    policy = infer_workflow_policy(message)
+    policy = infer_workflow_policy(
+        message,
+        registry_dir=getattr(settings, "registry_dir", None),
+    )
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
 
@@ -566,7 +569,10 @@ async def run_peer_pipeline(
     del review  # Unused in peer mode today; kept for API compatibility.
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
-    policy = infer_workflow_policy(message)
+    policy = infer_workflow_policy(
+        message,
+        registry_dir=getattr(settings, "registry_dir", None),
+    )
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
     max_refinement_rounds = _resolve_peer_max_refinement_rounds()

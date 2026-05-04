@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any
+
+import yaml
 
 
 @dataclass(frozen=True)
@@ -29,34 +31,83 @@ class WorkflowPolicyViolation(RuntimeError):
     """Raised when a hard workflow policy gate is violated."""
 
 
-def infer_workflow_policy(message: str) -> WorkflowPolicy:
+_DEFAULT_CONFIG: dict[str, Any] = {
+    "capability_markers": {
+        "intranet_grounded": [
+            "intranet",
+            "site pages",
+            "sitepages",
+            "intranet_fetch",
+        ],
+        "produce_artifacts": [
+            "write_workspace_file",
+            "create file",
+            "create files",
+            "deliver files",
+            "context_staging/",
+            "under workspace/",
+        ],
+    },
+    "requirements": {
+        "intranet_fetch_for_capabilities": ["intranet_grounded"],
+        "workspace_write_for_capabilities": ["produce_artifacts"],
+    },
+    "write_target_subdir": "workspace/context_staging",
+}
+
+
+def _load_policy_config(registry_dir: Path | None) -> dict[str, Any]:
+    """Load policy config from registry/workflow_policy.yaml, with defaults."""
+    if registry_dir is None:
+        return dict(_DEFAULT_CONFIG)
+    path = registry_dir / "workflow_policy.yaml"
+    if not path.exists():
+        return dict(_DEFAULT_CONFIG)
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return dict(_DEFAULT_CONFIG)
+    block = data.get("workflow_policy") or {}
+    merged = dict(_DEFAULT_CONFIG)
+    merged.update({k: v for k, v in block.items() if v is not None})
+    # Deep-merge nested blocks used by this module.
+    merged_markers = dict(_DEFAULT_CONFIG.get("capability_markers", {}))
+    merged_markers.update(block.get("capability_markers") or {})
+    merged["capability_markers"] = merged_markers
+    merged_requirements = dict(_DEFAULT_CONFIG.get("requirements", {}))
+    merged_requirements.update(block.get("requirements") or {})
+    merged["requirements"] = merged_requirements
+    return merged
+
+
+def infer_workflow_policy(message: str, registry_dir: Path | None = None) -> WorkflowPolicy:
     """Infer policy capabilities from a user request.
 
     This intentionally uses broad, reusable capability cues rather than
     request-specific wording.
     """
     text = (message or "").lower()
+    config = _load_policy_config(registry_dir)
     capabilities: set[str] = set()
+    markers = config.get("capability_markers") or {}
+    for capability, phrases in markers.items():
+        phrase_list = [str(p).lower().strip() for p in (phrases or []) if str(p).strip()]
+        if any(phrase in text for phrase in phrase_list):
+            capabilities.add(str(capability))
 
-    intranet_markers = ("intranet", "site pages", "sitepages", "intranet_fetch")
-    if any(marker in text for marker in intranet_markers):
-        capabilities.add("intranet_grounded")
-
-    artifact_markers = (
-        "write_workspace_file",
-        "create file",
-        "create files",
-        "deliver files",
-        "context_staging/",
-        "under workspace/",
+    requirements = config.get("requirements") or {}
+    require_intranet_fetch = any(
+        capability in capabilities
+        for capability in (requirements.get("intranet_fetch_for_capabilities") or [])
     )
-    if any(marker in text for marker in artifact_markers):
-        capabilities.add("produce_artifacts")
-
-    require_intranet_fetch = "intranet_grounded" in capabilities
-    require_workspace_write = "produce_artifacts" in capabilities
+    require_workspace_write = any(
+        capability in capabilities
+        for capability in (requirements.get("workspace_write_for_capabilities") or [])
+    )
     write_target_subdir = (
-        "workspace/context_staging" if require_workspace_write else None
+        str(config.get("write_target_subdir") or "workspace/context_staging")
+        if require_workspace_write
+        else None
     )
     return WorkflowPolicy(
         capabilities=frozenset(capabilities),

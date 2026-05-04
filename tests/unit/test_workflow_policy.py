@@ -26,6 +26,33 @@ def test_infer_workflow_policy_detects_intranet_and_artifact_capabilities():
     assert "produce_artifacts" in policy.capabilities
 
 
+def test_infer_workflow_policy_uses_registry_configuration(tmp_path: Path):
+    registry_dir = tmp_path / "registry"
+    registry_dir.mkdir(parents=True)
+    (registry_dir / "workflow_policy.yaml").write_text(
+        "\n".join(
+            [
+                "version: 1",
+                "workflow_policy:",
+                "  capability_markers:",
+                "    strict_docs:",
+                "      - source-only",
+                "  requirements:",
+                "    intranet_fetch_for_capabilities: []",
+                "    workspace_write_for_capabilities:",
+                "      - strict_docs",
+                "  write_target_subdir: workspace/custom_staging",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    policy = infer_workflow_policy("Please run source-only mode.", registry_dir=registry_dir)
+    assert "strict_docs" in policy.capabilities
+    assert policy.require_workspace_write is True
+    assert policy.write_target_subdir == "workspace/custom_staging"
+
+
 def test_has_intranet_fetch_evidence_detects_negative_marker():
     text = "Intranet sources\n- None were retrieved in this turn."
     assert has_intranet_fetch_evidence(text) is False

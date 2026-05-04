@@ -1,0 +1,29 @@
+version: 1
+
+workflow_policy:
+  # Capability inference markers (generic, not request-specific).
+  # If any marker in a capability list appears in the user request, that
+  # capability is activated for the run.
+  capability_markers:
+    intranet_grounded:
+      - intranet
+      - site pages
+      - sitepages
+      - intranet_fetch
+    produce_artifacts:
+      - write_workspace_file
+      - create file
+      - create files
+      - deliver files
+      - context_staging/
+      - under workspace/
+
+  # Hard gate mapping: activate runtime requirements when a capability is set.
+  requirements:
+    intranet_fetch_for_capabilities:
+      - intranet_grounded
+    workspace_write_for_capabilities:
+      - produce_artifacts
+
+  # Subtree monitored for file changes when workspace_write is required.
+  write_target_subdir: workspace/context_staging
