@@ -5,6 +5,7 @@ import pytest
 from crisai.orchestration.peer_contract import infer_peer_run_contract
 from crisai.orchestration.peer_verifier import (
     PeerVerificationViolation,
+    _is_semantic_leaf_file,
     enforce_peer_final_deliverable_verification,
     verify_peer_final_deliverable,
 )
@@ -122,3 +123,9 @@ def test_verify_peer_final_deliverable_flags_gap_and_leaf_inconsistency(tmp_path
         ],
     )
     assert any("Gap inconsistency" in violation for violation in result.violations)
+
+
+def test_is_semantic_leaf_file_matches_architecture_terms():
+    assert _is_semantic_leaf_file("workspace/context_staging/patterns/payment-hld-guide.md")
+    assert _is_semantic_leaf_file("workspace/context_staging/patterns/reference-architecture-toolkit.md")
+    assert not _is_semantic_leaf_file("workspace/context_staging/patterns/meeting-notes.md")

@@ -2,17 +2,31 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from crisai.orchestration.peer_contract import PeerRunContract
+from crisai.orchestration.semantic_catalog import load_semantic_catalog
 
 
 _WORKSPACE_FILE_PATTERN = re.compile(r"(workspace/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)")
-_PATTERN_GAP_LINE = re.compile(r"^\s*-\s*(Consumer|Producer|Ingestion)\s+Pattern\s+(\d+)\s*:", re.IGNORECASE)
-_LEAF_FILE_PATTERN = re.compile(
-    r"workspace/context_staging/patterns/(consumer|producer|ingestion)-pattern-(\d+)\.md$",
-    re.IGNORECASE,
-)
+
+
+@lru_cache(maxsize=1)
+def _pattern_gap_line_regex() -> re.Pattern[str]:
+    pattern = load_semantic_catalog().peer_verifier.pattern_gap_line
+    return re.compile(pattern, re.IGNORECASE)
+
+
+@lru_cache(maxsize=1)
+def _leaf_file_pattern_regex() -> re.Pattern[str]:
+    pattern = load_semantic_catalog().peer_verifier.leaf_file_pattern
+    return re.compile(pattern, re.IGNORECASE)
+
+
+@lru_cache(maxsize=1)
+def _leaf_file_terms() -> frozenset[str]:
+    return load_semantic_catalog().peer_verifier.leaf_file_terms
 
 
 @dataclass(frozen=True)
@@ -98,7 +112,7 @@ def _extract_gap_patterns(markdown_text: str) -> set[str]:
             continue
         if not in_gaps_section:
             continue
-        match = _PATTERN_GAP_LINE.match(raw_line)
+        match = _pattern_gap_line_regex().match(raw_line)
         if not match:
             continue
         family = match.group(1).capitalize()
@@ -108,12 +122,25 @@ def _extract_gap_patterns(markdown_text: str) -> set[str]:
 
 
 def _pattern_name_from_leaf_path(rel_path: str) -> str | None:
-    match = _LEAF_FILE_PATTERN.search(rel_path)
+    match = _leaf_file_pattern_regex().search(rel_path)
     if not match:
         return None
     family = match.group(1).capitalize()
     number = match.group(2)
     return f"{family} Pattern {number}"
+
+
+def _is_semantic_leaf_file(rel_path: str) -> bool:
+    """Return whether a file path matches configured leaf-file semantics."""
+    if _leaf_file_pattern_regex().search(rel_path):
+        return True
+    terms = _leaf_file_terms()
+    if not terms:
+        return False
+    # Match against filename in a separator-normalized form.
+    name = Path(rel_path).name.lower()
+    normalized = " ".join(name.replace("-", " ").replace("_", " ").split())
+    return any(term in normalized for term in terms)
 
 
 def verify_peer_final_deliverable(
@@ -210,7 +237,7 @@ def verify_peer_final_deliverable(
     # leaf file must not carry grounded detail content; conversely if the leaf
     # file is placeholder/stub, it should appear in retrieval gaps.
     gap_files = [p for p in markdown_files if "retrieval-gaps" in Path(p).name]
-    leaf_files = [p for p in markdown_files if _pattern_name_from_leaf_path(p) is not None]
+    leaf_files = [p for p in markdown_files if _is_semantic_leaf_file(p)]
     if gap_files and leaf_files:
         gap_patterns: set[str] = set()
         for gap_file in gap_files:

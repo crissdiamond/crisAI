@@ -1,6 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
+from .semantic_catalog import load_semantic_catalog
+
 @dataclass
 class RoutingDecision:
     intent: str
@@ -27,146 +29,6 @@ def normalize_agent_id(agent_id: str | None) -> str | None:
     return _normalize_explicit_agent(agent_id)
 
 
-DISCOVERY_TERMS = {
-    "find", "search", "locate", "identify", "list",
-    "documents", "document", "docs", "sources", "files", "inspect", "onedrive",
-    "sharepoint", "intranet", "drive", "site", "path", "read",
-    "pages", "page",
-    "find me", "look up", "look for",
-    "trova", "cerca", "individua", "elenca",
-    "documenti", "documento", "sorgenti", "fonti", "file", "leggi",
-    "pagine", "pagina",
-}
-
-DESIGN_TERMS = {
-    "design", "draft", "architecture", "hld", "lld", "proposal",
-    "option", "options", "recommendation", "target state",
-    "operating model", "blueprint", "solution", "summarise", "summary",
-    "propose", "plan",
-    "progetta", "architettura", "proposta", "opzioni",
-    "raccomandazione", "modello operativo", "soluzione", "sintesi",
-    "riassumi", "piano",
-}
-
-REVIEW_TERMS = {
-    "review", "critique", "challenge", "refine", "improve",
-    "gaps", "assumptions", "weaknesses", "judge",
-    "revision", "evaluate", "evaluation",
-    "rivedi", "critica", "migliora", "lacune",
-    "debolezze", "giudica", "valuta", "valutazione",
-}
-
-OPERATIONS_TERMS = {
-    "debug", "fix", "error", "issue", "broken", "failing",
-    "logs", "auth", "token", "login", "timeout", "exception",
-    "not working", "keeps prompting", "prompting",
-    "bug", "stack trace", "traceback", "importerror",
-    "correggi", "errore", "problema", "rotto",
-    "non funziona", "eccezione", "traceback",
-}
-
-PEER_TERMS = {
-    "peer mode",
-    "peer conversation",
-    "author",
-    "challenger",
-    "refiner",
-    "judge",
-    "debate",
-    "peer review",
-    "use peer mode",
-    "show the peer conversation",
-    "challenge and refine",
-    "autore",
-    "sfidante",
-    "refiner",
-    "giudice",
-    "dibattito",
-}
-
-PUBLICATION_TERMS = {
-    "template",
-    "templates",
-    "document this",
-    "document the outcome",
-    "turn this into",
-    "convert this into",
-    "create a document",
-    "create the document",
-    "create a report",
-    "create slides",
-    "create a slide deck",
-    "create a powerpoint",
-    "create a spreadsheet",
-    "create an excel",
-    "write this up",
-    "package this",
-    "publish this",
-    "prepare the artefact",
-    "prepare a document",
-    ".doc",
-    ".docx",
-    ".ppt",
-    ".pptx",
-    ".xls",
-    ".xlsx",
-    ".txt",
-    ".md",
-    "template in workspace",
-    "using the template",
-    "usa il template",
-    "usa i template",
-    "trasforma questo in",
-    "crea un documento",
-    "crea il documento",
-    "crea delle slide",
-    "crea una presentazione",
-    "crea un powerpoint",
-    "crea un foglio excel",
-    "crea un file excel",
-    "documenta questo",
-    "documenta l'esito",
-    "impacchetta questo",
-}
-
-EXPLICIT_DISCOVERY_PATTERNS = {
-    "use discovery only",
-    "discovery only",
-    "do not use the design agent",
-    "return only a list",
-    "return only the list",
-    "return only a table",
-    "return only the table",
-    "do not draft",
-    "do not summarise",
-    "usa solo discovery",
-    "solo discovery",
-    "non usare il design agent",
-    "restituisci solo una lista",
-    "restituisci solo una tabella",
-    "non fare la sintesi",
-}
-
-EXPLICIT_PEER_PATTERNS = {
-    "use peer mode",
-    "peer mode",
-    "peer review",
-    "peer conversation",
-    "show the peer conversation",
-    "debate this",
-    "challenge and refine",
-    "author should propose",
-    "challenger should",
-    "refiner should",
-    "judge should",
-    "usa peer mode",
-    "mostra la conversazione peer",
-    "autore dovrebbe",
-    "sfidante dovrebbe",
-    "giudice dovrebbe",
-}
-
-
 def _normalise(text: str) -> str:
     return " ".join(text.lower().strip().split())
 
@@ -179,31 +41,19 @@ def _score_terms(text: str, terms: set[str]) -> int:
     return sum(1 for term in terms if term in text)
 
 
-def _has_source_signal(text: str, discovery_score: int) -> bool:
+def _has_source_signal(text: str, discovery_score: int, source_markers: frozenset[str]) -> bool:
     if discovery_score >= 2:
         return True
-    source_markers = {
-        "onedrive", "sharepoint", "intranet", "documents", "document", "docs", "documenti",
-        "files", "file", "sources", "fonti", "sorgenti", "site", "drive", "path", "read",
-        "pages", "page", "pagine", "pagina",
-    }
     return any(marker in text for marker in source_markers)
 
 
-def _is_architecture_location_phrase(text: str) -> bool:
-    architecture_location_markers = {
-        "architecture site",
-        "architecture sites",
-        "sito architecture",
-        "siti architecture",
-        "sharepoint architecture site",
-        "sharepoint architecture sites",
-    }
+def _is_architecture_location_phrase(text: str, architecture_location_markers: frozenset[str]) -> bool:
     return any(marker in text for marker in architecture_location_markers)
 
 
 def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
-    if _contains_any(text, EXPLICIT_DISCOVERY_PATTERNS):
+    terms = load_semantic_catalog().router
+    if _contains_any(text, set(terms.explicit_discovery_patterns)):
         return RoutingDecision(
             intent="discovery",
             mode="single",
@@ -214,22 +64,25 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
             reason="Prompt explicitly requests retrieval-only behaviour.",
         )
 
-    discovery_score = _score_terms(text, DISCOVERY_TERMS)
-    design_score = _score_terms(text, DESIGN_TERMS)
-    review_score = _score_terms(text, REVIEW_TERMS)
-    operations_score = _score_terms(text, OPERATIONS_TERMS)
-    peer_score = _score_terms(text, PEER_TERMS)
-    publication_score = _score_terms(text, PUBLICATION_TERMS)
+    discovery_score = _score_terms(text, set(terms.discovery_terms))
+    design_score = _score_terms(text, set(terms.design_terms))
+    review_score = _score_terms(text, set(terms.review_terms))
+    operations_score = _score_terms(text, set(terms.operations_terms))
+    peer_score = _score_terms(text, set(terms.peer_terms))
+    publication_score = _score_terms(text, set(terms.publication_terms))
 
-    has_source_signal = _has_source_signal(text, discovery_score)
+    has_source_signal = _has_source_signal(text, discovery_score, terms.source_markers)
     has_design_signal = design_score >= 2
-    architecture_used_as_location = _is_architecture_location_phrase(text)
+    architecture_used_as_location = _is_architecture_location_phrase(
+        text,
+        terms.architecture_location_markers,
+    )
     if architecture_used_as_location and design_score > 0:
         # "Architecture site(s)" is usually a SharePoint location label, not a drafting ask.
         design_score -= 1
         has_design_signal = design_score >= 2
     has_review_signal = review_score >= 2
-    has_peer_signal = _contains_any(text, EXPLICIT_PEER_PATTERNS) or (
+    has_peer_signal = _contains_any(text, set(terms.explicit_peer_patterns)) or (
         peer_score >= 2 and (design_score >= 1 or review_score >= 1)
     )
     has_publication_signal = publication_score >= 1
@@ -263,7 +116,7 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
             agent="design_author",
             needs_retrieval=has_source_signal,
             needs_review=True,
-            confidence=0.96 if _contains_any(text, EXPLICIT_PEER_PATTERNS) else 0.92,
+            confidence=0.96 if _contains_any(text, set(terms.explicit_peer_patterns)) else 0.92,
             reason="Prompt requests peer-style proposal, challenge, refinement, and judgement.",
         )
 

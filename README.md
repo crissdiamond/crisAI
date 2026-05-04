@@ -26,6 +26,7 @@ The aim is to create a personal AI workstation that can retrieve source material
 - Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools: `intranet_search`, `intranet_fetch`, `intranet_list_page_links`, **`intranet_list_all_pages`**)
 - Two-stage `intranet_search`: OData scored pass + cache expansion ensures leaf pages (e.g. `Consumer-Pattern-1`) are never silently dropped
 - Synonym dictionary (`registry/search_synonyms.yaml`) — maintainable YAML of equivalent-term groups (plural/singular, abbreviations, domain synonyms) applied to all intranet search; no code change needed to extend it
+- Global semantic catalogue (`registry/semantic_catalog.yaml`) for router intent terms and peer-verifier semantic patterns, including configurable `leaf_file_terms` architecture vocabulary (for example `hld`, `template`, `standards`, `toolkit`), maintained externally from code
 - Configurable on-disk page catalogue cache (default 4 h, `INTRANET_PAGE_CACHE_TTL_HOURS`) so agents can list every available page without repeated Graph API scans
 - Runtime workflow policy layer (`registry/workflow_policy.yaml`) with hard capability gates (for example: require intranet fetch evidence for intranet-scoped requests; require file writes for artefact-producing requests)
 - Peer run-contract inference (`src/crisai/orchestration/peer_contract.py`) to turn user intent into explicit peer role focus and acceptance dimensions
@@ -109,6 +110,7 @@ crisAI/
     policies.yaml
     intranet.yaml
     search_synonyms.yaml
+    semantic_catalog.yaml
     workflow_policy.yaml
 
   prompts/
@@ -153,6 +155,7 @@ crisAI/
         factory.py
       orchestration/
         router.py
+        semantic_catalog.py
         peer_contract.py
         peer_verifier.py
       servers/

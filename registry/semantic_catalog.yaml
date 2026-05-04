@@ -1,0 +1,307 @@
+version: 1
+
+router:
+  discovery_terms:
+    - find
+    - search
+    - locate
+    - identify
+    - list
+    - documents
+    - document
+    - docs
+    - sources
+    - files
+    - inspect
+    - onedrive
+    - sharepoint
+    - intranet
+    - drive
+    - site
+    - path
+    - read
+    - pages
+    - page
+    - find me
+    - look up
+    - look for
+    - trova
+    - cerca
+    - individua
+    - elenca
+    - documenti
+    - documento
+    - sorgenti
+    - fonti
+    - file
+    - leggi
+    - pagine
+    - pagina
+
+  design_terms:
+    - design
+    - draft
+    - architecture
+    - hld
+    - lld
+    - proposal
+    - option
+    - options
+    - recommendation
+    - target state
+    - operating model
+    - blueprint
+    - solution
+    - summarise
+    - summary
+    - propose
+    - plan
+    - progetta
+    - architettura
+    - proposta
+    - opzioni
+    - raccomandazione
+    - modello operativo
+    - soluzione
+    - sintesi
+    - riassumi
+    - piano
+
+  review_terms:
+    - review
+    - critique
+    - challenge
+    - refine
+    - improve
+    - gaps
+    - assumptions
+    - weaknesses
+    - judge
+    - revision
+    - evaluate
+    - evaluation
+    - rivedi
+    - critica
+    - migliora
+    - lacune
+    - debolezze
+    - giudica
+    - valuta
+    - valutazione
+
+  operations_terms:
+    - debug
+    - fix
+    - error
+    - issue
+    - broken
+    - failing
+    - logs
+    - auth
+    - token
+    - login
+    - timeout
+    - exception
+    - not working
+    - keeps prompting
+    - prompting
+    - bug
+    - stack trace
+    - traceback
+    - importerror
+    - correggi
+    - errore
+    - problema
+    - rotto
+    - non funziona
+    - eccezione
+    - traceback
+
+  peer_terms:
+    - peer mode
+    - peer conversation
+    - author
+    - challenger
+    - refiner
+    - judge
+    - debate
+    - peer review
+    - use peer mode
+    - show the peer conversation
+    - challenge and refine
+    - autore
+    - sfidante
+    - giudice
+    - dibattito
+
+  publication_terms:
+    - template
+    - templates
+    - document this
+    - document the outcome
+    - turn this into
+    - convert this into
+    - create a document
+    - create the document
+    - create a report
+    - create slides
+    - create a slide deck
+    - create a powerpoint
+    - create a spreadsheet
+    - create an excel
+    - write this up
+    - package this
+    - publish this
+    - prepare the artefact
+    - prepare a document
+    - .doc
+    - .docx
+    - .ppt
+    - .pptx
+    - .xls
+    - .xlsx
+    - .txt
+    - .md
+    - template in workspace
+    - using the template
+    - usa il template
+    - usa i template
+    - trasforma questo in
+    - crea un documento
+    - crea il documento
+    - crea delle slide
+    - crea una presentazione
+    - crea un powerpoint
+    - crea un foglio excel
+    - crea un file excel
+    - documenta questo
+    - documenta l'esito
+    - impacchetta questo
+
+  explicit_discovery_patterns:
+    - use discovery only
+    - discovery only
+    - do not use the design agent
+    - return only a list
+    - return only the list
+    - return only a table
+    - return only the table
+    - do not draft
+    - do not summarise
+    - usa solo discovery
+    - solo discovery
+    - non usare il design agent
+    - restituisci solo una lista
+    - restituisci solo una tabella
+    - non fare la sintesi
+
+  explicit_peer_patterns:
+    - use peer mode
+    - peer mode
+    - peer review
+    - peer conversation
+    - show the peer conversation
+    - debate this
+    - challenge and refine
+    - author should propose
+    - challenger should
+    - refiner should
+    - judge should
+    - usa peer mode
+    - mostra la conversazione peer
+    - autore dovrebbe
+    - sfidante dovrebbe
+    - giudice dovrebbe
+
+  source_markers:
+    - onedrive
+    - sharepoint
+    - intranet
+    - documents
+    - document
+    - docs
+    - documenti
+    - files
+    - file
+    - sources
+    - fonti
+    - sorgenti
+    - site
+    - drive
+    - path
+    - read
+    - pages
+    - page
+    - pagine
+    - pagina
+
+  architecture_location_markers:
+    - architecture site
+    - architecture sites
+    - sito architecture
+    - siti architecture
+    - sharepoint architecture site
+    - sharepoint architecture sites
+
+peer_verifier:
+  pattern_gap_line: "^\\s*-\\s*(Consumer|Producer|Ingestion)\\s+Pattern\\s+(\\d+)\\s*:"
+  leaf_file_pattern: "workspace/context_staging/patterns/(consumer|producer|ingestion)-pattern-(\\d+)\\.md$"
+  leaf_file_terms:
+    - pattern
+    - patterns
+    - template
+    - templates
+    - hld
+    - high level design
+    - high-level-design
+    - lld
+    - low level design
+    - low-level-design
+    - guide
+    - guides
+    - guideline
+    - guidelines
+    - standard
+    - standards
+    - principle
+    - principles
+    - toolkit
+    - playbook
+    - reference architecture
+    - architecture pattern
+    - solution pattern
+  data_architecture_terms:
+    - data architecture
+    - data model
+    - data modelling
+    - data modeling
+    - entity
+    - entities
+    - attribute
+    - attributes
+    - domain model
+    - canonical model
+    - enterprise data model
+    - edm
+    - schema
+    - schemas
+    - table
+    - tables
+    - column
+    - columns
+    - field
+    - fields
+    - dataset
+    - datasets
+    - lineage
+    - mapping
+    - mappings
+    - taxonomy
+    - ontology
+    - master data
+    - reference data
+    - data contract
+    - data contracts
+    - normalization
+    - denormalization
+    - metadata

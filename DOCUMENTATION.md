@@ -357,6 +357,18 @@ For peer mode specifically, there are two additional runtime guardrails:
 - `peer_contract`: inferred from the user request and used to focus author/challenger/refiner/judge on deliverable-level outcomes.
 - `peer_verifier`: validates final peer claims against filesystem state before the run is considered successful.
 
+### 9.2 External semantic catalogue
+
+Router and verifier semantics are configurable from `registry/semantic_catalog.yaml`:
+
+- router term families (discovery/design/review/operations/peer/publication)
+- explicit routing phrase patterns
+- source and architecture-location marker lists
+- peer-verifier regex patterns (for example gap-line and leaf-file matching)
+- peer-verifier semantic leaf-file terminology (`leaf_file_terms`) to classify architecture-oriented deliverables by filename terms (for example `patterns`, `template`, `hld`, `guides`, `standards`, `principles`, `toolkit`)
+
+This keeps semantic/heuristic tuning maintainable outside code, similar to `registry/search_synonyms.yaml`.
+
 ### Typical routing examples
 
 | Prompt type | Likely route |

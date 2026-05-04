@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from crisai.orchestration.router import decide_route
 
 
@@ -106,3 +108,27 @@ def test_explicit_agent_override_wins_over_router():
     assert decision.mode == "single"
     assert decision.agent == "orchestrator"
     assert decision.needs_retrieval is False
+
+
+def test_router_uses_loaded_semantic_catalog_terms(monkeypatch):
+    fake_terms = SimpleNamespace(
+        discovery_terms=frozenset({"needleterm"}),
+        design_terms=frozenset(),
+        review_terms=frozenset(),
+        operations_terms=frozenset(),
+        peer_terms=frozenset(),
+        publication_terms=frozenset(),
+        explicit_discovery_patterns=frozenset(),
+        explicit_peer_patterns=frozenset(),
+        source_markers=frozenset({"needleterm"}),
+        architecture_location_markers=frozenset(),
+    )
+    monkeypatch.setattr(
+        "crisai.orchestration.router.load_semantic_catalog",
+        lambda: SimpleNamespace(router=fake_terms),
+    )
+
+    decision = decide_route("needleterm", review_enabled=False)
+
+    assert decision.mode == "single"
+    assert decision.agent == "retrieval_planner"
