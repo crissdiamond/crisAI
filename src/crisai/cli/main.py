@@ -93,6 +93,7 @@ _PEER_RETRIEVAL_FORCE_PATTERNS: tuple[str, ...] = (
     r"\bintranet\b",
     r"\bsharepoint\b",
     r"\bsitepages?\b",
+    r"\bsite\s+pages?\b",
     r"\bintegration-patterns?\.aspx\b",
     # File-backed deliverables should not skip retrieval evidence.
     r"\bwrite_workspace_file\b",
@@ -195,6 +196,21 @@ def _should_disable_peer_retrieval(user_input: str, explicit_mode: str | None, d
     )
 
 
+def _should_force_peer_retrieval(user_input: str, decision: RoutingDecision) -> bool:
+    """Return whether retrieval should be force-enabled for peer mode.
+
+    This guard protects intranet/source-grounded and file-backed peer requests
+    from router or heuristic under-classification.
+    """
+    if getattr(decision, "mode", None) != "peer":
+        return False
+    normalized = " ".join(user_input.lower().split())
+    return any(
+        re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL)
+        for pattern in _PEER_RETRIEVAL_FORCE_PATTERNS
+    )
+
+
 
 def _copy_decision_with_updates(decision: RoutingDecision, **updates):
     """Return a decision-like object with selected fields updated.
@@ -223,6 +239,8 @@ def _apply_decision_overrides(user_input: str, explicit_mode: str | None, decisi
     impose narrower interaction guarantees when the user gave a clear local
     instruction such as explicit peer mode for a generative design task.
     """
+    if _should_force_peer_retrieval(user_input, decision):
+        return _copy_decision_with_updates(decision, needs_retrieval=True)
     if _should_disable_peer_retrieval(user_input, explicit_mode, decision):
         return _copy_decision_with_updates(decision, needs_retrieval=False)
     return decision

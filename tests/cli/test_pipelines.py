@@ -236,6 +236,8 @@ def test_build_peer_filesystem_evidence_reports_changed_markdown_files(tmp_path)
     assert "workspace/context_staging/patterns/consumer-pattern-1.md" in evidence
     assert "front_matter: yes" in evidence
     assert "has_source: yes" in evidence
+    assert "excerpt:" in evidence
+    assert "## Source" in evidence
 
 
 @pytest.mark.anyio

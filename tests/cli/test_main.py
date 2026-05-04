@@ -49,6 +49,16 @@ def test_should_keep_peer_retrieval_for_intranet_file_backed_peer_request():
     assert main._should_disable_peer_retrieval(prompt, "peer", decision) is False
 
 
+def test_should_force_peer_retrieval_for_intranet_file_backed_peer_request():
+    prompt = (
+        "Create files under workspace/context_staging/patterns grounded on "
+        "SharePoint intranet Site Pages integration-patterns.aspx and leaf pages."
+    )
+    decision = SimpleNamespace(mode="peer", needs_retrieval=False)
+
+    assert main._should_force_peer_retrieval(prompt, decision) is True
+
+
 def test_apply_decision_overrides_turns_off_retrieval_for_generative_peer_request():
     prompt = (
         "Use peer mode. Propose a simple design for improving crisAI command handling in the CLI. "
@@ -61,6 +71,19 @@ def test_apply_decision_overrides_turns_off_retrieval_for_generative_peer_reques
     assert updated.mode == "peer"
     assert updated.needs_retrieval is False
     assert updated.needs_review is True
+
+
+def test_apply_decision_overrides_forces_retrieval_for_intranet_peer_request():
+    prompt = (
+        "Use peer mode and create files in workspace/context_staging based on "
+        "intranet Site Pages and SharePoint sources."
+    )
+    decision = SimpleNamespace(mode="peer", needs_retrieval=False, needs_review=False)
+
+    updated = main._apply_decision_overrides(prompt, "peer", decision)
+
+    assert updated.mode == "peer"
+    assert updated.needs_retrieval is True
 
 
 def test_suppress_console_info_logs_preserves_file_handler(tmp_path):

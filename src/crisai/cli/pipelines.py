@@ -442,6 +442,36 @@ def _build_peer_filesystem_evidence(
     max_files: int = 20,
 ) -> str:
     """Return compact runtime evidence about changed workspace artefacts."""
+    def _extract_excerpt_lines(text: str, *, max_lines: int = 8) -> list[str]:
+        """Return a compact, content-bearing excerpt for judge verification."""
+        body = text.strip()
+        if not body:
+            return []
+        lines = [line.rstrip() for line in body.splitlines()]
+        # Prefer meaningful markdown structure and facts over raw front matter.
+        candidates: list[str] = []
+        in_front_matter = False
+        front_matter_delims_seen = 0
+        for line in lines:
+            stripped = line.strip()
+            if stripped == "---":
+                front_matter_delims_seen += 1
+                in_front_matter = front_matter_delims_seen == 1
+                if front_matter_delims_seen >= 2:
+                    in_front_matter = False
+                continue
+            if in_front_matter or not stripped:
+                continue
+            if stripped.startswith("## ") or stripped.startswith("- "):
+                candidates.append(stripped)
+            elif not candidates:
+                # Fallback to the first non-empty body lines if headings/bullets
+                # are not yet available.
+                candidates.append(stripped)
+            if len(candidates) >= max_lines:
+                break
+        return candidates[:max_lines]
+
     after_snapshot = snapshot_tree(root_dir, target_subdir)
     changed = changed_paths(before_snapshot, after_snapshot)
     changed_md = [
@@ -468,6 +498,11 @@ def _build_peer_filesystem_evidence(
             + f" | exists: yes | front_matter: {'yes' if has_front_matter else 'no'}"
             + f" | has_source: {'yes' if has_source else 'no'} | h2_sections: {header_count}"
         )
+        excerpt_lines = _extract_excerpt_lines(text, max_lines=8)
+        if excerpt_lines:
+            lines.append("  excerpt:")
+            for excerpt_line in excerpt_lines:
+                lines.append(f"    - {excerpt_line}")
     omitted = len(changed_md) - min(len(changed_md), max_files)
     if omitted > 0:
         lines.append(f"- ... {omitted} additional changed files omitted from evidence summary")
