@@ -172,7 +172,7 @@ def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: 
     )
 
 
-def build_author_prompt(message: str, discovery_text: str) -> str:
+def build_author_prompt(message: str, discovery_text: str, run_contract_text: str = "") -> str:
     """Build the runtime prompt for the author stage.
 
     This stage must remain isolated from later peer roles. The author receives
@@ -184,23 +184,31 @@ def build_author_prompt(message: str, discovery_text: str) -> str:
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
+            _section("Run contract", run_contract_text),
             "Task:\nProduce the best possible first draft for the user's request.",
             "Stage boundary:\n"
             "- You are only the author stage in a peer workflow.\n"
             "- Do not simulate the challenger, refiner, judge, or orchestrator.\n"
             "- Do not output a peer transcript or role-labelled conversation.\n"
             "- Do not include sections such as 'Challenger', 'Refiner', 'Judge', 'Peer conversation', or 'Final recommendation'.\n"
-            "- Output only the initial draft or proposal that later peer stages will inspect.",
+            "- Output only the initial draft or proposal that later peer stages will inspect.\n"
+            "- If the run contract expects a concrete deliverable (answer/files/code), do not output a meta-assessment about process quality.",
         ]
     )
 
 
-def build_challenger_prompt(message: str, discovery_text: str, author_text: str) -> str:
+def build_challenger_prompt(
+    message: str,
+    discovery_text: str,
+    author_text: str,
+    run_contract_text: str = "",
+) -> str:
     """Build the runtime prompt for the challenger stage."""
     return "\n\n".join(
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
+            _section("Run contract", run_contract_text),
             _section("Draft", author_text),
             "Task:\nCritique the draft rigorously.",
             "Stage boundary:\n"
@@ -208,17 +216,25 @@ def build_challenger_prompt(message: str, discovery_text: str, author_text: str)
             "- Do not rewrite the draft directly.\n"
             "- Do not simulate the refiner, judge, or orchestrator.\n"
             "- Do not output a peer transcript or final recommendation.\n"
-            "- Output only critique for later stages to use.",
+            "- Output only critique for later stages to use.\n"
+            "- Critique against run-contract dimensions and missing deliverable outcomes, not writing style alone.",
         ]
     )
 
 
-def build_refiner_prompt(message: str, discovery_text: str, author_text: str, challenger_text: str) -> str:
+def build_refiner_prompt(
+    message: str,
+    discovery_text: str,
+    author_text: str,
+    challenger_text: str,
+    run_contract_text: str = "",
+) -> str:
     """Build the runtime prompt for the refiner stage."""
     return "\n\n".join(
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
+            _section("Run contract", run_contract_text),
             _section("Original draft", author_text),
             _section("Challenge", challenger_text),
             "Task:\nRefine the draft using the critique.",
@@ -226,17 +242,25 @@ def build_refiner_prompt(message: str, discovery_text: str, author_text: str, ch
             "- You are only the refiner stage in a peer workflow.\n"
             "- Do not simulate the judge or orchestrator.\n"
             "- Do not output a peer transcript or final recommendation.\n"
-            "- Output only the improved draft that should be judged next.",
+            "- Output only the improved draft that should be judged next.\n"
+            "- Preserve material evidence/detail from discovery; do not collapse deliverables into generic assessment text.",
         ]
     )
 
 
-def build_judge_prompt(message: str, discovery_text: str, challenger_text: str, refiner_text: str) -> str:
+def build_judge_prompt(
+    message: str,
+    discovery_text: str,
+    challenger_text: str,
+    refiner_text: str,
+    run_contract_text: str = "",
+) -> str:
     """Build the runtime prompt for the judge stage."""
     return "\n\n".join(
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
+            _section("Run contract", run_contract_text),
             _section("Challenge", challenger_text),
             _section("Refined draft", refiner_text),
             "Task:\nDecide whether the refined answer is good enough.",
@@ -245,7 +269,8 @@ def build_judge_prompt(message: str, discovery_text: str, challenger_text: str, 
             "- Do not rewrite the answer.\n"
             "- Do not simulate the orchestrator.\n"
             "- Do not output a peer transcript or final recommendation.\n"
-            "- Output only the judgement, reasons, and any remaining issues.",
+            "- Output only the judgement, reasons, and any remaining issues.\n"
+            "- Judge against run-contract dimensions first; reject outputs that are coherent but fail expected deliverable type.",
         ]
     )
 
@@ -256,6 +281,7 @@ def build_judge_quality_gate_prompt(
     challenger_text: str,
     refiner_text: str,
     prior_judge_text: str,
+    run_contract_text: str = "",
 ) -> str:
     """Build a strict acceptance-audit prompt for peer mode.
 
@@ -268,6 +294,7 @@ def build_judge_quality_gate_prompt(
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
+            _section("Run contract", run_contract_text),
             _section("Challenge", challenger_text),
             _section("Refined draft", refiner_text),
             _section("Initial judge output", prior_judge_text),
@@ -277,6 +304,7 @@ def build_judge_quality_gate_prompt(
             "- If material evidence present in discovery/challenge is omitted, weakened, or replaced with generic wording, return `Decision: revise`.\n"
             "- If critical constraints, implementation details, assumptions, risks, or retrieval gaps are missing despite being available in evidence, return `Decision: revise`.\n"
             "- If unsupported claims appear, return `Decision: revise`.\n"
+            "- If run contract expects concrete deliverables (files/code/final answer), do not accept outputs that are mainly process critique, uncertainty narration, or 'needs verification' checklists.\n"
             "- Return `Decision: accept` only when the refined draft preserves material evidence and is ready to ship.\n"
             "Output contract:\n"
             "- First line must be exactly `Decision: accept` or `Decision: revise`.\n"
@@ -292,6 +320,7 @@ def build_peer_final_prompt(
     challenger_text: str,
     refiner_text: str,
     judge_text: str,
+    run_contract_text: str = "",
 ) -> str:
     """Build the runtime prompt for the peer final stage."""
     execution_gate = ""
@@ -307,6 +336,7 @@ def build_peer_final_prompt(
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
+            _section("Run contract", run_contract_text),
             _section("Original draft", author_text),
             _section("Challenge", challenger_text),
             _section("Refined draft", refiner_text),

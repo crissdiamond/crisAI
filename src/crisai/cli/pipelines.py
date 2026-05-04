@@ -20,6 +20,11 @@ from crisai.agents.factory import AgentFactory
 from crisai.logging_utils import get_logger
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
+from crisai.orchestration.peer_contract import infer_peer_run_contract, render_peer_run_contract
+from crisai.orchestration.peer_verifier import (
+    PeerVerificationViolation,
+    enforce_peer_final_deliverable_verification,
+)
 
 from .display import create_agent_live, print_agent_output
 from .peer_transcript import PeerRunResult, append_peer_message
@@ -372,16 +377,25 @@ async def _run_judge_with_acceptance_audit(
     verbose: bool,
     trace_label: str,
     quality_trace_label: str,
+    run_contract_text: str = "",
 ) -> tuple[str, str]:
     """Run judge stage and validate accepts with a second-pass quality audit.
 
     Returns:
         Tuple of (judge_text, parsed_decision).
     """
+    judge_prompt = _build_prompt_with_contract(
+        build_judge_prompt,
+        message,
+        discovery_basis,
+        challenger_text,
+        refiner_text,
+        run_contract_text=run_contract_text,
+    )
     judge_text = await workflow.run_stage(
         spec=specs["judge"],
         ui_agent_id="judge",
-        prompt=build_judge_prompt(message, discovery_basis, challenger_text, refiner_text),
+        prompt=judge_prompt,
         trace_label=trace_label,
         verbose=verbose,
     )
@@ -389,16 +403,19 @@ async def _run_judge_with_acceptance_audit(
     if judge_decision != "accept":
         return judge_text, judge_decision
 
+    quality_gate_prompt = _build_prompt_with_contract(
+        build_judge_quality_gate_prompt,
+        message,
+        discovery_basis,
+        challenger_text,
+        refiner_text,
+        judge_text,
+        run_contract_text=run_contract_text,
+    )
     quality_gate_text = await workflow.run_stage(
         spec=specs["judge"],
         ui_agent_id="judge",
-        prompt=build_judge_quality_gate_prompt(
-            message,
-            discovery_basis,
-            challenger_text,
-            refiner_text,
-            judge_text,
-        ),
+        prompt=quality_gate_prompt,
         trace_label=quality_trace_label,
         verbose=verbose,
     )
@@ -419,6 +436,18 @@ def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
     if model_specs is not None and "model_specs" in signature.parameters:
         return create_workflow_environment(settings, model_specs=model_specs)
     return create_workflow_environment(settings)
+
+
+def _build_prompt_with_contract(builder, *args, run_contract_text: str) -> str:
+    """Call prompt builders with optional run_contract support.
+
+    Some tests monkeypatch legacy builder signatures that do not accept
+    ``run_contract_text``. Fallback preserves compatibility.
+    """
+    try:
+        return builder(*args, run_contract_text=run_contract_text)
+    except TypeError:
+        return builder(*args)
 
 
 def _create_workflow_engine(environment: WorkflowEnvironment, server_specs) -> WorkflowEngine:
@@ -488,12 +517,14 @@ async def run_pipeline(
     server_specs,
     agent_specs,
     model_specs=None,
+    user_intent_message: str | None = None,
 ) -> str:
     """Run the standard retrieval_planner → context_retrieval → context_synthesizer → design pipeline."""
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
+    intent_message = user_intent_message or message
     policy = infer_workflow_policy(
-        message,
+        intent_message,
         registry_dir=getattr(settings, "registry_dir", None),
     )
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
@@ -617,18 +648,22 @@ async def run_peer_pipeline(
     agent_specs,
     model_specs=None,
     needs_retrieval: bool = True,
+    user_intent_message: str | None = None,
 ) -> str:
     """Run the peer workflow with optional retrieval and final recommendation."""
     del review  # Unused in peer mode today; kept for API compatibility.
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
+    intent_message = user_intent_message or message
     policy = infer_workflow_policy(
-        message,
+        intent_message,
         registry_dir=getattr(settings, "registry_dir", None),
     )
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
     max_refinement_rounds = _resolve_peer_max_refinement_rounds()
+    run_contract = infer_peer_run_contract(intent_message)
+    run_contract_text = render_peer_run_contract(run_contract)
 
     logger.info(
         "Running peer workflow.",
@@ -670,6 +705,13 @@ async def run_peer_pipeline(
             metadata={"mode": "peer", "needs_retrieval": needs_retrieval},
         )
         workflow.trace_user_input(message)
+        _trace_workflow_policy_event(
+            workflow,
+            "PEER_RUN_CONTRACT",
+            run_contract_text,
+            event_type="policy_signal",
+            metadata={"expected_output_type": run_contract.expected_output_type},
+        )
 
         retrieval_plan_text = ""
         context_retrieval_text = ""
@@ -742,7 +784,12 @@ async def run_peer_pipeline(
         author_text = await workflow.run_stage(
             spec=specs["design_author"],
             ui_agent_id="design_author",
-            prompt=build_author_prompt(message, discovery_basis),
+            prompt=_build_prompt_with_contract(
+                build_author_prompt,
+                message,
+                discovery_basis,
+                run_contract_text=run_contract_text,
+            ),
             trace_label="AUTHOR OUTPUT",
             verbose=verbose,
         )
@@ -750,7 +797,13 @@ async def run_peer_pipeline(
         challenger_text = await workflow.run_stage(
             spec=specs["design_challenger"],
             ui_agent_id="design_challenger",
-            prompt=build_challenger_prompt(message, discovery_basis, author_text),
+            prompt=_build_prompt_with_contract(
+                build_challenger_prompt,
+                message,
+                discovery_basis,
+                author_text,
+                run_contract_text=run_contract_text,
+            ),
             trace_label="CHALLENGER OUTPUT",
             verbose=verbose,
         )
@@ -758,7 +811,14 @@ async def run_peer_pipeline(
         refiner_text = await workflow.run_stage(
             spec=specs["design_refiner"],
             ui_agent_id="design_refiner",
-            prompt=build_refiner_prompt(message, discovery_basis, author_text, challenger_text),
+            prompt=_build_prompt_with_contract(
+                build_refiner_prompt,
+                message,
+                discovery_basis,
+                author_text,
+                challenger_text,
+                run_contract_text=run_contract_text,
+            ),
             trace_label="REFINER OUTPUT",
             verbose=verbose,
         )
@@ -773,6 +833,7 @@ async def run_peer_pipeline(
             verbose=verbose,
             trace_label="JUDGE OUTPUT",
             quality_trace_label="JUDGE QUALITY GATE",
+            run_contract_text=run_contract_text,
         )
         previous_refiner_text = refiner_text
         stagnation_detected = False
@@ -793,11 +854,13 @@ async def run_peer_pipeline(
             refiner_text = await workflow.run_stage(
                 spec=specs["design_refiner"],
                 ui_agent_id="design_refiner",
-                prompt=build_refiner_prompt(
+                prompt=_build_prompt_with_contract(
+                    build_refiner_prompt,
                     message,
                     discovery_basis,
                     author_text,
                     revision_challenge,
+                    run_contract_text=run_contract_text,
                 ),
                 trace_label=f"REFINER OUTPUT (ROUND {round_index})",
                 verbose=verbose,
@@ -821,6 +884,7 @@ async def run_peer_pipeline(
                 verbose=verbose,
                 trace_label=f"JUDGE OUTPUT (ROUND {round_index})",
                 quality_trace_label=f"JUDGE QUALITY GATE (ROUND {round_index})",
+                run_contract_text=run_contract_text,
             )
 
         if rounds_executed > 0 and judge_decision != "accept":
@@ -837,13 +901,15 @@ async def run_peer_pipeline(
         final_text = await workflow.run_stage(
             spec=specs["orchestrator"],
             ui_agent_id="orchestrator",
-            prompt=build_peer_final_prompt(
+            prompt=_build_prompt_with_contract(
+                build_peer_final_prompt,
                 message,
                 discovery_basis,
                 author_text,
                 challenger_text,
                 refiner_text,
                 judge_text,
+                run_contract_text=run_contract_text,
             ),
             trace_label="FINAL OUTPUT",
             verbose=verbose,
@@ -863,6 +929,28 @@ async def run_peer_pipeline(
                     event_type="policy_signal",
                     metadata={"changed_count": len(changed)},
                 )
+            verifier_result = enforce_peer_final_deliverable_verification(
+                root_dir=root_dir,
+                contract=run_contract,
+                final_text=final_text,
+                changed_paths=changed,
+            )
+            if verifier_result.checked_files:
+                _trace_workflow_policy_event(
+                    workflow,
+                    "PEER_VERIFIER",
+                    "\n".join(verifier_result.checked_files),
+                    event_type="policy_signal",
+                    metadata={"checked_file_count": len(verifier_result.checked_files)},
+                )
+        except PeerVerificationViolation as exc:
+            _trace_workflow_policy_event(
+                workflow,
+                "POLICY_VIOLATION",
+                str(exc),
+                event_type="policy_violation",
+            )
+            raise typer.BadParameter(str(exc)) from exc
         except WorkflowPolicyViolation as exc:
             _trace_workflow_policy_event(
                 workflow,

@@ -347,6 +347,8 @@ async def _run_with_routing(
     verbose: bool,
     review: bool,
     decision: RoutingDecision,
+    *,
+    user_intent_message: str | None = None,
 ) -> str:
     """Execute the selected runtime path for a routed request."""
     settings, _, server_specs, agent_specs, model_specs = _load_registry()
@@ -373,6 +375,7 @@ async def _run_with_routing(
             agent_specs=agent_specs,
             model_specs=model_specs,
             needs_retrieval=decision.needs_retrieval,
+            user_intent_message=user_intent_message,
         )
     if decision.mode == "pipeline":
         return await run_pipeline(
@@ -383,6 +386,7 @@ async def _run_with_routing(
             server_specs=server_specs,
             agent_specs=agent_specs,
             model_specs=model_specs,
+            user_intent_message=user_intent_message,
         )
     return await run_single(
         message,
@@ -417,7 +421,13 @@ def ask(
     print_status_message(route_display(decision), title="🧭 Routing decision")
 
     async def _run() -> None:
-        text = await _run_with_routing(message, verbose, review, decision)
+        text = await _run_with_routing(
+            message,
+            verbose,
+            review,
+            decision,
+            user_intent_message=message,
+        )
         _render_final_output(decision, text)
 
     try:
@@ -501,7 +511,13 @@ def chat(
             last_route_line = current_route_line
 
         async def _run() -> str:
-            return await _run_with_routing(chat_input, state.current_verbose, state.current_review, decision)
+            return await _run_with_routing(
+                chat_input,
+                state.current_verbose,
+                state.current_review,
+                decision,
+                user_intent_message=user_input,
+            )
 
         try:
             with _suppress_console_info_logs():

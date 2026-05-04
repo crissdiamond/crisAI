@@ -70,15 +70,27 @@ def test_build_pipeline_final_prompt_keeps_only_transition_specific_guidance():
 
 
 def test_peer_builders_use_stable_section_labels():
-    challenger = build_challenger_prompt("Question", "facts", "draft")
-    refiner = build_refiner_prompt("Question", "facts", "draft", "challenge")
-    judge = build_judge_prompt("Question", "facts", "challenge", "refined")
-    peer_final = build_peer_final_prompt("Question", "facts", "draft", "challenge", "refined", "accept")
+    challenger = build_challenger_prompt("Question", "facts", "draft", "contract")
+    refiner = build_refiner_prompt("Question", "facts", "draft", "challenge", "contract")
+    judge = build_judge_prompt("Question", "facts", "challenge", "refined", "contract")
+    peer_final = build_peer_final_prompt(
+        "Question",
+        "facts",
+        "draft",
+        "challenge",
+        "refined",
+        "accept",
+        "contract",
+    )
 
     assert "Draft:\ndraft" in challenger
     assert "Original draft:\ndraft" in refiner
     assert "Refined draft:\nrefined" in judge
     assert "Judge decision:\naccept" in peer_final
+    assert "Run contract:\ncontract" in challenger
+    assert "Run contract:\ncontract" in refiner
+    assert "Run contract:\ncontract" in judge
+    assert "Run contract:\ncontract" in peer_final
 
 
 def test_build_peer_final_prompt_adds_execution_gate_when_writes_required():

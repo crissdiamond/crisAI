@@ -275,13 +275,15 @@ Best for:
 Collaborative critique flow:
 
 ```text
-optional retrieval_planner -> optional context_retrieval -> optional context_synthesizer -> design_author -> design_challenger -> design_refiner -> judge -> [refiner <-> judge iterative loop when decision=revise] -> orchestrator
+optional retrieval_planner -> optional context_retrieval -> optional context_synthesizer -> design_author -> design_challenger -> design_refiner -> judge -> [refiner <-> judge iterative loop when decision=revise] -> orchestrator -> peer_verifier
 ```
 
 Notes:
 - `retrieval_planner` and `context_retrieval` can be skipped when retrieval is not needed for the peer task.
 - when retrieval is needed and the agent is configured, `context_synthesizer` runs after context retrieval to provide a stronger evidence basis for peer stages.
+- peer mode now compiles a run contract from the user request (expected output type, required side effects, grounding needs, acceptance dimensions) and injects it into peer role prompts.
 - judge output is now actionable: `Decision: revise` triggers bounded extra refiner/judge rounds (`CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`) before orchestration.
+- accepted peer output still passes through a post-run verifier that checks file-backed claims against on-disk artefacts (for example referenced files exist, markdown shape is present, front-matter ids are unique, and claimed mismatch notes are actually written).
 - loop safeguards: max rounds bound, and a convergence guard that stops early when refiner output stops changing materially.
 - workflow policy gates still apply in peer mode (see section 9.1): requests that require intranet-grounded evidence or filesystem side effects can fail fast when those outcomes are missing.
 
@@ -348,6 +350,10 @@ After routing selects a mode/agent path, crisAI applies a generic runtime policy
 - fail the run with a clear error when required outcomes are missing
 
 This keeps behaviour generic and guardrail-driven, instead of relying only on prompt compliance.
+
+For peer mode specifically, there are two additional runtime guardrails:
+- `peer_contract`: inferred from the user request and used to focus author/challenger/refiner/judge on deliverable-level outcomes.
+- `peer_verifier`: validates final peer claims against filesystem state before the run is considered successful.
 
 ### Typical routing examples
 

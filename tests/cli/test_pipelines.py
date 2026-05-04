@@ -346,6 +346,65 @@ async def test_run_peer_pipeline_quality_gate_forces_revision_after_initial_acce
 
 
 @pytest.mark.anyio
+async def test_run_peer_pipeline_uses_user_intent_message_for_contract_inference(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "Final recommendation\nDone.")
+    engine = FakeWorkflowEngine(session)
+    captured_message: dict[str, str] = {}
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    def _fake_infer_peer_run_contract(message: str):
+        captured_message["value"] = message
+        return SimpleNamespace(
+            expected_output_type="direct_answer",
+            must_create_or_update_files=False,
+            must_modify_code=False,
+            must_ground_in_sources=False,
+            acceptance_dimensions=("instruction_alignment",),
+            role_focus_author="x",
+            role_focus_challenger="x",
+            role_focus_refiner="x",
+            role_focus_judge="x",
+        )
+
+    monkeypatch.setattr(pipelines, "infer_peer_run_contract", _fake_infer_peer_run_contract)
+    monkeypatch.setattr(
+        pipelines,
+        "render_peer_run_contract",
+        lambda contract: "contract",
+    )
+
+    await pipelines.run_peer_pipeline(
+        "wrapped message with history",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+        user_intent_message="latest raw user input",
+    )
+
+    assert captured_message["value"] == "latest raw user input"
+
+
+@pytest.mark.anyio
 async def test_run_single_raises_for_unknown_agent(monkeypatch, tmp_path):
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
     with pytest.raises(typer.BadParameter) as exc:

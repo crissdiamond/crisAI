@@ -160,6 +160,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
             verbose=payload.verbose,
             review=payload.review,
             decision=decision,
+            user_intent_message=payload.message,
         )
     except Exception as exc:  # noqa: BLE001
         raise _to_http_exception(exc) from exc
@@ -308,6 +309,7 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
             verbose=payload.verbose,
             review=payload.review,
             decision=decision,
+            user_intent_message=payload.message,
         )
         session_name = sanitize_session_name(payload.session)
         history = load_history(session_name)

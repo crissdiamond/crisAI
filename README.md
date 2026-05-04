@@ -28,6 +28,8 @@ The aim is to create a personal AI workstation that can retrieve source material
 - Synonym dictionary (`registry/search_synonyms.yaml`) — maintainable YAML of equivalent-term groups (plural/singular, abbreviations, domain synonyms) applied to all intranet search; no code change needed to extend it
 - Configurable on-disk page catalogue cache (default 4 h, `INTRANET_PAGE_CACHE_TTL_HOURS`) so agents can list every available page without repeated Graph API scans
 - Runtime workflow policy layer (`registry/workflow_policy.yaml`) with hard capability gates (for example: require intranet fetch evidence for intranet-scoped requests; require file writes for artefact-producing requests)
+- Peer run-contract inference (`src/crisai/orchestration/peer_contract.py`) to turn user intent into explicit peer role focus and acceptance dimensions
+- Peer post-run verifier gate (`src/crisai/orchestration/peer_verifier.py`) to validate final peer claims against filesystem outputs
 - Optional **architecture context** corpus under `workspace/context/`, with **draft staging** in `workspace/context_staging/` for human review before promotion
 - Multi-agent orchestration with three execution modes:
   - `single`
@@ -151,6 +153,8 @@ crisAI/
         factory.py
       orchestration/
         router.py
+        peer_contract.py
+        peer_verifier.py
       servers/
         workspace_server.py
         document_server.py
@@ -419,6 +423,10 @@ Runs the peer-style flow:
 5. `judge`
 6. if judge says `revise`, run extra refiner/judge rounds (bounded by `CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`)
 7. `orchestrator`
+8. post-run peer verifier checks final file-backed claims against on-disk artefacts
+
+Notes:
+- in chat mode, peer contract inference uses the latest user message (not wrapped history transcript) to avoid intent drift from previous turns.
 
 ---
 
