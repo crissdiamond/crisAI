@@ -1,41 +1,36 @@
 ---
-id: PATT-INT-004
-title: Consumer Pattern 4 - Enterprise API to System: Asynchronous
+id: PATT-INT-005
+title: Consumer Pattern 4 - Enterprise API to System : Asynchronous
 type: pattern
 status: draft
 owner: Architecture
+last_reviewed: 2026-05-04
+applies_to: all
+tags: integration, consumer, enterprise-api, asynchronous
 related: []
 ---
 
 ## Source
-- [Consumer Pattern 4](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-4.aspx)
+- Title: Consumer Pattern 4
+- web_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-4.aspx
+- open_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-4.aspx
 
 ## Design overview
-- Name: Enterprise API to System: Asynchronous
-- Version: 0.1
-- Status: APPROVED
-- Date: 30 March 2023
-- Classification: Consumer pattern
-- Source: Enterprise API
-- Target: System (API/DB/File)
-- Delivery: Asynchronous
-- Core pattern: Yes
-- Description: Send events received on the Enterprise API to the target system asynchronously.
+- Pattern name: Enterprise API to System : Asynchronous.
+- Description: a scheduler event requests data from the Producer Interface and transforms it into the System Data Model.
+- Classification: consumer pattern.
+- Physical implementation includes API Gateway, API Management, asynchronous callbacks, and Dead Letter Queue.
 
 ## When to use
-- Use when the consumer requests data from a producer interface and waits for the data to be returned later for transformation and delivery.
-- Use when the response is callback-based rather than completed in the same call.
+- Use when a scheduler-driven request to a producer interface must be handled asynchronously.
 
 ## Implementation
-- A scheduler event triggers the process to request data from the producer interface.
-- The producer prepares data and sends it over the consumer gateway.
-- The consumer gateway captures the event, transforms it into a System data model and sends it to the System.
-- If an error occurs while publishing to the System, the message is pushed back to the internal queue for reprocessing.
-- Solution overview includes request, processing and connector molecules.
-- Physical implementation notes for AWS use CloudWatch Scheduler, Lambda, API Gateway and SQS; Azure uses Time Trigger Service, Azure Function, API Management and Service Bus Queue.
+- A scheduler event requests data from the Producer Interface.
+- The response is transformed into the System Data Model.
+- Physical components mentioned: API Gateway, API Management, asynchronous callbacks, Dead Letter Queue.
 
 ## Anti-patterns or when not to use
-- Not suitable where the target system must be updated synchronously in the originating transaction.
+- Not stated in the source.
 
 ## References
-- [Consumer Pattern 4](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-4.aspx)
+- https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-4.aspx

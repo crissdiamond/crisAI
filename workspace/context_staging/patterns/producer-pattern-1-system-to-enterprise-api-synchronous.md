@@ -1,40 +1,40 @@
 ---
-id: PATT-INT-005
-title: Producer Pattern 1 - System to Enterprise API: onDemand Synchronous
+id: PATT-INT-006
+title: Producer Pattern 1 - System to Enterprise API : onDemand Synchronous
 type: pattern
 status: draft
 owner: Architecture
+last_reviewed: 2026-05-04
+applies_to: all
+tags: integration, producer, api, ondemand, synchronous
 related: []
 ---
 
 ## Source
-- [Producer Pattern 1](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-1.aspx)
+- Title: Producer Pattern 1
+- web_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-1.aspx
+- open_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-1.aspx
 
 ## Design overview
-- Name: System to Enterprise API - onDemand Synchronous
-- Version: 0.1
-- Status: APPROVED
-- Date: 21 March 2023
-- Classification: Producer pattern
-- Source: System (API/DB/File)
-- Target: Enterprise API
-- Invocation: Synchronous
-- Core pattern: Yes
-- Description: Send requested data to consumer over Enterprise API synchronously.
+- Pattern name: System to Enterprise API : onDemand Synchronous.
+- Description: send requested data to a consumer over Enterprise API synchronously.
+- Classification: producer pattern.
+- Source: system.
+- Target: consumer.
+- Delivery: synchronous.
+- Physical implementation mentions API Gateway, Lambda, Secrets Manager, and CloudWatch.
 
 ## When to use
-- Use when a consumer requests data from a producer gateway and requires an enterprise modelled response in the same call.
-- Use for application integration or enrichment scenarios where immediate end-user or consumer response is needed.
+- Use when a consumer requests data from a system over an Enterprise API and synchronous delivery is needed.
 
 ## Implementation
-- The pattern takes request from the consumer, models it into system data model and invokes the system API.
-- The response from the System is translated into an Enterprise Data Model and sent to the Enterprise API.
-- If an error occurs during the process, it is modelled and sent into the standard error response.
-- Solution overview includes API Gateway request, processing, publish and connector molecules.
-- Physical implementation notes for AWS use API Gateway, Lambda, Secrets Manager and CloudWatch; Azure uses API Management, Azure Function, Key Vaults and Azure Monitor.
+- A request from the consumer is received.
+- The system sends the requested data over the Enterprise API.
+- The request is handled synchronously.
+- Physical components mentioned: API Gateway, Lambda, Secrets Manager, CloudWatch.
 
 ## Anti-patterns or when not to use
-- Not suitable when the interface must be decoupled from the consumer request/response transaction.
+- Not stated in the source.
 
 ## References
-- [Producer Pattern 1](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-1.aspx)
+- https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-1.aspx

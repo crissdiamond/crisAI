@@ -1,41 +1,37 @@
 ---
-id: PATT-INT-006
-title: Producer Pattern 2 - System to Enterprise Channel: Batch Synchronous
+id: PATT-INT-007
+title: Producer Pattern 2 - System to Enterprise Channel : Batch Synchronous
 type: pattern
 status: draft
 owner: Architecture
+last_reviewed: 2026-05-04
+applies_to: all
+tags: integration, producer, channel, batch, synchronous
 related: []
 ---
 
 ## Source
-- [Producer Pattern 2](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-2.aspx)
+- Title: Producer Pattern 2
+- web_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-2.aspx
+- open_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-2.aspx
 
 ## Design overview
-- Name: System to Enterprise Channel - Batch Synchronous
-- Version: 0.1
-- Status: APPROVED
-- Date: 21 March 2023
-- Classification: Producer pattern
-- Source: System (API/DB/File)
-- Target: Enterprise Channel
-- Invocation: Batch
-- Delivery: Synchronous
-- Core pattern: No
-- Description: Fetch data from System on a scheduled basis and send over Enterprise Channel synchronously.
+- Pattern name: System to Enterprise Channel : Batch Synchronous.
+- Description: fetch data from the system on a scheduled basis and send it over the Enterprise Channel synchronously.
+- Classification: producer pattern.
+- Physical implementation mentions a scheduled event, SNS or Event Grid, and a Dead Letter Queue.
 
 ## When to use
-- Use when a scheduled event must extract changes from a system that does not support event-driven publishing.
-- Use when near real-time behaviour is simulated by batch scheduling.
+- Use when batch-oriented data extraction from a system is required and synchronous delivery over the Enterprise Channel is acceptable.
 
 ## Implementation
-- A scheduled event triggers the data fetch from the System.
-- The response from the System API is translated into an Enterprise Data Model and then published to the channel.
-- If an error occurs while publishing to the Enterprise Channel, the message is saved to Dead Letter for reprocessing.
-- Solution overview includes scheduled trigger, processing, connector and publish molecules.
-- Physical implementation notes for AWS use CloudWatch Scheduler, Lambda, SNS and reconciliation API; Azure uses Time Trigger Service, Azure Function, Event Grid and reconciliation API.
+- A scheduled event initiates the flow.
+- Data is fetched from the system.
+- The data is sent over the Enterprise Channel synchronously.
+- Physical components mentioned: scheduled event, SNS or Event Grid, Dead Letter Queue.
 
 ## Anti-patterns or when not to use
-- Not suitable when the source system can emit events directly on change.
+- Not stated in the source.
 
 ## References
-- [Producer Pattern 2](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-2.aspx)
+- https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Producer-Pattern-2.aspx

@@ -133,6 +133,7 @@ servers:
         - intranet_login
         - intranet_auth_status
         - intranet_search
+        - intranet_list_all_pages
         - intranet_fetch
         - intranet_list_page_links
     approval:

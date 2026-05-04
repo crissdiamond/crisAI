@@ -1,41 +1,46 @@
 ---
-id: PATT-INT-001
-title: Consumer Pattern 1 - Enterprise Channel to System: Synchronous
+id: PATT-INT-002
+title: Consumer Pattern 1 - Enterprise Channel to System : Synchronous
 type: pattern
 status: draft
 owner: Architecture
+last_reviewed: 2026-05-04
+applies_to: all
+tags: integration, consumer, enterprise-channel, synchronous
 related: []
 ---
 
 ## Source
-- [Consumer Pattern 1](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-1.aspx)
+- Title: Consumer Pattern 1
+- web_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-1.aspx
+- open_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-1.aspx
 
 ## Design overview
-- Name: Enterprise Channel to System: Synchronous
-- Version: 0.1
-- Status: APPROVED
-- Date: 21 March 2023
-- Classification: Consumer pattern
-- Source: Enterprise Channel
-- Target: System (API/DB/File)
-- Delivery: Synchronous
-- Core pattern: Yes
-- Description: Send events received on the Enterprise Channel to the target system synchronously.
+- Pattern name: Enterprise Channel to System : Synchronous.
+- Description: send events received on the Enterprise Channel to the target system synchronously.
+- Classification: consumer pattern.
+- Source: Enterprise Channel.
+- Target: System.
+- Delivery: synchronous.
+- Version: 0.1.
+- Status: APPROVED.
+- Date: 21 March 2023.
+- NFRs: standard logging and correlation IDs; reconciliation; retry; dead letter queue; SLA guidance; volumetric capacity and operational limits.
+- Security: AWS communication uses IAM permissions implemented using Terraform; cross-cloud and cross-account topics are open.
 
 ## When to use
-- Use when an event on the Enterprise Channel must be transformed to a System data model and sent to the target system in the same flow.
-- Use when the target system may be reached via API, database or file interface.
+- Use when events arrive on the Enterprise Channel and must be transformed and sent to the target system synchronously.
 
 ## Implementation
 - The event arriving on the Enterprise Channel triggers the integration flow.
-- The payload is transformed into a System-specific data model.
-- The payload is passed to the System via API, DB or file.
-- If an error occurs while pushing the message to the System, the message is pushed back to the Enterprise Channel queue for reprocessing.
-- Solution overview includes a processing molecule to fetch event and convert to System data model, and a connector molecule to send to System.
-- Physical implementation notes for AWS use SQS, Lambda, CloudWatch and a reconciliation API; Azure uses Service Bus, Azure Functions, Azure Monitor and a reconciliation API.
+- The payload is transformed into a system-specific data model.
+- The payload is passed to the system via API, DB, or file.
+- If an error occurs while pushing the message to the system, the message is pushed back to the Enterprise Channel queue for reprocessing.
+- Physical implementation on AWS: SQS receives the message; Lambda is triggered; CloudWatch records the outcome; the Reconciliation API is called; failures go to a dead letter queue.
+- Physical implementation on Azure: Service Bus Queue receives the message; Azure Function is triggered; Azure Monitor records the outcome; the Reconciliation API is called; failures go to a dead letter queue.
 
 ## Anti-patterns or when not to use
-- Not suitable when asynchronous batch scheduling is required instead of immediate channel-to-system delivery.
+- Not stated in the source.
 
 ## References
-- [Consumer Pattern 1](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-1.aspx)
+- https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/Consumer-Pattern-1.aspx

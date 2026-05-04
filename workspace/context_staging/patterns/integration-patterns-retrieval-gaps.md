@@ -1,17 +1,23 @@
 ---
-id: PATT-INT-011
+id: PATT-INT-010
 title: Integration patterns retrieval gaps
 type: pattern
 status: draft
 owner: Architecture
+last_reviewed: 2026-05-04
+applies_to: UCL IT Architecture integration patterns
+tags: integration, patterns, retrieval-gaps, catalogue
 related: []
 ---
 
-## Retrieval gaps
-- Consumer Pattern 0: list_page_links -> fetched from catalogue, but no leaf detail page was provided in this batch.
-
 ## Source
-- [Integration patterns](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/integration-patterns.aspx)
+- Title: Integration patterns
+- web_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/integration-patterns.aspx
+- open_url: https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/integration-patterns.aspx
+
+## Retrieval gaps
+- Ingestion Pattern 2 - API to Ingestion API - Draft: list_page_links did not yield a usable leaf; intranet_fetch returned a mislabelled producer-pattern page, not ingestion-specific guidance.
+- Ingestion Pattern 3 - DMS to Ingestion API - Draft: list_page_links did not yield a usable leaf; intranet_fetch returned a mislabelled producer-pattern page, not ingestion-specific guidance.
 
 ## References
-- [Integration patterns](https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/integration-patterns.aspx)
+- https://liveuclac.sharepoint.com/sites/it-architecture/SitePages/integration-patterns.aspx

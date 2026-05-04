@@ -24,6 +24,7 @@ Required body sections for detail files:
 - `## Design overview`
 - `## When to use`
 - `## Implementation` (detailed implementation including components and flow when supported)
+- `## NFRS` (only when supported)
 - `## Anti-patterns or when not to use` (only when supported)
 - `## Source` 
 - `## References` (only when supported and not source)
