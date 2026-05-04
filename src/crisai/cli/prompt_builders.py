@@ -250,6 +250,41 @@ def build_judge_prompt(message: str, discovery_text: str, challenger_text: str, 
     )
 
 
+def build_judge_quality_gate_prompt(
+    message: str,
+    discovery_text: str,
+    challenger_text: str,
+    refiner_text: str,
+    prior_judge_text: str,
+) -> str:
+    """Build a strict acceptance-audit prompt for peer mode.
+
+    This is a structural quality gate: when the initial judge decision is
+    "accept", we run a second adjudication pass that specifically checks for
+    silent information loss, weak evidence retention, and missing critical
+    constraints.
+    """
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Discovery findings", discovery_text),
+            _section("Challenge", challenger_text),
+            _section("Refined draft", refiner_text),
+            _section("Initial judge output", prior_judge_text),
+            "Task:\nRun a strict acceptance audit on the refined draft.",
+            "Acceptance audit rules:\n"
+            "- Compare the refined draft against discovery findings and challenge notes.\n"
+            "- If material evidence present in discovery/challenge is omitted, weakened, or replaced with generic wording, return `Decision: revise`.\n"
+            "- If critical constraints, implementation details, assumptions, risks, or retrieval gaps are missing despite being available in evidence, return `Decision: revise`.\n"
+            "- If unsupported claims appear, return `Decision: revise`.\n"
+            "- Return `Decision: accept` only when the refined draft preserves material evidence and is ready to ship.\n"
+            "Output contract:\n"
+            "- First line must be exactly `Decision: accept` or `Decision: revise`.\n"
+            "- Then provide concise `Reason:` and, when revising, a `Missing or weak items:` bullet list.",
+        ]
+    )
+
+
 def build_peer_final_prompt(
     message: str,
     discovery_text: str,

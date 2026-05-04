@@ -31,6 +31,7 @@ from .prompt_builders import (
     build_single_retrieval_planner_prompt,
     build_context_retrieval_prompt,
     build_judge_prompt,
+    build_judge_quality_gate_prompt,
     build_peer_final_prompt,
     build_pipeline_final_prompt,
     build_refiner_prompt,
@@ -358,6 +359,58 @@ def _resolve_peer_max_refinement_rounds() -> int:
     except ValueError:
         return _DEFAULT_PEER_MAX_REFINEMENT_ROUNDS
     return max(0, parsed)
+
+
+async def _run_judge_with_acceptance_audit(
+    *,
+    workflow: Any,
+    specs: dict[str, Any],
+    message: str,
+    discovery_basis: str,
+    challenger_text: str,
+    refiner_text: str,
+    verbose: bool,
+    trace_label: str,
+    quality_trace_label: str,
+) -> tuple[str, str]:
+    """Run judge stage and validate accepts with a second-pass quality audit.
+
+    Returns:
+        Tuple of (judge_text, parsed_decision).
+    """
+    judge_text = await workflow.run_stage(
+        spec=specs["judge"],
+        ui_agent_id="judge",
+        prompt=build_judge_prompt(message, discovery_basis, challenger_text, refiner_text),
+        trace_label=trace_label,
+        verbose=verbose,
+    )
+    judge_decision = _parse_judge_decision(judge_text)
+    if judge_decision != "accept":
+        return judge_text, judge_decision
+
+    quality_gate_text = await workflow.run_stage(
+        spec=specs["judge"],
+        ui_agent_id="judge",
+        prompt=build_judge_quality_gate_prompt(
+            message,
+            discovery_basis,
+            challenger_text,
+            refiner_text,
+            judge_text,
+        ),
+        trace_label=quality_trace_label,
+        verbose=verbose,
+    )
+    quality_decision = _parse_judge_decision(quality_gate_text)
+    if quality_decision == "revise":
+        combined = (
+            judge_text.strip()
+            + "\n\nQuality gate override:\n"
+            + quality_gate_text.strip()
+        )
+        return combined, "revise"
+    return judge_text, "accept"
 
 
 def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
@@ -710,14 +763,17 @@ async def run_peer_pipeline(
             verbose=verbose,
         )
 
-        judge_text = await workflow.run_stage(
-            spec=specs["judge"],
-            ui_agent_id="judge",
-            prompt=build_judge_prompt(message, discovery_basis, challenger_text, refiner_text),
-            trace_label="JUDGE OUTPUT",
+        judge_text, judge_decision = await _run_judge_with_acceptance_audit(
+            workflow=workflow,
+            specs=specs,
+            message=message,
+            discovery_basis=discovery_basis,
+            challenger_text=challenger_text,
+            refiner_text=refiner_text,
             verbose=verbose,
+            trace_label="JUDGE OUTPUT",
+            quality_trace_label="JUDGE QUALITY GATE",
         )
-        judge_decision = _parse_judge_decision(judge_text)
         previous_refiner_text = refiner_text
         stagnation_detected = False
         rounds_executed = 0
@@ -755,19 +811,17 @@ async def run_peer_pipeline(
                 judge_decision = "revise"
                 break
             previous_refiner_text = refiner_text
-            judge_text = await workflow.run_stage(
-                spec=specs["judge"],
-                ui_agent_id="judge",
-                prompt=build_judge_prompt(
-                    message,
-                    discovery_basis,
-                    revision_challenge,
-                    refiner_text,
-                ),
-                trace_label=f"JUDGE OUTPUT (ROUND {round_index})",
+            judge_text, judge_decision = await _run_judge_with_acceptance_audit(
+                workflow=workflow,
+                specs=specs,
+                message=message,
+                discovery_basis=discovery_basis,
+                challenger_text=revision_challenge,
+                refiner_text=refiner_text,
                 verbose=verbose,
+                trace_label=f"JUDGE OUTPUT (ROUND {round_index})",
+                quality_trace_label=f"JUDGE QUALITY GATE (ROUND {round_index})",
             )
-            judge_decision = _parse_judge_decision(judge_text)
 
         if rounds_executed > 0 and judge_decision != "accept":
             unresolved_reason = (

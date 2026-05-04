@@ -4,6 +4,7 @@ from crisai.cli.prompt_builders import (
     build_context_retrieval_prompt,
     build_design_prompt,
     build_judge_prompt,
+    build_judge_quality_gate_prompt,
     build_peer_final_prompt,
     build_pipeline_final_prompt,
     build_refiner_prompt,
@@ -92,6 +93,20 @@ def test_build_peer_final_prompt_adds_execution_gate_when_writes_required():
     assert "Execution gate" in text
     assert "ensure required files are actually written" in text
     assert "created/updated file list" in text
+
+
+def test_build_judge_quality_gate_prompt_enforces_strict_acceptance_audit():
+    text = build_judge_quality_gate_prompt(
+        "Question",
+        "facts",
+        "challenge",
+        "refined",
+        "Decision: accept",
+    )
+    assert "Task:\nRun a strict acceptance audit" in text
+    assert "If material evidence present in discovery/challenge is omitted" in text
+    assert "Decision: accept" in text and "Decision: revise" in text
+    assert "Missing or weak items" in text
 
 
 def test_author_prompt_is_minimal_runtime_handoff():

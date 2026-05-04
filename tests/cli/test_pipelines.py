@@ -257,6 +257,90 @@ async def test_run_peer_pipeline_revises_once_when_judge_requests_revision(monke
         "judge",
         "design_refiner",
         "judge",
+        "judge",
+        "orchestrator",
+    ]
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_quality_gate_forces_revision_after_initial_accept(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+
+    class QualityGateSession(FakeWorkflowSession):
+        def __init__(self):
+            super().__init__(trace_calls, stage_calls, "Final recommendation\nShip this.")
+            self.normal_judge_calls = 0
+            self.quality_gate_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            del kwargs
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "judge":
+                if prompt.startswith("JUDGE_QUALITY_GATE::"):
+                    self.quality_gate_calls += 1
+                    # First quality gate blocks accept; second lets it pass.
+                    return (
+                        "Decision: revise\nReason: Missing implementation detail."
+                        if self.quality_gate_calls == 1
+                        else "Decision: accept\nReason: Coverage now complete."
+                    )
+                self.normal_judge_calls += 1
+                return "Decision: accept\nReason: Looks good."
+            if ui_agent_id == "orchestrator":
+                return self._final_output
+            if ui_agent_id == "design_refiner" and self.normal_judge_calls >= 1:
+                return "refined-draft-round-2 with restored implementation detail"
+            return f"{ui_agent_id}-output"
+
+    session = QualityGateSession()
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(
+        pipelines,
+        "build_judge_quality_gate_prompt",
+        lambda message, discovery, challenge, refiner, judge: (
+            "JUDGE_QUALITY_GATE::" + message + "::" + refiner
+        ),
+    )
+    monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "2")
+
+    result = await pipelines.run_peer_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+    )
+
+    assert result == "Final recommendation\nShip this."
+    # Initial accept was blocked by quality gate, forcing one revision loop.
+    assert [name for name, _ in stage_calls] == [
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "judge",
+        "design_refiner",
+        "judge",
+        "judge",
         "orchestrator",
     ]
 
