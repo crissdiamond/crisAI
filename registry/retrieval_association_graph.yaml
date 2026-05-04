@@ -6,7 +6,10 @@
 # max_hops are surfaced as **hints** in the runtime prompt—agents still must
 # align tools with the actual user request.
 #
-# Maintain associations here instead of growing prompts/retrieval_planner_agent.md.
+# Vertices below cluster **industry-common** enterprise architecture (EA),
+# data architecture (DA), and solution architecture (SA) language. Extend
+# with organisation-specific terms in new vertices rather than overloading
+# one node. Maintain associations here instead of growing agent markdown prompts.
 
 version: 1
 
@@ -14,6 +17,7 @@ settings:
   max_hops: 2
 
 vertices:
+  # --- Existing operational / intranet bridge (keep stable) ---
   - id: intranet_site_pages
     terms:
       - intranet
@@ -41,7 +45,168 @@ vertices:
       - hub page
       - leaf page
 
+  # --- Enterprise architecture (common practice / frameworks) ---
+  - id: enterprise_architecture_core
+    terms:
+      - enterprise architecture
+      - business architecture
+      - capability map
+      - business capability
+      - capability model
+      - value stream
+      - value chain
+      - target operating model
+      - strategy map
+      - corporate strategy
+      - architecture vision
+      - architecture roadmap
+      - portfolio management
+      - architecture governance
+      - architecture board
+  - id: application_portfolio_architecture
+    terms:
+      - application architecture
+      - application portfolio
+      - application landscape
+      - software portfolio
+      - system inventory
+      - application rationalisation
+      - application rationalization
+      - application lifecycle
+      - software asset management
+      - system context
+      - application dependency
+  - id: technology_infrastructure_architecture
+    terms:
+      - technology architecture
+      - technical architecture
+      - infrastructure architecture
+      - platform architecture
+      - hosting strategy
+      - cloud adoption
+      - cloud strategy
+      - platform engineering
+      - technology standards
+      - technical debt
+      - technology lifecycle
+
+  # --- Data architecture & management (common practice) ---
+  - id: data_architecture_core
+    terms:
+      - data architecture
+      - conceptual data model
+      - logical data model
+      - physical data model
+      - canonical model
+      - canonical data model
+      - data domain
+      - subject area model
+      - enterprise data model
+      - dimensional model
+      - entity relationship
+      - data modelling
+      - data modeling
+      - information model
+  - id: data_governance_and_management
+    terms:
+      - data governance
+      - data stewardship
+      - data catalogue
+      - data catalog
+      - data lineage
+      - data provenance
+      - data quality
+      - master data management
+      - reference data management
+      - metadata management
+      - data classification
+      - data retention
+      - privacy by design
+      - data mesh
+      - data product
+
+  # --- Solution architecture & engineering (delivery-facing) ---
+  - id: solution_architecture_delivery
+    terms:
+      - solution architecture
+      - solution design
+      - solution outline
+      - high level design
+      - detailed design
+      - low level design
+      - options paper
+      - target architecture
+      - as-is architecture
+      - to-be architecture
+      - transition architecture
+  - id: architecture_views_and_notations
+    terms:
+      - viewpoint
+      - architecture view
+      - archimate
+      - context diagram
+      - container diagram
+      - component diagram
+      - deployment diagram
+      - sequence diagram
+      - c4 model
+      - uml
+      - bpmn
+  - id: quality_and_security_architecture
+    terms:
+      - non functional requirements
+      - nfrs
+      - quality attributes
+      - scalability requirements
+      - availability requirements
+      - resilience architecture
+      - disaster recovery
+      - security architecture
+      - threat modelling
+      - threat modeling
+      - security controls
+      - identity architecture
+      - zero trust
+  - id: integration_and_api_architecture
+    terms:
+      - integration architecture
+      - api design
+      - api strategy
+      - api management
+      - enterprise service bus
+      - event driven architecture
+      - service oriented architecture
+      - microservices architecture
+      - b2b integration
+      - message broker
+      - enterprise integration
+
 edges:
+  # Intranet / pattern catalogue (original)
   - [intranet_site_pages, document_library_boundary]
   - [intranet_site_pages, integration_patterns_area]
   - [integration_patterns_area, catalogue_and_leaf_drilldown]
+
+  # EA internal links
+  - [enterprise_architecture_core, application_portfolio_architecture]
+  - [enterprise_architecture_core, technology_infrastructure_architecture]
+  - [enterprise_architecture_core, data_architecture_core]
+  - [enterprise_architecture_core, solution_architecture_delivery]
+
+  # EA / SA / portfolio / views
+  - [application_portfolio_architecture, solution_architecture_delivery]
+  - [application_portfolio_architecture, architecture_views_and_notations]
+  - [solution_architecture_delivery, architecture_views_and_notations]
+  - [solution_architecture_delivery, quality_and_security_architecture]
+  - [solution_architecture_delivery, integration_and_api_architecture]
+  - [technology_infrastructure_architecture, quality_and_security_architecture]
+
+  # DA internal links
+  - [data_architecture_core, data_governance_and_management]
+  - [data_architecture_core, integration_and_api_architecture]
+
+  # Bridge pattern catalogue + integration language to intranet drill-down
+  - [integration_and_api_architecture, integration_patterns_area]
+  - [enterprise_architecture_core, catalogue_and_leaf_drilldown]
+  - [data_architecture_core, catalogue_and_leaf_drilldown]
+  - [solution_architecture_delivery, catalogue_and_leaf_drilldown]
