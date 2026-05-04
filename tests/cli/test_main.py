@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -186,3 +187,22 @@ def test_close_chat_session_persists_history_and_shows_exit_notice(monkeypatch):
 
     assert saved == {"session": "test-9", "history": [("user", "hello"), ("assistant", "hi")]}
     assert notices[-1] == ("👋 Session closed", "Exiting.")
+
+
+def test_run_async_cancels_pending_background_tasks():
+    observed: dict[str, bool] = {"cancelled": False}
+
+    async def _background() -> None:
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            observed["cancelled"] = True
+            raise
+
+    async def _runner() -> str:
+        asyncio.create_task(_background())
+        await asyncio.sleep(0)
+        return "ok"
+
+    assert main._run_async(_runner()) == "ok"
+    assert observed["cancelled"] is True

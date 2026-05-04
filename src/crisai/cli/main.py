@@ -413,6 +413,14 @@ def _run_async(coro: Awaitable[Any]) -> Any:
         return loop.run_until_complete(coro)
     finally:
         try:
+            pending = [task for task in asyncio.all_tasks(loop) if not task.done()]
+            if pending:
+                for task in pending:
+                    task.cancel()
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except Exception:  # noqa: BLE001
+            pass
+        try:
             loop.run_until_complete(loop.shutdown_asyncgens())
         except Exception:  # noqa: BLE001
             pass

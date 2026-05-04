@@ -21,12 +21,12 @@ Apply these front matter rules to every generated pattern file:
 - `related:` includes only existing paths under `workspace/context/` (otherwise `related: []`)
 
 Required body sections for detail files:
-- `## Source`
 - `## Design overview`
 - `## When to use`
-- `## Implementation`
+- `## Implementation` (detailed implementation including components and flow when supported)
 - `## Anti-patterns or when not to use` (only when supported)
-- `## References`
+- `## Source` 
+- `## References` (only when supported and not source)
 
 ## Task 1 — Resolve the correct catalogue page
 Locate and fetch the catalogue whose URL ends with `/SitePages/integration-patterns.aspx` (lowercase, no suffix).
