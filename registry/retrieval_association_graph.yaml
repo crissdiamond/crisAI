@@ -37,6 +37,24 @@ vertices:
       - consumer pattern
       - producer pattern
       - ingestion pattern
+  # Organisation-facing integration *principles* (distinct from numbered patterns).
+  # Extend this vertex with further slug/title phrases as your intranet evolves.
+  - id: integration_principles_corpus
+    terms:
+      - integration principles
+      - integration principle
+      - principles of integration
+      - integration strategy
+      - integration policies
+      - integration policy
+      - integration guidance
+      - integration standards
+      - producer and consumer flows
+      - producer and consumer flow
+      - producer flow
+      - producer flows
+      - consumer flow
+      - consumer flows
   - id: catalogue_and_leaf_drilldown
     terms:
       - intranet_list_page_links
@@ -186,6 +204,11 @@ edges:
   - [intranet_site_pages, document_library_boundary]
   - [intranet_site_pages, integration_patterns_area]
   - [integration_patterns_area, catalogue_and_leaf_drilldown]
+  - [integration_principles_corpus, intranet_site_pages]
+  - [integration_principles_corpus, catalogue_and_leaf_drilldown]
+  - [integration_principles_corpus, integration_patterns_area]
+  - [integration_principles_corpus, integration_and_api_architecture]
+  - [integration_principles_corpus, enterprise_architecture_core]
 
   # EA internal links
   - [enterprise_architecture_core, application_portfolio_architecture]

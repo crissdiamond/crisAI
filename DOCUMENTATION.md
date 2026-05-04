@@ -532,6 +532,7 @@ The default graph ships with clusters aligned to common **enterprise architectur
 - **EA:** `enterprise_architecture_core` (capabilities, value streams, target operating model, governance), `application_portfolio_architecture`, `technology_infrastructure_architecture`.
 - **DA:** `data_architecture_core` (conceptual/logical/physical models, canonical and enterprise data models), `data_governance_and_management` (lineage, catalogue, MDM, data mesh/product).
 - **SA / delivery:** `solution_architecture_delivery` (HLD/LLD, as-is/to-be), `architecture_views_and_notations` (viewpoints, C4/UML-style views), `quality_and_security_architecture` (NFRs, resilience, security), `integration_and_api_architecture` (APIs, EDA, SOA/microservices).
+- **Integration principles (wording corpus):** `integration_principles_corpus` expands phrases such as **integration principles**, **integration strategy**, **producer/consumer flows**, and related tokens into intranet search/list hints (see `workspace/context_staging/_prompt_integration_principles.md`).
 
 Operational vertices (`intranet_site_pages`, `document_library_boundary`, `integration_patterns_area`, `catalogue_and_leaf_drilldown`) remain linked so EA/DA/SA-style queries can still surface **intranet list/link/fetch** and **catalogue vs leaf** hints where relevant.
 

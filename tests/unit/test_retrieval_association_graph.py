@@ -20,6 +20,7 @@ def test_load_graph_from_repo_registry(registry_dir: Path):
     graph = load_retrieval_association_graph(registry_dir)
     assert graph is not None
     assert "intranet_site_pages" in graph.vertex_terms
+    assert "integration_principles_corpus" in graph.vertex_terms
     assert graph.max_hops >= 0
 
 
@@ -48,6 +49,14 @@ def test_enterprise_architecture_triggers_catalogue_and_data_hints(registry_dir:
     _, terms = expand_retrieval_hints("We need a business capability map for the enterprise architecture roadmap.", graph)
     assert "intranet_list_all_pages" in terms
     assert "data architecture" in terms or "application portfolio" in terms
+
+
+def test_integration_principles_vertex_expands_intranet_hints(registry_dir: Path):
+    graph = load_retrieval_association_graph(registry_dir)
+    assert graph is not None
+    seeds, terms = expand_retrieval_hints("integration principles and producer flows", graph)
+    assert "integration_principles_corpus" in seeds
+    assert "intranet_list_all_pages" in terms or "intranet_search" in terms
 
 
 def test_data_governance_triggers_lineage_and_catalogue_hints(registry_dir: Path):
