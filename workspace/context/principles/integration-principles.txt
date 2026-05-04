@@ -9,7 +9,7 @@ applies_to: all
 tags: integration, cloud-native, security, sustainability
 related:
   - context/standards/integration/architectural-guardrails.txt
-  - context/patterns/integration-patterns.txt
+  - context/patterns/integration-patterns-index.md
 ---
 ## Overarching Principles
 Durable statements that align integration work with UCL’s broader institutional goals.

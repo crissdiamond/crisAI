@@ -9,7 +9,7 @@ applies_to: all
 tags: governance, integration, api-first, devops
 related:
   - context/principles/integration-principles.txt
-  - context/patterns/integration-patterns.txt
+  - context/patterns/integration-patterns-index.md
 ---
 ## Governance and Process Standards
 * **Integrated by Design**: Integration capabilities of new applications must be evaluated during the procurement process. Funds must be allocated to enable integration if not natively supported.
