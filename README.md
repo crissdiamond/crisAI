@@ -285,6 +285,10 @@ MS_REDIRECT_URI=http://localhost
 # Intranet page catalogue cache TTL (used by intranet_list_all_pages)
 INTRANET_PAGE_CACHE_TTL_HOURS=4
 
+# Optional: advisory-only MCP association expansion in peer analysis stages
+# (`challenger` / `judge`). Canonical deterministic context still wins.
+CRISAI_DETERMINISTIC_MCP_ADVISORY=false
+
 # Peer mode: max extra refiner/judge rounds after initial judge decision
 CRISAI_PEER_MAX_REFINEMENT_ROUNDS=2
 
