@@ -91,9 +91,12 @@ def test_enforce_workspace_write_policy_raises_when_required_and_no_changes(tmp_
 
 def test_infer_workflow_policy_uses_deterministic_source_nudge():
     context = DeterministicRetrievalContext(
+        schema_version="deterministic_context_v1",
         activated_topic_ids=frozenset({"integration_principles_corpus"}),
         suggested_terms=frozenset({"integration principles"}),
         suggested_sources=frozenset({"intranet"}),
+        graph_loaded=True,
+        graph_version="test",
     )
     policy = infer_workflow_policy("plain request", deterministic_context=context)
     assert policy.require_intranet_fetch is True

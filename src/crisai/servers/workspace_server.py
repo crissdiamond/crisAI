@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
+from crisai.orchestration.retrieval_association_graph import deterministic_context_from_registry
 
 mcp = FastMCP("crisai-workspace")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
@@ -208,6 +209,28 @@ def make_note_path(kind: str, slug: str) -> str:
     safe_slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", slug.strip()).strip("-").lower()
     safe_kind = re.sub(r"[^a-zA-Z0-9._-]+", "-", kind.strip()).strip("-").lower()
     return str(Path("outputs") / safe_kind / f"{safe_slug}.md")
+
+
+@mcp.tool()
+def expand_associations(message: str, max_terms: int = 24) -> dict[str, object]:
+    """Return advisory deterministic association expansion for a message.
+
+    This tool is read-only and advisory. Workflow policy and routing should
+    still rely on canonical deterministic context computed by runtime.
+    """
+    log_event(f"expand_associations chars={len(message)} max_terms={max_terms}")
+    registry_dir = ROOT.parent / "registry"
+    context, graph_loaded = deterministic_context_from_registry(message, registry_dir)
+    term_limit = max(1, min(max_terms, 100))
+    return {
+        "advisory": True,
+        "schema_version": context.schema_version,
+        "graph_loaded": graph_loaded,
+        "graph_version": context.graph_version,
+        "activated_topics": sorted(context.activated_topic_ids),
+        "expanded_terms": sorted(context.suggested_terms)[:term_limit],
+        "suggested_sources": sorted(context.suggested_sources),
+    }
 
 
 if __name__ == "__main__":

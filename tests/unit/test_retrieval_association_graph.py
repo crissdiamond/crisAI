@@ -6,6 +6,7 @@ import pytest
 
 from crisai.orchestration.retrieval_association_graph import (
     build_deterministic_retrieval_context,
+    deterministic_context_from_registry,
     deterministic_context_trace_metadata,
     expand_retrieval_hints,
     format_retrieval_expansion_block,
@@ -75,7 +76,16 @@ def test_trace_metadata_contains_counts(registry_dir: Path):
     context = build_deterministic_retrieval_context("integration principles and producer flows", graph)
     metadata = deterministic_context_trace_metadata(context)
     assert metadata["graph_loaded"] is True
+    assert metadata["schema_version"] == "deterministic_context_v1"
+    assert isinstance(metadata["graph_version"], str)
     assert int(metadata["activated_topics_count"]) >= 1
+
+
+def test_context_from_registry_fail_open_when_missing(tmp_path: Path):
+    context, loaded = deterministic_context_from_registry("integration principles", tmp_path)
+    assert loaded is False
+    assert context.graph_loaded is False
+    assert context.schema_version == "deterministic_context_v1"
 
 
 def test_data_governance_triggers_lineage_and_catalogue_hints(registry_dir: Path):

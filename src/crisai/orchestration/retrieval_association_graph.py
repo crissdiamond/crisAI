@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections import deque
 from dataclasses import dataclass
+from hashlib import sha1
 from pathlib import Path
 
 import yaml
@@ -29,9 +30,12 @@ class RetrievalAssociationGraph:
 class DeterministicRetrievalContext:
     """Structured deterministic retrieval expansion for runtime consumers."""
 
+    schema_version: str
     activated_topic_ids: frozenset[str]
     suggested_terms: frozenset[str]
     suggested_sources: frozenset[str]
+    graph_loaded: bool
+    graph_version: str
 
     @property
     def is_active(self) -> bool:
@@ -184,13 +188,19 @@ def expand_retrieval_hints(message: str, graph: RetrievalAssociationGraph | None
 def build_deterministic_retrieval_context(
     message: str,
     graph: RetrievalAssociationGraph | None,
+    *,
+    graph_loaded: bool = True,
+    graph_version: str = "unknown",
 ) -> DeterministicRetrievalContext:
     """Return structured deterministic retrieval context from message + graph."""
     seeds, terms = expand_retrieval_hints(message, graph)
     return DeterministicRetrievalContext(
+        schema_version="deterministic_context_v1",
         activated_topic_ids=seeds,
         suggested_terms=terms,
         suggested_sources=_infer_suggested_sources(seeds, terms),
+        graph_loaded=graph_loaded,
+        graph_version=graph_version,
     )
 
 
@@ -224,7 +234,9 @@ def format_retrieval_expansion_block(
 def deterministic_context_trace_metadata(context: DeterministicRetrievalContext) -> dict[str, object]:
     """Return compact metadata for tracing deterministic retrieval behaviour."""
     return {
-        "graph_loaded": True,
+        "schema_version": context.schema_version,
+        "graph_loaded": context.graph_loaded,
+        "graph_version": context.graph_version,
         "activated_topics_count": len(context.activated_topic_ids),
         "hint_terms_count": len(context.suggested_terms),
         "activated_topics": sorted(context.activated_topic_ids),
@@ -241,14 +253,30 @@ def deterministic_context_from_registry(
     Returns:
         Tuple of (context, graph_loaded).
     """
+    path = registry_dir / _DEFAULT_GRAPH_NAME
+    graph_version = "unavailable"
+    if path.is_file():
+        try:
+            payload = path.read_text(encoding="utf-8")
+            graph_version = sha1(payload.encode("utf-8")).hexdigest()[:12]
+        except OSError:
+            graph_version = "unreadable"
     graph = load_retrieval_association_graph(registry_dir)
     if graph is None:
         return (
             DeterministicRetrievalContext(
+                schema_version="deterministic_context_v1",
                 activated_topic_ids=frozenset(),
                 suggested_terms=frozenset(),
                 suggested_sources=frozenset(),
+                graph_loaded=False,
+                graph_version=graph_version,
             ),
             False,
         )
-    return build_deterministic_retrieval_context(message, graph), True
+    return build_deterministic_retrieval_context(
+        message,
+        graph,
+        graph_loaded=True,
+        graph_version=graph_version,
+    ), True

@@ -26,7 +26,7 @@ The aim is to create a personal AI workstation that can retrieve source material
 - Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools: `intranet_search`, `intranet_fetch`, `intranet_list_page_links`, **`intranet_list_all_pages`**)
 - Two-stage `intranet_search`: OData scored pass + cache expansion ensures leaf pages (e.g. `Consumer-Pattern-1`) are never silently dropped
 - Synonym dictionary (`registry/search_synonyms.yaml`) — maintainable YAML of equivalent-term groups (plural/singular, abbreviations, domain synonyms) applied to all intranet search; no code change needed to extend it
-- Retrieval association graph (`registry/retrieval_association_graph.yaml`) — deterministic topic graph (EA, DA, SA clusters plus intranet/catalogue bridges) whose matched vertices expand into optional query hints injected into retrieval-stage prompts (see `src/crisai/orchestration/retrieval_association_graph.py`; extend in YAML, restart CLI)
+- Retrieval association graph (`registry/retrieval_association_graph.yaml`) — deterministic topic expansion reused across `single`, `pipeline`, and `peer` workflows; see `DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md` for architecture, dictionary rules, and advisory MCP usage
 - Global semantic catalogue (`registry/semantic_catalog.yaml`) for router intent terms, peer-verifier semantic patterns, and **peer run-contract** substring markers (`peer_contract.*_markers`), including configurable `leaf_file_terms` architecture vocabulary (for example `hld`, `template`, `standards`, `toolkit`), maintained externally from code
 - Configurable on-disk page catalogue cache (default 4 h, `INTRANET_PAGE_CACHE_TTL_HOURS`) so agents can list every available page without repeated Graph API scans
 - Runtime workflow policy layer (`registry/workflow_policy.yaml`) with hard capability gates (for example: require intranet fetch evidence for intranet-scoped requests; require file writes for artefact-producing requests)
@@ -571,7 +571,7 @@ Intranet MCP tools:
 
 **Synonym dictionary** (`registry/search_synonyms.yaml`): add a group when a query misses relevant pages. Restart the CLI to apply. No code change needed.
 
-Configuration, guardrails, and prompting patterns are in **DOCUMENTATION.md**.
+Configuration, guardrails, and prompting patterns are in **DOCUMENTATION.md**. Deterministic retrieval architecture details are in **DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md**.
 
 Operational recommendation:
 - `intranet_search` is now comprehensive for most queries — cache expansion runs automatically when the catalogue is warm

@@ -85,6 +85,7 @@ def infer_workflow_policy(
     message: str,
     registry_dir: Path | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
+    advisory_deterministic_context: DeterministicRetrievalContext | None = None,
 ) -> WorkflowPolicy:
     """Infer policy capabilities from a user request.
 
@@ -99,6 +100,8 @@ def infer_workflow_policy(
         phrase_list = [str(p).lower().strip() for p in (phrases or []) if str(p).strip()]
         if any(phrase in text for phrase in phrase_list):
             capabilities.add(str(capability))
+    # Canonical deterministic context is authoritative. Advisory contexts are intentionally ignored here.
+    del advisory_deterministic_context
     if deterministic_context is not None and deterministic_context.is_active:
         if "intranet" in deterministic_context.suggested_sources:
             capabilities.add("intranet_grounded")

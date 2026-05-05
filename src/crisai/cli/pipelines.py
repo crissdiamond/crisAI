@@ -69,10 +69,17 @@ _DEFAULT_AGENT_MAX_TURNS = 30
 
 def _empty_deterministic_context() -> DeterministicRetrievalContext:
     return DeterministicRetrievalContext(
+        schema_version="deterministic_context_v1",
         activated_topic_ids=frozenset(),
         suggested_terms=frozenset(),
         suggested_sources=frozenset(),
+        graph_loaded=False,
+        graph_version="unavailable",
     )
+
+
+def _deterministic_advisory_enabled() -> bool:
+    return os.getenv("CRISAI_DETERMINISTIC_MCP_ADVISORY", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _trace_workflow_policy_event(
@@ -556,6 +563,8 @@ async def _run_judge_with_acceptance_audit(
     quality_trace_label: str,
     run_contract_text: str = "",
     filesystem_evidence_text: str = "",
+    deterministic_context: DeterministicRetrievalContext | None = None,
+    deterministic_advisory_enabled: bool = False,
 ) -> tuple[str, str]:
     """Run judge stage and validate accepts with a second-pass quality audit.
 
@@ -577,6 +586,8 @@ async def _run_judge_with_acceptance_audit(
         challenger_text,
         effective_refiner_text,
         run_contract_text=run_contract_text,
+        deterministic_context=deterministic_context,
+        deterministic_advisory_enabled=deterministic_advisory_enabled,
     )
     judge_text = await workflow.run_stage(
         spec=specs["judge"],
@@ -607,6 +618,8 @@ async def _run_judge_with_acceptance_audit(
         effective_refiner_text,
         judge_text,
         run_contract_text=run_contract_text,
+        deterministic_context=deterministic_context,
+        deterministic_advisory_enabled=deterministic_advisory_enabled,
     )
     quality_gate_text = await workflow.run_stage(
         spec=specs["judge"],
@@ -765,14 +778,20 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
             event_type="workflow_input",
             metadata={"mode": "single", "agent_id": agent_id},
         )
-        if graph_loaded:
-            _append_trace_entry_compat(
-                environment,
-                "DETERMINISTIC_RETRIEVAL_CONTEXT",
-                "Deterministic retrieval context computed.",
-                event_type="policy_signal",
-                metadata=deterministic_context_trace_metadata(deterministic_context),
-            )
+        _append_trace_entry_compat(
+            environment,
+            "DETERMINISTIC_RETRIEVAL_CONTEXT",
+            (
+                "Deterministic retrieval context computed from registry graph."
+                if graph_loaded
+                else "Deterministic retrieval graph unavailable; continuing in fail-open mode."
+            ),
+            event_type="policy_signal",
+            metadata={
+                **deterministic_context_trace_metadata(deterministic_context),
+                "mode": "single",
+            },
+        )
         agent = environment.factory.build_agent(agent_spec, active_servers)
         prompt = (
             build_single_retrieval_planner_prompt(
@@ -842,14 +861,20 @@ async def run_pipeline(
             metadata={"mode": "pipeline", "review": review},
         )
         workflow.trace_user_input(message)
-        if graph_loaded:
-            _trace_workflow_policy_event(
-                workflow,
-                "DETERMINISTIC_RETRIEVAL_CONTEXT",
-                "Deterministic retrieval context computed.",
-                event_type="policy_signal",
-                metadata=deterministic_context_trace_metadata(deterministic_context),
-            )
+        _trace_workflow_policy_event(
+            workflow,
+            "DETERMINISTIC_RETRIEVAL_CONTEXT",
+            (
+                "Deterministic retrieval context computed from registry graph."
+                if graph_loaded
+                else "Deterministic retrieval graph unavailable; continuing in fail-open mode."
+            ),
+            event_type="policy_signal",
+            metadata={
+                **deterministic_context_trace_metadata(deterministic_context),
+                "mode": "pipeline",
+            },
+        )
 
         retrieval_plan_text = await workflow.run_stage(
             spec=specs["retrieval_planner"],
@@ -970,8 +995,10 @@ async def run_peer_pipeline(
     intent_message = user_intent_message or message
     registry_dir = getattr(settings, "registry_dir", None)
     deterministic_context = _empty_deterministic_context()
+    graph_loaded = False
     if registry_dir is not None:
-        deterministic_context, _ = deterministic_context_from_registry(intent_message, Path(registry_dir))
+        deterministic_context, graph_loaded = deterministic_context_from_registry(intent_message, Path(registry_dir))
+    deterministic_advisory_enabled = _deterministic_advisory_enabled()
     policy = infer_workflow_policy(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
@@ -1031,6 +1058,21 @@ async def run_peer_pipeline(
             run_contract_text,
             event_type="policy_signal",
             metadata={"expected_output_type": run_contract.expected_output_type},
+        )
+        _trace_workflow_policy_event(
+            workflow,
+            "DETERMINISTIC_RETRIEVAL_CONTEXT",
+            (
+                "Deterministic retrieval context computed from registry graph."
+                if graph_loaded
+                else "Deterministic retrieval graph unavailable; continuing in fail-open mode."
+            ),
+            event_type="policy_signal",
+            metadata={
+                **deterministic_context_trace_metadata(deterministic_context),
+                "mode": "peer",
+                "advisory_mcp_enabled": deterministic_advisory_enabled,
+            },
         )
 
         retrieval_plan_text = ""
@@ -1118,6 +1160,8 @@ async def run_peer_pipeline(
                 message,
                 discovery_basis,
                 run_contract_text=run_contract_text,
+                deterministic_context=deterministic_context,
+                deterministic_advisory_enabled=False,
             ),
             trace_label="AUTHOR OUTPUT",
             verbose=verbose,
@@ -1132,6 +1176,8 @@ async def run_peer_pipeline(
                 discovery_basis,
                 author_text,
                 run_contract_text=run_contract_text,
+                deterministic_context=deterministic_context,
+                deterministic_advisory_enabled=deterministic_advisory_enabled,
             ),
             trace_label="CHALLENGER OUTPUT",
             verbose=verbose,
@@ -1147,6 +1193,8 @@ async def run_peer_pipeline(
                 author_text,
                 challenger_text,
                 run_contract_text=run_contract_text,
+                deterministic_context=deterministic_context,
+                deterministic_advisory_enabled=False,
             ),
             trace_label="REFINER OUTPUT",
             verbose=verbose,
@@ -1175,6 +1223,8 @@ async def run_peer_pipeline(
             quality_trace_label="JUDGE QUALITY GATE",
             run_contract_text=run_contract_text,
             filesystem_evidence_text=filesystem_evidence,
+            deterministic_context=deterministic_context,
+            deterministic_advisory_enabled=deterministic_advisory_enabled,
         )
         previous_refiner_text = refiner_text
         stagnation_detected = False
@@ -1213,6 +1263,8 @@ async def run_peer_pipeline(
                     author_text,
                     revision_challenge,
                     run_contract_text=run_contract_text,
+                    deterministic_context=deterministic_context,
+                    deterministic_advisory_enabled=False,
                 ),
                 trace_label=f"REFINER OUTPUT (ROUND {round_index})",
                 verbose=verbose,
@@ -1255,6 +1307,8 @@ async def run_peer_pipeline(
                 quality_trace_label=f"JUDGE QUALITY GATE (ROUND {round_index})",
                 run_contract_text=run_contract_text,
                 filesystem_evidence_text=filesystem_evidence,
+                deterministic_context=deterministic_context,
+                deterministic_advisory_enabled=deterministic_advisory_enabled,
             )
 
         # Escalation path: if revise loop cannot reach accept, rerun
@@ -1287,6 +1341,8 @@ async def run_peer_pipeline(
                     message,
                     escalation_context,
                     run_contract_text=run_contract_text,
+                    deterministic_context=deterministic_context,
+                    deterministic_advisory_enabled=False,
                 ),
                 trace_label=f"AUTHOR OUTPUT (ESCALATION {escalation_index})",
                 verbose=verbose,
@@ -1300,6 +1356,8 @@ async def run_peer_pipeline(
                     escalation_context,
                     author_text,
                     run_contract_text=run_contract_text,
+                    deterministic_context=deterministic_context,
+                    deterministic_advisory_enabled=deterministic_advisory_enabled,
                 ),
                 trace_label=f"CHALLENGER OUTPUT (ESCALATION {escalation_index})",
                 verbose=verbose,
@@ -1314,6 +1372,8 @@ async def run_peer_pipeline(
                     author_text,
                     challenger_text,
                     run_contract_text=run_contract_text,
+                    deterministic_context=deterministic_context,
+                    deterministic_advisory_enabled=False,
                 ),
                 trace_label=f"REFINER OUTPUT (ESCALATION {escalation_index})",
                 verbose=verbose,
@@ -1341,6 +1401,8 @@ async def run_peer_pipeline(
                 quality_trace_label=f"JUDGE QUALITY GATE (ESCALATION {escalation_index})",
                 run_contract_text=run_contract_text,
                 filesystem_evidence_text=filesystem_evidence,
+                deterministic_context=deterministic_context,
+                deterministic_advisory_enabled=deterministic_advisory_enabled,
             )
 
         if rounds_executed > 0 and judge_decision != "accept":

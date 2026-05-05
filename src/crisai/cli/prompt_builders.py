@@ -43,9 +43,23 @@ def _deterministic_handoff_block(context: DeterministicRetrievalContext) -> str:
     if not context.is_active:
         return "None."
     return (
+        f"schema_version: {context.schema_version}\n"
+        f"graph_loaded: {'yes' if context.graph_loaded else 'no'}\n"
+        f"graph_version: {context.graph_version}\n"
         f"topics_activated: {', '.join(sorted(context.activated_topic_ids)) or '(none)'}\n"
         f"queries_expanded: {', '.join(sorted(context.suggested_terms)[:24]) or '(none)'}\n"
         f"source_priority: {', '.join(sorted(context.suggested_sources)) or '(none)'}"
+    )
+
+
+def _advisory_mcp_guidance(enabled: bool) -> str:
+    if not enabled:
+        return "None."
+    return (
+        "Advisory lookup is enabled. You may call `expand_associations` for extra analysis context.\n"
+        "- Advisory MCP output is optional and non-authoritative.\n"
+        "- Do not override deterministic canonical context from workflow runtime.\n"
+        "- If the tool fails or is unavailable, continue without it."
     )
 
 
@@ -292,7 +306,14 @@ def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: 
     )
 
 
-def build_author_prompt(message: str, discovery_text: str, run_contract_text: str = "") -> str:
+def build_author_prompt(
+    message: str,
+    discovery_text: str,
+    run_contract_text: str = "",
+    *,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+    deterministic_advisory_enabled: bool = False,
+) -> str:
     """Build the runtime prompt for the author stage.
 
     This stage must remain isolated from later peer roles. The author receives
@@ -300,11 +321,18 @@ def build_author_prompt(message: str, discovery_text: str, run_contract_text: st
     draft. Later critique, refinement, judgement, and final packaging are
     handled by separate agents.
     """
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=None,
+        deterministic_context=deterministic_context,
+    )
     return "\n\n".join(
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
             _section("Run contract", run_contract_text),
+            _section("Deterministic retrieval context", _deterministic_handoff_block(context)),
+            _section("Advisory MCP guidance", _advisory_mcp_guidance(deterministic_advisory_enabled)),
             "Task:\nProduce the best possible first draft for the user's request.",
             "Stage boundary:\n"
             "- You are only the author stage in a peer workflow.\n"
@@ -322,14 +350,24 @@ def build_challenger_prompt(
     discovery_text: str,
     author_text: str,
     run_contract_text: str = "",
+    *,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+    deterministic_advisory_enabled: bool = False,
 ) -> str:
     """Build the runtime prompt for the challenger stage."""
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=None,
+        deterministic_context=deterministic_context,
+    )
     return "\n\n".join(
         [
             _section("User request", message),
             _section("Discovery findings", discovery_text),
             _section("Run contract", run_contract_text),
             _section("Draft", author_text),
+            _section("Deterministic retrieval context", _deterministic_handoff_block(context)),
+            _section("Advisory MCP guidance", _advisory_mcp_guidance(deterministic_advisory_enabled)),
             "Task:\nCritique the draft rigorously.",
             "Stage boundary:\n"
             "- You are only the challenger stage in a peer workflow.\n"
@@ -348,8 +386,16 @@ def build_refiner_prompt(
     author_text: str,
     challenger_text: str,
     run_contract_text: str = "",
+    *,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+    deterministic_advisory_enabled: bool = False,
 ) -> str:
     """Build the runtime prompt for the refiner stage."""
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=None,
+        deterministic_context=deterministic_context,
+    )
     return "\n\n".join(
         [
             _section("User request", message),
@@ -357,6 +403,8 @@ def build_refiner_prompt(
             _section("Run contract", run_contract_text),
             _section("Original draft", author_text),
             _section("Challenge", challenger_text),
+            _section("Deterministic retrieval context", _deterministic_handoff_block(context)),
+            _section("Advisory MCP guidance", _advisory_mcp_guidance(deterministic_advisory_enabled)),
             "Task:\nRefine the draft using the critique.",
             "Stage boundary:\n"
             "- You are only the refiner stage in a peer workflow.\n"
@@ -374,8 +422,16 @@ def build_judge_prompt(
     challenger_text: str,
     refiner_text: str,
     run_contract_text: str = "",
+    *,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+    deterministic_advisory_enabled: bool = False,
 ) -> str:
     """Build the runtime prompt for the judge stage."""
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=None,
+        deterministic_context=deterministic_context,
+    )
     return "\n\n".join(
         [
             _section("User request", message),
@@ -383,6 +439,8 @@ def build_judge_prompt(
             _section("Run contract", run_contract_text),
             _section("Challenge", challenger_text),
             _section("Refined draft", refiner_text),
+            _section("Deterministic retrieval context", _deterministic_handoff_block(context)),
+            _section("Advisory MCP guidance", _advisory_mcp_guidance(deterministic_advisory_enabled)),
             "Task:\nDecide whether the refined answer is good enough.",
             "Stage boundary:\n"
             "- You are only the judge stage in a peer workflow.\n"
@@ -402,6 +460,9 @@ def build_judge_quality_gate_prompt(
     refiner_text: str,
     prior_judge_text: str,
     run_contract_text: str = "",
+    *,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+    deterministic_advisory_enabled: bool = False,
 ) -> str:
     """Build a strict acceptance-audit prompt for peer mode.
 
@@ -410,6 +471,11 @@ def build_judge_quality_gate_prompt(
     silent information loss, weak evidence retention, and missing critical
     constraints.
     """
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=None,
+        deterministic_context=deterministic_context,
+    )
     return "\n\n".join(
         [
             _section("User request", message),
@@ -418,6 +484,8 @@ def build_judge_quality_gate_prompt(
             _section("Challenge", challenger_text),
             _section("Refined draft", refiner_text),
             _section("Initial judge output", prior_judge_text),
+            _section("Deterministic retrieval context", _deterministic_handoff_block(context)),
+            _section("Advisory MCP guidance", _advisory_mcp_guidance(deterministic_advisory_enabled)),
             "Task:\nRun a strict acceptance audit on the refined draft.",
             "Acceptance audit rules:\n"
             "- Compare the refined draft against discovery findings and challenge notes.\n"

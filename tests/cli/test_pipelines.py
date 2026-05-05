@@ -674,6 +674,51 @@ async def test_run_single_retrieval_planner_uses_retrieval_execution_prompt(monk
 
 
 @pytest.mark.anyio
+async def test_run_single_emits_fail_open_deterministic_trace_when_graph_missing(monkeypatch, tmp_path):
+    captured_events: list[tuple[str, str, dict | None]] = []
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(
+            trace_file=tmp_path / "trace.log",
+            runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
+            factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
+            run_id="test-run-id",
+        ),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "deterministic_context_from_registry",
+        lambda message, registry_dir: (pipelines._empty_deterministic_context(), False),
+    )
+
+    async def _fake_run_agent_silently(agent, prompt: str) -> str:
+        del agent, prompt
+        return "ok"
+
+    monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
+    monkeypatch.setattr(
+        pipelines,
+        "_append_trace_entry_compat",
+        lambda environment, stage, content, **kwargs: captured_events.append((stage, content, kwargs.get("metadata"))),
+    )
+
+    await pipelines.run_single(
+        "Find integration principles.",
+        "retrieval_planner",
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path, registry_dir=tmp_path / "registry"),
+        server_specs={},
+        agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
+    )
+    deterministic_events = [event for event in captured_events if event[0] == "DETERMINISTIC_RETRIEVAL_CONTEXT"]
+    assert deterministic_events
+    assert "fail-open" in deterministic_events[0][1]
+    assert deterministic_events[0][2]["mode"] == "single"
+
+
+@pytest.mark.anyio
 async def test_run_pipeline_enforces_intranet_fetch_policy(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
     stage_calls: list[tuple[str, str]] = []
@@ -707,6 +752,64 @@ async def test_run_pipeline_enforces_intranet_fetch_policy(monkeypatch, tmp_path
         )
 
     assert "requires intranet-grounded evidence" in str(exc.value)
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_passes_deterministic_context_to_peer_builders(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "Final recommendation\nDone.")
+    engine = FakeWorkflowEngine(session)
+    capture: dict[str, object] = {}
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(
+        pipelines,
+        "deterministic_context_from_registry",
+        lambda message, registry_dir: (
+            SimpleNamespace(
+                schema_version="deterministic_context_v1",
+                graph_loaded=True,
+                graph_version="g123",
+                is_active=True,
+                activated_topic_ids=frozenset({"integration_principles_corpus"}),
+                suggested_terms=frozenset({"integration principles"}),
+                suggested_sources=frozenset({"intranet"}),
+            ),
+            True,
+        ),
+    )
+
+    def _capture_author(message, discovery, run_contract_text="", **kwargs):
+        capture["author_kwargs"] = kwargs
+        return message
+
+    monkeypatch.setattr(pipelines, "build_author_prompt", _capture_author)
+
+    await pipelines.run_peer_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path, registry_dir=tmp_path / "registry"),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+    )
+    assert "deterministic_context" in capture["author_kwargs"]
 
 
 @pytest.mark.anyio

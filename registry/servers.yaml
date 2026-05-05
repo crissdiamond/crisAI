@@ -23,6 +23,7 @@ servers:
         - search_workspace_text
         - workspace_file_link
         - make_note_path
+        - expand_associations
     approval:
       required_for:
         - write_workspace_file

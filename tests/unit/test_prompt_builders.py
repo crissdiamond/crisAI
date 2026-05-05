@@ -103,6 +103,8 @@ def test_peer_builders_use_stable_section_labels():
     assert "Run contract:\ncontract" in refiner
     assert "Run contract:\ncontract" in judge
     assert "Run contract:\ncontract" in peer_final
+    assert "Deterministic retrieval context:" in challenger
+    assert "Advisory MCP guidance:" in judge
 
 
 def test_build_peer_final_prompt_adds_execution_gate_when_writes_required():
@@ -138,6 +140,17 @@ def test_build_judge_quality_gate_prompt_enforces_strict_acceptance_audit():
     assert "If material evidence present in discovery/challenge is omitted" in text
     assert "Decision: accept" in text and "Decision: revise" in text
     assert "Missing or weak items" in text
+
+
+def test_challenger_prompt_shows_advisory_guidance_when_enabled():
+    text = build_challenger_prompt(
+        "Question",
+        "facts",
+        "draft",
+        deterministic_advisory_enabled=True,
+    )
+    assert "expand_associations" in text
+    assert "non-authoritative" in text
 
 
 def test_author_prompt_is_minimal_runtime_handoff():

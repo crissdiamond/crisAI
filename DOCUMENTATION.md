@@ -525,18 +525,9 @@ The file is maintained independently of code — add a group when a query consis
 
 **Retrieval association graph (`registry/retrieval_association_graph.yaml`):**
 
-A **declarative graph** (vertices with hint terms, undirected edges, `settings.max_hops`) used for **deterministic pre-expansion** before retrieval agents run. When the user message matches a vertex term (substring match for terms of five or more characters, word-boundary match for shorter terms), associated neighbour terms within `max_hops` are merged and injected into the runtime prompts for **`retrieval_planner`** and **`context_retrieval`** as a **Deterministic retrieval expansion** block (see `src/crisai/orchestration/retrieval_association_graph.py` and `src/crisai/cli/prompt_builders.py`). Single and pipeline workflows now compute one shared `DeterministicRetrievalContext` per request and reuse it across planner/retrieval stages, with trace metadata (`activated_topics_count`, `hint_terms_count`, `suggested_sources`) for observability. This keeps `prompts/retrieval_planner_agent.md` generic while you evolve topic associations in YAML. **Restart the CLI** after editing the graph.
+Deterministic retrieval uses a registry graph dictionary to expand topic hints and build one canonical `DeterministicRetrievalContext` per run across `single`, `pipeline`, and `peer` modes. An optional read-only advisory MCP lookup (`expand_associations`, controlled by `CRISAI_DETERMINISTIC_MCP_ADVISORY`) can be used during peer analysis, but canonical context remains authoritative and advisory failures are fail-open.
 
-The default graph ships with clusters aligned to common **enterprise architecture (EA)**, **data architecture (DA)**, and **solution architecture (SA)** language, for example:
-
-- **EA:** `enterprise_architecture_core` (capabilities, value streams, target operating model, governance), `application_portfolio_architecture`, `technology_infrastructure_architecture`.
-- **DA:** `data_architecture_core` (conceptual/logical/physical models, canonical and enterprise data models), `data_governance_and_management` (lineage, catalogue, MDM, data mesh/product).
-- **SA / delivery:** `solution_architecture_delivery` (HLD/LLD, as-is/to-be), `architecture_views_and_notations` (viewpoints, C4/UML-style views), `quality_and_security_architecture` (NFRs, resilience, security), `integration_and_api_architecture` (APIs, EDA, SOA/microservices).
-- **Integration principles (wording corpus):** `integration_principles_corpus` expands phrases such as **integration principles**, **integration strategy**, **producer/consumer flows**, and related tokens into intranet search/list hints (see `workspace/context_staging/_prompt_integration_principles.md`).
-
-Operational vertices (`intranet_site_pages`, `document_library_boundary`, `integration_patterns_area`, `catalogue_and_leaf_drilldown`) remain linked so EA/DA/SA-style queries can still surface **intranet list/link/fetch** and **catalogue vs leaf** hints where relevant.
-
-**Extending the graph:** add a new `vertices` entry with a stable `id` and lowercase `terms`, then add `edges` between related ids. Prefer **new vertices** over very large term lists on one node. Keep **edges sparse** so `max_hops: 2` does not over-expand unrelated hints.
+For architecture diagrams, dictionary conventions, precedence rules, and implementation details, see **`DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md`**.
 
 **Configuration in `registry/intranet.yaml`:**
 
