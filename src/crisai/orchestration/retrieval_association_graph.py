@@ -25,6 +25,33 @@ class RetrievalAssociationGraph:
     max_hops: int
 
 
+@dataclass(frozen=True)
+class DeterministicRetrievalContext:
+    """Structured deterministic retrieval expansion for runtime consumers."""
+
+    activated_topic_ids: frozenset[str]
+    suggested_terms: frozenset[str]
+    suggested_sources: frozenset[str]
+
+    @property
+    def is_active(self) -> bool:
+        return bool(self.activated_topic_ids or self.suggested_terms)
+
+
+def _infer_suggested_sources(seeds: frozenset[str], terms: frozenset[str]) -> frozenset[str]:
+    joined = " ".join(sorted(seeds | terms)).lower()
+    sources: set[str] = set()
+    if any(token in joined for token in ("intranet", "site pages", "sitepages")):
+        sources.add("intranet")
+    if any(token in joined for token in ("sharepoint", "site drive", "list_sites")):
+        sources.add("sharepoint_docs")
+    if any(token in joined for token in ("workspace", "context/", "context_staging")):
+        sources.add("workspace")
+    if not sources:
+        return frozenset({"generic_retrieval"})
+    return frozenset(sorted(sources))
+
+
 def _word_boundary_match(text: str, term: str) -> bool:
     return bool(re.search(rf"\b{re.escape(term)}\b", text, flags=re.IGNORECASE))
 
@@ -154,17 +181,31 @@ def expand_retrieval_hints(message: str, graph: RetrievalAssociationGraph | None
     return seeds, terms
 
 
-def format_retrieval_expansion_block(
+def build_deterministic_retrieval_context(
     message: str,
     graph: RetrievalAssociationGraph | None,
+) -> DeterministicRetrievalContext:
+    """Return structured deterministic retrieval context from message + graph."""
+    seeds, terms = expand_retrieval_hints(message, graph)
+    return DeterministicRetrievalContext(
+        activated_topic_ids=seeds,
+        suggested_terms=terms,
+        suggested_sources=_infer_suggested_sources(seeds, terms),
+    )
+
+
+def format_retrieval_expansion_block(
+    message: str,
+    graph: RetrievalAssociationGraph | None = None,
     *,
+    context: DeterministicRetrievalContext | None = None,
     max_terms: int = 36,
 ) -> str:
     """Return a markdown section for prompt injection, or empty string when idle."""
-    seeds, terms = expand_retrieval_hints(message, graph)
-    if not seeds and not terms:
+    ctx = context if context is not None else build_deterministic_retrieval_context(message, graph)
+    if not ctx.is_active:
         return ""
-    ordered_terms = sorted(terms)[:max_terms]
+    ordered_terms = sorted(ctx.suggested_terms)[:max_terms]
     lines = [
         "## Deterministic retrieval expansion (registry graph)",
         "",
@@ -172,8 +213,42 @@ def format_retrieval_expansion_block(
         "(topic association graph). Use them only when they **match the user request**; "
         "they are not a substitute for reading sources.",
         "",
-        f"- **Activated topic ids:** {', '.join(sorted(seeds)) or '(none)'}",
+        f"- **Activated topic ids:** {', '.join(sorted(ctx.activated_topic_ids)) or '(none)'}",
         f"- **Suggested query / tool hints:** {', '.join(ordered_terms) if ordered_terms else '(none)'}",
+        f"- **Suggested source families:** {', '.join(sorted(ctx.suggested_sources)) or '(none)'}",
         "",
     ]
     return "\n".join(lines).strip() + "\n"
+
+
+def deterministic_context_trace_metadata(context: DeterministicRetrievalContext) -> dict[str, object]:
+    """Return compact metadata for tracing deterministic retrieval behaviour."""
+    return {
+        "graph_loaded": True,
+        "activated_topics_count": len(context.activated_topic_ids),
+        "hint_terms_count": len(context.suggested_terms),
+        "activated_topics": sorted(context.activated_topic_ids),
+        "suggested_sources": sorted(context.suggested_sources),
+    }
+
+
+def deterministic_context_from_registry(
+    message: str,
+    registry_dir: Path,
+) -> tuple[DeterministicRetrievalContext, bool]:
+    """Load graph from registry and compute context.
+
+    Returns:
+        Tuple of (context, graph_loaded).
+    """
+    graph = load_retrieval_association_graph(registry_dir)
+    if graph is None:
+        return (
+            DeterministicRetrievalContext(
+                activated_topic_ids=frozenset(),
+                suggested_terms=frozenset(),
+                suggested_sources=frozenset(),
+            ),
+            False,
+        )
+    return build_deterministic_retrieval_context(message, graph), True

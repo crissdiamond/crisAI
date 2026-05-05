@@ -14,6 +14,7 @@ from crisai.cli.workflow_policy import (
     infer_workflow_policy,
     snapshot_tree,
 )
+from crisai.orchestration.retrieval_association_graph import DeterministicRetrievalContext
 
 
 def test_infer_workflow_policy_detects_intranet_and_artifact_capabilities():
@@ -86,3 +87,13 @@ def test_enforce_workspace_write_policy_raises_when_required_and_no_changes(tmp_
     policy = infer_workflow_policy("create files under workspace/context_staging/")
     with pytest.raises(WorkflowPolicyViolation):
         enforce_workspace_write_policy(policy, root, before)
+
+
+def test_infer_workflow_policy_uses_deterministic_source_nudge():
+    context = DeterministicRetrievalContext(
+        activated_topic_ids=frozenset({"integration_principles_corpus"}),
+        suggested_terms=frozenset({"integration principles"}),
+        suggested_sources=frozenset({"intranet"}),
+    )
+    policy = infer_workflow_policy("plain request", deterministic_context=context)
+    assert policy.require_intranet_fetch is True

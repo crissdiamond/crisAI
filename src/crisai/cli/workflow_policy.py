@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from crisai.orchestration.retrieval_association_graph import DeterministicRetrievalContext
 
 
 @dataclass(frozen=True)
@@ -80,7 +81,11 @@ def _load_policy_config(registry_dir: Path | None) -> dict[str, Any]:
     return merged
 
 
-def infer_workflow_policy(message: str, registry_dir: Path | None = None) -> WorkflowPolicy:
+def infer_workflow_policy(
+    message: str,
+    registry_dir: Path | None = None,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+) -> WorkflowPolicy:
     """Infer policy capabilities from a user request.
 
     This intentionally uses broad, reusable capability cues rather than
@@ -94,6 +99,9 @@ def infer_workflow_policy(message: str, registry_dir: Path | None = None) -> Wor
         phrase_list = [str(p).lower().strip() for p in (phrases or []) if str(p).strip()]
         if any(phrase in text for phrase in phrase_list):
             capabilities.add(str(capability))
+    if deterministic_context is not None and deterministic_context.is_active:
+        if "intranet" in deterministic_context.suggested_sources:
+            capabilities.add("intranet_grounded")
 
     requirements = config.get("requirements") or {}
     require_intranet_fetch = any(

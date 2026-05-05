@@ -1,6 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from pathlib import Path
 
+from .retrieval_association_graph import deterministic_context_from_registry
 from .semantic_catalog import load_semantic_catalog
 
 @dataclass
@@ -51,7 +53,16 @@ def _is_architecture_location_phrase(text: str, architecture_location_markers: f
     return any(marker in text for marker in architecture_location_markers)
 
 
-def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
+def _deterministic_source_nudge(text: str, registry_dir: Path | None) -> bool:
+    if registry_dir is None:
+        return False
+    context, graph_loaded = deterministic_context_from_registry(text, registry_dir)
+    if not graph_loaded or not context.is_active:
+        return False
+    return bool({"intranet", "sharepoint_docs", "workspace"} & set(context.suggested_sources))
+
+
+def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | None = None) -> RoutingDecision:
     terms = load_semantic_catalog().router
     if _contains_any(text, set(terms.explicit_discovery_patterns)):
         return RoutingDecision(
@@ -73,6 +84,9 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
     criticality_score = _score_terms(text, set(terms.criticality_terms))
 
     has_source_signal = _has_source_signal(text, discovery_score, terms.source_markers)
+    deterministic_retrieval_nudge = _deterministic_source_nudge(text, registry_dir)
+    if deterministic_retrieval_nudge:
+        has_source_signal = True
     has_design_signal = design_score >= 2
     architecture_used_as_location = _is_architecture_location_phrase(
         text,
@@ -188,8 +202,12 @@ def _infer_auto_route(text: str, review_enabled: bool) -> RoutingDecision:
             agent="retrieval_planner",
             needs_retrieval=True,
             needs_review=False,
-            confidence=0.82,
-            reason="Prompt primarily asks for finding or inspecting sources.",
+            confidence=0.85 if deterministic_retrieval_nudge else 0.82,
+            reason=(
+                "Prompt primarily asks for finding or inspecting sources."
+                if not deterministic_retrieval_nudge
+                else "Prompt asks for source lookup and deterministic graph expansion confirms retrieval-relevant topics."
+            ),
         )
 
     mixed_complexity_score = discovery_score + design_score + review_score + peer_score
@@ -274,9 +292,10 @@ def decide_route(
     review_enabled: bool,
     current_mode: str | None = None,
     selected_agent: str | None = None,
+    registry_dir: Path | None = None,
 ) -> RoutingDecision:
     text = _normalise(user_input)
-    base = _infer_auto_route(text, review_enabled=review_enabled)
+    base = _infer_auto_route(text, review_enabled=review_enabled, registry_dir=registry_dir)
     return _apply_explicit_overrides(
         base,
         current_mode=current_mode,

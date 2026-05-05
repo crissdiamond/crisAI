@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 from crisai.orchestration.retrieval_association_graph import (
+    build_deterministic_retrieval_context,
+    deterministic_context_trace_metadata,
     expand_retrieval_hints,
     format_retrieval_expansion_block,
     load_retrieval_association_graph,
@@ -57,6 +59,23 @@ def test_integration_principles_vertex_expands_intranet_hints(registry_dir: Path
     seeds, terms = expand_retrieval_hints("integration principles and producer flows", graph)
     assert "integration_principles_corpus" in seeds
     assert "intranet_list_all_pages" in terms or "intranet_search" in terms
+
+
+def test_build_deterministic_retrieval_context_infers_sources(registry_dir: Path):
+    graph = load_retrieval_association_graph(registry_dir)
+    assert graph is not None
+    context = build_deterministic_retrieval_context("Use intranet site pages for integration principles", graph)
+    assert "intranet" in context.suggested_sources
+    assert context.is_active is True
+
+
+def test_trace_metadata_contains_counts(registry_dir: Path):
+    graph = load_retrieval_association_graph(registry_dir)
+    assert graph is not None
+    context = build_deterministic_retrieval_context("integration principles and producer flows", graph)
+    metadata = deterministic_context_trace_metadata(context)
+    assert metadata["graph_loaded"] is True
+    assert int(metadata["activated_topics_count"]) >= 1
 
 
 def test_data_governance_triggers_lineage_and_catalogue_hints(registry_dir: Path):

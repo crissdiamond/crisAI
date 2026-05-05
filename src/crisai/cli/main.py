@@ -293,11 +293,13 @@ def _resolve_route(
     agent_override: str | None = None,
 ) -> RoutingDecision:
     """Delegate routing decisions to the router."""
+    settings = load_settings()
     return decide_route(
         user_input=user_input,
         review_enabled=review_enabled,
         current_mode=mode_override,
         selected_agent=agent_override,
+        registry_dir=getattr(settings, "registry_dir", None),
     )
 
 

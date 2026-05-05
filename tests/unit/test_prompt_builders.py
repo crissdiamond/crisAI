@@ -19,6 +19,8 @@ def test_build_retrieval_planner_prompt_contains_only_runtime_context():
     assert "User request:\nFind the latest design note" in text
     assert "Do not" in text and "repeat" in text.lower()
     assert "retrieval handoff" in text.lower()
+    assert "Structured retrieval handoff" in text
+    assert "Deterministic retrieval handoff (pre-computed)" in text
     assert "Paths to open" in text
     assert "Rules:" not in text
     assert "Return:" not in text
@@ -37,6 +39,7 @@ def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     text = build_context_retrieval_prompt("hello", "handoff text")
     assert "search_workspace_text" in text
     assert "one line" in text.lower() or "single line" in text.lower()
+    assert "Deterministic retrieval context" in text
 
 
 def test_build_context_retrieval_prompt_enforces_intranet_tools_for_intranet_scope():

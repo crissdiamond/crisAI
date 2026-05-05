@@ -4,16 +4,49 @@ from pathlib import Path
 
 from crisai.config import load_settings
 from crisai.orchestration.retrieval_association_graph import (
+    DeterministicRetrievalContext,
+    build_deterministic_retrieval_context,
     format_retrieval_expansion_block,
     load_retrieval_association_graph,
 )
 
 
-def _retrieval_expansion_section(message: str, *, registry_dir: Path | None) -> str:
-    """Pre-computed association-graph hints (empty when graph absent or no match)."""
+def _resolve_deterministic_context(
+    message: str,
+    *,
+    registry_dir: Path | None,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+) -> DeterministicRetrievalContext:
+    if deterministic_context is not None:
+        return deterministic_context
     root = registry_dir if registry_dir is not None else load_settings().registry_dir
     graph = load_retrieval_association_graph(root)
-    return format_retrieval_expansion_block(message, graph)
+    return build_deterministic_retrieval_context(message, graph)
+
+
+def _retrieval_expansion_section(
+    message: str,
+    *,
+    registry_dir: Path | None,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+) -> str:
+    """Pre-computed association-graph hints (empty when graph absent or no match)."""
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=registry_dir,
+        deterministic_context=deterministic_context,
+    )
+    return format_retrieval_expansion_block(message, context=context)
+
+
+def _deterministic_handoff_block(context: DeterministicRetrievalContext) -> str:
+    if not context.is_active:
+        return "None."
+    return (
+        f"topics_activated: {', '.join(sorted(context.activated_topic_ids)) or '(none)'}\n"
+        f"queries_expanded: {', '.join(sorted(context.suggested_terms)[:24]) or '(none)'}\n"
+        f"source_priority: {', '.join(sorted(context.suggested_sources)) or '(none)'}"
+    )
 
 
 def _is_intranet_scoped_request(message: str) -> bool:
@@ -46,7 +79,12 @@ def _section(title: str, body: str) -> str:
     return f"{title}:\n{clean}"
 
 
-def build_retrieval_planner_prompt(message: str, *, registry_dir: Path | None = None) -> str:
+def build_retrieval_planner_prompt(
+    message: str,
+    *,
+    registry_dir: Path | None = None,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+) -> str:
     """Build the runtime prompt for the retrieval planner stage.
 
     The retrieval planner prepares a **retrieval handoff** for ``context_retrieval``. The CLI
@@ -57,7 +95,16 @@ def build_retrieval_planner_prompt(message: str, *, registry_dir: Path | None = 
         message: User text for this stage.
         registry_dir: Optional registry root; defaults to ``load_settings().registry_dir``.
     """
-    expansion = _retrieval_expansion_section(message, registry_dir=registry_dir).strip()
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=registry_dir,
+        deterministic_context=deterministic_context,
+    )
+    expansion = _retrieval_expansion_section(
+        message,
+        registry_dir=registry_dir,
+        deterministic_context=context,
+    ).strip()
     blocks = [
         _section("User request", message),
     ]
@@ -81,13 +128,21 @@ def build_retrieval_planner_prompt(message: str, *, registry_dir: Path | None = 
             "- When the user names explicit workspace-relative paths (for example "
             "``context/patterns/foo.txt``), list them verbatim under **Paths to open** "
             "so the retrieval stage can call ``read_workspace_file`` immediately.\n"
+            "- Include a **Structured retrieval handoff** block with keys: "
+            "`topics_activated`, `queries_expanded`, `source_priority`.\n"
             "Keep the response brief (about one screen of tight bullets).",
+            _section("Deterministic retrieval handoff (pre-computed)", _deterministic_handoff_block(context)),
         ]
     )
     return "\n\n".join(blocks)
 
 
-def build_single_retrieval_planner_prompt(message: str, *, registry_dir: Path | None = None) -> str:
+def build_single_retrieval_planner_prompt(
+    message: str,
+    *,
+    registry_dir: Path | None = None,
+    deterministic_context: DeterministicRetrievalContext | None = None,
+) -> str:
     """Build the runtime prompt for single-mode retrieval-planner execution.
 
     In single mode, the retrieval planner agent is the terminal agent for retrieval-only asks, so
@@ -97,7 +152,16 @@ def build_single_retrieval_planner_prompt(message: str, *, registry_dir: Path | 
         message: User text for this stage.
         registry_dir: Optional registry root; defaults to ``load_settings().registry_dir``.
     """
-    expansion = _retrieval_expansion_section(message, registry_dir=registry_dir).strip()
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=registry_dir,
+        deterministic_context=deterministic_context,
+    )
+    expansion = _retrieval_expansion_section(
+        message,
+        registry_dir=registry_dir,
+        deterministic_context=context,
+    ).strip()
     blocks = [_section("User request", message)]
     if expansion:
         blocks.append(expansion)
@@ -132,6 +196,7 @@ def build_context_retrieval_prompt(
     discovery_text: str,
     *,
     registry_dir: Path | None = None,
+    deterministic_context: DeterministicRetrievalContext | None = None,
 ) -> str:
     """Build the runtime prompt for the context retrieval stage.
 
@@ -147,7 +212,16 @@ def build_context_retrieval_prompt(
             "- Do NOT treat existing workspace draft files under `context_staging/` as evidence for factual claims.\n"
             "- If no successful intranet fetch happened in this turn, report retrieval failure clearly rather than producing a workspace-only evidence set.\n"
         )
-    expansion = _retrieval_expansion_section(message, registry_dir=registry_dir).strip()
+    context = _resolve_deterministic_context(
+        message,
+        registry_dir=registry_dir,
+        deterministic_context=deterministic_context,
+    )
+    expansion = _retrieval_expansion_section(
+        message,
+        registry_dir=registry_dir,
+        deterministic_context=context,
+    ).strip()
     blocks = [
         _section("User request", message),
     ]
@@ -156,6 +230,7 @@ def build_context_retrieval_prompt(
     blocks.extend(
         [
             _section("Retrieval handoff (from retrieval planner)", discovery_text),
+            _section("Deterministic retrieval context", _deterministic_handoff_block(context)),
             "Task:\nRetrieve the most relevant material for this request from available context sources. "
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "

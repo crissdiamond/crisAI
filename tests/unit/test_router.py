@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from pathlib import Path
 
 from crisai.orchestration.router import decide_route
 
@@ -157,3 +158,38 @@ def test_router_uses_loaded_semantic_catalog_terms(monkeypatch):
 
     assert decision.mode == "single"
     assert decision.agent == "retrieval_planner"
+
+
+def test_router_uses_deterministic_nudge_for_retrieval(monkeypatch):
+    fake_terms = SimpleNamespace(
+        discovery_terms=frozenset(),
+        design_terms=frozenset(),
+        review_terms=frozenset(),
+        operations_terms=frozenset(),
+        peer_terms=frozenset(),
+        publication_terms=frozenset(),
+        explicit_discovery_patterns=frozenset(),
+        explicit_peer_patterns=frozenset(),
+        criticality_terms=frozenset(),
+        source_markers=frozenset(),
+        architecture_location_markers=frozenset(),
+    )
+    monkeypatch.setattr(
+        "crisai.orchestration.router.load_semantic_catalog",
+        lambda: SimpleNamespace(router=fake_terms),
+    )
+    fake_context = SimpleNamespace(
+        is_active=True,
+        suggested_sources=frozenset({"intranet"}),
+    )
+    monkeypatch.setattr(
+        "crisai.orchestration.router.deterministic_context_from_registry",
+        lambda text, registry_dir: (fake_context, True),
+    )
+    decision = decide_route(
+        "please gather integration guidance",
+        review_enabled=False,
+        registry_dir=Path("/tmp/registry"),
+    )
+    assert decision.agent == "retrieval_planner"
+    assert decision.needs_retrieval is True

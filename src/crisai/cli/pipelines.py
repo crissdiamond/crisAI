@@ -21,6 +21,11 @@ from crisai.logging_utils import get_logger
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
 from crisai.orchestration.peer_contract import infer_peer_run_contract, render_peer_run_contract
+from crisai.orchestration.retrieval_association_graph import (
+    DeterministicRetrievalContext,
+    deterministic_context_from_registry,
+    deterministic_context_trace_metadata,
+)
 from crisai.orchestration.peer_verifier import (
     PeerVerificationViolation,
     enforce_peer_final_deliverable_verification,
@@ -60,6 +65,14 @@ from .workflow_support import (
 
 logger = get_logger(__name__)
 _DEFAULT_AGENT_MAX_TURNS = 30
+
+
+def _empty_deterministic_context() -> DeterministicRetrievalContext:
+    return DeterministicRetrievalContext(
+        activated_topic_ids=frozenset(),
+        suggested_terms=frozenset(),
+        suggested_sources=frozenset(),
+    )
 
 
 def _trace_workflow_policy_event(
@@ -738,6 +751,12 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
 
     logger.info("Running single agent request.", extra={"agent_id": agent_id, "run_id": _get_run_id(environment)})
 
+    registry_dir = getattr(settings, "registry_dir", None)
+    deterministic_context = _empty_deterministic_context()
+    graph_loaded = False
+    if registry_dir is not None:
+        deterministic_context, graph_loaded = deterministic_context_from_registry(message, Path(registry_dir))
+
     async with workflow_server_context(environment, [agent_spec], server_specs) as active_servers:
         _append_trace_entry_compat(
             environment,
@@ -746,9 +765,23 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
             event_type="workflow_input",
             metadata={"mode": "single", "agent_id": agent_id},
         )
+        if graph_loaded:
+            _append_trace_entry_compat(
+                environment,
+                "DETERMINISTIC_RETRIEVAL_CONTEXT",
+                "Deterministic retrieval context computed.",
+                event_type="policy_signal",
+                metadata=deterministic_context_trace_metadata(deterministic_context),
+            )
         agent = environment.factory.build_agent(agent_spec, active_servers)
         prompt = (
-            build_single_retrieval_planner_prompt(message) if agent_id == "retrieval_planner" else message
+            build_single_retrieval_planner_prompt(
+                message,
+                deterministic_context=deterministic_context,
+                registry_dir=Path(registry_dir) if registry_dir is not None else None,
+            )
+            if agent_id == "retrieval_planner"
+            else message
         )
         result = await _run_agent_silently(agent, prompt)
         _append_trace_compat(
@@ -777,9 +810,18 @@ async def run_pipeline(
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
     intent_message = user_intent_message or message
+    registry_dir = getattr(settings, "registry_dir", None)
+    deterministic_context = _empty_deterministic_context()
+    graph_loaded = False
+    if registry_dir is not None:
+        deterministic_context, graph_loaded = deterministic_context_from_registry(
+            intent_message,
+            Path(registry_dir),
+        )
     policy = infer_workflow_policy(
         intent_message,
-        registry_dir=getattr(settings, "registry_dir", None),
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+        deterministic_context=deterministic_context,
     )
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
@@ -800,11 +842,23 @@ async def run_pipeline(
             metadata={"mode": "pipeline", "review": review},
         )
         workflow.trace_user_input(message)
+        if graph_loaded:
+            _trace_workflow_policy_event(
+                workflow,
+                "DETERMINISTIC_RETRIEVAL_CONTEXT",
+                "Deterministic retrieval context computed.",
+                event_type="policy_signal",
+                metadata=deterministic_context_trace_metadata(deterministic_context),
+            )
 
         retrieval_plan_text = await workflow.run_stage(
             spec=specs["retrieval_planner"],
             ui_agent_id="retrieval_planner",
-            prompt=build_retrieval_planner_prompt(message),
+            prompt=build_retrieval_planner_prompt(
+                message,
+                deterministic_context=deterministic_context,
+                registry_dir=Path(registry_dir) if registry_dir is not None else None,
+            ),
             trace_label="RETRIEVAL_PLANNER OUTPUT",
             verbose=verbose,
         )
@@ -812,7 +866,12 @@ async def run_pipeline(
         context_retrieval_text = await workflow.run_stage(
             spec=specs["context_retrieval"],
             ui_agent_id="context_retrieval",
-            prompt=build_context_retrieval_prompt(message, retrieval_plan_text),
+            prompt=build_context_retrieval_prompt(
+                message,
+                retrieval_plan_text,
+                deterministic_context=deterministic_context,
+                registry_dir=Path(registry_dir) if registry_dir is not None else None,
+            ),
             trace_label="CONTEXT RETRIEVAL OUTPUT",
             verbose=verbose,
         )
@@ -909,9 +968,14 @@ async def run_peer_pipeline(
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
     intent_message = user_intent_message or message
+    registry_dir = getattr(settings, "registry_dir", None)
+    deterministic_context = _empty_deterministic_context()
+    if registry_dir is not None:
+        deterministic_context, _ = deterministic_context_from_registry(intent_message, Path(registry_dir))
     policy = infer_workflow_policy(
         intent_message,
-        registry_dir=getattr(settings, "registry_dir", None),
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+        deterministic_context=deterministic_context,
     )
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
@@ -976,7 +1040,11 @@ async def run_peer_pipeline(
             retrieval_plan_text = await workflow.run_stage(
                 spec=specs["retrieval_planner"],
                 ui_agent_id="retrieval_planner",
-                prompt=build_retrieval_planner_prompt(message),
+                prompt=build_retrieval_planner_prompt(
+                    message,
+                    deterministic_context=deterministic_context,
+                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                ),
                 trace_label="RETRIEVAL_PLANNER OUTPUT",
                 verbose=verbose,
             )
@@ -984,7 +1052,12 @@ async def run_peer_pipeline(
                 context_retrieval_text = await workflow.run_stage(
                     spec=specs["context_retrieval"],
                     ui_agent_id="context_retrieval",
-                    prompt=build_context_retrieval_prompt(message, retrieval_plan_text),
+                    prompt=build_context_retrieval_prompt(
+                        message,
+                        retrieval_plan_text,
+                        deterministic_context=deterministic_context,
+                        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                    ),
                     trace_label="CONTEXT RETRIEVAL OUTPUT",
                     verbose=verbose,
                 )
