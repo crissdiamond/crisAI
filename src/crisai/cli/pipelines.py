@@ -669,6 +669,18 @@ def _build_prompt_with_contract(builder, *args, run_contract_text: str, **extra_
         return builder(*args)
 
 
+def _build_prompt_with_deterministic_context(builder, *args, **extra_kwargs: Any) -> str:
+    """Call prompt builders with optional deterministic-context support.
+
+    Some tests monkeypatch legacy builder signatures that do not accept
+    deterministic context kwargs. Fallback preserves compatibility.
+    """
+    try:
+        return builder(*args, **extra_kwargs)
+    except TypeError:
+        return builder(*args)
+
+
 def _format_runtime_changed_files_manifest(paths: list[str]) -> str:
     """Render a stable, verbatim manifest of changed workspace artefact paths."""
     normalized = [
@@ -879,7 +891,8 @@ async def run_pipeline(
         retrieval_plan_text = await workflow.run_stage(
             spec=specs["retrieval_planner"],
             ui_agent_id="retrieval_planner",
-            prompt=build_retrieval_planner_prompt(
+            prompt=_build_prompt_with_deterministic_context(
+                build_retrieval_planner_prompt,
                 message,
                 deterministic_context=deterministic_context,
                 registry_dir=Path(registry_dir) if registry_dir is not None else None,
@@ -891,7 +904,8 @@ async def run_pipeline(
         context_retrieval_text = await workflow.run_stage(
             spec=specs["context_retrieval"],
             ui_agent_id="context_retrieval",
-            prompt=build_context_retrieval_prompt(
+            prompt=_build_prompt_with_deterministic_context(
+                build_context_retrieval_prompt,
                 message,
                 retrieval_plan_text,
                 deterministic_context=deterministic_context,
@@ -1082,7 +1096,8 @@ async def run_peer_pipeline(
             retrieval_plan_text = await workflow.run_stage(
                 spec=specs["retrieval_planner"],
                 ui_agent_id="retrieval_planner",
-                prompt=build_retrieval_planner_prompt(
+                prompt=_build_prompt_with_deterministic_context(
+                    build_retrieval_planner_prompt,
                     message,
                     deterministic_context=deterministic_context,
                     registry_dir=Path(registry_dir) if registry_dir is not None else None,
@@ -1094,7 +1109,8 @@ async def run_peer_pipeline(
                 context_retrieval_text = await workflow.run_stage(
                     spec=specs["context_retrieval"],
                     ui_agent_id="context_retrieval",
-                    prompt=build_context_retrieval_prompt(
+                    prompt=_build_prompt_with_deterministic_context(
+                        build_context_retrieval_prompt,
                         message,
                         retrieval_plan_text,
                         deterministic_context=deterministic_context,
