@@ -11,4 +11,4 @@ See **`prompts/_shared/context-staging.md`** and **`workspace/context/README.md`
 Example request prompts (not executed automatically):
 
 - **`_prompt_example.md`** — integration **patterns** catalogue and leaf pages.
-- **`_prompt_integration_principles.md`** — integration **principles**, **HLD**, and **LLD** from intranet Site Pages.
+- **`_prompt_integration_principles.md`** — integration **principles** from intranet Site Pages (mandatory **producer and consumer flows** page as primary evidence where relevant).
