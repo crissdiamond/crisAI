@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+from dataclasses import dataclass
 
 from fastapi.testclient import TestClient
 
@@ -113,6 +114,51 @@ def test_run_endpoint_returns_execution_payload(monkeypatch):
     assert saved["session"] == "default"
     assert saved["history"][0] == ("user", "hello")
     assert saved["history"][1] == ("assistant", "ok")
+
+
+def test_execute_wraps_message_with_session_history(monkeypatch, tmp_path):
+    captured: dict[str, str] = {}
+    
+    @dataclass
+    class _Decision:
+        mode: str = "pipeline"
+        agent: str = "retrieval_planner"
+        confidence: float = 1.0
+        reason: str = "test"
+
+    monkeypatch.setattr(
+        "crisai.apps.web._trace_file_path",
+        lambda: tmp_path / "trace.jsonl",
+    )
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda payload: _Decision())
+    monkeypatch.setattr(
+        "crisai.apps.web.load_history",
+        lambda session_name: [("user", "previous question"), ("assistant", "previous answer")],
+    )
+    monkeypatch.setattr(
+        "crisai.apps.web.build_chat_input",
+        lambda user_input, history: f"Conversation so far\\nUser: {user_input}",
+    )
+
+    async def _fake_run_with_routing(**kwargs):
+        captured["message"] = kwargs["message"]
+        return "ok"
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run_with_routing)
+
+    class _Payload:
+        message = "new prompt"
+        mode = "auto"
+        agent = "auto"
+        review = False
+        verbose = False
+        session = "default"
+
+    from crisai.apps import web as web_mod
+
+    result = web_mod._run_async(web_mod._execute(_Payload()))
+    assert result["final_output"] == "ok"
+    assert captured["message"].startswith("Conversation so far")
 
 
 def test_to_http_exception_maps_max_turns_to_422():

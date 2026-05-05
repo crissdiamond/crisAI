@@ -20,6 +20,7 @@ from crisai.cli.main import (
     _run_async,
     _run_with_routing,
 )
+from crisai.cli.chat_context import build_chat_input
 from crisai.cli.session_store import (
     load_history,
     sanitize_session_name,
@@ -154,9 +155,12 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
     trace_path = _trace_file_path()
     before_size = trace_path.stat().st_size if trace_path.exists() else 0
     decision = _resolve_decision(payload)
+    session_name = sanitize_session_name(payload.session)
+    history = load_history(session_name)
+    chat_input = build_chat_input(payload.message, history)
     try:
         final_output = await _run_with_routing(
-            message=payload.message,
+            message=chat_input,
             verbose=payload.verbose,
             review=payload.review,
             decision=decision,
@@ -304,15 +308,16 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
     """Execute one background run and persist completion state."""
     job = _RUN_JOBS[job_id]
     try:
+        session_name = sanitize_session_name(payload.session)
+        history = load_history(session_name)
+        chat_input = build_chat_input(payload.message, history)
         final_output = await _run_with_routing(
-            message=payload.message,
+            message=chat_input,
             verbose=payload.verbose,
             review=payload.review,
             decision=decision,
             user_intent_message=payload.message,
         )
-        session_name = sanitize_session_name(payload.session)
-        history = load_history(session_name)
         history.append(("user", payload.message))
         history.append(("assistant", final_output))
         save_history(session_name, history)
