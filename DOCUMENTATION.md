@@ -566,6 +566,28 @@ For architecture diagrams, dictionary conventions, precedence rules, and impleme
 - your Azure AD app registration must have **"Allow public client flows"** enabled (App registrations → Authentication → Advanced settings) for the device code flow to work
 - site resolution (Graph `/sites/...` lookup) is **lazy**: the MCP server starts immediately and the first real tool call triggers authentication, so the CLI is never blocked during server startup
 
+### App registration and secret checklist
+
+Minimum app registration checklist:
+
+1. Entra ID -> App registrations -> New registration (`crisAI-local` or equivalent).
+2. Supported account type: typically single-tenant for internal enterprise usage.
+3. Authentication: add public/native redirect `http://localhost`.
+4. Authentication: enable **Allow public client flows**.
+5. API permissions: add delegated Microsoft Graph permissions required for SharePoint/intranet access and grant admin consent when tenant policy requires it.
+6. Copy tenant/client ids into `.env` (`MS_TENANT_ID`, `MS_CLIENT_ID`).
+
+Client secret lifecycle (when used):
+
+1. Certificates & secrets -> Client secrets -> New client secret.
+2. Choose description and expiry intentionally (shorter in stricter environments).
+3. Copy secret **Value** immediately and save to `.env` as `MS_CLIENT_SECRET` (cannot be retrieved later).
+4. Rotate before expiry and restart crisAI after updating environment values.
+
+Notes:
+- Device-code/public-client setups can run without `MS_CLIENT_SECRET`.
+- Confidential-client setups require `MS_CLIENT_SECRET`.
+
 ### Manual Graph auth smoke test
 
 The Graph login script under `tests/orchestration/test_graph_login.py` is manual by design and skipped in automated pytest runs.

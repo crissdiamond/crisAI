@@ -293,6 +293,23 @@ CRISAI_PEER_MAX_REFINEMENT_ROUNDS=2
 CRISAI_PEER_MAX_ESCALATIONS=1
 ```
 
+Microsoft Entra app registration quick setup:
+
+1. Open **Microsoft Entra admin center** -> **App registrations** -> **New registration**.
+2. Set a name (for example `crisAI-local`).
+3. Choose supported account type (normally **Accounts in this organizational directory only** for internal use).
+4. Set redirect URI to **Public client/native** with value `http://localhost` (or add it later under Authentication).
+5. Open **Authentication** and enable **Allow public client flows**.
+6. Open **API permissions** and add delegated Microsoft Graph permissions required by your SharePoint/intranet setup, then grant admin consent when your tenant policy requires it.
+7. Copy **Directory (tenant) ID** and **Application (client) ID** into `.env` as `MS_TENANT_ID` and `MS_CLIENT_ID`.
+
+Client secret (only if you choose confidential-client auth or your tenant policy requires it):
+
+1. Open **Certificates & secrets** -> **Client secrets** -> **New client secret**.
+2. Enter description + expiry, then create.
+3. Copy the secret **Value** immediately (it is shown once) and store it in `.env` as `MS_CLIENT_SECRET`.
+4. Rotate before expiry; after rotation update `.env` and restart crisAI.
+
 > **WSL2 note:** crisAI uses the OAuth 2.0 **device code flow** for Microsoft Entra login in WSL2 environments. When the token is missing or expired a URL and short code are printed to the terminal — open the URL in any browser and enter the code to authenticate. No localhost redirect is required. Your Azure app registration must have **"Allow public client flows"** enabled (App registrations → Authentication → Advanced settings).
 
 ### 5. Make the launcher executable
@@ -340,6 +357,7 @@ Microsoft Graph auth note:
 - when a token cache is missing or expired, crisAI triggers interactive Microsoft Entra login automatically (CLI and web)
 - on WSL2 the **device code flow** is used: a URL and short user code are printed to the terminal; open the URL in any browser and enter the code — no localhost redirect is needed
 - your Azure app registration must have **"Allow public client flows"** enabled under Authentication → Advanced settings
+- `MS_CLIENT_SECRET` is optional for device-code/public-client flows, but required when you run confidential-client auth
 - for a manual login smoke test, run:
 
 ```bash
