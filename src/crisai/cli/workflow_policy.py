@@ -102,8 +102,11 @@ def infer_workflow_policy(
             capabilities.add(str(capability))
     # Canonical deterministic context is authoritative. Advisory contexts are intentionally ignored here.
     del advisory_deterministic_context
+    # Important: intranet fetch requirements must only be enforced when intranet
+    # discovery/retrieval is explicitly requested by user intent markers. A broad
+    # deterministic hint alone is not sufficient to force the policy gate.
     if deterministic_context is not None and deterministic_context.is_active:
-        if "intranet" in deterministic_context.suggested_sources:
+        if "intranet" in deterministic_context.suggested_sources and "intranet_grounded" in capabilities:
             capabilities.add("intranet_grounded")
 
     requirements = config.get("requirements") or {}

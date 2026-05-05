@@ -99,4 +99,20 @@ def test_infer_workflow_policy_uses_deterministic_source_nudge():
         graph_version="test",
     )
     policy = infer_workflow_policy("plain request", deterministic_context=context)
+    assert policy.require_intranet_fetch is False
+
+
+def test_infer_workflow_policy_requires_intranet_when_explicit_and_deterministic():
+    context = DeterministicRetrievalContext(
+        schema_version="deterministic_context_v1",
+        activated_topic_ids=frozenset({"intranet_site_pages"}),
+        suggested_terms=frozenset({"intranet_list_all_pages"}),
+        suggested_sources=frozenset({"intranet"}),
+        graph_loaded=True,
+        graph_version="test",
+    )
+    policy = infer_workflow_policy(
+        "Use intranet site pages and fetch integration principles.",
+        deterministic_context=context,
+    )
     assert policy.require_intranet_fetch is True
