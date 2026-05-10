@@ -629,11 +629,13 @@ For architecture diagrams, dictionary conventions, precedence rules, and impleme
 
 **Configuration in `registry/intranet.yaml`:**
 
-- **`provider`**: `sharepoint_pages` (default), `wiki` (placeholder), or `custom`.
+- **`provider`**: `sharepoint_pages` (default and only fully implemented provider), `wiki` (reserved name — fails at runtime with guidance), or `custom`.
 - **`allow_hosts`**: optional lowercase hostnames; page `webUrl` hosts must match exactly. If omitted, hosts are **derived only** from the configured sites' `webUrl` values (still not open internet).
 - **`sharepoint_pages.sites`**: list entries with either `site_path` (for example `contoso.sharepoint.com:/sites/Intranet`) or `graph_site_id`.
 - **`custom.class_path`**: adapter class path in `module:ClassName` format when `provider: custom`.
 - **`custom.settings`**: provider-specific configuration passed to the custom adapter constructor when supported.
+
+> **Provider implementation status:** Only `sharepoint_pages` is currently implemented. Setting `provider: wiki` fails at runtime with an `NotImplementedError` that lists the available alternatives — it does not crash the server on startup. To contribute a new backend, implement the `IntranetProvider` structural protocol defined in `src/crisai/intranet/providers/base.py` (six methods: `login`, `auth_status`, `search`, `fetch`, `list_links`, `list_all`) and either register it as a `custom` provider or add it as a named provider in `src/crisai/servers/intranet_server.py`.
 - **`search_synonyms_file`**: path to a synonym YAML file relative to `registry/` (default `search_synonyms.yaml`).
 - **`limits`**:
   - `max_fetch_chars` — maximum characters returned by `intranet_fetch_page`.
