@@ -744,12 +744,14 @@ OpenAI uses the native SDK path. Gemini, Anthropic, and DeepSeek are resolved th
 
 ### Available DeepSeek model refs
 
-| `model_ref` | `model_name` | Use for |
-|---|---|---|
-| `deepseek_fast` | `deepseek/deepseek-chat` | Cost-efficient tasks (V3 chat) |
-| `deepseek_reasoner` | `deepseek/deepseek-reasoner` | Reasoning-heavy tasks (R1) |
+Both refs use the same underlying model (`deepseek-v4-flash`); the difference is whether extended thinking is enabled.
 
-Assign either ref to any agent in `registry/agents.yaml` the same way you would `gemini_strong` or `anthropic_reasoning`.
+| `model_ref` | `model_name` | Mode | Use for |
+|---|---|---|---|
+| `deepseek_fast` | `deepseek/deepseek-v4-flash` | non-thinking | Cost-efficient tasks |
+| `deepseek_reasoner` | `deepseek/deepseek-v4-flash` | thinking (`budget_tokens: 8000`) | Reasoning-heavy tasks |
+
+Assign either ref to any agent in `registry/agents.yaml` the same way you would `gemini_strong` or `anthropic_reasoning`. Adjust `budget_tokens` under the `deepseek_reasoner` entry in `registry/models.yaml` to control how much reasoning the model performs.
 
 ### Environment variables
 

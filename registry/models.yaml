@@ -38,10 +38,13 @@ models:
 
   - id: deepseek_fast
     provider: deepseek
-    model_name: deepseek/deepseek-chat
+    model_name: deepseek/deepseek-v4-flash
     api_key_env: DEEPSEEK_API_KEY
 
   - id: deepseek_reasoner
     provider: deepseek
-    model_name: deepseek/deepseek-reasoner
+    model_name: deepseek/deepseek-v4-flash
     api_key_env: DEEPSEEK_API_KEY
+    thinking:
+      type: enabled
+      budget_tokens: 8000
