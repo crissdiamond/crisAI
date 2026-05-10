@@ -71,6 +71,8 @@ def test_build_design_prompt_normalises_empty_discovery():
     text = build_design_prompt("Draft an approach", "")
     assert "Discovery findings:\nNone." in text
     assert "Task:\nProduce the best possible architecture, design, or documentation response" in text
+    assert "Treat `content_read` evidence as confirmation" in text
+    assert "avoid broad caveats" in text
 
 
 def test_build_review_prompt_includes_inputs_without_policy_duplication():
@@ -87,6 +89,7 @@ def test_build_pipeline_final_prompt_keeps_only_transition_specific_guidance():
     assert "Handoff guidance:" in text
     assert "Do not mention internal pipeline stages" not in text
     assert "do not mention internal pipeline stages unless the user explicitly asked" in text.lower()
+    assert "Do not add new caveats about missing slide-by-slide" in text
 
 
 def test_peer_builders_use_stable_section_labels():
@@ -174,3 +177,5 @@ def test_build_context_synthesizer_prompt_includes_request_and_retrieval():
     assert "retrieved context here" in text
     assert "Context Synthesizer" in text
     assert "Do not draft" in text
+    assert "Treat `content_read` as confirmation" in text
+    assert "Do not introduce new limitations such as missing slide-by-slide detail" in text

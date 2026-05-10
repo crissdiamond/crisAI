@@ -81,6 +81,93 @@ def test_print_final_answer_hides_bare_evidence_json(monkeypatch) -> None:
     assert "evidence_bundle_v1" not in md.markup
 
 
+def test_print_agent_output_hides_nested_evidence_json(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+    body = """Here are the documents.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "find docs",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Deck.pptx",
+        "open_url": "https://example.com/deck.pptx"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Outline",
+      "raw_error": ""
+    }
+  ],
+  "gaps": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Other deck.pptx"
+      },
+      "reason": "Not needed"
+    }
+  ]
+}
+```
+"""
+
+    display.print_agent_output("context_retrieval", body, verbose=True)
+
+    md = captured[0].renderable
+    assert isinstance(md, Markdown)
+    assert "Here are the documents." in md.markup
+    assert "evidence_bundle_v1" not in md.markup
+    assert "Other deck.pptx" not in md.markup
+    assert '"reason": "Not needed"' not in md.markup
+
+
+def test_print_final_answer_hides_nested_bare_evidence_json(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+    body = """Here are the documents.
+
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "find docs",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Deck.pptx"
+      },
+      "evidence_level": "content_read"
+    }
+  ],
+  "gaps": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Other deck.pptx"
+      },
+      "reason": "Not needed"
+    }
+  ]
+}
+
+Done.
+"""
+
+    display.print_final_answer(body)
+
+    md = captured[0].renderable
+    assert isinstance(md, Markdown)
+    assert "Here are the documents." in md.markup
+    assert "Done." in md.markup
+    assert "evidence_bundle_v1" not in md.markup
+    assert "Other deck.pptx" not in md.markup
+
+
 def test_print_agent_output_non_verbose_markdown_is_short_summary_not_full_body(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))

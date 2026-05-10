@@ -77,13 +77,8 @@ _RENDER_STYLES = {
     "final": "bright_black",
 }
 
-_EVIDENCE_JSON_BLOCK_RE = re.compile(
-    r"```(?:json)?\s*\{[^`]*?\"schema_version\"\s*:\s*\"evidence_bundle_v1\".*?\}\s*```",
-    re.DOTALL | re.IGNORECASE,
-)
-_BARE_EVIDENCE_JSON_RE = re.compile(
-    r"(?ms)^\s*\{\s*\n\s*\"schema_version\"\s*:\s*\"evidence_bundle_v1\".*?^\s*\}\s*$"
-)
+_FENCED_CODE_BLOCK_RE = re.compile(r"```[^\n`]*\n.*?```", re.DOTALL)
+_EVIDENCE_SCHEMA_RE = re.compile(r'"schema_version"\s*:\s*"evidence_bundle_v1"', re.IGNORECASE)
 
 
 def _icon(agent_id: str) -> str:
@@ -113,10 +108,74 @@ def _strip_markdown(text: str) -> str:
 
 def _hide_machine_evidence_blocks(text: str) -> str:
     """Remove machine-readable evidence JSON from user-facing CLI rendering."""
-    cleaned = _EVIDENCE_JSON_BLOCK_RE.sub("", text or "")
-    cleaned = _BARE_EVIDENCE_JSON_RE.sub("", cleaned)
+    cleaned = _strip_fenced_evidence_blocks(text or "")
+    cleaned = _strip_bare_evidence_objects(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned
+
+
+def _strip_fenced_evidence_blocks(text: str) -> str:
+    """Remove fenced code blocks that contain an evidence bundle schema marker."""
+    parts: list[str] = []
+    cursor = 0
+    for match in _FENCED_CODE_BLOCK_RE.finditer(text):
+        parts.append(text[cursor : match.start()])
+        block = match.group(0)
+        if not _EVIDENCE_SCHEMA_RE.search(block):
+            parts.append(block)
+        cursor = match.end()
+    parts.append(text[cursor:])
+    return "".join(parts)
+
+
+def _strip_bare_evidence_objects(text: str) -> str:
+    """Remove bare evidence JSON objects using balanced braces instead of regex."""
+    output: list[str] = []
+    cursor = 0
+    while True:
+        marker = _EVIDENCE_SCHEMA_RE.search(text, cursor)
+        if marker is None:
+            output.append(text[cursor:])
+            break
+        start = text.rfind("{", cursor, marker.start())
+        if start == -1:
+            output.append(text[cursor : marker.end()])
+            cursor = marker.end()
+            continue
+        end = _find_json_object_end(text, start)
+        if end is None:
+            output.append(text[cursor : marker.start()])
+            cursor = marker.end()
+            continue
+        output.append(text[cursor:start])
+        cursor = end
+    return "".join(output)
+
+
+def _find_json_object_end(text: str, start: int) -> int | None:
+    """Return the index after a balanced JSON object starting at ``start``."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return None
 
 
 def _clean_agent_text(text: str) -> str:
