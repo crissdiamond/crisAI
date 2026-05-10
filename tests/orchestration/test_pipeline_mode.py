@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 import typer
 
-from crisai.registry import AgentSpec
 import crisai.cli.pipelines as pipelines
+from crisai.registry import AgentSpec
 
 
 class DummyAsyncContext:

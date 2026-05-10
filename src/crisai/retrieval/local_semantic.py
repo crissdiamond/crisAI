@@ -3,9 +3,9 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
 
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_\-/]*")
 _DEFAULT_FILE_PATTERNS = ("*.md", "*.txt", "*.rst")
@@ -74,7 +74,7 @@ class LocalSemanticRetriever:
         max_chars: int = 1800,
         overlap_chars: int = 250,
         excluded_dirs: set[str] | None = None,
-    ) -> "LocalSemanticRetriever":
+    ) -> LocalSemanticRetriever:
         """Build a retriever by scanning supported local text files.
 
         Args:

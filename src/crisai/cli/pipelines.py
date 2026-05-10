@@ -4,8 +4,8 @@ from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_p
 
 apply_openai_agents_trace_export_patch()
 
-import io
 import inspect
+import io
 import os
 import re
 from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
@@ -18,34 +18,38 @@ from agents import Runner
 
 from crisai.agents.factory import AgentFactory
 from crisai.logging_utils import get_logger
-from crisai.runtime import MultiServerContext, RuntimeManager
-from crisai.tracing import TRACE_FILE_NAME, append_trace
-from crisai.orchestration.peer_contract import infer_peer_run_contract, render_peer_run_contract
-from crisai.orchestration.retrieval_association_graph import (
-    DeterministicRetrievalContext,
-    deterministic_context_from_registry,
-    deterministic_context_trace_metadata,
+from crisai.orchestration.peer_contract import (
+    infer_peer_run_contract,
+    render_peer_run_contract,
 )
 from crisai.orchestration.peer_verifier import (
     PeerVerificationViolation,
     enforce_peer_final_deliverable_verification,
 )
+from crisai.orchestration.retrieval_association_graph import (
+    DeterministicRetrievalContext,
+    deterministic_context_from_registry,
+    deterministic_context_trace_metadata,
+)
+from crisai.runtime import MultiServerContext, RuntimeManager
+from crisai.tracing import TRACE_FILE_NAME, append_trace
 
 from .display import create_agent_live, print_agent_output
-from .peer_transcript import PeerRunResult, append_peer_message
+from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
+from .pipeline_engine import WorkflowEngine
 from .prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
-    build_design_prompt,
-    build_retrieval_planner_prompt,
-    build_single_retrieval_planner_prompt,
     build_context_retrieval_prompt,
+    build_design_prompt,
     build_judge_prompt,
     build_judge_quality_gate_prompt,
     build_peer_final_prompt,
     build_pipeline_final_prompt,
     build_refiner_prompt,
+    build_retrieval_planner_prompt,
     build_review_prompt,
+    build_single_retrieval_planner_prompt,
 )
 from .workflow_policy import (
     WorkflowPolicyViolation,
@@ -55,7 +59,6 @@ from .workflow_policy import (
     infer_workflow_policy,
     snapshot_tree,
 )
-from .pipeline_engine import WorkflowEngine
 from .workflow_support import (
     WorkflowEnvironment,
     collect_server_ids,
@@ -1636,7 +1639,7 @@ def build_peer_run_result(
     judge_text: str,
     final_text: str,
 ) -> PeerRunResult:
-    transcript = []
+    transcript: list[PeerMessage] = []
     append_peer_message(transcript, "retrieval_planner", discovery_text)
     append_peer_message(transcript, "design_author", author_text)
     append_peer_message(transcript, "design_challenger", challenger_text)

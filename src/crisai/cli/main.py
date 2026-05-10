@@ -4,11 +4,12 @@ import asyncio
 import logging
 import re
 import ssl
+from collections.abc import Awaitable
 from contextlib import contextmanager
 from dataclasses import is_dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Awaitable
+from typing import Any
 
 import typer
 from prompt_toolkit import prompt
@@ -17,15 +18,31 @@ from prompt_toolkit.history import FileHistory
 
 from crisai.cli.chat_context import build_chat_input
 from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
-from crisai.cli.display import print_final_answer, print_final_recommendation, print_status_message
-from crisai.cli.session_store import clear_cli_history, clear_history, cli_history_file, load_history, save_history, session_dir
-from crisai.cli.status_views import print_agents_table, print_chat_state, print_servers_table, route_display
+from crisai.cli.display import (
+    print_final_answer,
+    print_final_recommendation,
+    print_status_message,
+)
+from crisai.cli.session_store import (
+    clear_cli_history,
+    clear_history,
+    cli_history_file,
+    load_history,
+    save_history,
+    session_dir,
+)
+from crisai.cli.status_views import (
+    print_agents_table,
+    print_chat_state,
+    print_servers_table,
+    route_display,
+)
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
-from crisai.registry_validation import run_doctor
-from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
+from crisai.registry_validation import run_doctor
+from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
 
 from .pipelines import run_peer_pipeline, run_pipeline, run_single
 

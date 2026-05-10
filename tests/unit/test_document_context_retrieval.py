@@ -7,7 +7,6 @@ from types import ModuleType
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCUMENT_SERVER_CANDIDATES = [
     REPO_ROOT / "src" / "crisai" / "servers" / "document_server.py",

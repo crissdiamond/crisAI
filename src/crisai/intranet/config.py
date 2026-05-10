@@ -59,9 +59,8 @@ def load_intranet_settings(registry_dir: Path) -> IntranetSettings:
 
     # Resolve synonyms file: explicit YAML key overrides the default location.
     synonyms_filename = str(block.get("search_synonyms_file") or "search_synonyms.yaml").strip()
-    synonyms_path: Path | None = registry_dir / synonyms_filename
-    if not synonyms_path.exists():
-        synonyms_path = None
+    synonyms_file = registry_dir / synonyms_filename
+    synonyms_path: Path | None = synonyms_file if synonyms_file.exists() else None
 
     return IntranetSettings(
         provider=str(block.get("provider") or "sharepoint_pages").strip(),

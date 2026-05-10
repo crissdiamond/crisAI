@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import asyncio
+import json
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -13,6 +13,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
+from crisai.apps.ui_config import UI_CONFIG
+from crisai.cli.chat_context import build_chat_input
 from crisai.cli.main import (
     _apply_decision_overrides,
     _detect_explicit_mode,
@@ -20,7 +22,6 @@ from crisai.cli.main import (
     _run_async,
     _run_with_routing,
 )
-from crisai.cli.chat_context import build_chat_input
 from crisai.cli.session_store import (
     load_history,
     sanitize_session_name,
@@ -29,7 +30,6 @@ from crisai.cli.session_store import (
 )
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging
-from crisai.apps.ui_config import UI_CONFIG
 
 
 @asynccontextmanager

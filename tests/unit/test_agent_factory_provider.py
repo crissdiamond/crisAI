@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 
 from crisai.agents.factory import AgentFactory
 from crisai.registry import AgentSpec, ModelSpec

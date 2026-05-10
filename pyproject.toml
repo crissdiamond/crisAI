@@ -11,8 +11,6 @@ requires-python = ">=3.10"
 dependencies = [
   "openai-agents>=0.2.10",
   "mcp>=1.10.0",
-  "pytest",
-  "pytest-timeout>=2.3.1",
   "python-dotenv>=1.0.1",
   "PyYAML>=6.0.2",
   "fastapi>=0.115.0,<0.136.0",
@@ -34,10 +32,37 @@ dependencies = [
 litellm = [
   "openai-agents[litellm]>=0.2.10"
 ]
+dev = [
+  "pytest>=7",
+  "pytest-timeout>=2.3.1",
+  "ruff>=0.4",
+  "mypy>=1.10",
+]
 
 [project.scripts]
 crisai = "crisai.cli.main:app"
 crisai-web = "crisai.apps.web:main"
+
+[tool.pytest.ini_options]
+timeout = 60
+timeout_method = "thread"
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tracing patch must execute before the agents SDK is imported.
+"src/crisai/agents/factory.py" = ["E402"]
+"src/crisai/cli/pipelines.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import time
+from pathlib import Path
 
 import pytest
 
@@ -14,7 +14,9 @@ from crisai.cli.workflow_policy import (
     infer_workflow_policy,
     snapshot_tree,
 )
-from crisai.orchestration.retrieval_association_graph import DeterministicRetrievalContext
+from crisai.orchestration.retrieval_association_graph import (
+    DeterministicRetrievalContext,
+)
 
 
 def test_infer_workflow_policy_detects_intranet_and_artifact_capabilities():

@@ -4,7 +4,13 @@ from dataclasses import dataclass
 
 from crisai.cli.commands import parse_chat_command
 from crisai.cli.display import print_final_answer, print_status_message
-from crisai.cli.session_store import HistoryEntry, clear_cli_history, clear_history, load_history, save_history
+from crisai.cli.session_store import (
+    HistoryEntry,
+    clear_cli_history,
+    clear_history,
+    load_history,
+    save_history,
+)
 from crisai.cli.status_views import (
     print_agents_table,
     print_chat_state,

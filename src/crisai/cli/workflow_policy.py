@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from crisai.orchestration.retrieval_association_graph import DeterministicRetrievalContext
+
+from crisai.orchestration.retrieval_association_graph import (
+    DeterministicRetrievalContext,
+)
 
 
 @dataclass(frozen=True)

@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from crisai.registry import AgentSpec
 import crisai.cli.pipelines as pipelines
 from crisai.cli.peer_transcript import peer_speakers
+from crisai.registry import AgentSpec
 
 
 class DummyAsyncContext:

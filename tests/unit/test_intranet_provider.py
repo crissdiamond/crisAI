@@ -7,13 +7,17 @@ from pathlib import Path
 import pytest
 import yaml
 
-from crisai.intranet.config import IntranetSettings, SharePointSiteEntry, load_intranet_settings
 import crisai.intranet.providers.sharepoint_pages as sharepoint_pages
+from crisai.intranet.config import (
+    IntranetSettings,
+    SharePointSiteEntry,
+    load_intranet_settings,
+)
 from crisai.intranet.providers.sharepoint_pages import (
     SharePointPagesProvider,
-    effective_allow_hosts,
     _sitepage_urls_in_object,
     _strip_html,
+    effective_allow_hosts,
 )
 from crisai.intranet.providers.wiki import WikiProvider
 

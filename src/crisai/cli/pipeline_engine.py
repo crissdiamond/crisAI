@@ -1,9 +1,9 @@
 """Workflow engine for shared multi-agent pipeline lifecycle management."""
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Awaitable, Callable
+from typing import Any
 
 from .workflow_support import WorkflowEnvironment
 

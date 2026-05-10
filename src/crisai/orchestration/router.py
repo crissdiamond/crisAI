@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 
 from .retrieval_association_graph import deterministic_context_from_registry
 from .semantic_catalog import load_semantic_catalog
+
 
 @dataclass
 class RoutingDecision:

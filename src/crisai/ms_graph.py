@@ -14,8 +14,9 @@ import os
 import shutil
 import sys
 import webbrowser
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -166,10 +167,11 @@ def _acquire_token_interactive_compat(
         "prompt": "select_account",
         "domain_hint": "organizations",
     }
+    parameters: dict[str, Any] = {}
     try:
-        parameters = inspect.signature(app.acquire_token_interactive).parameters
+        parameters = dict(inspect.signature(app.acquire_token_interactive).parameters)
     except (TypeError, ValueError):
-        parameters = {}
+        pass
     if "open_browser" in parameters:
         kwargs["open_browser"] = _open_interactive_browser
     return app.acquire_token_interactive(**kwargs)

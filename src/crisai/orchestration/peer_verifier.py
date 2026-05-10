@@ -9,7 +9,6 @@ from crisai.orchestration.peer_contract import PeerRunContract
 from crisai.orchestration.semantic_catalog import load_semantic_catalog
 from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
 
-
 _WORKSPACE_FILE_PATTERN = re.compile(r"(workspace/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)")
 
 

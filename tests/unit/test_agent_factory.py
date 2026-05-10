@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import types
 from pathlib import Path
 
 from crisai.agents.factory import AgentFactory

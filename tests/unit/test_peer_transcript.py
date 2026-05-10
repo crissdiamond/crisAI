@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from crisai.cli.peer_transcript import PeerMessage, PeerRunResult, append_peer_message, make_peer_message, peer_speakers
+from crisai.cli.peer_transcript import (
+    PeerMessage,
+    PeerRunResult,
+    append_peer_message,
+    make_peer_message,
+    peer_speakers,
+)
 
 
 def test_make_peer_message_trims_content_and_defaults_role_and_step() -> None:

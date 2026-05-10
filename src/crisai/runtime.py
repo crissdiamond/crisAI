@@ -37,7 +37,7 @@ def _resolve_client_session_timeout_seconds(server_raw: dict[str, object]) -> fl
     if override is None:
         return default_timeout
     try:
-        return max(float(override), 10.0)
+        return max(float(str(override)), 10.0)
     except (TypeError, ValueError):
         return default_timeout
 

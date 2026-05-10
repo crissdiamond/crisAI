@@ -4,7 +4,6 @@ import csv
 import hashlib
 import io
 import json
-import logging
 import math
 import re
 import sys
@@ -17,12 +16,11 @@ import chardet
 from docx import Document as DocxDocument
 from mcp.server.fastmcp import FastMCP
 from openpyxl import load_workbook
-from pypdf import PdfReader
 from pptx import Presentation
+from pypdf import PdfReader
 
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
-
 
 mcp = FastMCP("crisai-document-reader")
 
@@ -145,7 +143,7 @@ def _read_text_like(file_path: Path) -> str:
 
 
 def _read_docx(file_path: Path) -> str:
-    doc = DocxDocument(file_path)
+    doc = DocxDocument(str(file_path))
     paragraphs = [p.text.strip() for p in doc.paragraphs if p.text and p.text.strip()]
     return "\n\n".join(paragraphs)
 
@@ -278,7 +276,7 @@ def _cosine_similarity(left: dict[str, float], right: dict[str, float]) -> float
 
 def _stable_chunk_id(path: str, chunk_index: int, text: str) -> str:
     """Build a stable chunk identifier from path, index, and content."""
-    digest = hashlib.sha1(f"{path}:{chunk_index}:{text}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(f"{path}:{chunk_index}:{text}".encode()).hexdigest()[:12]
     return f"chunk-{digest}"
 
 

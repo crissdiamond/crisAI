@@ -83,7 +83,8 @@ def _peer_marker_phrases(values: Any) -> frozenset[str]:
 
 def _peer_contract_marker_field(data: dict[str, Any], field: str) -> frozenset[str]:
     """Resolve one peer_contract marker list from catalog data."""
-    block = data.get("peer_contract") if isinstance(data.get("peer_contract"), dict) else {}
+    raw_block = data.get("peer_contract")
+    block: dict[str, Any] = raw_block if isinstance(raw_block, dict) else {}
     raw = block.get(field)
     return _peer_marker_phrases(raw) if isinstance(raw, list) else frozenset()
 

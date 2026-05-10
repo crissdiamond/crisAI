@@ -5,7 +5,11 @@ import logging
 import sys
 from pathlib import Path
 
-from crisai.logging_utils import JsonFormatter, append_json_log_line, configure_mcp_framework_logging
+from crisai.logging_utils import (
+    JsonFormatter,
+    append_json_log_line,
+    configure_mcp_framework_logging,
+)
 
 
 def test_json_formatter_ecs_like_shape() -> None:

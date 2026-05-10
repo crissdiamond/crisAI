@@ -8,9 +8,11 @@ from typing import Any
 
 import yaml
 
-from crisai.registry import Registry
+from crisai.orchestration.retrieval_association_graph import (
+    load_retrieval_association_graph,
+)
 from crisai.orchestration.semantic_catalog import load_semantic_catalog
-from crisai.orchestration.retrieval_association_graph import load_retrieval_association_graph
+from crisai.registry import Registry
 
 
 @dataclass(frozen=True)

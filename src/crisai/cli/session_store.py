@@ -6,7 +6,6 @@ from pathlib import Path
 
 from crisai.config import load_settings
 
-
 HistoryEntry = tuple[str, str]
 
 

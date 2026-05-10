@@ -4,16 +4,16 @@ import os
 import time
 from dataclasses import dataclass
 
-from fastapi import HTTPException
 import pytest
+from fastapi import HTTPException
 
 from crisai.apps.web import (
+    RunRequest,
+    SessionCreateRequest,
     _collect_stage_outputs,
     _select_latest_run,
     _to_http_exception,
     _trace_line_to_stage_output,
-    RunRequest,
-    SessionCreateRequest,
     create_session,
     get_session,
     list_sessions,

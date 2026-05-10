@@ -17,7 +17,7 @@ _PAGE_LIST_BATCH = 100
 _MAX_SITE_PAGES_TO_SCAN = 500
 
 
-def _load_synonym_groups(path: "Path | None") -> "list[frozenset[str]] | None":
+def _load_synonym_groups(path: Path | None) -> list[frozenset[str]] | None:
     """Load synonym groups from a YAML file and return them as frozensets.
 
     Returns ``None`` when *path* is ``None`` or the file cannot be parsed, so
@@ -223,7 +223,7 @@ class SharePointPagesProvider:
         settings: IntranetSettings,
         sites: list[SharePointSiteEntry] | None = None,
         allowed_hosts: set[str] | None = None,
-        workspace_root: "Path | None" = None,
+        workspace_root: Path | None = None,
     ) -> None:
         if workspace_root is not None:
             # Configure the intranet-specific Graph token cache before any API
@@ -448,7 +448,8 @@ class SharePointPagesProvider:
         if not graph_site_id or not graph_page_id:
             raise ValueError("graph_site_id and graph_page_id are required.")
         self._ensure_sites()
-        allowed_site_ids = {s.graph_site_id for s in self._sites}  # type: ignore[arg-type]
+        assert self._sites is not None
+        allowed_site_ids = {s.graph_site_id for s in self._sites}
         if graph_site_id not in allowed_site_ids:
             raise RuntimeError(
                 "graph_site_id is not one of the configured intranet sites. "
@@ -473,7 +474,8 @@ class SharePointPagesProvider:
         if not graph_site_id or not graph_page_id:
             raise ValueError("graph_site_id and graph_page_id are required.")
         self._ensure_sites()
-        allowed_site_ids = {s.graph_site_id for s in self._sites}  # type: ignore[arg-type]
+        assert self._sites is not None
+        allowed_site_ids = {s.graph_site_id for s in self._sites}
         if graph_site_id not in allowed_site_ids:
             raise RuntimeError(
                 "graph_site_id is not one of the configured intranet sites. "

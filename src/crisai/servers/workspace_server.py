@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -9,7 +9,9 @@ from mcp.server.fastmcp import FastMCP
 
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
-from crisai.orchestration.retrieval_association_graph import deterministic_context_from_registry
+from crisai.orchestration.retrieval_association_graph import (
+    deterministic_context_from_registry,
+)
 
 mcp = FastMCP("crisai-workspace")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()

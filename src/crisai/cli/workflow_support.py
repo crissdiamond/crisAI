@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import inspect
+from collections.abc import Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-import inspect
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 from uuid import uuid4
 
 import typer

@@ -3,13 +3,11 @@ from __future__ import annotations
 import csv
 import io
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
 import chardet
-import requests
 from docx import Document as DocxDocument
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -17,9 +15,9 @@ from openpyxl import load_workbook
 from pptx import Presentation
 from pypdf import PdfReader
 
+from crisai import ms_graph
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
-from crisai import ms_graph
 
 load_dotenv()
 

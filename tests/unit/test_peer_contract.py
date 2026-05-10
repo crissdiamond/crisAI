@@ -1,4 +1,7 @@
-from crisai.orchestration.peer_contract import infer_peer_run_contract, render_peer_run_contract
+from crisai.orchestration.peer_contract import (
+    infer_peer_run_contract,
+    render_peer_run_contract,
+)
 
 
 def test_infer_peer_run_contract_detects_artifact_delivery_intent():
