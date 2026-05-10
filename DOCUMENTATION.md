@@ -61,6 +61,7 @@ Typical examples:
 - local workspace server
 - document reader server
 - diagram server
+- vision server for standalone images and embedded PowerPoint pictures
 - SharePoint / OneDrive documents server
 - intranet **site pages** server (scoped to `registry/intranet.yaml`; **independent** Graph auth token cache from the SharePoint docs server)
 
@@ -530,6 +531,7 @@ stage panels and final answers.
 PowerPoint retrieval has dedicated inspection support. Use:
 - `inspect_powerpoint_document` for local workspace `.pptx` files
 - `inspect_sharepoint_powerpoint_by_handle` for SharePoint / OneDrive `.pptx` files returned by search
+- `describe_powerpoint_slide_images` for pictures embedded in workspace `.pptx` files when the `vision` server is enabled
 
 These tools return structured slide records plus extraction metadata:
 - `status`
@@ -539,7 +541,25 @@ These tools return structured slide records plus extraction metadata:
 - `limitations`
 - per-slide title, text, tables, and speaker notes when available
 
-Standard `read_document` and `read_sharepoint_document_by_handle` also include a PowerPoint extraction header for `.pptx` files. Current coverage is text boxes, slide titles, table cells, grouped shape text where exposed by `python-pptx`, and speaker notes when present in the package XML. Image text, embedded objects, and some SmartArt can still require manual inspection or future OCR support.
+Standard `read_document` and `read_sharepoint_document_by_handle` also include a PowerPoint extraction header for `.pptx` files. Current text extraction coverage is text boxes, slide titles, table cells, grouped shape text where exposed by `python-pptx`, and speaker notes when present in the package XML. The separate `vision` server can describe standalone image files and picture shapes embedded in local workspace PowerPoint files, but arbitrary OCR, embedded objects, and some SmartArt can still require manual inspection or future extraction support.
+
+### Vision tools
+
+The **`vision`** MCP server is a local workspace tool server for image inspection. It is useful when a retrieved deck includes diagrams or screenshots that text extraction cannot see.
+
+**Available tools:**
+
+| Tool | Purpose |
+|---|---|
+| `describe_image` | Describe a standalone workspace image file (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`) |
+| `describe_powerpoint_slide_images` | Extract picture shapes from a workspace `.pptx` and describe them, optionally filtered by 1-based slide number |
+
+Configuration notes:
+- the server is registered as `vision` in `registry/servers.yaml`
+- agents need `vision` in their allowed server list before they can use these tools
+- paths are workspace-relative and are bounded to the configured workspace root
+- the default model is `gpt-4o-mini`; override with `CRISAI_VISION_MODEL`
+- descriptions call the OpenAI API, so `OPENAI_API_KEY` must be configured for live use
 
 ### Intranet content pages (scoped MCP server)
 
@@ -711,6 +731,12 @@ GEMINI_API_KEY=
 ANTHROPIC_API_KEY=
 ```
 
+The vision server reads one optional variable:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CRISAI_VISION_MODEL` | `gpt-4o-mini` | OpenAI model used by the `vision` MCP server to describe images. Set to `gpt-4o` for higher-quality descriptions. |
+
 Use `.env.example` as the template for repo-safe configuration.
 
 ---
@@ -800,6 +826,7 @@ logs/document_mcp.log
 logs/diagram_mcp.log
 logs/sharepoint_mcp.log
 logs/intranet_mcp.log
+logs/vision_mcp.log
 ```
 
 The **workspace** directory is for your documents and generated files; MCP server logs are written under the log directory with the main trace and `crisai.log`.

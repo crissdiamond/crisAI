@@ -79,6 +79,28 @@ servers:
       mode: none
     risk_level: low
 
+  - id: vision
+    name: Vision Server
+    description: Describe standalone image files and images embedded in PowerPoint slides.
+    enabled: true
+    transport: stdio
+    command: python
+    args:
+      - src/crisai/servers/image_server.py
+      - ./workspace
+    working_directory: .
+    tags: [local, images, vision]
+    auth:
+      type: none
+    tools:
+      allow:
+        - describe_image
+        - describe_powerpoint_slide_images
+    approval:
+      required_for: []
+      mode: none
+    risk_level: low
+
   - id: sharepoint_docs
     name: SharePoint Docs Server
     description: Search and read SharePoint documents using delegated Microsoft Graph access.

@@ -10,7 +10,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 
 - CLI and web app surfaces for the same routed workflows.
 - Specialist agents with separate responsibilities and configurable model assignment.
-- Local workspace, document, diagram, SharePoint document, and scoped intranet content MCP servers.
+- Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
 - Deterministic retrieval expansion from registry dictionaries.
@@ -120,6 +120,7 @@ CRISAI_DEFAULT_MODEL=gpt-5.4-mini
 CRISAI_WORKSPACE_DIR=./workspace
 CRISAI_LOG_DIR=./logs
 CRISAI_REGISTRY_DIR=./registry
+CRISAI_VISION_MODEL=gpt-4o-mini   # vision MCP server model; defaults to gpt-4o-mini if unset
 ```
 
 For local development, tests, linting, and type checks:
@@ -196,6 +197,7 @@ crisAI can retrieve from:
 - Approved local architecture context under `workspace/context/`.
 - Local user files and generated outputs under `workspace/`.
 - Supported local documents such as `.md`, `.txt`, `.csv`, `.docx`, `.pdf`, `.pptx`, and `.xlsx`; PowerPoint files expose slide-level text, tables, and extraction coverage.
+- Standalone workspace images and embedded PowerPoint pictures through the `vision` MCP server.
 - SharePoint / OneDrive documents through delegated Microsoft Graph, with opaque read handles, PowerPoint inspection tools, and validated evidence handoffs to prevent ID transcription errors.
 - Published intranet pages through the scoped intranet MCP. The default provider is SharePoint Site Pages; custom providers can adapt wiki-style intranets.
 
@@ -231,6 +233,7 @@ document_mcp.log
 diagram_mcp.log
 sharepoint_mcp.log
 intranet_mcp.log
+vision_mcp.log
 ```
 
 ## More Documentation

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 from pathlib import Path
 
@@ -9,7 +10,28 @@ from pptx.util import Inches
 from crisai.powerpoint import (
     extract_powerpoint_from_bytes,
     extract_powerpoint_from_path,
+    extract_slide_images,
 )
+
+# Minimal valid 1x1 pixel PNG for embedding in test slides.
+_MINIMAL_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+
+def _pptx_with_images(*slide_image_counts: int) -> bytes:
+    """Build a PPTX where each positional arg specifies how many images to add per slide."""
+    prs = Presentation()
+    for count in slide_image_counts:
+        slide = prs.slides.add_slide(prs.slide_layouts[5])
+        for _ in range(count):
+            slide.shapes.add_picture(
+                io.BytesIO(_MINIMAL_PNG), Inches(1), Inches(1), Inches(1), Inches(1)
+            )
+    output = io.BytesIO()
+    prs.save(output)
+    return output.getvalue()
 
 
 def _sample_pptx_bytes() -> bytes:
@@ -44,6 +66,30 @@ def test_extract_powerpoint_from_bytes_returns_slide_level_text_and_tables() -> 
     assert slide.title == "Integration Strategy"
     assert "Strategic objectives and current challenges" in slide.text
     assert slide.tables == [[["Theme", "Detail"], ["Roadmap", "Next steps"]]]
+
+
+def test_extract_slide_images_returns_image_per_picture_shape() -> None:
+    images = extract_slide_images(_pptx_with_images(1))
+
+    assert len(images) == 1
+    assert images[0]["slide_number"] == 1
+    assert images[0]["image_index"] == 0
+    assert isinstance(images[0]["blob"], bytes)
+    assert len(images[0]["blob"]) > 0
+
+
+def test_extract_slide_images_empty_when_no_pictures() -> None:
+    assert extract_slide_images(_sample_pptx_bytes()) == []
+
+
+def test_extract_slide_images_respects_slide_order() -> None:
+    images = extract_slide_images(_pptx_with_images(1, 1))
+
+    assert len(images) == 2
+    assert images[0]["slide_number"] == 1
+    assert images[1]["slide_number"] == 2
+    assert images[0]["image_index"] == 0
+    assert images[1]["image_index"] == 0
 
 
 def test_extract_powerpoint_from_path_renders_extraction_header(tmp_path: Path) -> None:

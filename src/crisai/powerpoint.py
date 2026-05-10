@@ -10,6 +10,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 TEXT_NS = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
 REL_NS = {"rel": "http://schemas.openxmlformats.org/package/2006/relationships"}
@@ -76,6 +77,27 @@ class PowerPointExtraction:
         )
         rendered_slides = [slide_to_text(slide) for slide in self.slides]
         return "\n\n".join([header, *rendered_slides]).strip()
+
+
+def extract_slide_images(data: bytes) -> list[dict[str, object]]:
+    """Return raw image blobs for every picture shape in a PPTX, in slide order."""
+    prs = Presentation(io.BytesIO(data))
+    result: list[dict[str, object]] = []
+    for slide_idx, slide in enumerate(prs.slides, start=1):
+        img_idx = 0
+        for shape in slide.shapes:
+            if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                img = shape.image
+                result.append(
+                    {
+                        "slide_number": slide_idx,
+                        "image_index": img_idx,
+                        "content_type": img.content_type,
+                        "blob": img.blob,
+                    }
+                )
+                img_idx += 1
+    return result
 
 
 def extract_powerpoint_from_path(file_path: Path) -> PowerPointExtraction:

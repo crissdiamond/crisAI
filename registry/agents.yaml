@@ -20,6 +20,7 @@ agents:
       - documents
       - sharepoint_docs
       - intranet
+      - vision
 
   - id: context_retrieval
     name: Context Retrieval Agent
@@ -30,6 +31,7 @@ agents:
       - documents
       - sharepoint_docs
       - intranet
+      - vision
 
   - id: context_synthesizer
     name: Context Synthesizer Agent
@@ -57,6 +59,7 @@ agents:
       - documents
       - sharepoint_docs
       - intranet
+      - vision
 
   - id: review
     name: Review Agent
