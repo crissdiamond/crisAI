@@ -39,7 +39,7 @@ class AgentFactory:
         if resolved_model.runtime_model is not None:
             return resolved_model.runtime_model
 
-        if resolved_model.provider in {"gemini", "anthropic"}:
+        if resolved_model.provider in {"gemini", "anthropic", "deepseek"}:
             try:
                 from agents.extensions.models.litellm_model import LitellmModel
             except ImportError as exc:

@@ -115,7 +115,7 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                 errors.append(f"Agent '{agent.id}' references unknown server: {server_id}")
 
     for model in models:
-        if model.provider not in {"openai", "gemini", "anthropic"}:
+        if model.provider not in {"openai", "gemini", "anthropic", "deepseek"}:
             errors.append(f"Model '{model.id}' has unsupported provider: {model.provider}")
         if model.api_key_env and not os.getenv(model.api_key_env, ""):
             warnings.append(f"Model '{model.id}' expects unset environment variable: {model.api_key_env}")

@@ -35,3 +35,13 @@ models:
     provider: anthropic
     model_name: anthropic/claude-sonnet-4-5
     api_key_env: ANTHROPIC_API_KEY
+
+  - id: deepseek_fast
+    provider: deepseek
+    model_name: deepseek/deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY
+
+  - id: deepseek_reasoner
+    provider: deepseek
+    model_name: deepseek/deepseek-reasoner
+    api_key_env: DEEPSEEK_API_KEY

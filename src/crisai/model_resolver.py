@@ -65,7 +65,7 @@ class ModelResolver:
 
         if provider == "openai":
             runtime_model = spec.model_name
-        elif provider in {"gemini", "anthropic"}:
+        elif provider in {"gemini", "anthropic", "deepseek"}:
             api_key = self._get_api_key(provider, api_key_env)
         else:
             raise ValueError(f"Unsupported model provider: {spec.provider}")
@@ -104,5 +104,6 @@ class ModelResolver:
             "openai": "OPENAI_API_KEY",
             "gemini": "GEMINI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
         }
         return defaults.get(provider, f"{provider.upper()}_API_KEY")

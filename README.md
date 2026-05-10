@@ -99,7 +99,7 @@ runbooks/     Operational setup, security, registry, policy, and observability n
 - Python 3.10+
 - Linux, macOS, or WSL on Windows
 - `OPENAI_API_KEY` for OpenAI-backed agents
-- Optional: Gemini or Anthropic keys when selected in `registry/models.yaml`
+- Optional: Gemini, Anthropic, or DeepSeek keys when selected in `registry/models.yaml`
 - Optional: Microsoft Entra app registration for SharePoint document retrieval and SharePoint-backed intranet retrieval
 
 ## Quick Install

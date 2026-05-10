@@ -738,8 +738,18 @@ The current design is built to support:
 - OpenAI
 - Gemini
 - Anthropic
+- DeepSeek
 
-OpenAI uses the native SDK path. Gemini and Anthropic are resolved through LiteLLM-backed integration when selected.
+OpenAI uses the native SDK path. Gemini, Anthropic, and DeepSeek are resolved through LiteLLM-backed integration when selected. LiteLLM is an optional dependency: `pip install -e ".[litellm]"`.
+
+### Available DeepSeek model refs
+
+| `model_ref` | `model_name` | Use for |
+|---|---|---|
+| `deepseek_fast` | `deepseek/deepseek-chat` | Cost-efficient tasks (V3 chat) |
+| `deepseek_reasoner` | `deepseek/deepseek-reasoner` | Reasoning-heavy tasks (R1) |
+
+Assign either ref to any agent in `registry/agents.yaml` the same way you would `gemini_strong` or `anthropic_reasoning`.
 
 ### Environment variables
 
@@ -749,6 +759,7 @@ Put provider keys in `.env`:
 OPENAI_API_KEY=
 GEMINI_API_KEY=
 ANTHROPIC_API_KEY=
+DEEPSEEK_API_KEY=
 ```
 
 The vision server reads one optional variable:

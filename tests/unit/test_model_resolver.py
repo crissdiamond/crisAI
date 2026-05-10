@@ -12,6 +12,7 @@ def model_specs() -> list[ModelSpec]:
         ModelSpec(id="openai_fast", provider="openai", model_name="gpt-5.4-mini", api_key_env="OPENAI_API_KEY"),
         ModelSpec(id="gemini_strong", provider="gemini", model_name="gemini/gemini-2.5-pro", api_key_env="GEMINI_API_KEY"),
         ModelSpec(id="anthropic_reasoning", provider="anthropic", model_name="anthropic/claude-sonnet-4-5", api_key_env="ANTHROPIC_API_KEY"),
+        ModelSpec(id="deepseek_fast", provider="deepseek", model_name="deepseek/deepseek-chat", api_key_env="DEEPSEEK_API_KEY"),
     ]
 
 
@@ -40,6 +41,16 @@ def test_resolve_anthropic_model_ref(model_specs, monkeypatch):
     resolved = resolver.resolve_for_agent(agent)
     assert resolved.provider == "anthropic"
     assert resolved.model_name == "anthropic/claude-sonnet-4-5"
+
+
+def test_resolve_deepseek_model_ref(model_specs, monkeypatch):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
+    resolver = ModelResolver(model_specs)
+    agent = AgentSpec(id="design", name="Design", prompt_file="p.md", allowed_servers=[], model_ref="deepseek_fast")
+    resolved = resolver.resolve_for_agent(agent)
+    assert resolved.provider == "deepseek"
+    assert resolved.model_name == "deepseek/deepseek-chat"
+    assert resolved.api_key == "x"
 
 
 def test_unknown_model_ref_raises(model_specs):
