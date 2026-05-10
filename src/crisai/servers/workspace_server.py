@@ -16,36 +16,27 @@ from crisai.orchestration.retrieval_association_graph import (
 mcp = FastMCP("crisai-workspace")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
-LOG_FILE = load_settings().log_dir / "workspace_mcp.log"
 DEFAULT_WRITE_SUBDIRS = ("outputs", "context_staging", "scratch")
 DEFAULT_WRITE_EXTENSIONS = (".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".mmd")
 DEFAULT_MAX_WRITE_BYTES = 1_000_000
 
 
+def _log_file() -> Path:
+    return load_settings().log_dir / "workspace_mcp.log"
 
 
 def _configure_mcp_logging() -> None:
-    """Keep MCP framework INFO logs out of the interactive CLI.
-
-    Warnings and errors are still written to this server log file.
-    """
-    configure_mcp_framework_logging(LOG_FILE, service_component="workspace_mcp")
+    """Keep MCP framework INFO logs out of the interactive CLI."""
+    configure_mcp_framework_logging(_log_file(), service_component="workspace_mcp")
 
 
 def log_event(message: str) -> None:
     append_json_log_line(
-        LOG_FILE,
+        _log_file(),
         message,
         logger_name="crisai.mcp.workspace",
         service_component="workspace_mcp",
     )
-
-
-#def _safe_path(relative_path: str) -> Path:
-#    candidate = (ROOT / relative_path).resolve()
-#    if ROOT not in candidate.parents and candidate != ROOT:
-#        raise ValueError("Path escapes the workspace root.")
-#    return candidate
 
 
 def _safe_path(relative_path: str) -> Path:
@@ -104,11 +95,6 @@ def _enforce_write_policy(relative_path: str, content: str) -> Path:
     if size > max_size:
         raise ValueError(f"Workspace write exceeds maximum size of {max_size} bytes.")
     return file_path
-
-_configure_mcp_logging()
-
-log_event(f"workspace_server_started root={ROOT}")
-log_event(f"server_started root={ROOT.resolve()}")
 
 @mcp.tool()
 def list_workspace_files(subdir: str = ".") -> list[str]:
@@ -278,4 +264,6 @@ def expand_associations(message: str, max_terms: int = 24) -> dict[str, object]:
 
 
 if __name__ == "__main__":
+    _configure_mcp_logging()
+    log_event(f"workspace_server_started root={ROOT}")
     mcp.run()

@@ -13,23 +13,21 @@ from crisai.logging_utils import append_json_log_line, configure_mcp_framework_l
 mcp = FastMCP("crisai-diagrams")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
-LOG_FILE = load_settings().log_dir / "diagram_mcp.log"
 DEFAULT_MAX_DIAGRAM_BYTES = 500_000
 
 
+def _log_file() -> Path:
+    return load_settings().log_dir / "diagram_mcp.log"
 
 
 def _configure_mcp_logging() -> None:
-    """Keep MCP framework INFO logs out of the interactive CLI.
-
-    Warnings and errors are still written to this server log file.
-    """
-    configure_mcp_framework_logging(LOG_FILE, service_component="diagram_mcp")
+    """Keep MCP framework INFO logs out of the interactive CLI."""
+    configure_mcp_framework_logging(_log_file(), service_component="diagram_mcp")
 
 
 def log_event(message: str) -> None:
     append_json_log_line(
-        LOG_FILE,
+        _log_file(),
         message,
         logger_name="crisai.mcp.diagram",
         service_component="diagram_mcp",
@@ -47,11 +45,6 @@ def _max_diagram_bytes() -> int:
     except ValueError:
         return DEFAULT_MAX_DIAGRAM_BYTES
     return max(1_024, parsed)
-
-
-_configure_mcp_logging()
-
-log_event(f"diagram_server_started root={ROOT}")
 
 
 @mcp.tool()
@@ -97,4 +90,6 @@ def save_diagram(filename: str, content: str, subdir: str = "outputs/diagrams") 
 
 
 if __name__ == "__main__":
+    _configure_mcp_logging()
+    log_event(f"diagram_server_started root={ROOT}")
     mcp.run()
