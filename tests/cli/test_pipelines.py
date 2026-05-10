@@ -6,6 +6,7 @@ import pytest
 import typer
 
 from crisai.cli import pipelines
+from crisai.orchestration import peer_judge
 
 
 class FakeWorkflowSession:
@@ -391,7 +392,7 @@ async def test_run_peer_pipeline_quality_gate_forces_revision_after_initial_acce
     )
     monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
     monkeypatch.setattr(
-        pipelines,
+        peer_judge,
         "build_judge_quality_gate_prompt",
         lambda message, discovery, challenge, refiner, judge: (
             "JUDGE_QUALITY_GATE::" + message + "::" + refiner
@@ -475,7 +476,7 @@ async def test_run_peer_pipeline_escalates_to_author_and_challenger_after_unreso
     )
     monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
     monkeypatch.setattr(
-        pipelines,
+        peer_judge,
         "build_judge_quality_gate_prompt",
         lambda message, discovery, challenge, refiner, judge: (
             "JUDGE_QUALITY_GATE::" + message + "::" + refiner

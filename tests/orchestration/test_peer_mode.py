@@ -7,6 +7,7 @@ import pytest
 
 import crisai.cli.pipelines as pipelines
 from crisai.cli.peer_transcript import peer_speakers
+from crisai.orchestration import peer_judge
 from crisai.registry import AgentSpec
 
 
@@ -111,7 +112,7 @@ def patch_peer_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "build_author_prompt", lambda message, discovery: f"AUTHOR::{message}")
     monkeypatch.setattr(pipelines, "build_challenger_prompt", lambda message, discovery, author: f"CHALLENGER::{message}")
     monkeypatch.setattr(pipelines, "build_refiner_prompt", lambda message, discovery, author, challenger: f"REFINER::{message}")
-    monkeypatch.setattr(pipelines, "build_judge_prompt", lambda message, discovery, challenger, refiner: f"JUDGE::{message}")
+    monkeypatch.setattr(peer_judge, "build_judge_prompt", lambda message, discovery, challenger, refiner: f"JUDGE::{message}")
     monkeypatch.setattr(pipelines, "build_peer_final_prompt", lambda message, discovery, author, challenger, refiner, judge: f"PEER_FINAL::{message}")
 
 
