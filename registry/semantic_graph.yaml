@@ -1,15 +1,17 @@
-# Deterministic association graph for retrieval query expansion.
+# Deterministic semantic graph for task intent, source hints, and retrieval query expansion.
 #
 # Loaded before retrieval agents run; matching is substring / word-boundary
 # based (see crisai.orchestration.retrieval_association_graph). When user text
-# activates a vertex, all terms on that vertex and on neighbours within
-# max_hops are surfaced as **hints** in the runtime prompt—agents still must
-# align tools with the actual user request.
+# activates a vertex, emitted facts are used for task contracts and source
+# family hints, while all terms on that vertex and neighbours within max_hops
+# are surfaced as **hints** in the runtime prompt. Agents still must align
+# tools with the actual user request.
 #
-# Vertices below cluster **industry-common** enterprise architecture (EA),
-# data architecture (DA), and solution architecture (SA) language. Extend
-# with organisation-specific terms in new vertices rather than overloading
-# one node. Maintain associations here instead of growing agent markdown prompts.
+# Vertices below cluster main-ask semantics plus **industry-common** enterprise
+# architecture (EA), data architecture (DA), and solution architecture (SA)
+# language. Extend with organisation-specific terms in new vertices rather than
+# overloading one node. Maintain associations here instead of growing agent
+# markdown prompts or Python marker lists.
 
 version: 1
 

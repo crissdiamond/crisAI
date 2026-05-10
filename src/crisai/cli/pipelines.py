@@ -390,7 +390,7 @@ async def run_pipeline(
     model_specs=None,
     user_intent_message: str | None = None,
 ) -> str:
-    """Run the standard retrieval_planner → context_retrieval → context_synthesizer → design pipeline."""
+    """Run the standard retrieval/context pipeline with summary or design drafting."""
     ensure_openai_api_key(settings)
     environment = _create_environment(settings, model_specs=model_specs)
     intent_message = user_intent_message or message

@@ -392,11 +392,19 @@ For peer mode specifically, there are two additional runtime guardrails:
 - `peer_contract`: inferred from the user request and used to focus author/challenger/refiner/judge on deliverable-level outcomes.
 - `peer_verifier`: validates final peer claims against filesystem state before the run is considered successful.
 
-### 9.2 External semantic catalogue
+### 9.2 External semantic configuration
 
-Router and verifier semantics are configurable from `registry/semantic_catalog.yaml`:
+Task and retrieval semantics are configurable from `registry/semantic_graph.yaml`:
 
-- router term families (discovery/summary/design/review/operations/peer/publication)
+- task intent facts such as `primary_intent`
+- deliverable facts such as `deck_summary` or `document_summary`
+- source-resolution facts such as `latest_matching_source`
+- source-family hints such as `intranet` or `sharepoint_docs`
+- retrieval topic expansion terms and graph edges
+
+The legacy router, peer-contract, and verifier semantics remain configurable from `registry/semantic_catalog.yaml`:
+
+- router term families for non-task-contract routing (discovery/design/review/operations/peer/publication)
 - router criticality terms for high-accuracy/high-risk prompts that can promote complex design/review asks to peer mode
 - explicit routing phrase patterns
 - source and architecture-location marker lists
@@ -404,7 +412,7 @@ Router and verifier semantics are configurable from `registry/semantic_catalog.y
 - peer-verifier semantic leaf-file terminology (`leaf_file_terms`) to classify architecture-oriented deliverables by filename terms (for example `patterns`, `template`, `hld`, `guides`, `standards`, `principles`, `toolkit`)
 - **peer_contract** marker phrase lists (`file_write_markers`, `code_change_markers`, `code_target_markers`, `grounding_markers`, `assessment_markers`) used by `infer_peer_run_contract` (substring match on lowercased user text; inference logic stays in code)
 
-The loader reads **only** this file (no in-code term defaults). A missing file raises `FileNotFoundError`; invalid YAML or a shape that fails validation raises `SemanticCatalogError` with a field-level message. Restart processes after edits so `load_semantic_catalog` picks up changes.
+The semantic catalogue loader reads **only** `registry/semantic_catalog.yaml` for its legacy scope. A missing file raises `FileNotFoundError`; invalid YAML or a shape that fails validation raises `SemanticCatalogError` with a field-level message. Restart processes after edits so registry changes are reloaded.
 
 This keeps semantic/heuristic tuning maintainable outside code, similar to `registry/search_synonyms.yaml`.
 

@@ -14,7 +14,7 @@ Prepare a **retrieval handoff** for the Context Retrieval Agent. In pipeline or 
 
 - The **user request** (runtime).
 - **Session context** from the CLI: routing decision already shown to the user—do not duplicate that recap.
-- **Deterministic retrieval expansion** (when present in the runtime prompt): pre-computed topic hints from `registry/retrieval_association_graph.yaml`. Use them only when they fit the user request; they are not evidence by themselves.
+- **Deterministic retrieval expansion** (when present in the runtime prompt): pre-computed topic hints from `registry/semantic_graph.yaml`. Use them only when they fit the user request; they are not evidence by themselves.
 
 ## Authority
 
@@ -33,7 +33,7 @@ Prepare a **retrieval handoff** for the Context Retrieval Agent. In pipeline or 
 
 ## Tooling and data (generic rules)
 
-- **Registry-driven behaviour:** domain-specific retrieval associations and synonym expansion live in **`registry/retrieval_association_graph.yaml`** and **`registry/search_synonyms.yaml`** (the latter is applied inside intranet search). Prefer extending those files over adding long site-specific prose here.
+- **Registry-driven behaviour:** task semantics, source-family hints, retrieval associations, and synonym expansion live in **`registry/semantic_graph.yaml`** and **`registry/search_synonyms.yaml`** (the latter is applied inside intranet search). Prefer extending those files over adding long site-specific prose here.
 - **Catalogue vs detail pages:** when the user is working from an intranet **inventory or hub** page, follow **`prompts/_shared/context-staging.md`** (§ Intranet catalogues and detail pages): list links, then fetch leaf pages before treating guidance as complete.
 - **Intranet pages vs SharePoint document libraries:** intranet MCP tools read configured intranet page sources (`registry/intranet.yaml`). Library file search is a **different corpus**—use it only when the user asks for documents/files in libraries or OneDrive, not as a substitute for intranet **page** asks.
 - **SharePoint vs OneDrive:** for **SharePoint** **file** / **library** retrieval (explicitly about documents, decks, attachments—not intranet pages), prefer **`search_sharepoint_site_documents`** (or `list_sites` then `search_site_drive_documents` per site). Do **not** satisfy SharePoint-only asks using only `list_my_drives` + `search_drive_documents`. For **personal OneDrive**, use `list_my_drives` / `search_drive_documents` on the correct drive.
