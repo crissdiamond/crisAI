@@ -2,6 +2,7 @@ from crisai.cli.prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
     build_context_retrieval_prompt,
+    build_context_synthesizer_prompt,
     build_design_prompt,
     build_judge_prompt,
     build_judge_quality_gate_prompt,
@@ -158,3 +159,11 @@ def test_author_prompt_is_minimal_runtime_handoff():
     assert "User request:\nDraft it" in text
     assert "Discovery findings:\nretrieved" in text
     assert "Rules:" not in text
+
+
+def test_build_context_synthesizer_prompt_includes_request_and_retrieval():
+    text = build_context_synthesizer_prompt("Summarise the design", "retrieved context here")
+    assert "Summarise the design" in text
+    assert "retrieved context here" in text
+    assert "Context Synthesizer" in text
+    assert "Do not draft" in text

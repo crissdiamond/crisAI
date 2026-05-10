@@ -41,6 +41,7 @@ from .prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
     build_context_retrieval_prompt,
+    build_context_synthesizer_prompt,
     build_design_prompt,
     build_judge_prompt,
     build_judge_quality_gate_prompt,
@@ -204,83 +205,6 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
         kwargs["settings"] = settings
     return AgentFactory(root_dir, **kwargs)
 
-
-
-def build_context_synthesizer_prompt(message: str, discovery_text: str) -> str:
-    """Build a grounded prompt for the context synthesizer agent.
-
-    The context_synthesizer stage is intentionally separate from both the retrieval
-    planner and design: context_retrieval fetches sources from the planner handoff, while
-    context_synthesizer converts that material into an evidence-led brief that a
-    downstream design agent can use.
-
-    Args:
-        message: Original user request.
-        discovery_text: Output produced by the **context_retrieval** stage (parameter
-            name retained for call-site compatibility).
-
-    Returns:
-        A structured prompt that asks the context_synthesizer agent to extract
-        relevant information, preserve source references, identify uncertainty,
-        and avoid drafting the final solution design.
-    """
-    return f"""You are the Context Synthesizer agent in the crisAI workflow.
-
-Your job is to transform retrieved source material into a concise, grounded context brief for a downstream solution design agent.
-
-## Original user request
-
-```text
-{message}
-```
-
-## Context retrieval output
-
-```text
-{discovery_text}
-```
-
-## Task
-
-Create a context brief that helps the design agent draft a solution design using only the information available in the context retrieval output.
-
-## Rules
-
-- Use only facts supported by the context retrieval output.
-- Preserve file names, paths, document titles, sections, links, citations, or other source references when they are available.
-- Separate confirmed facts from assumptions and uncertainties.
-- Remove irrelevant findings, duplication, and low-value noise.
-- Do not invent missing details.
-- Do not draft, recommend, or optimise the solution design.
-- If the context retrieval output is empty, weak, or not relevant, say so clearly and explain what is missing.
-
-## Output format
-
-```markdown
-## Context Summary
-A short paragraph explaining what relevant context was found and how strong the source basis is.
-
-## Relevant Facts
-- Fact: ...
-  Source: ...
-
-## Constraints and Dependencies
-- Constraint/dependency: ...
-  Source: ...
-
-## Assumptions
-- Assumption: ...
-  Basis: ...
-
-## Gaps and Uncertainties
-- Gap/uncertainty: ...
-  Why it matters: ...
-
-## Source Notes
-- Source: ...
-  Relevance: ...
-```
-"""
 
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
