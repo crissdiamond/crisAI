@@ -11,6 +11,7 @@ from crisai.apps.web import (
     RunRequest,
     SessionCreateRequest,
     _collect_stage_outputs,
+    _evict_old_jobs,
     _select_latest_run,
     _to_http_exception,
     _trace_line_to_stage_output,
@@ -285,3 +286,31 @@ def test_get_session_endpoint_returns_specific_history(monkeypatch):
     payload = get_session("my-session")
     assert payload["current_session"] == "my-session"
     assert payload["history"] == [{"role": "user", "content": "hello"}]
+
+
+def test_evict_old_jobs_removes_oldest_completed_beyond_limit():
+    from crisai.apps import web as web_mod
+
+    for i in range(22):
+        web_mod._RUN_JOBS[f"job-{i}"] = {"status": "completed"}
+    web_mod._RUN_JOBS["running-1"] = {"status": "running"}
+
+    _evict_old_jobs(max_completed=20)
+
+    completed = [jid for jid, j in web_mod._RUN_JOBS.items() if j["status"] == "completed"]
+    assert len(completed) == 20
+    assert "running-1" in web_mod._RUN_JOBS
+    assert "job-0" not in web_mod._RUN_JOBS
+    assert "job-1" not in web_mod._RUN_JOBS
+    assert "job-21" in web_mod._RUN_JOBS
+
+
+def test_evict_old_jobs_noop_when_under_limit():
+    from crisai.apps import web as web_mod
+
+    for i in range(5):
+        web_mod._RUN_JOBS[f"job-{i}"] = {"status": "completed" if i % 2 == 0 else "failed"}
+
+    _evict_old_jobs(max_completed=20)
+
+    assert len(web_mod._RUN_JOBS) == 5

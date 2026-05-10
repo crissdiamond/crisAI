@@ -42,6 +42,7 @@ async def _lifespan(_app: FastAPI):
 app = FastAPI(title="crisAI Web", lifespan=_lifespan)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
 _UI_DIR = Path(__file__).parent / "ui"
+_MAX_COMPLETED_JOBS = 20
 
 
 class RunRequest(BaseModel):
@@ -331,6 +332,17 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
         job["error"] = _to_http_exception(exc).detail
 
 
+def _evict_old_jobs(max_completed: int = _MAX_COMPLETED_JOBS) -> None:
+    """Remove oldest completed/failed jobs, keeping at most max_completed."""
+    terminal_ids = [
+        job_id
+        for job_id, job in _RUN_JOBS.items()
+        if job.get("status") in {"completed", "failed"}
+    ]
+    for job_id in terminal_ids[: max(0, len(terminal_ids) - max_completed)]:
+        del _RUN_JOBS[job_id]
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
     """Return the single-page web interface."""
@@ -417,6 +429,7 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         "task": None,
     }
     _RUN_JOBS[job_id]["task"] = asyncio.create_task(_run_job(job_id, payload, decision))
+    _evict_old_jobs()
 
     return {
         "job_id": job_id,
