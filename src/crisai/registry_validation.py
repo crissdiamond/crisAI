@@ -421,6 +421,7 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
         ))
 
     for name, minimum in (
+        ("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", 1),
         ("CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS", 0),
         ("CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS", 1000),
         ("CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS", 500),
@@ -433,9 +434,10 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
         except ValueError:
             value = minimum - 1
         if value < minimum:
+            detail = _SESSION_MEMORY_ENV_VARS.get(name, f"an integer >= {minimum}")
             warnings.append(DoctorIssue(
-                message=f"{name} should be {_SESSION_MEMORY_ENV_VARS[name]}.",
-                hint=f"Update `{name}` in `.env`, or remove it to use `registry/session_memory.yaml` defaults.",
+                message=f"{name} should be {detail}.",
+                hint=f"Update `{name}` in `.env`, or remove it to use the default.",
             ))
 
     raw_nudge = os.getenv("CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE")

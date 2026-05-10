@@ -197,6 +197,7 @@ def test_doctor_warns_about_missing_env_file(tmp_path: Path) -> None:
 
 def test_doctor_warns_about_invalid_session_memory_env(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / ".env").write_text("", encoding="utf-8")
+    monkeypatch.setenv("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", "0")
     monkeypatch.setenv("CRISAI_SESSION_MEMORY_STRATEGY", "random")
     monkeypatch.setenv("CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS", "-1")
     monkeypatch.setenv("CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS", "small")
@@ -207,6 +208,7 @@ def test_doctor_warns_about_invalid_session_memory_env(tmp_path: Path, monkeypat
 
     assert errors == []
     messages = "\n".join(w.message for w in warnings)
+    assert "CRISAI_AGENT_STAGE_TIMEOUT_SECONDS" in messages
     assert "CRISAI_SESSION_MEMORY_STRATEGY" in messages
     assert "CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS" in messages
     assert "CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS" in messages

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
 
-from crisai.cli.pipeline_engine import WorkflowEngine
+from crisai.cli.pipeline_engine import WorkflowEngine, _resolve_stage_timeout_seconds
 
 
 class DummyServerContext:
@@ -80,6 +81,18 @@ def engine_fixture():
     )
 
 
+def test_resolve_stage_timeout_from_env(monkeypatch):
+    monkeypatch.setenv("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", "12.5")
+
+    assert _resolve_stage_timeout_seconds() == 12.5
+
+
+def test_resolve_stage_timeout_falls_back_for_invalid_env(monkeypatch):
+    monkeypatch.setenv("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", "invalid")
+
+    assert _resolve_stage_timeout_seconds() == 300.0
+
+
 @pytest.mark.anyio
 async def test_workflow_engine_opens_and_closes_shared_server_context(engine_fixture):
     fixture = engine_fixture
@@ -104,6 +117,40 @@ async def test_workflow_engine_opens_and_closes_shared_server_context(engine_fix
     ]
     assert fixture.build_calls == [("retrieval_planner", fixture.active_servers)]
     assert fixture.runner_calls == [("retrieval_planner", "retrieval_planner", "find context")]
+
+
+@pytest.mark.anyio
+async def test_workflow_session_traces_timeout(monkeypatch, engine_fixture):
+    fixture = engine_fixture
+    monkeypatch.setenv("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", "0.01")
+
+    async def slow_stage_runner(agent_id, agent, prompt):
+        del agent_id, agent, prompt
+        await asyncio.sleep(1)
+        return "late"
+
+    fixture.engine._stage_runner = slow_stage_runner
+
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+        with pytest.raises(TimeoutError, match="retrieval_planner timed out"):
+            await workflow.run_stage(
+                spec=fixture.retrieval_planner_spec,
+                ui_agent_id="retrieval_planner",
+                prompt="find context",
+                trace_label="RETRIEVAL_PLANNER OUTPUT",
+                verbose=False,
+            )
+
+    assert fixture.trace_calls[-1] == (
+        "RETRIEVAL_PLANNER OUTPUT_ERROR",
+        "Stage retrieval_planner timed out after 0.01s. Set CRISAI_AGENT_STAGE_TIMEOUT_SECONDS to tune this limit.",
+        {
+            "event_type": "stage_error",
+            "agent_id": "retrieval_planner",
+            "metadata": {"timeout_seconds": 0.01},
+        },
+    )
+    assert fixture.output_calls == []
 
 
 @pytest.mark.anyio

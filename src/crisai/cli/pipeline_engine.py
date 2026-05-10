@@ -1,6 +1,8 @@
 """Workflow engine for shared multi-agent pipeline lifecycle management."""
 from __future__ import annotations
 
+import asyncio
+import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from contextlib import asynccontextmanager
 from typing import Any
@@ -12,6 +14,17 @@ TraceWriter = Callable[..., None]
 OutputPrinter = Callable[..., None]
 ServerContextFactory = Callable[..., Any]
 StageOutputProcessor = Callable[[str], tuple[str, dict[str, Any] | None]]
+_DEFAULT_STAGE_TIMEOUT_SECONDS = 300.0
+
+
+def _resolve_stage_timeout_seconds() -> float:
+    """Return the maximum duration allowed for one agent stage."""
+    raw = os.getenv("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", str(_DEFAULT_STAGE_TIMEOUT_SECONDS))
+    try:
+        parsed = float(raw)
+    except ValueError:
+        return _DEFAULT_STAGE_TIMEOUT_SECONDS
+    return parsed if parsed > 0 else _DEFAULT_STAGE_TIMEOUT_SECONDS
 
 
 class WorkflowSession:
@@ -136,7 +149,25 @@ class WorkflowSession:
             event_type="stage_start",
             agent_id=ui_agent_id,
         )
-        result = await self._stage_runner(ui_agent_id, agent, prompt)
+        timeout_seconds = _resolve_stage_timeout_seconds()
+        try:
+            result = await asyncio.wait_for(
+                self._stage_runner(ui_agent_id, agent, prompt),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            message = (
+                f"Stage {ui_agent_id} timed out after {timeout_seconds:g}s. "
+                "Set CRISAI_AGENT_STAGE_TIMEOUT_SECONDS to tune this limit."
+            )
+            self.trace_event(
+                f"{trace_label}_ERROR",
+                message,
+                event_type="stage_error",
+                agent_id=ui_agent_id,
+                metadata={"timeout_seconds": timeout_seconds},
+            )
+            raise TimeoutError(message) from None
         trace_content = result
         trace_metadata: dict[str, Any] | None = None
         if output_processor is not None:
