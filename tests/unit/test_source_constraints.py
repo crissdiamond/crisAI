@@ -59,6 +59,15 @@ def test_does_not_infer_title_for_generic_this_document_request() -> None:
     assert constraints.required_title_phrases == ()
 
 
+def test_does_not_infer_prompt_framing_word_as_title_phrase() -> None:
+    constraints = infer_source_fit_constraints(
+        "Using the latest document, please provide me with a summary of 4 paragraphs about the strategy.",
+        registry_dir=REGISTRY_DIR,
+    )
+
+    assert constraints.required_title_phrases == ()
+
+
 def test_evidence_constraints_reject_wrong_title_even_when_content_read() -> None:
     constraints = infer_source_fit_constraints(
         "Summarise the most recent Integration Strategy document.",

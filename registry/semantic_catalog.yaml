@@ -354,6 +354,8 @@ lexicon:
       - with
       - in
       - on
+      - from
+      - to
       - nel
       - nella
       - dei
@@ -388,6 +390,11 @@ lexicon:
     - find
     - search
     - read
+    - use
+    - using
+    - based
+    - given
+    - provided
     - list
     - questo
     - questa
@@ -405,6 +412,8 @@ lexicon:
     - trova
     - cerca
     - leggi
+    - usa
+    - usando
     - elenca
   title_relation_terms:
     - named
