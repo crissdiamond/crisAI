@@ -293,6 +293,16 @@ Structured flow:
 task_contract -> retrieval_planner -> context_retrieval -> context_synthesizer -> summary|design -> review -> orchestrator
 ```
 
+For source-summary requests, the pipeline uses a shorter path after validated
+`content_read` evidence:
+
+```text
+task_contract -> retrieval_planner -> context_retrieval -> summary
+```
+
+The skipped context/final stages are traced as skipped events; the summary agent
+output is returned as the final answer.
+
 Best for:
 - find source material
 - turn source material into a draft
@@ -547,6 +557,10 @@ fit.
 For summary requests, the pipeline also carries a `task_contract_v1` machine
 payload. This tells downstream agents that the main deliverable is the summary
 and that any “latest/best candidate” work is only a source-resolution subtask.
+Once retrieval has validated `content_read` evidence, source summaries use a
+fast path that passes the validated evidence summary directly to the `summary`
+agent and returns that output without a separate context synthesis or final
+orchestration rewrite.
 Machine payloads are retained in traces for debugging but hidden from normal CLI
 and web stage panels, verbose panels, and final answers.
 

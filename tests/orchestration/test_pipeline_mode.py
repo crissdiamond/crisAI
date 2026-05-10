@@ -268,9 +268,8 @@ async def test_pipeline_uses_summary_agent_for_summary_request(
     assert calls == [
         "retrieval_planner",
         "context_retrieval",
-        "context_synthesizer",
         "summary",
-        "orchestrator",
     ]
-    assert result == "ORCHESTRATOR OUTPUT"
+    assert result == "SUMMARY OUTPUT"
     assert prompts["summary"].startswith("SUMMARY::")
+    assert "Integration strategy summary content." in prompts["summary"]

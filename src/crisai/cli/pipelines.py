@@ -530,14 +530,9 @@ async def run_pipeline(
     logger.info("Running pipeline workflow.", extra={"run_id": _get_run_id(environment), "review": review})
 
     drafting_agent_id = "summary" if task_contract.is_summary else "design"
-    required_agent_ids = [
-        "retrieval_planner",
-        "context_retrieval",
-        "context_synthesizer",
-        drafting_agent_id,
-        "review",
-        "orchestrator",
-    ]
+    required_agent_ids = ["retrieval_planner", "context_retrieval", drafting_agent_id]
+    if not task_contract.is_summary:
+        required_agent_ids.extend(["context_synthesizer", "review", "orchestrator"])
     specs = resolve_required_agents(
         agent_specs,
         required_agent_ids,
@@ -649,6 +644,55 @@ async def run_pipeline(
                 event_type="policy_violation",
             )
             raise WorkflowValidationError(str(exc)) from exc
+
+        if task_contract.is_summary:
+            workflow.skip_stage(
+                "CONTEXT OUTPUT",
+                "Context synthesizer skipped for summary fast path; validated retrieval evidence passed directly to summary.",
+                agent_id="context_synthesizer",
+            )
+            summary_text = await workflow.run_stage(
+                spec=specs["summary"],
+                ui_agent_id="summary",
+                prompt=build_summary_prompt(message, validated_context_retrieval_text, task_contract),
+                trace_label="SUMMARY OUTPUT",
+                verbose=verbose,
+            )
+            if review:
+                workflow.skip_stage(
+                    "REVIEW OUTPUT",
+                    "Review stage skipped for summary fast path.",
+                    agent_id="review",
+                )
+            workflow.skip_stage(
+                "FINAL OUTPUT",
+                "Final orchestration skipped for summary fast path; summary output is the final answer.",
+                agent_id="orchestrator",
+            )
+            try:
+                changed = enforce_workspace_write_policy(
+                    policy,
+                    root_dir,
+                    write_before,
+                )
+                if changed:
+                    _trace_workflow_policy_event(
+                        workflow,
+                        "POLICY_WRITE_CHANGES",
+                        "\n".join(changed),
+                        event_type="policy_signal",
+                        metadata={"changed_count": len(changed)},
+                    )
+            except WorkflowPolicyViolation as exc:
+                _trace_workflow_policy_event(
+                    workflow,
+                    "POLICY_VIOLATION",
+                    str(exc),
+                    event_type="policy_violation",
+                )
+                raise WorkflowValidationError(str(exc)) from exc
+            workflow.finish_workflow("Pipeline workflow completed.", metadata={"mode": "pipeline"})
+            return summary_text
 
         context_text = await workflow.run_stage(
             spec=specs["context_synthesizer"],

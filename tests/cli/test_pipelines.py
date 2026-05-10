@@ -570,10 +570,17 @@ Retrieved and read the deck.
     )
 
     context_prompts = [prompt for name, prompt in stage_calls if name == "context_retrieval"]
-    assert result == "final summary"
+    assert result == "summary draft"
     assert len(context_prompts) == 2
     assert "Repair the retrieval evidence contract" in context_prompts[1]
-    assert any(name == "summary" for name, _ in stage_calls)
+    assert [name for name, _ in stage_calls] == [
+        "retrieval_planner",
+        "context_retrieval",
+        "context_retrieval",
+        "summary",
+    ]
+    assert ("CONTEXT OUTPUT", "Context synthesizer skipped for summary fast path; validated retrieval evidence passed directly to summary.") in trace_calls
+    assert ("FINAL OUTPUT", "Final orchestration skipped for summary fast path; summary output is the final answer.") in trace_calls
 
 
 @pytest.mark.anyio
