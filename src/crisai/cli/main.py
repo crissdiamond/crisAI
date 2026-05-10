@@ -529,13 +529,21 @@ def doctor(
         registry_dir=Path(settings.registry_dir),
         validate_models=models,
     )
+    def _format_issues(issues: tuple) -> list[str]:
+        out: list[str] = []
+        for issue in issues:
+            out.append(f"- {issue.message}")
+            if issue.hint:
+                out.append(f"  → {issue.hint}")
+        return out
+
     lines: list[str] = []
     if result.errors:
         lines.append("Errors:")
-        lines.extend(f"- {error}" for error in result.errors)
+        lines.extend(_format_issues(result.errors))
     if result.warnings:
         lines.append("Warnings:")
-        lines.extend(f"- {warning}" for warning in result.warnings)
+        lines.extend(_format_issues(result.warnings))
     if not lines:
         lines.append("No configuration issues found.")
 

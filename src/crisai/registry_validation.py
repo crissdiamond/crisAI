@@ -18,12 +18,23 @@ from crisai.registry import Registry
 
 
 @dataclass(frozen=True)
+class DoctorIssue:
+    """A single diagnostic issue with an optional remediation hint."""
+
+    message: str
+    hint: str | None = None
+
+    def __str__(self) -> str:
+        return self.message
+
+
+@dataclass(frozen=True)
 class DoctorResult:
     """Result of a local crisAI configuration health check."""
 
     ok: bool
-    errors: tuple[str, ...]
-    warnings: tuple[str, ...]
+    errors: tuple[DoctorIssue, ...]
+    warnings: tuple[DoctorIssue, ...]
 
 
 def _read_yaml(path: Path) -> Any:
@@ -32,101 +43,157 @@ def _read_yaml(path: Path) -> Any:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def _validate_unique_ids(items: list[Any], *, label: str, errors: list[str]) -> None:
+def _validate_unique_ids(
+    items: list[Any],
+    *,
+    label: str,
+    errors: list[DoctorIssue],
+    registry_file: str,
+) -> None:
     seen: set[str] = set()
     for item in items:
         item_id = getattr(item, "id", "")
         if not item_id:
-            errors.append(f"{label} entry is missing id.")
+            errors.append(DoctorIssue(
+                message=f"{label} entry is missing id.",
+                hint=f"Add an `id` field to the entry in `registry/{registry_file}`.",
+            ))
             continue
         if item_id in seen:
-            errors.append(f"Duplicate {label} id: {item_id}")
+            errors.append(DoctorIssue(
+                message=f"Duplicate {label} id: {item_id}",
+                hint=f"Rename one of the duplicate `{item_id}` entries in `registry/{registry_file}`.",
+            ))
         seen.add(item_id)
 
 
-def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> tuple[list[str], list[str]]:
-    errors: list[str] = []
-    warnings: list[str] = []
+def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
+    errors: list[DoctorIssue] = []
+    warnings: list[DoctorIssue] = []
     registry = Registry(registry_dir)
 
     try:
         servers = registry.load_servers()
     except Exception as exc:  # noqa: BLE001
-        return [f"Could not load servers.yaml: {exc}"], warnings
+        return [DoctorIssue(
+            message=f"Could not load servers.yaml: {exc}",
+            hint="Check `registry/servers.yaml` for YAML syntax errors.",
+        )], warnings
     try:
         agents = registry.load_agents()
     except Exception as exc:  # noqa: BLE001
-        return [f"Could not load agents.yaml: {exc}"], warnings
+        return [DoctorIssue(
+            message=f"Could not load agents.yaml: {exc}",
+            hint="Check `registry/agents.yaml` for YAML syntax errors.",
+        )], warnings
     try:
         models = registry.load_models()
     except Exception as exc:  # noqa: BLE001
-        return [f"Could not load models.yaml: {exc}"], warnings
+        return [DoctorIssue(
+            message=f"Could not load models.yaml: {exc}",
+            hint="Check `registry/models.yaml` for YAML syntax errors.",
+        )], warnings
 
-    _validate_unique_ids(servers, label="server", errors=errors)
-    _validate_unique_ids(agents, label="agent", errors=errors)
-    _validate_unique_ids(models, label="model", errors=errors)
+    _validate_unique_ids(servers, label="server", errors=errors, registry_file="servers.yaml")
+    _validate_unique_ids(agents, label="agent", errors=errors, registry_file="agents.yaml")
+    _validate_unique_ids(models, label="model", errors=errors, registry_file="models.yaml")
 
     server_ids = {server.id for server in servers}
     model_ids = {model.id for model in models}
     _supported_transports = {"stdio", "sse", "streamable-http"}
     for server in servers:
         if server.transport not in _supported_transports:
-            errors.append(f"Server '{server.id}' uses unsupported transport '{server.transport}'.")
+            errors.append(DoctorIssue(
+                message=f"Server '{server.id}' uses unsupported transport '{server.transport}'.",
+                hint="Valid transports are `stdio`, `sse`, and `streamable-http`. Update `registry/servers.yaml`.",
+            ))
         elif server.transport == "stdio":
             command = server.raw.get("command")
             if not command:
-                errors.append(f"Server '{server.id}' is missing command.")
+                errors.append(DoctorIssue(
+                    message=f"Server '{server.id}' is missing command.",
+                    hint=f"Add a `command` field to server `{server.id}` in `registry/servers.yaml`.",
+                ))
             args = server.raw.get("args") or []
             if args:
                 script_path = root_dir / str(args[0])
                 if str(args[0]).endswith(".py") and not script_path.is_file():
-                    errors.append(f"Server '{server.id}' references missing script: {args[0]}")
+                    errors.append(DoctorIssue(
+                        message=f"Server '{server.id}' references missing script: {args[0]}",
+                        hint=f"Ensure the script exists at `{args[0]}` or update `args` in `registry/servers.yaml`.",
+                    ))
         else:
             url = server.raw.get("url")
             if not url or not isinstance(url, str) or not url.strip():
-                errors.append(
-                    f"Server '{server.id}' ({server.transport}) requires a non-empty 'url' field."
-                )
+                errors.append(DoctorIssue(
+                    message=f"Server '{server.id}' ({server.transport}) requires a non-empty 'url' field.",
+                    hint=f"Add a `url` field to server `{server.id}` in `registry/servers.yaml`.",
+                ))
             api_key_env = server.raw.get("api_key_env")
             if api_key_env and isinstance(api_key_env, str) and not os.getenv(api_key_env, ""):
-                warnings.append(
-                    f"Server '{server.id}' expects unset environment variable: {api_key_env}"
-                )
+                warnings.append(DoctorIssue(
+                    message=f"Server '{server.id}' expects unset environment variable: {api_key_env}",
+                    hint=f"Add `{api_key_env}=<your-key>` to your `.env` file.",
+                ))
         allowed_tools = server.raw.get("tools", {}).get("allow", [])
         if not isinstance(allowed_tools, list):
-            errors.append(f"Server '{server.id}' tools.allow must be a list.")
+            errors.append(DoctorIssue(
+                message=f"Server '{server.id}' tools.allow must be a list.",
+                hint=f"Change `tools.allow` for server `{server.id}` in `registry/servers.yaml` to a YAML list.",
+            ))
             continue
         for tool_name in sorted(PROMPT_CONTRACT_TOOL_REFERENCES.get(server.id, frozenset())):
             if tool_name not in allowed_tools:
-                warnings.append(
-                    f"Server '{server.id}' prompt contract references tool '{tool_name}' "
-                    "but tools.allow does not expose it."
-                )
+                warnings.append(DoctorIssue(
+                    message=(
+                        f"Server '{server.id}' prompt contract references tool '{tool_name}' "
+                        "but tools.allow does not expose it."
+                    ),
+                    hint=f"Add `{tool_name}` to `tools.allow` for server `{server.id}` in `registry/servers.yaml`.",
+                ))
 
     for agent in agents:
         prompt_path = root_dir / agent.prompt_file
         if not prompt_path.is_file():
-            errors.append(f"Agent '{agent.id}' references missing prompt file: {agent.prompt_file}")
+            errors.append(DoctorIssue(
+                message=f"Agent '{agent.id}' references missing prompt file: {agent.prompt_file}",
+                hint=f"Create `{agent.prompt_file}` or update `prompt_file` for agent `{agent.id}` in `registry/agents.yaml`.",
+            ))
         if agent.model_ref and agent.model_ref not in model_ids:
-            errors.append(f"Agent '{agent.id}' references unknown model_ref: {agent.model_ref}")
+            errors.append(DoctorIssue(
+                message=f"Agent '{agent.id}' references unknown model_ref: {agent.model_ref}",
+                hint=f"Add a model with `id: {agent.model_ref}` to `registry/models.yaml`, or correct the `model_ref` in `registry/agents.yaml`.",
+            ))
         if not agent.model_ref and not agent.model:
-            errors.append(f"Agent '{agent.id}' must define model_ref or legacy model.")
+            errors.append(DoctorIssue(
+                message=f"Agent '{agent.id}' must define model_ref or legacy model.",
+                hint=f"Add a `model_ref` pointing to a model id in `registry/models.yaml` for agent `{agent.id}` in `registry/agents.yaml`.",
+            ))
         for server_id in agent.allowed_servers:
             if server_id not in server_ids:
-                errors.append(f"Agent '{agent.id}' references unknown server: {server_id}")
+                errors.append(DoctorIssue(
+                    message=f"Agent '{agent.id}' references unknown server: {server_id}",
+                    hint=f"Define server `{server_id}` in `registry/servers.yaml` or remove it from agent `{agent.id}` in `registry/agents.yaml`.",
+                ))
 
     for model in models:
         if model.provider not in {"openai", "gemini", "anthropic", "deepseek"}:
-            errors.append(f"Model '{model.id}' has unsupported provider: {model.provider}")
+            errors.append(DoctorIssue(
+                message=f"Model '{model.id}' has unsupported provider: {model.provider}",
+                hint="Valid providers are `openai`, `gemini`, `anthropic`, and `deepseek`. Update `registry/models.yaml`.",
+            ))
         if model.api_key_env and not os.getenv(model.api_key_env, ""):
-            warnings.append(f"Model '{model.id}' expects unset environment variable: {model.api_key_env}")
+            warnings.append(DoctorIssue(
+                message=f"Model '{model.id}' expects unset environment variable: {model.api_key_env}",
+                hint=f"Add `{model.api_key_env}=<your-key>` to your `.env` file.",
+            ))
 
     return errors, warnings
 
 
-def _validate_registry_files(registry_dir: Path) -> tuple[list[str], list[str]]:
-    errors: list[str] = []
-    warnings: list[str] = []
+def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
+    errors: list[DoctorIssue] = []
+    warnings: list[DoctorIssue] = []
     required_files = (
         "agents.yaml",
         "servers.yaml",
@@ -140,43 +207,61 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[str], list[str]]:
         try:
             payload = _read_yaml(path)
         except Exception as exc:  # noqa: BLE001
-            errors.append(str(exc))
+            errors.append(DoctorIssue(
+                message=str(exc),
+                hint=f"Restore the file with `git checkout HEAD -- registry/{filename}` or recreate it from scratch.",
+            ))
             continue
         if not isinstance(payload, dict):
-            errors.append(f"{filename} must contain a YAML mapping.")
+            errors.append(DoctorIssue(
+                message=f"{filename} must contain a YAML mapping.",
+                hint=f"Open `registry/{filename}` and ensure the top-level value is a YAML mapping (`key: value`), not a list or scalar.",
+            ))
 
     catalog = None
     try:
         load_semantic_catalog.cache_clear()
         catalog = load_semantic_catalog(str(registry_dir))
     except Exception as exc:  # noqa: BLE001
-        errors.append(f"semantic_catalog.yaml is invalid: {exc}")
+        errors.append(DoctorIssue(
+            message=f"semantic_catalog.yaml is invalid: {exc}",
+            hint="Check `registry/semantic_catalog.yaml` for YAML syntax errors and re-run `crisai doctor`.",
+        ))
 
     graph = load_retrieval_association_graph(registry_dir)
     if graph is None:
-        errors.append("semantic_graph.yaml is missing or invalid.")
+        errors.append(DoctorIssue(
+            message="semantic_graph.yaml is missing or invalid.",
+            hint="Ensure `registry/semantic_graph.yaml` exists and contains valid YAML, then re-run `crisai doctor`.",
+        ))
     elif catalog is not None:
         function_words = catalog.lexicon.all_function_words
         for vertex_id, terms in sorted(graph.vertex_terms.items()):
             leaked_terms = sorted(term for term in terms if term in function_words)
             if leaked_terms:
-                errors.append(
-                    "semantic_graph.yaml vertex "
-                    f"'{vertex_id}' contains standalone function word term(s): "
-                    + ", ".join(leaked_terms)
-                )
+                errors.append(DoctorIssue(
+                    message=(
+                        "semantic_graph.yaml vertex "
+                        f"'{vertex_id}' contains standalone function word term(s): "
+                        + ", ".join(leaked_terms)
+                    ),
+                    hint=f"Remove {', '.join(f'`{t}`' for t in leaked_terms)} from the `terms` list of vertex `{vertex_id}` in `registry/semantic_graph.yaml`.",
+                ))
 
     workflow_policy = registry_dir / "workflow_policy.yaml"
     if workflow_policy.is_file():
         data = yaml.safe_load(workflow_policy.read_text(encoding="utf-8")) or {}
         if not isinstance(data.get("workflow_policy"), dict):
-            errors.append("workflow_policy.yaml must contain top-level workflow_policy mapping.")
+            errors.append(DoctorIssue(
+                message="workflow_policy.yaml must contain top-level workflow_policy mapping.",
+                hint="Add a top-level `workflow_policy:` mapping to `registry/workflow_policy.yaml`.",
+            ))
     return errors, warnings
 
 
-def _tracked_secret_like_paths(root_dir: Path) -> tuple[list[str], list[str]]:
-    warnings: list[str] = []
-    errors: list[str] = []
+def _tracked_secret_like_paths(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
+    warnings: list[DoctorIssue] = []
+    errors: list[DoctorIssue] = []
     if not (root_dir / ".git").exists():
         return errors, warnings
     try:
@@ -188,31 +273,43 @@ def _tracked_secret_like_paths(root_dir: Path) -> tuple[list[str], list[str]]:
             capture_output=True,
         )
     except Exception as exc:  # noqa: BLE001
-        warnings.append(f"Could not inspect tracked files for secret/cache hygiene: {exc}")
+        warnings.append(DoctorIssue(
+            message=f"Could not inspect tracked files for secret/cache hygiene: {exc}",
+            hint="Ensure `git` is available and this directory is a valid git repository.",
+        ))
         return errors, warnings
     risky_prefixes = (".auth/", "workspace/.auth/", "logs/")
     risky_tokens = ("token_cache", ".token")
     for line in result.stdout.splitlines():
         if line == ".env" or line.startswith(risky_prefixes) or any(token in line for token in risky_tokens):
-            errors.append(f"Sensitive or runtime path is tracked by git: {line}")
+            errors.append(DoctorIssue(
+                message=f"Sensitive or runtime path is tracked by git: {line}",
+                hint=f"Run `git rm --cached {line}` and add `{line}` to `.gitignore`.",
+            ))
     return errors, warnings
 
 
-def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[str], list[str]]:
+def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
     """Dry-build configured agent models without opening tools or calling APIs."""
-    errors: list[str] = []
-    warnings: list[str] = []
+    errors: list[DoctorIssue] = []
+    warnings: list[DoctorIssue] = []
     registry = Registry(registry_dir)
     try:
         agents = registry.load_agents()
         models = registry.load_models()
     except Exception as exc:  # noqa: BLE001
-        return [f"Could not load registry models/agents for model dry-build: {exc}"], warnings
+        return [DoctorIssue(
+            message=f"Could not load registry models/agents for model dry-build: {exc}",
+            hint="Ensure `registry/agents.yaml` and `registry/models.yaml` are valid before running `--models`.",
+        )], warnings
 
     try:
         factory = AgentFactory(root_dir, model_specs=models)
     except Exception as exc:  # noqa: BLE001
-        return [f"Could not initialise agent factory for model dry-build: {exc}"], warnings
+        return [DoctorIssue(
+            message=f"Could not initialise agent factory for model dry-build: {exc}",
+            hint="Ensure all required packages are installed: `pip install -e '.[litellm]'`.",
+        )], warnings
 
     for agent in agents:
         if not (root_dir / agent.prompt_file).is_file():
@@ -220,14 +317,36 @@ def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[
         try:
             factory.build_agent(agent, mcp_servers=[])
         except Exception as exc:  # noqa: BLE001
-            errors.append(f"Agent '{agent.id}' model dry-build failed: {exc}")
+            errors.append(DoctorIssue(
+                message=f"Agent '{agent.id}' model dry-build failed: {exc}",
+                hint=f"Check that the model constructor for agent `{agent.id}` is compatible with the SDK. Verify model fields in `registry/models.yaml`.",
+            ))
+    return errors, warnings
+
+
+def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
+    """Check basic environment setup: .env file presence and critical variables."""
+    errors: list[DoctorIssue] = []
+    warnings: list[DoctorIssue] = []
+
+    env_file = root_dir / ".env"
+    if not env_file.is_file():
+        errors.append(DoctorIssue(
+            message=".env file not found — no API keys or paths will be loaded.",
+            hint="Copy the example and fill in your keys: `cp .env.example .env`",
+        ))
+
     return errors, warnings
 
 
 def run_doctor(root_dir: Path, registry_dir: Path, *, validate_models: bool = False) -> DoctorResult:
     """Validate the local crisAI registry, prompts, env references, and hygiene."""
-    errors: list[str] = []
-    warnings: list[str] = []
+    errors: list[DoctorIssue] = []
+    warnings: list[DoctorIssue] = []
+
+    setup_errors, setup_warnings = _check_env_setup(root_dir)
+    errors.extend(setup_errors)
+    warnings.extend(setup_warnings)
 
     file_errors, file_warnings = _validate_registry_files(registry_dir)
     errors.extend(file_errors)
