@@ -118,8 +118,12 @@ def _strip_markdown(text: str) -> str:
 
 def sanitize_user_visible_text(text: str) -> str:
     """Remove machine-readable JSON contracts from user-facing CLI rendering."""
-    cleaned = _strip_fenced_machine_blocks(text or "")
+    original = text or ""
+    cleaned = _strip_fenced_machine_blocks(original)
     cleaned = _strip_bare_machine_objects(cleaned)
+    cleaned = _strip_trailing_json_fence(cleaned)
+    if cleaned != original:
+        cleaned = _strip_orphan_json_fence_lines(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned
 
@@ -148,7 +152,7 @@ def _strip_bare_machine_objects(text: str) -> str:
     output: list[str] = []
     cursor = 0
     while True:
-        marker = _MACHINE_SCHEMA_RE.search(text, cursor)
+        marker = _MACHINE_JSON_KEY_RE.search(text, cursor)
         if marker is None:
             output.append(text[cursor:])
             break
@@ -159,12 +163,21 @@ def _strip_bare_machine_objects(text: str) -> str:
             continue
         end = _find_json_object_end(text, start)
         if end is None:
-            output.append(text[cursor : marker.start()])
-            cursor = marker.end()
-            continue
+            output.append(text[cursor:start])
+            break
         output.append(text[cursor:start])
         cursor = end
     return "".join(output)
+
+
+def _strip_trailing_json_fence(text: str) -> str:
+    """Remove a dangling opening JSON fence left after machine JSON stripping."""
+    return re.sub(r"\n?\s*```(?:json)?\s*$", "", text, flags=re.IGNORECASE)
+
+
+def _strip_orphan_json_fence_lines(text: str) -> str:
+    """Remove isolated fence markers left behind by stripped machine blocks."""
+    return re.sub(r"(?im)^\s*```(?:json)?\s*$\n?", "", text)
 
 
 def _find_json_object_end(text: str, start: int) -> int | None:

@@ -11,6 +11,34 @@ def test_render_history_formats_roles():
     assert result == "User: hello\n\nAssistant: hi"
 
 
+def test_render_history_sanitizes_legacy_assistant_machine_json():
+    history = [
+        ("user", "find docs"),
+        (
+            "assistant",
+            """Found files.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "find docs",
+  "items": []
+}
+```
+""",
+        ),
+        ("user", "next"),
+        ("assistant", "Ready.\n\n```json"),
+    ]
+
+    result = chat_context.render_history(history)
+
+    assert "schema_version" not in result
+    assert "```json" not in result
+    assert "Assistant: Found files." in result
+    assert "Assistant: Ready." in result
+
+
 def test_build_chat_input_returns_plain_input_without_history():
     assert chat_context.build_chat_input("hello", []) == "hello"
 

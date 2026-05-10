@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from crisai.cli.display import sanitize_user_visible_text
 from crisai.cli.session_store import HistoryEntry
 from crisai.cli.text_loader import render_cli_text
 
@@ -14,7 +15,7 @@ def render_history(history: list[HistoryEntry]) -> str:
         if role == "user":
             lines.append(f"User: {content}")
         else:
-            lines.append(f"Assistant: {content}")
+            lines.append(f"Assistant: {sanitize_user_visible_text(content)}")
 
     return "\n\n".join(lines)
 

@@ -132,6 +132,57 @@ Human note.
     assert "queries_expanded" not in md.markup
 
 
+def test_print_agent_output_hides_bare_structured_handoff_json(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+    body = """Structured retrieval handoff
+
+{
+  "topics_activated": ["intent.summary"],
+  "queries_expanded": ["summary"],
+  "source_priority": ["generic_retrieval"]
+}
+
+Human note.
+"""
+
+    display.print_agent_output("retrieval_planner", body, verbose=True)
+
+    md = captured[0].renderable
+    assert isinstance(md, Markdown)
+    assert "Structured retrieval handoff" in md.markup
+    assert "Human note." in md.markup
+    assert "topics_activated" not in md.markup
+    assert "queries_expanded" not in md.markup
+
+
+def test_print_final_answer_hides_unclosed_evidence_json_and_fence(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+    body = """Done.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "find docs",
+  "items": []
+"""
+
+    display.print_final_answer(body)
+
+    md = captured[0].renderable
+    assert isinstance(md, Markdown)
+    assert "Done." in md.markup
+    assert "```json" not in md.markup
+    assert "evidence_bundle_v1" not in md.markup
+
+
+def test_sanitize_user_visible_text_removes_dangling_json_fence() -> None:
+    result = display.sanitize_user_visible_text("Found files.\n\n```json")
+
+    assert result == "Found files."
+
+
 def test_print_agent_output_hides_nested_evidence_json(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
