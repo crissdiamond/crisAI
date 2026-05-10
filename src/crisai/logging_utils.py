@@ -26,6 +26,8 @@ _NOISY_LOGGERS: dict[str, int] = {
     "httpcore": logging.WARNING,
     "openai": logging.WARNING,
     "agents": logging.WARNING,
+    "LiteLLM": logging.ERROR,
+    "litellm": logging.ERROR,
     "asyncio": logging.WARNING,
     "uvicorn": logging.WARNING,
 }

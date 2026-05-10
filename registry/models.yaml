@@ -40,6 +40,8 @@ models:
     provider: deepseek
     model_name: deepseek/deepseek-v4-flash
     api_key_env: DEEPSEEK_API_KEY
+    thinking:
+      type: disabled
 
   - id: deepseek_reasoner
     provider: deepseek
@@ -47,4 +49,4 @@ models:
     api_key_env: DEEPSEEK_API_KEY
     thinking:
       type: enabled
-      budget_tokens: 8000
+    reasoning_effort: max

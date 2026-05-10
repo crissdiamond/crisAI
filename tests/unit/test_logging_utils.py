@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from crisai.logging_utils import (
+    _NOISY_LOGGERS,
     JsonFormatter,
     append_json_log_line,
     configure_mcp_framework_logging,
@@ -70,6 +71,11 @@ def test_append_json_log_line_writes_valid_json(tmp_path: Path) -> None:
     assert data["log"]["logger"] == "crisai.mcp.test"
     assert data["service"]["component"] == "test_mcp"
     assert data["custom_field"] == 1
+
+
+def test_litellm_logger_is_console_suppressed_by_default() -> None:
+    assert _NOISY_LOGGERS["LiteLLM"] == logging.ERROR
+    assert _NOISY_LOGGERS["litellm"] == logging.ERROR
 
 
 def test_configure_mcp_framework_logging_writes_json(tmp_path: Path) -> None:

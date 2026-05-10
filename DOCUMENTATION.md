@@ -750,10 +750,10 @@ Both refs use the same underlying model (`deepseek-v4-flash`); the difference is
 
 | `model_ref` | `model_name` | Mode | Use for |
 |---|---|---|---|
-| `deepseek_fast` | `deepseek/deepseek-v4-flash` | non-thinking | Cost-efficient tasks |
-| `deepseek_reasoner` | `deepseek/deepseek-v4-flash` | thinking (`budget_tokens: 8000`) | Reasoning-heavy tasks |
+| `deepseek_fast` | `deepseek/deepseek-v4-flash` | thinking disabled | Cost-efficient tasks |
+| `deepseek_reasoner` | `deepseek/deepseek-v4-flash` | thinking enabled, `reasoning_effort: max` | Reasoning-heavy tasks |
 
-Assign either ref to any agent in `registry/agents.yaml` the same way you would `gemini_strong` or `anthropic_reasoning`. Adjust `budget_tokens` under the `deepseek_reasoner` entry in `registry/models.yaml` to control how much reasoning the model performs.
+Assign either ref to any agent in `registry/agents.yaml` the same way you would `gemini_strong` or `anthropic_reasoning`. DeepSeek thinking mode is configured in `registry/models.yaml` with `thinking.type` (`enabled` or `disabled`) and optional `reasoning_effort` (`high` or `max`). crisAI forwards these values through the LiteLLM model settings path as provider request parameters.
 
 ### Environment variables
 

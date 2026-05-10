@@ -10,6 +10,7 @@ from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_p
 apply_openai_agents_trace_export_patch()
 
 from agents import Agent
+from agents.model_settings import ModelSettings
 
 from crisai.model_resolver import ModelResolver, ResolvedModel
 from crisai.registry import AgentSpec, ModelSpec
@@ -35,6 +36,7 @@ class AgentFactory:
             name=spec.name,
             instructions=self.load_prompt(spec.prompt_file),
             model=self._build_runtime_model(resolved_model),
+            model_settings=_build_model_settings(resolved_model),
             mcp_servers=mcp_servers,
         )
 
@@ -67,6 +69,7 @@ def _supported_litellm_kwargs(model_cls: Any, extra: dict[str, Any]) -> dict[str
     """Return registry extras accepted by the installed LiteLLM adapter."""
     if not extra:
         return {}
+    extra = _constructor_extra(extra)
     try:
         parameters = inspect.signature(model_cls).parameters
     except (TypeError, ValueError):
@@ -84,3 +87,25 @@ def _supported_litellm_kwargs(model_cls: Any, extra: dict[str, Any]) -> dict[str
             ", ".join(ignored),
         )
     return supported
+
+
+def _constructor_extra(extra: dict[str, Any]) -> dict[str, Any]:
+    """Return registry extras that belong to runtime model construction."""
+    model_setting_keys = {"thinking", "reasoning_effort"}
+    return {key: value for key, value in extra.items() if key not in model_setting_keys}
+
+
+def _build_model_settings(resolved_model: ResolvedModel) -> ModelSettings:
+    """Build provider-specific call settings from registry model extras."""
+    if resolved_model.provider != "deepseek":
+        return ModelSettings()
+
+    extra_body: dict[str, Any] = {}
+    thinking = resolved_model.extra.get("thinking")
+    if thinking is not None:
+        extra_body["thinking"] = thinking
+    reasoning_effort = resolved_model.extra.get("reasoning_effort")
+    if reasoning_effort is not None:
+        extra_body["reasoning_effort"] = reasoning_effort
+
+    return ModelSettings(extra_body=extra_body or None)
