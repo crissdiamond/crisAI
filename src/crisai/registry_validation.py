@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 
+from crisai.agents.factory import AgentFactory
 from crisai.cli.prompt_contracts import PROMPT_CONTRACT_TOOL_REFERENCES
 from crisai.orchestration.retrieval_association_graph import (
     load_retrieval_association_graph,
@@ -197,7 +198,33 @@ def _tracked_secret_like_paths(root_dir: Path) -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
-def run_doctor(root_dir: Path, registry_dir: Path) -> DoctorResult:
+def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[str], list[str]]:
+    """Dry-build configured agent models without opening tools or calling APIs."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    registry = Registry(registry_dir)
+    try:
+        agents = registry.load_agents()
+        models = registry.load_models()
+    except Exception as exc:  # noqa: BLE001
+        return [f"Could not load registry models/agents for model dry-build: {exc}"], warnings
+
+    try:
+        factory = AgentFactory(root_dir, model_specs=models)
+    except Exception as exc:  # noqa: BLE001
+        return [f"Could not initialise agent factory for model dry-build: {exc}"], warnings
+
+    for agent in agents:
+        if not (root_dir / agent.prompt_file).is_file():
+            continue
+        try:
+            factory.build_agent(agent, mcp_servers=[])
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"Agent '{agent.id}' model dry-build failed: {exc}")
+    return errors, warnings
+
+
+def run_doctor(root_dir: Path, registry_dir: Path, *, validate_models: bool = False) -> DoctorResult:
     """Validate the local crisAI registry, prompts, env references, and hygiene."""
     errors: list[str] = []
     warnings: list[str] = []
@@ -213,6 +240,11 @@ def run_doctor(root_dir: Path, registry_dir: Path) -> DoctorResult:
     hygiene_errors, hygiene_warnings = _tracked_secret_like_paths(root_dir)
     errors.extend(hygiene_errors)
     warnings.extend(hygiene_warnings)
+
+    if validate_models:
+        model_errors, model_warnings = _validate_model_dry_build(root_dir, registry_dir)
+        errors.extend(model_errors)
+        warnings.extend(model_warnings)
 
     return DoctorResult(
         ok=not errors,

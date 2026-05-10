@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
 
@@ -29,6 +30,83 @@ def test_doctor_passes_current_registry() -> None:
 
     assert result.ok is True
     assert result.errors == ()
+
+
+def test_doctor_model_dry_build_passes_current_registry(monkeypatch) -> None:
+    root = Path(__file__).resolve().parents[2]
+
+    class FakeLitellmModel:
+        def __init__(self, model, api_key=None, base_url=None, should_replay_reasoning_content=None):
+            del model, api_key, base_url, should_replay_reasoning_content
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            del kwargs
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setattr("crisai.agents.factory.Agent", FakeAgent)
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "agents.extensions.models.litellm_model",
+        SimpleNamespace(LitellmModel=FakeLitellmModel),
+    )
+
+    result = run_doctor(root_dir=root, registry_dir=root / "registry", validate_models=True)
+
+    assert result.ok is True
+    assert result.errors == ()
+
+
+def test_doctor_model_dry_build_reports_runtime_model_constructor_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    models_path = registry_dir / "models.yaml"
+    models_payload = yaml.safe_load(models_path.read_text(encoding="utf-8"))
+    models_payload["models"].append(
+        {
+            "id": "bad_deepseek",
+            "provider": "deepseek",
+            "model_name": "deepseek/deepseek-v4-flash",
+            "api_key_env": "DEEPSEEK_API_KEY",
+            "unsupported": "value",
+        }
+    )
+    models_path.write_text(yaml.safe_dump(models_payload, sort_keys=False), encoding="utf-8")
+    agents_path = registry_dir / "agents.yaml"
+    agents_payload = yaml.safe_load(agents_path.read_text(encoding="utf-8"))
+    agents_payload["agents"][0]["model_ref"] = "bad_deepseek"
+    agents_path.write_text(yaml.safe_dump(agents_payload, sort_keys=False), encoding="utf-8")
+
+    class StrictLitellmModel:
+        def __init__(self, model, api_key=None, base_url=None):
+            del model, api_key, base_url
+            raise TypeError("constructor mismatch")
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            del kwargs
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setattr("crisai.agents.factory.Agent", FakeAgent)
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "agents.extensions.models.litellm_model",
+        SimpleNamespace(LitellmModel=StrictLitellmModel),
+    )
+
+    result = run_doctor(root_dir=root, registry_dir=registry_dir, validate_models=True)
+
+    assert result.ok is False
+    assert any("Agent 'orchestrator' model dry-build failed" in error for error in result.errors)
+    assert any("constructor mismatch" in error for error in result.errors)
 
 
 def test_validation_warns_when_prompt_contract_tool_is_not_allowed(tmp_path: Path) -> None:

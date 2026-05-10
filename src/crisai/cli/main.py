@@ -513,12 +513,19 @@ def validate_artefacts(
 
 
 @app.command("doctor")
-def doctor() -> None:
+def doctor(
+    models: bool = typer.Option(
+        False,
+        "--models",
+        help="Dry-build configured agent models without calling provider APIs.",
+    ),
+) -> None:
     """Validate local registry, prompt, environment, and repo hygiene."""
     settings = load_settings()
     result = run_doctor(
         root_dir=Path(settings.root_dir),
         registry_dir=Path(settings.registry_dir),
+        validate_models=models,
     )
     lines: list[str] = []
     if result.errors:

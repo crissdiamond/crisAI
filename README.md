@@ -191,6 +191,7 @@ The registry is the main control plane:
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
 
 Run `crisai doctor` after registry edits.
+Run `crisai doctor --models` after model/provider edits to dry-build configured agent models without making API calls.
 
 ## Retrieval Sources
 
