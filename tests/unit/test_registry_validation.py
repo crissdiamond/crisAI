@@ -9,6 +9,7 @@ import yaml
 from crisai.registry_validation import (
     DoctorIssue,
     _check_env_setup,
+    _env_keys,
     _validate_registry_cross_references,
     run_doctor,
 )
@@ -193,6 +194,39 @@ def test_doctor_warns_about_missing_env_file(tmp_path: Path) -> None:
     matching = next(w for w in warnings if ".env file not found" in w.message)
     assert matching.hint is not None
     assert ".env.example" in matching.hint
+
+
+def test_env_keys_reads_active_and_commented_placeholders(tmp_path: Path) -> None:
+    env = tmp_path / ".env.example"
+    env.write_text(
+        """
+ACTIVE_KEY=value
+# COMMENTED_KEY=value
+# not an assignment
+INVALID-KEY=value
+""",
+        encoding="utf-8",
+    )
+
+    assert _env_keys(env) == {"ACTIVE_KEY", "COMMENTED_KEY"}
+
+
+def test_doctor_warns_when_env_missing_example_keys(tmp_path: Path) -> None:
+    (tmp_path / ".env.example").write_text(
+        """
+OPENAI_API_KEY=placeholder
+# CRISAI_AGENT_STAGE_TIMEOUT_SECONDS=300
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=real\n", encoding="utf-8")
+
+    errors, warnings = _check_env_setup(tmp_path)
+
+    assert errors == []
+    matching = next(w for w in warnings if ".env is missing key" in w.message)
+    assert "CRISAI_AGENT_STAGE_TIMEOUT_SECONDS" in matching.message
+    assert matching.hint is not None
 
 
 def test_doctor_warns_about_invalid_session_memory_env(tmp_path: Path, monkeypatch) -> None:

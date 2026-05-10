@@ -76,6 +76,25 @@ def _is_placeholder_env_value(value: str) -> bool:
     )
 
 
+def _env_keys(path: Path) -> set[str]:
+    """Extract active and commented dotenv-style assignment keys."""
+    if not path.is_file():
+        return set()
+    keys: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            stripped = stripped[1:].strip()
+        if "=" not in stripped:
+            continue
+        key = stripped.split("=", 1)[0].strip()
+        if key and key.replace("_", "").isalnum() and not key[0].isdigit():
+            keys.add(key)
+    return keys
+
+
 # ---------------------------------------------------------------------------
 # Cross-reference validation
 # ---------------------------------------------------------------------------
@@ -404,6 +423,7 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
     warnings: list[DoctorIssue] = []
 
     env_file = root_dir / ".env"
+    env_example = root_dir / ".env.example"
     if not env_file.is_file():
         warnings.append(DoctorIssue(
             message=".env file not found; local dotenv values will not be loaded.",
@@ -412,6 +432,18 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
                 "`cp .env.example .env`"
             ),
         ))
+    else:
+        expected_keys = _env_keys(env_example)
+        local_keys = _env_keys(env_file)
+        missing_keys = sorted(expected_keys - local_keys)
+        if missing_keys:
+            warnings.append(DoctorIssue(
+                message=".env is missing key(s) present in .env.example: " + ", ".join(missing_keys),
+                hint=(
+                    "Add the missing key placeholders to `.env` without changing existing secrets, "
+                    "or refresh from `.env.example`."
+                ),
+            ))
 
     strategy = os.getenv("CRISAI_SESSION_MEMORY_STRATEGY")
     if strategy and strategy.strip().lower() not in {"deterministic", "agentic"}:
