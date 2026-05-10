@@ -79,7 +79,7 @@ def _supported_litellm_kwargs(model_cls: Any, extra: dict[str, Any]) -> dict[str
     }
     ignored = sorted(set(extra) - set(supported))
     if ignored:
-        logger.warning(
+        logger.debug(
             "Ignoring unsupported LiteLLM model registry option(s): %s",
             ", ".join(ignored),
         )
