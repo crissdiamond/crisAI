@@ -56,8 +56,14 @@ def test_load_semantic_catalog_reads_registry_overrides(tmp_path: Path):
     assert "high level design" in catalog.peer_verifier.leaf_file_terms
     assert "playbook" in catalog.peer_verifier.leaf_file_terms
     assert "data mesh" in catalog.peer_verifier.data_architecture_terms
+    assert "the" in catalog.lexicon.function_words["articles"]
+    assert "in" in catalog.lexicon.function_words["prepositions"]
+    assert "please" in catalog.lexicon.prompt_noise_terms
+    assert "called" in catalog.lexicon.title_relation_terms
     assert "document" in catalog.retrieval_constraints.object_type_terms
     assert "personal_onedrive" in catalog.retrieval_constraints.source_scope_markers
+    assert not hasattr(catalog.retrieval_constraints, "title_noise_terms")
+    assert not hasattr(catalog.retrieval_constraints, "title_connector_terms")
 
 
 def test_load_semantic_catalog_peer_contract_markers_override(tmp_path: Path):

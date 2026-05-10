@@ -56,9 +56,24 @@ class RetrievalConstraintTerms:
     """Terms used to infer generic source-fit constraints from user requests."""
 
     object_type_terms: frozenset[str]
-    title_noise_terms: frozenset[str]
-    title_connector_terms: frozenset[str]
     source_scope_markers: dict[str, frozenset[str]]
+
+
+@dataclass(frozen=True)
+class LexiconTerms:
+    """Language-level prompt terms shared by semantic features."""
+
+    function_words: dict[str, frozenset[str]]
+    prompt_noise_terms: frozenset[str]
+    title_relation_terms: frozenset[str]
+
+    @property
+    def all_function_words(self) -> frozenset[str]:
+        """Return all configured standalone function words."""
+        terms: set[str] = set()
+        for values in self.function_words.values():
+            terms.update(values)
+        return frozenset(terms)
 
 
 @dataclass(frozen=True)
@@ -66,6 +81,7 @@ class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
     peer_contract: PeerContractMarkers
+    lexicon: LexiconTerms
     retrieval_constraints: RetrievalConstraintTerms
 
 
@@ -115,6 +131,20 @@ def _source_scope_markers(values: Any) -> dict[str, frozenset[str]]:
     return result
 
 
+def _function_words(values: Any) -> dict[str, frozenset[str]]:
+    if not isinstance(values, dict):
+        return {}
+    result: dict[str, frozenset[str]] = {}
+    for category, terms in values.items():
+        clean_category = str(category).strip().lower()
+        if not clean_category:
+            continue
+        term_set = _as_frozenset(terms)
+        if term_set:
+            result[clean_category] = term_set
+    return result
+
+
 def merge_semantic_catalog_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Deep-merge two catalogue dicts (fork overlays, tests).
 
@@ -131,7 +161,7 @@ def merge_semantic_catalog_dicts(base: dict[str, Any], overlay: dict[str, Any]) 
 
 
 def _validate_top_level(data: dict[str, Any]) -> None:
-    for key in ("router", "peer_verifier", "peer_contract", "retrieval_constraints"):
+    for key in ("router", "peer_verifier", "peer_contract", "lexicon", "retrieval_constraints"):
         if key not in data or not isinstance(data[key], dict):
             raise SemanticCatalogError(
                 f"registry/semantic_catalog.yaml must contain a top-level '{key}' mapping."
@@ -159,6 +189,7 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     _validate_peer_contract_lists(data["peer_contract"])
     router_block = data["router"]
     verifier_block = data["peer_verifier"]
+    lexicon_block = data["lexicon"]
     retrieval_block = data["retrieval_constraints"]
     pattern_gap_line = str(verifier_block.get("pattern_gap_line") or "").strip()
     leaf_file_pattern = str(verifier_block.get("leaf_file_pattern") or "").strip()
@@ -178,7 +209,20 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             "registry/semantic_catalog.yaml: peer_verifier.data_architecture_terms must be "
             "a non-empty list."
         )
-    for field in ("object_type_terms", "title_noise_terms", "title_connector_terms"):
+    function_words = _function_words(lexicon_block.get("function_words"))
+    if not function_words:
+        raise SemanticCatalogError(
+            "registry/semantic_catalog.yaml: lexicon.function_words must contain "
+            "at least one non-empty category."
+        )
+    for field in ("prompt_noise_terms", "title_relation_terms"):
+        values = lexicon_block.get(field)
+        if not isinstance(values, list) or not values:
+            raise SemanticCatalogError(
+                f"registry/semantic_catalog.yaml: lexicon.{field} must be a non-empty list."
+            )
+
+    for field in ("object_type_terms",):
         values = retrieval_block.get(field)
         if not isinstance(values, list) or not values:
             raise SemanticCatalogError(
@@ -219,10 +263,13 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             grounding_markers=_peer_contract_marker_field(data, "grounding_markers"),
             assessment_markers=_peer_contract_marker_field(data, "assessment_markers"),
         ),
+        lexicon=LexiconTerms(
+            function_words=function_words,
+            prompt_noise_terms=_as_frozenset(lexicon_block.get("prompt_noise_terms")),
+            title_relation_terms=_as_frozenset(lexicon_block.get("title_relation_terms")),
+        ),
         retrieval_constraints=RetrievalConstraintTerms(
             object_type_terms=_as_frozenset(retrieval_block.get("object_type_terms")),
-            title_noise_terms=_as_frozenset(retrieval_block.get("title_noise_terms")),
-            title_connector_terms=_as_frozenset(retrieval_block.get("title_connector_terms")),
             source_scope_markers=scope_markers,
         ),
     )

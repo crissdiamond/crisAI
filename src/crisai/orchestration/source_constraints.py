@@ -7,7 +7,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .evidence_contract import EvidenceBundle, EvidenceItem
-from .semantic_catalog import RetrievalConstraintTerms, load_semantic_catalog
+from .semantic_catalog import (
+    LexiconTerms,
+    RetrievalConstraintTerms,
+    load_semantic_catalog,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,17 +39,17 @@ def infer_source_fit_constraints(
     """
     text = message or ""
     try:
-        terms = load_semantic_catalog(str(registry_dir) if registry_dir is not None else None).retrieval_constraints
+        catalog = load_semantic_catalog(str(registry_dir) if registry_dir is not None else None)
     except Exception:  # noqa: BLE001 - fail open; retrieval still has prompt guidance.
         return SourceFitConstraints()
 
     title_phrases = _unique_preserve_order(
         [
             *_quoted_phrases(text),
-            *_object_title_phrases(text, terms),
+            *_object_title_phrases(text, catalog.retrieval_constraints, catalog.lexicon),
         ]
     )
-    scopes = _source_scopes(text, terms)
+    scopes = _source_scopes(text, catalog.retrieval_constraints)
     return SourceFitConstraints(
         required_title_phrases=tuple(title_phrases),
         source_scopes=tuple(scopes),
@@ -110,7 +114,11 @@ def _quoted_phrases(text: str) -> list[str]:
     return phrases
 
 
-def _object_title_phrases(text: str, terms: RetrievalConstraintTerms) -> list[str]:
+def _object_title_phrases(
+    text: str,
+    terms: RetrievalConstraintTerms,
+    lexicon: LexiconTerms,
+) -> list[str]:
     token_matches = list(re.finditer(r"[A-Za-z0-9][A-Za-z0-9._&/-]*", text or ""))
     if not token_matches:
         return []
@@ -121,16 +129,16 @@ def _object_title_phrases(text: str, terms: RetrievalConstraintTerms) -> list[st
             continue
         start = max(0, index - 8)
         previous = [m.group(0) for m in token_matches[start:index]]
-        phrase = _significant_suffix(previous, terms)
+        phrase = _significant_suffix(previous, lexicon)
         if _is_useful_title_phrase(phrase):
             phrases.append(phrase)
     return phrases
 
 
-def _significant_suffix(tokens: list[str], terms: RetrievalConstraintTerms) -> str:
+def _significant_suffix(tokens: list[str], lexicon: LexiconTerms) -> str:
     chosen: list[str] = []
-    noise = terms.title_noise_terms
-    connectors = terms.title_connector_terms
+    noise = lexicon.all_function_words | lexicon.prompt_noise_terms
+    connectors = lexicon.all_function_words | lexicon.title_relation_terms
     for token in reversed(tokens):
         lowered = token.lower().strip("._-/")
         if lowered in noise or lowered in connectors:

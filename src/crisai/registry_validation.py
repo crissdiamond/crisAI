@@ -144,14 +144,26 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[str], list[str]]:
         if not isinstance(payload, dict):
             errors.append(f"{filename} must contain a YAML mapping.")
 
+    catalog = None
     try:
         load_semantic_catalog.cache_clear()
-        load_semantic_catalog(str(registry_dir))
+        catalog = load_semantic_catalog(str(registry_dir))
     except Exception as exc:  # noqa: BLE001
         errors.append(f"semantic_catalog.yaml is invalid: {exc}")
 
-    if load_retrieval_association_graph(registry_dir) is None:
+    graph = load_retrieval_association_graph(registry_dir)
+    if graph is None:
         errors.append("semantic_graph.yaml is missing or invalid.")
+    elif catalog is not None:
+        function_words = catalog.lexicon.all_function_words
+        for vertex_id, terms in sorted(graph.vertex_terms.items()):
+            leaked_terms = sorted(term for term in terms if term in function_words)
+            if leaked_terms:
+                errors.append(
+                    "semantic_graph.yaml vertex "
+                    f"'{vertex_id}' contains standalone function word term(s): "
+                    + ", ".join(leaked_terms)
+                )
 
     workflow_policy = registry_dir / "workflow_policy.yaml"
     if workflow_policy.is_file():

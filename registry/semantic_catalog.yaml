@@ -337,35 +337,29 @@ peer_verifier:
     - denormalization
     - metadata
 
-retrieval_constraints:
-  object_type_terms:
-    - document
-    - documents
-    - doc
-    - docs
-    - file
-    - files
-    - deck
-    - decks
-    - presentation
-    - presentations
-    - powerpoint
-    - spreadsheet
-    - workbook
-    - pdf
-    - page
-    - pages
-    - documento
-    - documenti
-    - file
-    - presentazione
-    - presentazioni
-    - pagina
-    - pagine
-  title_noise_terms:
-    - the
-    - a
-    - an
+lexicon:
+  function_words:
+    articles:
+      - the
+      - a
+      - an
+      - il
+      - la
+      - lo
+      - l
+    prepositions:
+      - of
+      - for
+      - about
+      - with
+      - in
+      - on
+      - nel
+      - nella
+      - dei
+      - delle
+      - per
+  prompt_noise_terms:
     - this
     - that
     - these
@@ -395,10 +389,6 @@ retrieval_constraints:
     - search
     - read
     - list
-    - il
-    - la
-    - lo
-    - l
     - questo
     - questa
     - questi
@@ -410,33 +400,48 @@ retrieval_constraints:
     - più
     - piu
     - puoi
-    - per
     - favore
     - riassumi
     - trova
     - cerca
     - leggi
     - elenca
-  title_connector_terms:
-    - of
-    - for
-    - about
-    - with
+  title_relation_terms:
     - named
     - called
     - titled
     - filename
     - file name
-    - in
-    - on
-    - nel
-    - nella
-    - dei
-    - delle
     - chiamato
     - chiamata
     - intitolato
     - intitolata
+
+retrieval_constraints:
+  object_type_terms:
+    - document
+    - documents
+    - doc
+    - docs
+    - file
+    - files
+    - deck
+    - decks
+    - presentation
+    - presentations
+    - powerpoint
+    - spreadsheet
+    - workbook
+    - pdf
+    - page
+    - pages
+    - documento
+    - documenti
+    - file
+    - presentazione
+    - presentazioni
+    - pagina
+    - pagine
   source_scope_markers:
     personal_onedrive:
       - onedrive

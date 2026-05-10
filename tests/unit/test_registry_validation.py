@@ -76,6 +76,21 @@ def test_doctor_reports_missing_prompt_file(tmp_path: Path) -> None:
     assert any("missing prompt file" in error for error in result.errors)
 
 
+def test_doctor_rejects_standalone_function_word_graph_terms(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    graph_path = registry_dir / "semantic_graph.yaml"
+    payload = yaml.safe_load(graph_path.read_text(encoding="utf-8"))
+    payload["vertices"][0]["terms"].append("in")
+    graph_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    result = run_doctor(root_dir=root, registry_dir=registry_dir)
+
+    assert result.ok is False
+    assert any("standalone function word" in error and "intent.summary" in error for error in result.errors)
+
+
 # --- Transport validation ---
 
 

@@ -409,10 +409,13 @@ The legacy router, peer-contract, and verifier semantics remain configurable fro
 - router criticality terms for high-accuracy/high-risk prompts that can promote complex design/review asks to peer mode
 - explicit routing phrase patterns
 - source and architecture-location marker lists
-- retrieval source-fit constraint vocabulary (`retrieval_constraints`) for generic title phrase extraction, source-scope markers, and title-noise words
+- shared prompt lexicon (`lexicon`) for language-level function words, prompt-noise words, and title-relation words used by deterministic parsers
+- retrieval source-fit constraint vocabulary (`retrieval_constraints`) for retrieval-specific object type terms and source-scope markers
 - peer-verifier regex patterns (for example gap-line and leaf-file matching)
 - peer-verifier semantic leaf-file terminology (`leaf_file_terms`) to classify architecture-oriented deliverables by filename terms (for example `patterns`, `template`, `hld`, `guides`, `standards`, `principles`, `toolkit`)
 - **peer_contract** marker phrase lists (`file_write_markers`, `code_change_markers`, `code_target_markers`, `grounding_markers`, `assessment_markers`) used by `infer_peer_run_contract` (substring match on lowercased user text; inference logic stays in code)
+
+Standalone function words such as `in`, `on`, `for`, `a`, and `an` belong in `lexicon.function_words`, not in graph vertices or feature-specific semantic lists. Multiword graph terms may still contain function words when the whole phrase carries semantic meaning, for example `principles of integration`.
 
 The semantic catalogue loader reads **only** `registry/semantic_catalog.yaml` for its legacy scope. A missing file raises `FileNotFoundError`; invalid YAML or a shape that fails validation raises `SemanticCatalogError` with a field-level message. Restart processes after edits so registry changes are reloaded.
 
