@@ -68,7 +68,7 @@ from crisai.tracing import TRACE_FILE_NAME, append_trace
 from .display import create_agent_live, print_agent_output, sanitize_user_visible_text
 from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_engine import WorkflowEngine
-from .prompt_builders import (
+from crisai.orchestration.prompt_generation import (
     build_author_prompt,
     build_challenger_prompt,
     build_context_retrieval_prompt,

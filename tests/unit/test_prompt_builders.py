@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from crisai.cli.prompt_builders import (
+from crisai.orchestration.prompt_generation import (
     build_author_prompt,
     build_challenger_prompt,
     build_context_retrieval_prompt,

@@ -117,12 +117,18 @@ def test_sitepage_urls_in_object_finds_embedded_sharepoint_urls() -> None:
 
 def test_wiki_provider_raises() -> None:
     wiki = WikiProvider()
-    with pytest.raises(RuntimeError, match="not implemented"):
-        wiki.search("q", 5)
-    with pytest.raises(RuntimeError, match="list_page_links"):
-        wiki.list_page_links("s", "p")
-    with pytest.raises(RuntimeError, match="list_all_pages"):
-        wiki.list_all_pages()
+    for call in [
+        lambda: wiki.login(),
+        lambda: wiki.auth_status(),
+        lambda: wiki.search("q", 5),
+        lambda: wiki.fetch("id", 1000),
+        lambda: wiki.list_links("id"),
+        lambda: wiki.list_all(),
+        lambda: wiki.list_page_links("s", "p"),
+        lambda: wiki.list_all_pages(),
+    ]:
+        with pytest.raises(NotImplementedError, match="sharepoint_pages"):
+            call()
 
 
 def test_list_page_links_filters_same_host_sitepages(monkeypatch: pytest.MonkeyPatch) -> None:

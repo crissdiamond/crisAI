@@ -6,7 +6,7 @@ import os
 import re
 from typing import Any
 
-from crisai.cli.prompt_builders import (
+from crisai.orchestration.prompt_generation import (
     build_judge_prompt,
     build_judge_quality_gate_prompt,
 )
