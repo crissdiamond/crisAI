@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from crisai.apps.ui_config import UI_CONFIG
 from crisai.cli.chat_context import build_chat_input
+from crisai.cli.display import sanitize_user_visible_text
 from crisai.cli.main import (
     _apply_decision_overrides,
     _detect_explicit_mode,
@@ -114,7 +115,7 @@ def _collect_stage_outputs(entries: list[dict[str, Any]]) -> list[dict[str, str]
                 "agent_id": agent_id,
                 "stage": str(entry.get("stage", "")),
                 "event_type": event_type,
-                "content": str(entry.get("content", "")),
+                "content": sanitize_user_visible_text(str(entry.get("content", ""))),
             }
         )
     return stage_records
@@ -176,7 +177,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
 
     return {
         "decision": asdict(decision),
-        "final_output": final_output,
+        "final_output": sanitize_user_visible_text(final_output),
         "stage_outputs": stage_outputs,
     }
 
@@ -301,7 +302,7 @@ def _trace_line_to_stage_output(entry: dict[str, Any]) -> dict[str, Any] | None:
         "agent_id": str(entry.get("agent_id") or "system"),
         "stage": str(entry.get("stage", "")),
         "event_type": render_event,
-        "content": str(entry.get("content", "")),
+        "content": sanitize_user_visible_text(str(entry.get("content", ""))),
     }
 
 
@@ -320,11 +321,11 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
             user_intent_message=payload.message,
         )
         history.append(("user", payload.message))
-        history.append(("assistant", final_output))
+        history.append(("assistant", sanitize_user_visible_text(final_output)))
         save_history(session_name, history)
 
         job["status"] = "completed"
-        job["final_output"] = final_output
+        job["final_output"] = sanitize_user_visible_text(final_output)
         job["history"] = _serialize_history(history)
         job["current_session"] = session_name
     except Exception as exc:  # noqa: BLE001
@@ -396,7 +397,7 @@ async def run(payload: RunRequest) -> dict[str, Any]:
     session_name = sanitize_session_name(payload.session)
     history = load_history(session_name)
     history.append(("user", payload.message))
-    history.append(("assistant", response["final_output"]))
+    history.append(("assistant", sanitize_user_visible_text(response["final_output"])))
     save_history(session_name, history)
     response["history"] = _serialize_history(history)
     response["current_session"] = session_name
@@ -532,4 +533,3 @@ def main() -> None:
             "Missing web dependencies. Install with: pip install fastapi uvicorn"
         ) from exc
     _run_async(uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=8000)).serve())
-

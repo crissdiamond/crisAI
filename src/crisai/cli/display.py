@@ -85,6 +85,10 @@ _MACHINE_SCHEMA_RE = re.compile(
     r'"schema_version"\s*:\s*"(?:evidence_bundle_v1|task_contract_v1)"',
     re.IGNORECASE,
 )
+_MACHINE_JSON_KEY_RE = re.compile(
+    r'"(?:schema_version|topics_activated|queries_expanded|source_priority)"\s*:',
+    re.IGNORECASE,
+)
 
 
 def _icon(agent_id: str) -> str:
@@ -112,12 +116,17 @@ def _strip_markdown(text: str) -> str:
     return stripped.strip()
 
 
-def _hide_machine_evidence_blocks(text: str) -> str:
+def sanitize_user_visible_text(text: str) -> str:
     """Remove machine-readable JSON contracts from user-facing CLI rendering."""
     cleaned = _strip_fenced_machine_blocks(text or "")
     cleaned = _strip_bare_machine_objects(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned
+
+
+def _hide_machine_evidence_blocks(text: str) -> str:
+    """Backward-compatible wrapper for user-visible sanitization."""
+    return sanitize_user_visible_text(text)
 
 
 def _strip_fenced_machine_blocks(text: str) -> str:
@@ -127,7 +136,7 @@ def _strip_fenced_machine_blocks(text: str) -> str:
     for match in _FENCED_CODE_BLOCK_RE.finditer(text):
         parts.append(text[cursor : match.start()])
         block = match.group(0)
-        if not _MACHINE_SCHEMA_RE.search(block):
+        if not _MACHINE_JSON_KEY_RE.search(block):
             parts.append(block)
         cursor = match.end()
     parts.append(text[cursor:])

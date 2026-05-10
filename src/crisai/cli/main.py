@@ -22,6 +22,7 @@ from crisai.cli.display import (
     print_final_answer,
     print_final_recommendation,
     print_status_message,
+    sanitize_user_visible_text,
 )
 from crisai.cli.session_store import (
     clear_cli_history,
@@ -725,7 +726,7 @@ def chat(
         _render_final_output(decision, text)
 
         state.history.append(("user", user_input))
-        state.history.append(("assistant", text))
+        state.history.append(("assistant", sanitize_user_visible_text(text)))
         save_history(state.current_session, state.history)
 
 

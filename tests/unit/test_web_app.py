@@ -61,6 +61,19 @@ def test_trace_line_maps_single_agent_workflow_output_to_agent_tab():
     assert out["content"] == "Listed 3 matching files."
 
 
+def test_trace_line_sanitizes_single_agent_workflow_output():
+    entry = {
+        "event_type": "workflow_output",
+        "stage": "FINAL_OUTPUT",
+        "agent_id": "retrieval_planner",
+        "content": 'Found files.\n\n{"schema_version": "evidence_bundle_v1", "request": "x", "items": []}',
+        "run_id": "run-x",
+    }
+    out = _trace_line_to_stage_output(entry)
+    assert out is not None
+    assert out["content"] == "Found files."
+
+
 def test_trace_line_ignores_unrelated_workflow_output():
     entry = {"event_type": "workflow_output", "stage": "OTHER", "agent_id": "retrieval_planner", "content": "x"}
     assert _trace_line_to_stage_output(entry) is None
@@ -89,6 +102,21 @@ def test_collect_stage_outputs_keeps_only_renderable_stage_events():
             "content": "skipped",
         },
     ]
+
+
+def test_collect_stage_outputs_sanitizes_machine_json():
+    entries = [
+        {
+            "event_type": "stage_output",
+            "stage": "RETRIEVAL_PLANNER OUTPUT",
+            "content": 'handoff\n```json\n{"topics_activated": ["intent.summary"]}\n```',
+            "agent_id": "retrieval_planner",
+        },
+    ]
+
+    result = _collect_stage_outputs(entries)
+
+    assert result[0]["content"] == "handoff"
 
 
 def test_run_endpoint_returns_execution_payload(monkeypatch):

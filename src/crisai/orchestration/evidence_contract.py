@@ -187,7 +187,7 @@ class EvidenceBundle:
 
 
 def parse_evidence_bundle(text: str) -> EvidenceBundle:
-    """Parse the first valid fenced JSON EvidenceBundle from text."""
+    """Parse the first valid EvidenceBundle from fenced or bare JSON text."""
     errors: list[str] = []
     for match in _JSON_FENCE_RE.finditer(text or ""):
         raw = match.group(1)
@@ -197,8 +197,71 @@ def parse_evidence_bundle(text: str) -> EvidenceBundle:
                 return EvidenceBundle.from_dict(payload)
         except (json.JSONDecodeError, ValueError) as exc:
             errors.append(str(exc))
+    for raw in _iter_bare_json_objects_with_schema(text or "", "evidence_bundle_v1"):
+        try:
+            payload = json.loads(raw)
+            if isinstance(payload, dict) and payload.get("schema_version") == "evidence_bundle_v1":
+                return EvidenceBundle.from_dict(payload)
+        except (json.JSONDecodeError, ValueError) as exc:
+            errors.append(str(exc))
     suffix = f" Last validation error: {errors[-1]}" if errors else ""
-    raise ValueError(f"No valid fenced evidence_bundle_v1 JSON block found.{suffix}")
+    raise ValueError(f"No valid evidence_bundle_v1 JSON block found.{suffix}")
+
+
+def _iter_bare_json_objects_with_schema(text: str, schema_version: str) -> list[str]:
+    """Return balanced JSON object strings containing ``schema_version``.
+
+    Some models omit a closing Markdown fence even when the JSON itself is
+    balanced. Parsing balanced objects keeps the evidence gate strict on schema
+    while avoiding false failures caused by Markdown formatting drift.
+    """
+    marker_re = re.compile(
+        rf'"schema_version"\s*:\s*"{re.escape(schema_version)}"',
+        re.IGNORECASE,
+    )
+    objects: list[str] = []
+    cursor = 0
+    while True:
+        marker = marker_re.search(text, cursor)
+        if marker is None:
+            break
+        start = text.rfind("{", cursor, marker.start())
+        if start == -1:
+            cursor = marker.end()
+            continue
+        end = _find_json_object_end(text, start)
+        if end is None:
+            cursor = marker.end()
+            continue
+        objects.append(text[start:end])
+        cursor = end
+    return objects
+
+
+def _find_json_object_end(text: str, start: int) -> int | None:
+    """Return the index after a balanced JSON object starting at ``start``."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return None
 
 
 def _infer_source_type(read_tool: str) -> str:

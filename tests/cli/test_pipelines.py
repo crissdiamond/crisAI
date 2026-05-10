@@ -143,6 +143,37 @@ Retrieved the likely master deck and read the candidate content.
     assert '"normalised_from": "string_source"' in result
 
 
+def test_validated_evidence_text_accepts_unclosed_fenced_bundle():
+    raw = """
+Retrieved and read the selected deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Can you summarise this document?",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Deck.pptx",
+        "read_handle": "sharepoint_doc:abc"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Readable slide text.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+"""
+    result = pipelines._validated_evidence_text("Can you summarise this document?", raw)
+
+    assert "## Validated Evidence Bundle" in result
+    assert '"evidence_level": "content_read"' in result
+
+
 @pytest.mark.anyio
 async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
