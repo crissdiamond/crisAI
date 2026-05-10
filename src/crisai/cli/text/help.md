@@ -51,7 +51,8 @@
 
 - review is a preference used by routing
 - pipeline review runs when the routing decision says it is needed
-- verbose controls how much intermediate output is shown
+- verbose controls how much readable intermediate output is shown
+- raw machine payloads, such as evidence bundles, stay out of chat panels and are kept in trace metadata
 
 ## Reading the chat state
 

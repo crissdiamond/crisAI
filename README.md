@@ -241,6 +241,9 @@ intranet_mcp.log
 vision_mcp.log
 ```
 
+`agent_trace.jsonl` keeps stage text readable and stores raw machine artifacts,
+such as validated evidence bundles, under structured event metadata.
+
 ## More Documentation
 
 - [DOCUMENTATION.md](DOCUMENTATION.md): full operator manual.
