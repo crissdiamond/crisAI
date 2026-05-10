@@ -269,11 +269,13 @@ def _apply_decision_overrides(user_input: str, explicit_mode: str | None, decisi
 
 @contextmanager
 def _suppress_console_info_logs():
-    """Hide non-file INFO logs from the interactive console.
+    """Hide non-file INFO/WARNING logs from the interactive console.
 
     The CLI should remain clean while preserving structured logs written to
     files. This helper temporarily raises the threshold only for non-file
-    handlers such as console or Rich handlers.
+    handlers such as console or Rich handlers. Expected runtime failures are
+    rendered as user-facing panels, so their warning log records do not need to
+    appear in the transcript.
     """
     handler_states: list[tuple[logging.Handler, int]] = []
     seen_handler_ids: set[int] = set()
@@ -294,8 +296,8 @@ def _suppress_console_info_logs():
                 continue
             seen_handler_ids.add(handler_id)
             handler_states.append((handler, handler.level))
-            if handler.level < logging.WARNING:
-                handler.setLevel(logging.WARNING)
+            if handler.level < logging.ERROR:
+                handler.setLevel(logging.ERROR)
 
     try:
         yield

@@ -87,7 +87,7 @@ def test_apply_decision_overrides_forces_retrieval_for_intranet_peer_request():
     assert updated.needs_retrieval is True
 
 
-def test_suppress_console_info_logs_preserves_file_handler(tmp_path):
+def test_suppress_console_info_and_warning_logs_preserves_file_handler(tmp_path):
     logger = logging.getLogger("crisai.test.console_suppression")
     logger.handlers.clear()
     logger.setLevel(logging.INFO)
@@ -103,7 +103,7 @@ def test_suppress_console_info_logs_preserves_file_handler(tmp_path):
 
     try:
         with main._suppress_console_info_logs():
-            assert console_handler.level == logging.WARNING
+            assert console_handler.level == logging.ERROR
             assert file_handler.level == logging.INFO
         assert console_handler.level == logging.INFO
         assert file_handler.level == logging.INFO
