@@ -2,6 +2,12 @@ from pathlib import Path
 
 import yaml
 
+from crisai.cli.prompt_contracts import (
+    DOCUMENT_EXTRACTION_CONTRACT,
+    EVIDENCE_BUNDLE_CONTRACT,
+    LINK_FORMATTING_CONTRACT,
+    PROMPT_CONTRACT_TOOL_REFERENCES,
+)
 from crisai.orchestration.prompt_generation import (
     build_author_prompt,
     build_challenger_prompt,
@@ -16,12 +22,6 @@ from crisai.orchestration.prompt_generation import (
     build_retrieval_planner_prompt,
     build_review_prompt,
     build_single_retrieval_planner_prompt,
-)
-from crisai.cli.prompt_contracts import (
-    DOCUMENT_EXTRACTION_CONTRACT,
-    EVIDENCE_BUNDLE_CONTRACT,
-    LINK_FORMATTING_CONTRACT,
-    PROMPT_CONTRACT_TOOL_REFERENCES,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

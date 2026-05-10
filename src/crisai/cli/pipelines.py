@@ -20,6 +20,7 @@ from crisai.orchestration.evidence_contract import (
     parse_evidence_bundle,
     request_requires_content_read,
 )
+from crisai.orchestration.exceptions import WorkflowValidationError
 from crisai.orchestration.peer_contract import (
     infer_peer_run_contract,
     render_peer_run_contract,
@@ -44,6 +45,21 @@ from crisai.orchestration.peer_verifier import (
     PeerVerificationViolation,
     enforce_peer_final_deliverable_verification,
 )
+from crisai.orchestration.prompt_generation import (
+    build_author_prompt,
+    build_challenger_prompt,
+    build_context_retrieval_prompt,
+    build_context_retrieval_repair_prompt,
+    build_context_synthesizer_prompt,
+    build_design_prompt,
+    build_peer_final_prompt,
+    build_pipeline_final_prompt,
+    build_refiner_prompt,
+    build_retrieval_planner_prompt,
+    build_review_prompt,
+    build_single_retrieval_planner_prompt,
+    build_summary_prompt,
+)
 from crisai.orchestration.retrieval_association_graph import (
     DeterministicRetrievalContext,
     deterministic_context_from_registry,
@@ -62,31 +78,15 @@ from crisai.orchestration.task_contract import (
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
 
-from crisai.orchestration.exceptions import WorkflowValidationError
+from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_display import (
-    _resolve_agent_max_turns,  # re-exported for test monkeypatch seam
+    _resolve_agent_max_turns,  # noqa: F401 - re-exported for test monkeypatch seam
     _run_agent_silently,  # re-exported for test monkeypatch seam
     _run_agent_with_transient_box,  # re-exported for test monkeypatch seam
     print_agent_output,
     sanitize_user_visible_text,
 )
-from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_engine import WorkflowEngine
-from crisai.orchestration.prompt_generation import (
-    build_author_prompt,
-    build_challenger_prompt,
-    build_context_retrieval_prompt,
-    build_context_retrieval_repair_prompt,
-    build_context_synthesizer_prompt,
-    build_design_prompt,
-    build_peer_final_prompt,
-    build_pipeline_final_prompt,
-    build_refiner_prompt,
-    build_retrieval_planner_prompt,
-    build_review_prompt,
-    build_single_retrieval_planner_prompt,
-    build_summary_prompt,
-)
 from .workflow_policy import (
     WorkflowPolicyViolation,
     changed_paths,
