@@ -173,7 +173,7 @@ def print_chat_state(
         f"Verbose: {'on' if current_verbose else 'off'}",
         f"Loaded history entries: {history_count}",
         f"Logs: {log_dir} (crisai.log, agent_trace.jsonl, *_mcp.log when servers run)",
-        "Commands: /mode auto|single|pipeline|peer • /agent auto|<agent_id> • /status • /help",
+        "Commands: /session new <name> • /context show • /mode auto|single|pipeline|peer • /status • /help",
     ]
     print_status_message("\n".join(lines), title="💬 Chat state")
 

@@ -9,6 +9,10 @@ CommandAction = Literal[
     "clear",
     "clear_session",
     "history",
+    "context_show",
+    "context_reset",
+    "session_compact",
+    "session_new",
     "list_servers",
     "list_agents",
     "switch_session",
@@ -62,10 +66,23 @@ def parse_chat_command(user_input: str) -> CommandResult:
         return CommandResult(handled=True, action="noop", message="status")
 
     if raw.startswith("/session"):
-        parts = raw.split(maxsplit=1)
+        parts = raw.split(maxsplit=2)
         if len(parts) == 1 or not parts[1].strip():
             return CommandResult(handled=True, action="invalid", message="Please provide a session name.")
-        return CommandResult(handled=True, action="switch_session", value=parts[1].strip())
+        subcommand = parts[1].strip().lower()
+        if subcommand == "compact":
+            return CommandResult(handled=True, action="session_compact")
+        if subcommand == "new":
+            if len(parts) < 3 or not parts[2].strip():
+                return CommandResult(handled=True, action="invalid", message="Please provide a new session name.")
+            return CommandResult(handled=True, action="session_new", value=parts[2].strip())
+        return CommandResult(handled=True, action="switch_session", value=" ".join(parts[1:]).strip())
+
+    if raw == "/context show":
+        return CommandResult(handled=True, action="context_show")
+
+    if raw == "/context reset":
+        return CommandResult(handled=True, action="context_reset")
 
     if raw.startswith("/mode"):
         parts = raw.split(maxsplit=1)

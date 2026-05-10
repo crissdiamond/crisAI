@@ -49,6 +49,12 @@ agents:
     prompt_file: prompts/operations_agent.md
     allowed_servers: [workspace]
 
+  - id: memory_summarizer
+    name: Memory Summarizer
+    model_ref: gemini_fast
+    prompt_file: prompts/memory_summarizer.md
+    allowed_servers: []
+
   - id: publisher
     name: Publisher
     model_ref: gemini_fast

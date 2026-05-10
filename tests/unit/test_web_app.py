@@ -177,7 +177,7 @@ def test_run_endpoint_returns_execution_payload(monkeypatch):
 
 def test_execute_wraps_message_with_session_history(monkeypatch, tmp_path):
     captured: dict[str, str] = {}
-    
+
     @dataclass
     class _Decision:
         mode: str = "pipeline"
@@ -196,7 +196,7 @@ def test_execute_wraps_message_with_session_history(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         "crisai.apps.web.build_chat_input",
-        lambda user_input, history: f"Conversation so far\\nUser: {user_input}",
+        lambda user_input, history, session_name=None: f"Conversation so far\\nUser: {user_input}",
     )
 
     async def _fake_run_with_routing(**kwargs):
@@ -230,12 +230,13 @@ def test_run_job_wraps_message_with_session_history(monkeypatch):
     )
     monkeypatch.setattr(
         "crisai.apps.web.build_chat_input",
-        lambda user_input, history: f"Wrapped history\\nUser: {user_input}",
+        lambda user_input, history, session_name=None: f"Wrapped history\\nUser: {user_input}",
     )
     monkeypatch.setattr(
         "crisai.apps.web.save_history",
         lambda session_name, history: saved.update({"session": session_name, "history": history}),
     )
+    monkeypatch.setattr("crisai.apps.web.update_session_memory", lambda session_name, history: None)
 
     async def _fake_run_with_routing(**kwargs):
         captured["message"] = kwargs["message"]

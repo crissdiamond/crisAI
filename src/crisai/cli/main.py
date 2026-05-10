@@ -16,7 +16,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
 
-from crisai.cli.chat_context import build_chat_input
+from crisai.cli.chat_context import build_runtime_context_package, update_session_memory
 from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
 from crisai.cli.display import (
     print_final_answer,
@@ -707,7 +707,10 @@ def chat(
         if handled:
             continue
 
-        chat_input = build_chat_input(user_input, state.history)
+        context_package = build_runtime_context_package(user_input, state.history, session_name=state.current_session)
+        if context_package.drift_nudge:
+            print_status_message(context_package.drift_nudge, title="💡 Session context")
+        chat_input = context_package.prompt
         explicit_mode = _detect_explicit_mode(user_input)
         mode_override = state.current_mode if state.mode_pinned else explicit_mode
         agent_override = state.current_agent if state.agent_pinned else None
@@ -746,6 +749,7 @@ def chat(
         state.history.append(("user", user_input))
         state.history.append(("assistant", sanitize_user_visible_text(text)))
         save_history(state.current_session, state.history)
+        update_session_memory(state.current_session, state.history)
 
 
 if __name__ == "__main__":

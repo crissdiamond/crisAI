@@ -77,6 +77,12 @@ agents:
     allowed_servers:
       - workspace
 
+  - id: memory_summarizer
+    name: Memory Summarizer
+    model_ref: openai_nano
+    prompt_file: prompts/memory_summarizer.md
+    allowed_servers: []
+
   - id: publisher
     name: Publisher
     model_ref: openai_fast

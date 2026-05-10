@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from crisai.cli.chat_context import (
+    build_runtime_context_package,
+    render_session_memory,
+    update_session_memory,
+)
 from crisai.cli.commands import parse_chat_command
 from crisai.cli.display import print_final_answer, print_status_message
 from crisai.cli.session_store import (
     HistoryEntry,
     clear_cli_history,
     clear_history,
+    clear_session_memory,
     load_history,
     save_history,
 )
@@ -64,6 +70,7 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
         target_session = str(command.value) if action == "clear_session" and command.value else state.current_session
         clear_history(target_session)
         clear_cli_history(target_session)
+        clear_session_memory(target_session)
         if target_session == state.current_session:
             state.history.clear()
         print_status_message(
@@ -76,6 +83,26 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
         print_agents_table()
     elif action == "history":
         print_session_history(state.history)
+    elif action == "context_show":
+        package = build_runtime_context_package("(preview)", state.history, session_name=state.current_session)
+        memory_text = render_session_memory(package.memory) or "No compact memory for this session yet."
+        print_status_message(
+            "\n".join(
+                [
+                    memory_text,
+                    "",
+                    f"Recent entries included: {package.included_recent_entries}",
+                    f"Truncated: {'yes' if package.truncated else 'no'}",
+                ]
+            ),
+            title="🧠 Runtime context",
+        )
+    elif action == "context_reset":
+        clear_session_memory(state.current_session)
+        print_status_message(
+            f"Compact memory cleared for session '{state.current_session}'. Raw history was kept.",
+            title="🧠 Context reset",
+        )
     elif action == "switch_session":
         state.current_session = str(command.value)
         state.history = load_history(state.current_session)
@@ -86,6 +113,22 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
         print_status_message(
             f"Switched to session '{state.current_session}'.\nLoaded history entries: {len(state.history)}",
             title="🔁 Session switched",
+        )
+    elif action == "session_new":
+        state.current_session = str(command.value)
+        state.history = []
+        save_history(state.current_session, state.history)
+        clear_cli_history(state.current_session)
+        clear_session_memory(state.current_session)
+        print_status_message(
+            f"Created and switched to clean session '{state.current_session}'.",
+            title="🆕 Session created",
+        )
+    elif action == "session_compact":
+        memory = update_session_memory(state.current_session, state.history)
+        print_status_message(
+            render_session_memory(memory) or "No history available to compact.",
+            title="🧠 Session compacted",
         )
     elif action == "set_mode":
         value = str(command.value)

@@ -32,6 +32,7 @@ _ICONS = {
     "orchestrator": "🧭",
     # Wrench: local tooling, debugging, and environment fixes.
     "operations": "🔧",
+    "memory_summarizer": "🧠",
     # Package: templates and formal artefacts.
     "publisher": "📦",
 }
@@ -49,6 +50,7 @@ _LABELS = {
     "judge": "Judge",
     "orchestrator": "Orchestrator",
     "operations": "Operations",
+    "memory_summarizer": "Memory Summarizer",
     "publisher": "Publisher",
 }
 
@@ -65,6 +67,7 @@ _STYLES = {
     "judge": "white",
     "orchestrator": "bright_black",
     "operations": "blue",
+    "memory_summarizer": "cyan",
     "publisher": "magenta",
 }
 

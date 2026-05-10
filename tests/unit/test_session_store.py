@@ -56,6 +56,18 @@ def test_session_file_defaults_to_default_when_name_is_blank(tmp_path, monkeypat
     assert path == tmp_path / "chat_sessions" / "default.json"
 
 
+def test_session_memory_file_uses_sanitised_session_name(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+
+    path = session_store.session_memory_file(" my/session:*name ")
+
+    assert path == tmp_path / "chat_sessions" / "my_session__name.memory.json"
+
+
 def test_load_history_filters_invalid_entries(tmp_path, monkeypatch):
     monkeypatch.setattr(
         session_store,
@@ -144,3 +156,39 @@ def test_clear_cli_history_rewrites_session_command_history(tmp_path, monkeypatc
 
     assert target.exists()
     assert target.read_text(encoding="utf-8") == ""
+
+
+def test_save_and_load_session_memory_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+    memory = session_store.SessionMemory(
+        task_goal="Summarise the Integration Strategy deck.",
+        current_state="Summary complete.",
+        known_sources=["workspace/context/integration.md"],
+    )
+
+    session_store.save_session_memory("demo", memory)
+    loaded = session_store.load_session_memory("demo")
+
+    assert loaded.task_goal == "Summarise the Integration Strategy deck."
+    assert loaded.current_state == "Summary complete."
+    assert loaded.known_sources == ["workspace/context/integration.md"]
+    assert loaded.updated_at.endswith("Z")
+
+
+def test_clear_session_memory_rewrites_empty_memory(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+    session_store.save_session_memory("demo", session_store.SessionMemory(task_goal="old"))
+
+    session_store.clear_session_memory("demo")
+
+    loaded = session_store.load_session_memory("demo")
+    assert loaded.task_goal == ""
+    assert loaded.schema_version == "session_memory_v1"

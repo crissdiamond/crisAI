@@ -13,6 +13,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
+- Compact task memory for sessions, so long tasks keep useful context without replaying the full transcript every turn.
 - Clean CLI and web stage rendering that separates readable agent prose from structured evidence metadata in traces.
 - Source-fit validation so retrieved content must match explicit title and source-scope constraints before it is summarized.
 - Deterministic retrieval expansion from registry dictionaries.
@@ -28,8 +29,10 @@ For the full operator manual, see [DOCUMENTATION.md](DOCUMENTATION.md). For dete
 flowchart TB
     User[User] --> Surfaces[CLI and Web App]
     Surfaces --> Router[Router and Chat State]
+    Router --> SessionMemory[Compact Session Memory]
     Router --> Workflows[Workflow Modes]
 
+    SessionMemory --> Workflows
     Workflows --> Single[Single Agent]
     Workflows --> Pipeline[Pipeline]
     Workflows --> Peer[Peer Critique]
@@ -188,6 +191,7 @@ The registry is the main control plane:
 - `registry/models.yaml`: provider-specific model names and API key env vars.
 - `registry/servers.yaml`: MCP server definitions and allowed tools.
 - `registry/workflow_policy.yaml`: runtime hard gates.
+- `registry/session_memory.yaml`: compact session memory budget and behavior.
 - `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, and retrieval source-fit constraints.
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
 

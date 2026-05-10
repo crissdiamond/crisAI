@@ -14,7 +14,11 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from crisai.apps.ui_config import UI_CONFIG
-from crisai.cli.chat_context import build_chat_input
+from crisai.cli.chat_context import (
+    build_chat_input,
+    render_session_memory,
+    update_session_memory,
+)
 from crisai.cli.display import render_stage_output_text, sanitize_user_visible_text
 from crisai.cli.main import (
     _apply_decision_overrides,
@@ -25,6 +29,7 @@ from crisai.cli.main import (
 )
 from crisai.cli.session_store import (
     load_history,
+    load_session_memory,
     sanitize_session_name,
     save_history,
     session_dir,
@@ -162,7 +167,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
     decision = _resolve_decision(payload)
     session_name = sanitize_session_name(payload.session)
     history = load_history(session_name)
-    chat_input = build_chat_input(payload.message, history)
+    chat_input = build_chat_input(payload.message, history, session_name=session_name)
     try:
         final_output = await _run_with_routing(
             message=chat_input,
@@ -217,6 +222,17 @@ def _session_name_newest_by_mtime() -> str | None:
 def _serialize_history(history: list[tuple[str, str]]) -> list[dict[str, str]]:
     """Convert tuple-based history to JSON-serializable objects."""
     return [{"role": role, "content": content} for role, content in history]
+
+
+def _serialize_memory(session_name: str) -> dict[str, Any]:
+    """Return compact memory metadata for session APIs."""
+    memory = load_session_memory(session_name)
+    return {
+        "schema_version": memory.schema_version,
+        "summary": render_session_memory(memory),
+        "known_sources_count": len(memory.known_sources),
+        "updated_at": memory.updated_at,
+    }
 
 
 def _read_ui_asset(name: str) -> str:
@@ -316,7 +332,7 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
     try:
         session_name = sanitize_session_name(payload.session)
         history = load_history(session_name)
-        chat_input = build_chat_input(payload.message, history)
+        chat_input = build_chat_input(payload.message, history, session_name=session_name)
         final_output = await _run_with_routing(
             message=chat_input,
             verbose=payload.verbose,
@@ -327,6 +343,7 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
         history.append(("user", payload.message))
         history.append(("assistant", sanitize_user_visible_text(final_output)))
         save_history(session_name, history)
+        update_session_memory(session_name, history)
 
         job["status"] = "completed"
         job["final_output"] = sanitize_user_visible_text(final_output)
@@ -403,6 +420,7 @@ async def run(payload: RunRequest) -> dict[str, Any]:
     history.append(("user", payload.message))
     history.append(("assistant", sanitize_user_visible_text(response["final_output"])))
     save_history(session_name, history)
+    update_session_memory(session_name, history)
     response["history"] = _serialize_history(history)
     response["current_session"] = session_name
     return response
@@ -501,6 +519,7 @@ def list_sessions() -> dict[str, Any]:
         "sessions": names,
         "current_session": current_session,
         "history": _serialize_history(history),
+        "memory": _serialize_memory(current_session),
     }
 
 
@@ -515,6 +534,7 @@ def create_session(payload: SessionCreateRequest) -> dict[str, Any]:
         "sessions": names,
         "current_session": session_name,
         "history": _serialize_history(history),
+        "memory": _serialize_memory(session_name),
     }
 
 
@@ -526,6 +546,7 @@ def get_session(session_name: str) -> dict[str, Any]:
     return {
         "current_session": safe_name,
         "history": _serialize_history(history),
+        "memory": _serialize_memory(safe_name),
     }
 
 

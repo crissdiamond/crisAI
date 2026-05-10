@@ -43,7 +43,7 @@ def test_build_chat_input_returns_plain_input_without_history():
     assert chat_context.build_chat_input("hello", []) == "hello"
 
 
-def test_build_chat_input_wraps_last_twelve_entries(monkeypatch):
+def test_build_chat_input_wraps_compact_memory_and_relevant_tail(monkeypatch):
     captured = {}
 
     def fake_render_cli_text(template: str, **kwargs):
@@ -53,15 +53,36 @@ def test_build_chat_input_wraps_last_twelve_entries(monkeypatch):
 
     monkeypatch.setattr(chat_context, "render_cli_text", fake_render_cli_text)
 
-    history = [("user" if i % 2 == 0 else "assistant", f"message-{i}") for i in range(14)]
+    history = [
+        ("user", "Summarise the Integration Strategy deck."),
+        ("assistant", "Use `workspace/context/integration-strategy.md` as the source."),
+        ("user", "Now continue with Integration Strategy details."),
+        ("assistant", "Recommended approach should use compact session memory."),
+    ]
 
-    result = chat_context.build_chat_input("latest", history)
+    result = chat_context.build_chat_input("Integration Strategy latest summary", history)
 
     assert result == "wrapped"
     assert captured["template"] == "chat/history_wrapper.md"
-    assert captured["kwargs"]["user_input"] == "latest"
+    assert captured["kwargs"]["user_input"] == "Integration Strategy latest summary"
     transcript = captured["kwargs"]["transcript"]
-    entries = transcript.split("\n\n")
-    assert len(entries) == 12
-    assert entries[0] == "User: message-2"
-    assert entries[-1] == "Assistant: message-13"
+    assert "Compact session memory:" in transcript
+    assert "Known sources:" in transcript
+    assert "workspace/context/integration-strategy.md" in transcript
+    assert "Relevant recent turns:" in transcript
+    assert "User: Now continue with Integration Strategy details." in transcript
+
+
+def test_runtime_context_package_flags_task_drift():
+    history = [
+        ("user", "Work on the Integration Strategy document summary."),
+        ("assistant", "Current state: summary drafted from the source deck."),
+    ]
+
+    package = chat_context.build_runtime_context_package(
+        "Create a Kubernetes deployment plan for the payments API.",
+        history,
+    )
+
+    assert package.drift_nudge
+    assert package.included_recent_entries <= 4

@@ -11,8 +11,21 @@
 /clear
 /clear-session [name]
 /session <name>
+/session new <name>
+/session compact
+/context show
+/context reset
 /exit
 ```
+
+## Session memory
+
+- `/session <name>` switches to an existing task session or creates it on first save
+- `/session new <name>` starts a clean task session
+- `/session compact` rebuilds compact memory for the current session
+- `/context show` previews the compact runtime context
+- `/context reset` clears compact memory while keeping raw chat history
+- crisAI keeps full history for audit/UI, but sends compact task memory plus a small relevant recent tail to agents
 
 ## Routing controls
 

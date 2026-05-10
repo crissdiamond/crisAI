@@ -218,6 +218,7 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
         "servers.yaml",
         "models.yaml",
         "workflow_policy.yaml",
+        "session_memory.yaml",
         "semantic_catalog.yaml",
         "semantic_graph.yaml",
     )
@@ -274,6 +275,20 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
             errors.append(DoctorIssue(
                 message="workflow_policy.yaml must contain top-level workflow_policy mapping.",
                 hint="Add a top-level `workflow_policy:` mapping to `registry/workflow_policy.yaml`.",
+            ))
+    session_memory = registry_dir / "session_memory.yaml"
+    if session_memory.is_file():
+        data = yaml.safe_load(session_memory.read_text(encoding="utf-8")) or {}
+        block = data.get("session_memory")
+        if not isinstance(block, dict):
+            errors.append(DoctorIssue(
+                message="session_memory.yaml must contain top-level session_memory mapping.",
+                hint="Add a top-level `session_memory:` mapping to `registry/session_memory.yaml`.",
+            ))
+        elif str(block.get("strategy") or "deterministic") not in {"deterministic", "agentic"}:
+            errors.append(DoctorIssue(
+                message="session_memory.strategy must be deterministic or agentic.",
+                hint="Set `strategy: deterministic` or `strategy: agentic` in `registry/session_memory.yaml`.",
             ))
     return errors, warnings
 

@@ -1,0 +1,9 @@
+version: 1
+
+session_memory:
+  strategy: deterministic
+  agentic_agent_id: memory_summarizer
+  max_recent_turns: 2
+  max_runtime_chars: 6000
+  max_memory_chars: 3000
+  task_drift_nudge: true

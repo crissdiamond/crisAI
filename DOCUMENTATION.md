@@ -172,6 +172,10 @@ These are the best first commands because they show you:
 /clear-session
 /clear-session architecture
 /session architecture
+/session new architecture-v2
+/session compact
+/context show
+/context reset
 /exit
 ```
 
@@ -217,6 +221,27 @@ The same validator runs automatically as part of the **peer post-run verifier** 
 ```
 
 With **`/verbose off`** (the usual default for readable transcripts), pipeline and peer **stage output** is shown as **compact Markdown**: short headings, bullets, and recaps rather than dumping full raw model text. Machine handoffs such as evidence bundles, task contracts, and retrieval planning payloads are hidden from normal stage panels. Turn **`/verbose on`** when you need fuller readable stage bodies for debugging; raw machine contracts are still stripped from stage rendering and retained as structured metadata in `logs/agent_trace.jsonl`.
+
+### Session memory controls
+
+Each chat session stores raw history under `workspace/chat_sessions/` and a separate compact memory file beside it. Runtime prompts use the compact memory plus a small relevant recent tail instead of replaying the full session, which reduces repeated context and token waste during multi-step tasks.
+
+Use one session per task when possible:
+
+```text
+/session new integration-summary
+/context show
+/session compact
+/context reset
+```
+
+- `/session new <name>` starts a clean task session.
+- `/session <name>` switches to an existing session and loads its raw history.
+- `/session compact` rebuilds compact memory from the raw history.
+- `/context show` previews the compact memory and recent-turn budget that would be supplied to the next request.
+- `/context reset` clears compact memory while keeping raw history intact.
+
+Session memory behavior is configured in `registry/session_memory.yaml`. The default strategy is deterministic, with bounded memory and recent-turn budgets. `memory_summarizer` is registered as the dedicated summarization role for future agentic compaction, but normal runtime compaction currently uses the deterministic contract for predictable cost and offline tests.
 
 ### Agent controls
 
