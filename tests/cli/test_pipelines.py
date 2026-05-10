@@ -77,6 +77,41 @@ def test_resolve_agent_max_turns_respects_positive_env_value(monkeypatch):
     assert pipelines._resolve_agent_max_turns() == 42
 
 
+def test_validated_evidence_text_fails_closed_for_document_summary_without_bundle():
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="valid evidence bundle"):
+        pipelines._validated_evidence_text("Can you summarise this document?", "metadata only")
+
+
+def test_validated_evidence_text_fails_closed_without_content_read():
+    raw = """
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Can you summarise this document?",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Deck.pptx",
+        "open_url": "https://example.com/deck.pptx",
+        "read_handle": "sharepoint_doc:abc",
+        "metadata": {}
+      },
+      "evidence_level": "metadata_read",
+      "read_status": "metadata_read",
+      "read_tool": "get_sharepoint_document_metadata_by_handle",
+      "content_excerpt": "",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="content_read"):
+        pipelines._validated_evidence_text("Can you summarise this document?", raw)
+
+
 @pytest.mark.anyio
 async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []

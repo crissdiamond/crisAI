@@ -106,7 +106,9 @@ servers:
         - search_site_drive_documents
         - search_sharepoint_site_documents
         - get_sharepoint_document_metadata
+        - get_sharepoint_document_metadata_by_handle
         - read_sharepoint_document
+        - read_sharepoint_document_by_handle
     approval:
       required_for: []
       mode: none

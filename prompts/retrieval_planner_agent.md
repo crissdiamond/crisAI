@@ -37,6 +37,7 @@ Prepare a **retrieval handoff** for the Context Retrieval Agent. In pipeline or 
 - **Catalogue vs detail pages:** when the user is working from an intranet **inventory or hub** page, follow **`prompts/_shared/context-staging.md`** (§ Intranet catalogues and detail pages): list links, then fetch leaf pages before treating guidance as complete.
 - **Intranet pages vs SharePoint document libraries:** intranet MCP tools read configured intranet page sources (`registry/intranet.yaml`). Library file search is a **different corpus**—use it only when the user asks for documents/files in libraries or OneDrive, not as a substitute for intranet **page** asks.
 - **SharePoint vs OneDrive:** for **SharePoint** **file** / **library** retrieval (explicitly about documents, decks, attachments—not intranet pages), prefer **`search_sharepoint_site_documents`** (or `list_sites` then `search_site_drive_documents` per site). Do **not** satisfy SharePoint-only asks using only `list_my_drives` + `search_drive_documents`. For **personal OneDrive**, use `list_my_drives` / `search_drive_documents` on the correct drive.
+- **Document reads:** use `read_handle` with `read_sharepoint_document_by_handle` for SharePoint/OneDrive documents. Do not copy, infer, or edit raw `driveId` / `id` values. A document/deck/file summary requires a successful content read first.
 - **Broad intranet page discovery:** when listing “all pages like X” is important, **`intranet_list_pages`** is often stronger than **`intranet_search_pages`** alone because it matches tokens on title and URL slug without the search score cap; still follow up with **`intranet_fetch_page`** for substance.
 - **Results tables:** when listing **multiple files** (retrieval results, inventory, search hits), use one **GitHub-flavoured markdown table**: columns **File** | **Location** | **Note**; header + separator row (`|---|---|---|`). **File** cell: markdown link only—visible text = file name, URL only in `(...)`; never duplicate raw URL; never glue `&action=edit` on the name. Graph: `open_url` / `webUrl`. Workspace: `file_uri` from `search_workspace_text` or `workspace_file_link`. For **intranet pages** from **`intranet_search_pages`**, use columns **Page** | **Open** | **Note**; **Open** = markdown link with link text = page **title**, URL = `web_url` / `open_url`. For one–two items, compact bullets with the same link rules are fine.
 - **Tool failures:** include the exact tool name and the **raw** tool error in a fenced code block—no generic paraphrase.
@@ -53,6 +54,7 @@ Prepare a **retrieval handoff** for the Context Retrieval Agent. In pipeline or 
 **Avoid:** repeating the router recap; long prose restatement of the user goal when the routing line already captured it.
 
 **Direct retrieval runs** (runtime asks you to retrieve now): short lead sentence, then the markdown table of files as above; optional closing bullet for narrowing or next steps.
+Also include a fenced `json` `evidence_bundle_v1` block. Mark sources `content_read` only after successful content extraction; otherwise use `search_hit_only`, `metadata_read`, or `read_failed` with raw error text.
 
 ## Quality bar
 

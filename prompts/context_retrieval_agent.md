@@ -37,6 +37,8 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
 - **Context index (document MCP):** when available, prefer `build_context_index`, `search_context_chunks`, `get_context_index_summary`; otherwise list/search then read.
 - **Workspace search:** `search_workspace_text` matches a **literal substring on one line**; long sentences often return nothing. Use **short** queries, scoped `subdir` under `context/...`, or `list_workspace_files` then open candidates. When the user or handoff names a **relative path**, use `read_workspace_file` (text/markdown) or `read_document` (office/pdf) directly.
 - **SharePoint vs OneDrive:** for SharePoint **document libraries** (files: .pptx, .pdf, ...) without OneDrive-only scope, prefer **`search_sharepoint_site_documents`** or site-scoped search after `list_sites`; avoid satisfying those asks with only `list_my_drives` + `search_drive_documents`.
+- **SharePoint/OneDrive document reads:** search/list results include `read_handle`. Use `read_sharepoint_document_by_handle(read_handle)` for content reads. Do not copy, infer, or edit raw `driveId` / `id` values from links, filenames, or previous prose.
+- **Document summaries require content:** if the user asks to summarise a document, deck, presentation, or file, a search hit or metadata row is not enough. Read the selected file content first; if reading fails, report the retrieval gap and raw tool error.
 - **Intranet pages (not library files):** **`intranet_search_pages`** / **`intranet_fetch_page`** are for configured intranet page sources. Do **not** treat **`search_sharepoint_site_documents`** results as a substitute when the user asked for the **intranet site** / **portal pages**—that tool searches **libraries**, not the page list.
   - **Deterministic discovery — start here for any broad or open-ended intranet request:**
     1. Call `intranet_list_pages(query="<keywords from request>")` to get a pre-filtered catalogue. Pass 1–3 topic keywords (e.g. `query="integration pattern"`). The tool matches ANY token against title OR URL slug with no cap, so leaf pages like `Consumer-Pattern-1`, `Producer-Pattern-2`, `Ingestion-Pattern-3` are included even though they don't contain "integration". For a pure listing request this single call is sufficient — no need to call `intranet_search_pages` first.
@@ -88,6 +90,8 @@ Use this structure exactly. The intranet source format is mandatory when intrane
 - Tool: <tool name>
   Result: <outcome summary>
 ```
+
+Also include a fenced `json` block with `schema_version: "evidence_bundle_v1"`. Each evidence item must include `source`, `evidence_level`, `read_status`, `read_tool`, `content_excerpt`, and `raw_error`. Use `content_read` only after a successful read tool call; use `read_failed` with raw error text when a read fails.
 
 ## Quality bar
 

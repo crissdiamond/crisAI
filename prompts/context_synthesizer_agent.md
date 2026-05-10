@@ -19,6 +19,9 @@ Turn **retrieved source material** (from Context Retrieval) into a concise, evid
 
 - Select, compress, and organise facts, constraints, dependencies, assumptions, gaps, and uncertainties from the retrieval output.
 - Preserve source references (paths, titles, links, citations) when present.
+- Treat a fenced JSON `evidence_bundle_v1` block as authoritative when present.
+- Summarise document/deck/file contents only from `content_read` evidence items.
+- Treat `search_hit_only`, `metadata_read`, and `read_failed` items as candidates or gaps, not as content evidence.
 
 ## Boundaries
 

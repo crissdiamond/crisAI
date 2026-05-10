@@ -190,7 +190,7 @@ crisAI can retrieve from:
 - Approved local architecture context under `workspace/context/`.
 - Local user files and generated outputs under `workspace/`.
 - Supported local documents such as `.md`, `.txt`, `.csv`, `.docx`, `.pdf`, `.pptx`, and `.xlsx`.
-- SharePoint / OneDrive documents through delegated Microsoft Graph.
+- SharePoint / OneDrive documents through delegated Microsoft Graph, with opaque read handles and validated evidence handoffs to prevent ID transcription errors.
 - Published intranet pages through the scoped intranet MCP. The default provider is SharePoint Site Pages; custom providers can adapt wiki-style intranets.
 
 SharePoint documents and SharePoint-backed intranet pages use separate MCP servers and separate token caches. Full Graph setup, auth behavior, and prompting guidance are in [DOCUMENTATION.md](DOCUMENTATION.md).

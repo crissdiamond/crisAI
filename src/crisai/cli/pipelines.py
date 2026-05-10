@@ -17,6 +17,11 @@ from agents import Runner
 
 from crisai.agents.factory import AgentFactory
 from crisai.logging_utils import get_logger
+from crisai.orchestration.evidence_contract import (
+    parse_evidence_bundle,
+    render_evidence_bundle_block,
+    request_requires_content_read,
+)
 from crisai.orchestration.peer_contract import (
     infer_peer_run_contract,
     render_peer_run_contract,
@@ -112,6 +117,31 @@ def _trace_workflow_policy_event(
     tracer = getattr(workflow, "trace_event", None)
     if callable(tracer):
         tracer(stage, content, event_type=event_type, metadata=metadata)
+
+
+def _validated_evidence_text(message: str, retrieval_text: str) -> str:
+    """Return canonical evidence JSON when a retrieval response includes it.
+
+    For document-summary/source-read requests, the bundle is mandatory and must
+    contain at least one content_read item. For other requests, older markdown
+    retrieval output remains compatible.
+    """
+    must_read = request_requires_content_read(message)
+    try:
+        bundle = parse_evidence_bundle(retrieval_text)
+    except ValueError as exc:
+        if must_read:
+            raise WorkflowPolicyViolation(
+                "Policy gate failed: this request requires content-read evidence, "
+                f"but context retrieval did not return a valid evidence bundle. {exc}"
+            ) from exc
+        return retrieval_text
+    if must_read and not bundle.has_content_read():
+        raise WorkflowPolicyViolation(
+            "Policy gate failed: this request requires content-read evidence, "
+            "but no source in the evidence bundle has evidence_level='content_read'."
+        )
+    return retrieval_text + "\n\n## Validated Evidence Bundle\n" + render_evidence_bundle_block(bundle)
 
 
 def _append_trace_entry_compat(
@@ -431,7 +461,17 @@ async def run_pipeline(
             verbose=verbose,
         )
         try:
-            enforce_intranet_fetch_policy(policy, context_retrieval_text)
+            validated_context_retrieval_text = _validated_evidence_text(intent_message, context_retrieval_text)
+        except WorkflowPolicyViolation as exc:
+            _trace_workflow_policy_event(
+                workflow,
+                "POLICY_VIOLATION",
+                str(exc),
+                event_type="policy_violation",
+            )
+            raise typer.BadParameter(str(exc)) from exc
+        try:
+            enforce_intranet_fetch_policy(policy, validated_context_retrieval_text)
         except WorkflowPolicyViolation as exc:
             _trace_workflow_policy_event(
                 workflow,
@@ -444,7 +484,7 @@ async def run_pipeline(
         context_text = await workflow.run_stage(
             spec=specs["context_synthesizer"],
             ui_agent_id="context_synthesizer",
-            prompt=build_context_synthesizer_prompt(message, context_retrieval_text),
+            prompt=build_context_synthesizer_prompt(message, validated_context_retrieval_text),
             trace_label="CONTEXT OUTPUT",
             verbose=verbose,
         )
@@ -633,6 +673,16 @@ async def run_peer_pipeline(
                     trace_label="CONTEXT RETRIEVAL OUTPUT",
                     verbose=verbose,
                 )
+                try:
+                    context_retrieval_text = _validated_evidence_text(intent_message, context_retrieval_text)
+                except WorkflowPolicyViolation as exc:
+                    _trace_workflow_policy_event(
+                        workflow,
+                        "POLICY_VIOLATION",
+                        str(exc),
+                        event_type="policy_violation",
+                    )
+                    raise typer.BadParameter(str(exc)) from exc
                 try:
                     enforce_intranet_fetch_policy(policy, context_retrieval_text)
                 except WorkflowPolicyViolation as exc:

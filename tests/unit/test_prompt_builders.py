@@ -41,6 +41,8 @@ def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     assert "search_workspace_text" in text
     assert "one line" in text.lower() or "single line" in text.lower()
     assert "Deterministic retrieval context" in text
+    assert "EvidenceBundle" in text
+    assert "read_handle" in text
 
 
 def test_build_context_retrieval_prompt_enforces_intranet_tools_for_intranet_scope():
@@ -58,6 +60,8 @@ def test_build_single_retrieval_planner_prompt_requires_verbatim_tool_errors():
 
     assert "report the exact failing tool name" in text
     assert "raw error text verbatim in a fenced code block" in text
+    assert "evidence_bundle_v1" in text
+    assert "read_sharepoint_document_by_handle" in text
 
 
 def test_build_design_prompt_normalises_empty_discovery():

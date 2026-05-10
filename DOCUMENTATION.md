@@ -490,6 +490,18 @@ crisAI supports delegated Microsoft Graph access for:
 - personal OneDrive
 - drives, items, and documents
 
+For SharePoint/OneDrive documents, search and list tools return an opaque
+`read_handle` alongside legacy `driveId` / `id` fields. Agents should pass that
+handle to `read_sharepoint_document_by_handle` or
+`get_sharepoint_document_metadata_by_handle`; they should not infer identifiers
+from browser URLs or copy raw IDs between stages.
+
+Retrieval stages also emit a fenced JSON `evidence_bundle_v1` block. Downstream
+agents treat this as the canonical evidence handoff. A document/deck/file
+summary requires at least one item with `evidence_level: "content_read"`; search
+hits, metadata rows, and failed reads are treated as candidates or gaps, not as
+source content.
+
 ### Intranet content pages (scoped MCP server)
 
 For **published intranet pages**, use the separate **`intranet`** MCP server — not a generic web browser. The default provider reads modern SharePoint site pages, but the MCP contract is provider-neutral so an organisation can replace it with a wiki or custom intranet adapter.

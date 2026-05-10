@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import csv
 import io
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -32,6 +34,32 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".json", ".yaml", ".yml", ".py", ".log", ".csv"}
 SUPPORTED_DOC_SUFFIXES = {".docx", ".pdf", ".pptx", ".xlsx"}
+_READ_HANDLE_PREFIX = "sharepoint_doc:"
+
+
+def _encode_read_handle(drive_id: str, item_id: str) -> str:
+    """Encode a SharePoint drive/item pair as an opaque read handle."""
+    payload = {"drive_id": drive_id, "item_id": item_id}
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    token = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+    return f"{_READ_HANDLE_PREFIX}{token}"
+
+
+def _decode_read_handle(read_handle: str) -> tuple[str, str]:
+    """Decode a SharePoint document read handle."""
+    if not read_handle.startswith(_READ_HANDLE_PREFIX):
+        raise ValueError("read_handle must start with 'sharepoint_doc:'.")
+    token = read_handle[len(_READ_HANDLE_PREFIX) :]
+    try:
+        padded = token + ("=" * (-len(token) % 4))
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("Malformed SharePoint read_handle.") from exc
+    drive_id = str(payload.get("drive_id") or "")
+    item_id = str(payload.get("item_id") or "")
+    if not drive_id or not item_id:
+        raise ValueError("SharePoint read_handle is missing drive_id or item_id.")
+    return drive_id, item_id
 
 
 def _configure_mcp_logging() -> None:
@@ -185,6 +213,9 @@ def _normalise_item(item: dict[str, Any]) -> dict[str, Any]:
     folder_info = item.get("folder", {}) or {}
 
     web_url = item.get("webUrl")
+    item_id = str(item.get("id") or "")
+    drive_id = str(parent.get("driveId") or "")
+    read_handle = _encode_read_handle(drive_id, item_id) if drive_id and item_id else ""
     return {
         "id": item.get("id"),
         "name": item.get("name"),
@@ -198,6 +229,7 @@ def _normalise_item(item: dict[str, Any]) -> dict[str, Any]:
         "isFolder": bool(folder_info),
         "parentPath": parent.get("path"),
         "driveId": parent.get("driveId"),
+        "read_handle": read_handle,
     }
 
 @mcp.tool()
@@ -412,6 +444,14 @@ def get_sharepoint_document_metadata(drive_id: str, item_id: str) -> dict[str, A
 
 
 @mcp.tool()
+def get_sharepoint_document_metadata_by_handle(read_handle: str) -> dict[str, Any]:
+    """Return metadata for a SharePoint drive item using an opaque read handle."""
+    log_event("get_sharepoint_document_metadata_by_handle")
+    drive_id, item_id = _decode_read_handle(read_handle)
+    return get_sharepoint_document_metadata(drive_id=drive_id, item_id=item_id)
+
+
+@mcp.tool()
 def read_sharepoint_document(drive_id: str, item_id: str) -> str:
     """Download and extract text from a supported SharePoint document."""
     log_event(f"read_sharepoint_document drive_id={drive_id} item_id={item_id}")
@@ -428,6 +468,14 @@ def read_sharepoint_document(drive_id: str, item_id: str) -> str:
 
     extracted = _extract_bytes_by_suffix(data, suffix)
     return extracted if extracted.strip() else f"[No readable text extracted from {name}]"
+
+
+@mcp.tool()
+def read_sharepoint_document_by_handle(read_handle: str) -> str:
+    """Download and extract text from a supported SharePoint document read handle."""
+    log_event("read_sharepoint_document_by_handle")
+    drive_id, item_id = _decode_read_handle(read_handle)
+    return read_sharepoint_document(drive_id=drive_id, item_id=item_id)
 
 
 _configure_mcp_logging()

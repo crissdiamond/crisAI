@@ -187,6 +187,10 @@ def build_single_retrieval_planner_prompt(
             "- **SharePoint vs OneDrive:** if the user asks for SharePoint (not personal OneDrive only), "
             "prefer `search_sharepoint_site_documents` or `list_sites` + `search_site_drive_documents`; "
             "do not use only `list_my_drives` + `search_drive_documents` for that case.\n"
+            "- For SharePoint/OneDrive search results, use the returned `read_handle` with "
+            "`read_sharepoint_document_by_handle`; do not copy, infer, or edit raw `driveId` / `id` values.\n"
+            "- If the user asks to summarise a document/deck/file, you MUST read its content first. "
+            "Metadata and search hits are not enough to summarise contents.\n"
             "- Authenticate when required (for example interactive Microsoft Entra login when cached tokens are missing or expired).\n"
             "- If any retrieval/auth tool fails, report the exact failing tool name and include the raw error text verbatim in a fenced code block.\n"
             "- Do not replace tool errors with generic wording like 'unable to access' or 'login failed' when a concrete tool error is available.\n"
@@ -200,6 +204,10 @@ def build_single_retrieval_planner_prompt(
             "  - **Location:** site or library name, drive, or folder (plain text).\n"
             "  - **Note:** one short relevance line (for example matched query); do not repeat the full file name.\n"
             "- For one or two files, a short bullet with the same link rules is acceptable.",
+            "Evidence bundle contract:\n"
+            "- Return a fenced `json` block with `schema_version: \"evidence_bundle_v1\"`, `request`, `items`, and `gaps`.\n"
+            "- Each item must include `source`, `evidence_level`, `read_status`, `read_tool`, `content_excerpt`, and `raw_error`.\n"
+            "- Use `evidence_level: \"content_read\"` only after a successful content read. Use `read_failed` with raw tool error text when reading fails.",
         ]
     )
     return "\n\n".join(blocks)
@@ -260,6 +268,9 @@ def build_context_retrieval_prompt(
             "and never append `&action=edit` or other query text to the file name. "
             "Graph: use `open_url`/`webUrl`; workspace: use `file_uri` from `search_workspace_text` or `workspace_file_link`. "
             "For SharePoint (not OneDrive-only) use `search_sharepoint_site_documents` or site-scoped search after `list_sites`. "
+            "For SharePoint/OneDrive documents, use the returned `read_handle` with `read_sharepoint_document_by_handle`; do not copy, infer, or alter raw `driveId` / `id` values. "
+            "When the user asks for a summary of a document/deck/file, read the content first and mark the item `content_read`; if the read fails, mark it `read_failed` and include the raw error. "
+            "Return a fenced `json` EvidenceBundle with `schema_version: \"evidence_bundle_v1\"` plus a short markdown rendering for humans. "
             "Do not draft, recommend, or optimise the final design response.",
         ]
     )
@@ -582,6 +593,9 @@ Create a context brief that helps the design agent draft a solution design using
 ## Rules
 
 - Use only facts supported by the context retrieval output.
+- Treat a fenced JSON `evidence_bundle_v1` block as authoritative when present.
+- Summarise document/deck/file contents only from items with `evidence_level: "content_read"`.
+- Treat `search_hit_only`, `metadata_read`, and `read_failed` items as candidates or gaps, not as source content.
 - Preserve file names, paths, document titles, sections, links, citations, or other source references when they are available.
 - Separate confirmed facts from assumptions and uncertainties.
 - Remove irrelevant findings, duplication, and low-value noise.
