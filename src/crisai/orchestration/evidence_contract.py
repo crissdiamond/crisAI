@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from .task_contract import infer_task_contract
+
 ALLOWED_EVIDENCE_LEVELS = {
     "search_hit_only",
     "metadata_read",
@@ -212,12 +214,8 @@ def _infer_source_type(read_tool: str) -> str:
 
 def request_requires_content_read(message: str) -> bool:
     """Return True for requests where metadata-only evidence is insufficient."""
-    text = (message or "").lower()
-    summary_markers = ("summarise", "summarize", "summary", "what does", "what is in")
-    source_markers = ("document", "deck", "presentation", "file", "source", "read", "open")
-    if any(marker in text for marker in summary_markers) and any(marker in text for marker in source_markers):
-        return True
-    return "summarise the" in text or "summarize the" in text
+    contract = infer_task_contract(message)
+    return contract.required_evidence_level == "content_read"
 
 
 def render_evidence_bundle_block(bundle: EvidenceBundle) -> str:

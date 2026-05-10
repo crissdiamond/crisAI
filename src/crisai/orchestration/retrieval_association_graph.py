@@ -1,7 +1,7 @@
-"""Deterministic retrieval hint expansion from a YAML association graph.
+"""Deterministic semantic expansion from the registry graph.
 
-The graph is intentionally small and registry-driven so behaviour evolves by
-editing data, not by ballooning ``prompts/retrieval_planner_agent.md``.
+The graph is registry-driven so behaviour evolves by editing data, not by
+adding intent, source, or deliverable terms to Python code or prompts.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-_DEFAULT_GRAPH_NAME = "retrieval_association_graph.yaml"
+_DEFAULT_GRAPH_NAME = "semantic_graph.yaml"
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,7 @@ class RetrievalAssociationGraph:
     """Adjacency list over topic vertices, each carrying hint terms."""
 
     vertex_terms: dict[str, frozenset[str]]
+    vertex_emits: dict[str, dict[str, object]]
     neighbors: dict[str, frozenset[str]]
     max_hops: int
 
@@ -40,20 +41,6 @@ class DeterministicRetrievalContext:
     @property
     def is_active(self) -> bool:
         return bool(self.activated_topic_ids or self.suggested_terms)
-
-
-def _infer_suggested_sources(seeds: frozenset[str], terms: frozenset[str]) -> frozenset[str]:
-    joined = " ".join(sorted(seeds | terms)).lower()
-    sources: set[str] = set()
-    if any(token in joined for token in ("intranet", "site pages", "sitepages")):
-        sources.add("intranet")
-    if any(token in joined for token in ("sharepoint", "site drive", "list_sites")):
-        sources.add("sharepoint_docs")
-    if any(token in joined for token in ("workspace", "context/", "context_staging")):
-        sources.add("workspace")
-    if not sources:
-        return frozenset({"generic_retrieval"})
-    return frozenset(sorted(sources))
 
 
 def _word_boundary_match(text: str, term: str) -> bool:
@@ -102,8 +89,57 @@ def _collect_terms_bfs(graph: RetrievalAssociationGraph, seeds: frozenset[str]) 
     return frozenset(collected)
 
 
+def _collect_reachable_vertices(graph: RetrievalAssociationGraph, seeds: frozenset[str]) -> frozenset[str]:
+    """Collect vertex ids reachable within ``max_hops`` edges from any seed."""
+    if not seeds:
+        return frozenset()
+    collected: set[str] = set()
+    queue: deque[tuple[str, int]] = deque()
+    best_depth: dict[str, int] = {}
+    for sid in sorted(seeds):
+        queue.append((sid, 0))
+        best_depth[sid] = 0
+    while queue:
+        vid, depth = queue.popleft()
+        collected.add(vid)
+        if depth >= graph.max_hops:
+            continue
+        for nb in sorted(graph.neighbors.get(vid, frozenset())):
+            next_depth = depth + 1
+            if next_depth < best_depth.get(nb, 10**9):
+                best_depth[nb] = next_depth
+                queue.append((nb, next_depth))
+    return frozenset(collected)
+
+
+def collect_graph_emits(graph: RetrievalAssociationGraph | None, vertex_ids: frozenset[str]) -> dict[str, object]:
+    """Merge ``emits`` metadata from graph vertices.
+
+    Scalar values use first-wins ordering by sorted vertex id. List values are
+    concatenated with de-duplication. This keeps semantic facts in YAML while
+    keeping Python responsible only for deterministic merge mechanics.
+    """
+    if graph is None:
+        return {}
+    merged: dict[str, object] = {}
+    for vid in sorted(vertex_ids):
+        emits = graph.vertex_emits.get(vid, {})
+        for key, value in emits.items():
+            if isinstance(value, list):
+                existing = merged.get(key)
+                items = [str(item) for item in value if str(item).strip()]
+                if isinstance(existing, list):
+                    seen = set(existing)
+                    existing.extend(item for item in items if item not in seen)
+                elif items:
+                    merged[key] = items
+            elif key not in merged and value not in (None, ""):
+                merged[key] = value
+    return merged
+
+
 def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociationGraph | None:
-    """Load ``retrieval_association_graph.yaml`` from the registry directory.
+    """Load ``semantic_graph.yaml`` from the registry directory.
 
     Returns:
         Parsed graph, or ``None`` when the file is missing or invalid.
@@ -127,6 +163,7 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
     max_hops = max(0, min(max_hops, 4))
 
     vertex_terms: dict[str, frozenset[str]] = {}
+    vertex_emits: dict[str, dict[str, object]] = {}
     vertices = raw.get("vertices") or []
     if not isinstance(vertices, list):
         return None
@@ -144,6 +181,8 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
         terms = frozenset(str(t).strip().lower() for t in terms_raw if str(t).strip())
         if terms:
             vertex_terms[vid] = terms
+            emits = block.get("emits") or {}
+            vertex_emits[vid] = dict(emits) if isinstance(emits, dict) else {}
 
     neighbors: dict[str, set[str]] = {vid: set() for vid in vertex_terms}
     edges = raw.get("edges") or []
@@ -163,6 +202,7 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
         return None
     return RetrievalAssociationGraph(
         vertex_terms=vertex_terms,
+        vertex_emits=vertex_emits,
         neighbors={k: frozenset(v) for k, v in neighbors.items()},
         max_hops=max_hops,
     )
@@ -194,11 +234,19 @@ def build_deterministic_retrieval_context(
 ) -> DeterministicRetrievalContext:
     """Return structured deterministic retrieval context from message + graph."""
     seeds, terms = expand_retrieval_hints(message, graph)
+    reachable = _collect_reachable_vertices(graph, seeds) if graph is not None else frozenset()
+    graph_emits = collect_graph_emits(graph, reachable)
+    sources = graph_emits.get("suggested_sources")
+    suggested_sources = (
+        frozenset(str(item) for item in sources if str(item).strip())
+        if isinstance(sources, list) and sources
+        else frozenset({"generic_retrieval"})
+    )
     return DeterministicRetrievalContext(
         schema_version="deterministic_context_v1",
         activated_topic_ids=seeds,
         suggested_terms=terms,
-        suggested_sources=_infer_suggested_sources(seeds, terms),
+        suggested_sources=suggested_sources,
         graph_loaded=graph_loaded,
         graph_version=graph_version,
     )
@@ -219,8 +267,8 @@ def format_retrieval_expansion_block(
     lines = [
         "## Deterministic retrieval expansion (registry graph)",
         "",
-        "The following hints were **pre-computed** from `registry/retrieval_association_graph.yaml` "
-        "(topic association graph). Use them only when they **match the user request**; "
+        "The following hints were **pre-computed** from `registry/semantic_graph.yaml` "
+        "(semantic association graph). Use them only when they **match the user request**; "
         "they are not a substitute for reading sources.",
         "",
         f"- **Activated topic ids:** {', '.join(sorted(ctx.activated_topic_ids)) or '(none)'}",

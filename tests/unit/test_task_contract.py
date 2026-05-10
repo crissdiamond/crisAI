@@ -1,8 +1,12 @@
+from pathlib import Path
+
 from crisai.orchestration.task_contract import infer_task_contract
+
+REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
 
 
 def test_infer_summary_contract_for_latest_deck_request() -> None:
-    contract = infer_task_contract("Summarise the latest Integration Strategy deck.")
+    contract = infer_task_contract("Summarise the latest Integration Strategy deck.", registry_dir=REGISTRY_DIR)
 
     assert contract.primary_intent == "summarize_source"
     assert contract.deliverable_type == "deck_summary"
@@ -11,14 +15,14 @@ def test_infer_summary_contract_for_latest_deck_request() -> None:
 
 
 def test_infer_summary_contract_for_italian_document_request() -> None:
-    contract = infer_task_contract("Riassumi questo documento.")
+    contract = infer_task_contract("Riassumi questo documento.", registry_dir=REGISTRY_DIR)
 
     assert contract.primary_intent == "summarize_source"
     assert contract.deliverable_type == "document_summary"
 
 
 def test_infer_general_contract_for_find_only_request() -> None:
-    contract = infer_task_contract("Find all Integration Strategy documents.")
+    contract = infer_task_contract("Find all Integration Strategy documents.", registry_dir=REGISTRY_DIR)
 
     assert contract.primary_intent == "respond"
     assert contract.deliverable_type == "general_answer"

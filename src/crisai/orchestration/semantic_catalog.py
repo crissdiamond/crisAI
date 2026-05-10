@@ -1,7 +1,8 @@
-"""Semantic catalogue: one YAML pool for router, peer verifier, and peer contract.
+"""Legacy semantic catalogue for router, peer verifier, and peer contract.
 
-All term lists and verifier regex strings live in ``registry/semantic_catalog.yaml``.
-This module only loads, validates shape, and exposes typed views (`SemanticCatalog`).
+New task-intent and retrieval-expansion semantics live in
+``registry/semantic_graph.yaml``. This module keeps the older catalogue shape
+for router and peer subsystems that have not moved to graph-emitted facts yet.
 """
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ from crisai.config import load_settings
 @dataclass(frozen=True)
 class RouterTerms:
     discovery_terms: frozenset[str]
-    summary_terms: frozenset[str]
     design_terms: frozenset[str]
     review_terms: frozenset[str]
     operations_terms: frozenset[str]
@@ -156,7 +156,6 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     return SemanticCatalog(
         router=RouterTerms(
             discovery_terms=_as_frozenset(router_block.get("discovery_terms")),
-            summary_terms=_as_frozenset(router_block.get("summary_terms")),
             design_terms=_as_frozenset(router_block.get("design_terms")),
             review_terms=_as_frozenset(router_block.get("review_terms")),
             operations_terms=_as_frozenset(router_block.get("operations_terms")),

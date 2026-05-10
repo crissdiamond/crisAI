@@ -44,7 +44,7 @@ def test_build_retrieval_planner_prompt_includes_association_graph_hints():
         "Fetch consumer pattern pages from the intranet site pages corpus.",
     )
     assert "Deterministic retrieval expansion" in text
-    assert "retrieval_association_graph.yaml" in text
+    assert "semantic_graph.yaml" in text
     assert "consumer pattern" in text.lower() or "intranet_list_page_links" in text
 
 

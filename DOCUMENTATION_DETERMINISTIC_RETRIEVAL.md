@@ -1,9 +1,9 @@
-# Deterministic Retrieval, Graph Dictionary, and Advisory MCP
+# Deterministic Retrieval, Semantic Graph, and Advisory MCP
 
 This document defines the deterministic retrieval architecture used by crisAI, including:
 
 - canonical deterministic context across `single`, `pipeline`, and `peer` modes
-- graph dictionary lifecycle (`registry/retrieval_association_graph.yaml`)
+- semantic graph lifecycle (`registry/semantic_graph.yaml`)
 - advisory read-only MCP lookup (`expand_associations`)
 - precedence, fail-open behavior, and observability
 
@@ -16,7 +16,7 @@ Deterministic retrieval exists to reduce prompt fragility and make source discov
 The runtime computes a canonical context once per run from:
 
 - user intent text
-- retrieval association graph
+- semantic graph
 - bounded graph expansion settings (`max_hops`, `max_terms`)
 
 That canonical context is then reused by workflow stages.
@@ -70,17 +70,22 @@ flowchart TD
 
 ---
 
-## 4. Graph Dictionary
+## 4. Semantic Graph
 
 Source file:
 
-- `registry/retrieval_association_graph.yaml`
+- `registry/semantic_graph.yaml`
 
 Structure:
 
 - `settings.max_hops`
-- `vertices` (`id`, `terms`)
+- `vertices` (`id`, `terms`, optional `emits`)
 - `edges`
+
+`emits` metadata is used for deterministic semantic facts such as task intent,
+deliverable type, source resolution, required evidence level, and suggested
+source families. Python code should merge emitted facts generically rather than
+hard-coding language synonyms or deliverable markers.
 
 Matching and expansion:
 
@@ -162,7 +167,7 @@ Recommended event label:
 - `src/crisai/cli/pipelines.py`
 - `src/crisai/cli/workflow_policy.py`
 - `src/crisai/servers/workspace_server.py`
-- `registry/retrieval_association_graph.yaml`
+- `registry/semantic_graph.yaml`
 - `registry/servers.yaml`
 
 ---

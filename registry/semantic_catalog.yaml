@@ -1,6 +1,7 @@
-# crisAI semantic pool — single source for router terms, peer-verifier patterns,
-# and peer-contract substring markers. Tuned during testing by editing lists here
-# (restart CLI / processes to reload). Code loads this file only; see semantic_catalog.py.
+# crisAI legacy semantic catalogue for router terms, peer-verifier patterns,
+# and peer-contract substring markers. Task-intent, deliverable, source-family,
+# and retrieval-expansion semantics live in registry/semantic_graph.yaml.
+# Restart CLI / processes after edits.
 
 version: 1
 
@@ -42,24 +43,6 @@ router:
     - pagine
     - pagina
 
-  summary_terms:
-    - summarise
-    - summarize
-    - summary
-    - recap
-    - overview
-    - brief me
-    - extract key points
-    - key points
-    - tell me what this says
-    - what does
-    - what is in
-    - riassumi
-    - sintesi
-    - riassunto
-    - punti principali
-    - cosa dice
-
   design_terms:
     - design
     - draft
@@ -83,8 +66,6 @@ router:
     - raccomandazione
     - modello operativo
     - soluzione
-    - sintesi
-    - riassumi
     - piano
 
   review_terms:
@@ -271,12 +252,6 @@ router:
     - documenti
     - files
     - file
-    - deck
-    - presentation
-    - powerpoint
-    - ppt
-    - pptx
-    - slides
     - sources
     - fonti
     - sorgenti

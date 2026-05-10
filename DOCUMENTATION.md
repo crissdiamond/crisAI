@@ -571,9 +571,9 @@ A YAML file of equivalent-term groups loaded once at provider start-up. When any
 
 The file is maintained independently of code — add a group when a query consistently misses relevant pages. Restart the CLI to pick up changes. The default path is `registry/search_synonyms.yaml`; override with `search_synonyms_file:` in `intranet.yaml`.
 
-**Retrieval association graph (`registry/retrieval_association_graph.yaml`):**
+**Semantic graph (`registry/semantic_graph.yaml`):**
 
-Deterministic retrieval uses a registry graph dictionary to expand topic hints and build one canonical `DeterministicRetrievalContext` per run across `single`, `pipeline`, and `peer` modes. An optional read-only advisory MCP lookup (`expand_associations`, controlled by `CRISAI_DETERMINISTIC_MCP_ADVISORY`) can be used during peer analysis, but canonical context remains authoritative and advisory failures are fail-open.
+Deterministic retrieval uses the registry semantic graph to expand topic hints and build one canonical `DeterministicRetrievalContext` per run across `single`, `pipeline`, and `peer` modes. The same graph also emits task-contract facts such as summary intent, deliverable type, source resolution, and source-family hints. An optional read-only advisory MCP lookup (`expand_associations`, controlled by `CRISAI_DETERMINISTIC_MCP_ADVISORY`) can be used during peer analysis, but canonical context remains authoritative and advisory failures are fail-open.
 
 For architecture diagrams, dictionary conventions, precedence rules, and implementation details, see **`DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md`**.
 

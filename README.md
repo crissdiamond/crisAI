@@ -184,8 +184,8 @@ The registry is the main control plane:
 - `registry/models.yaml`: provider-specific model names and API key env vars.
 - `registry/servers.yaml`: MCP server definitions and allowed tools.
 - `registry/workflow_policy.yaml`: runtime hard gates.
-- `registry/semantic_catalog.yaml`: router, summary intent, verifier, and peer-contract terms.
-- `registry/retrieval_association_graph.yaml`: deterministic retrieval topic expansion.
+- `registry/semantic_catalog.yaml`: legacy router, verifier, and peer-contract terms.
+- `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
 
 Run `crisai doctor` after registry edits.
 

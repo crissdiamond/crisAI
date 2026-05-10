@@ -402,7 +402,10 @@ async def run_pipeline(
             intent_message,
             Path(registry_dir),
         )
-    task_contract = infer_task_contract(intent_message)
+    task_contract = infer_task_contract(
+        intent_message,
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+    )
     policy = infer_workflow_policy(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,

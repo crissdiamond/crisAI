@@ -260,7 +260,7 @@ def build_context_retrieval_prompt(
             "Task:\nRetrieve the most relevant material for this request from available context sources. "
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "
-            "When a **Deterministic retrieval expansion** block appears above, treat it as optional query hints from `registry/retrieval_association_graph.yaml`; still validate fit to the user request. "
+            "When a **Deterministic retrieval expansion** block appears above, treat it as optional query hints from `registry/semantic_graph.yaml`; still validate fit to the user request. "
             "Workspace semantics:\n"
             "- ``search_workspace_text`` matches a **literal substring on one line**; long sentences often return nothing. "
             "Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``context`` / ``context/patterns`` etc., "

@@ -132,7 +132,7 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[str], list[str]]:
         "models.yaml",
         "workflow_policy.yaml",
         "semantic_catalog.yaml",
-        "retrieval_association_graph.yaml",
+        "semantic_graph.yaml",
     )
     for filename in required_files:
         path = registry_dir / filename
@@ -151,7 +151,7 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[str], list[str]]:
         errors.append(f"semantic_catalog.yaml is invalid: {exc}")
 
     if load_retrieval_association_graph(registry_dir) is None:
-        errors.append("retrieval_association_graph.yaml is missing or invalid.")
+        errors.append("semantic_graph.yaml is missing or invalid.")
 
     workflow_policy = registry_dir / "workflow_policy.yaml"
     if workflow_policy.is_file():

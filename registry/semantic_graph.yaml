@@ -17,6 +17,102 @@ settings:
   max_hops: 2
 
 vertices:
+  # --- Main-ask semantics (task contract) ---
+  - id: intent.summary
+    terms:
+      - summarise
+      - summarize
+      - summary
+      - recap
+      - overview
+      - brief me
+      - extract key points
+      - key points
+      - tell me what this says
+      - what does
+      - what is in
+      - riassumi
+      - sintesi
+      - riassunto
+      - punti principali
+      - cosa dice
+    emits:
+      primary_intent: summarize_source
+      deliverable_type: text_summary
+      required_evidence_level: content_read
+      success_criteria:
+        - Produce the requested summary as the main answer.
+        - Use only content that was actually read or directly supplied.
+        - Keep source-selection rationale secondary when source resolution was required.
+      anti_goals:
+        - Do not make candidate ranking the main answer.
+        - Do not add unsupported caveats about unread content.
+  - id: deliverable.deck_summary
+    terms:
+      - deck
+      - presentation
+      - powerpoint
+      - ppt
+      - pptx
+      - slides
+      - slide
+      - presentazione
+    emits:
+      deliverable_type: deck_summary
+  - id: deliverable.document_summary
+    terms:
+      - document
+      - documents
+      - doc
+      - docx
+      - file
+      - source
+      - page
+      - documento
+      - documenti
+      - pagina
+    emits:
+      deliverable_type: document_summary
+  - id: deliverable.executive_summary
+    terms:
+      - executive
+      - leadership
+      - executive summary
+      - sintesi executive
+    emits:
+      deliverable_type: executive_summary
+  - id: source_resolution.latest_matching_source
+    terms:
+      - latest
+      - most recent
+      - newest
+      - current
+      - master
+      - best candidate
+      - likely master
+      - ultimo
+      - piu recente
+      - più recente
+      - corrente
+    emits:
+      source_resolution: latest_matching_source
+  - id: source_resolution.matching_source
+    terms:
+      - document
+      - documents
+      - deck
+      - presentation
+      - powerpoint
+      - pptx
+      - file
+      - source
+      - page
+      - documento
+      - documenti
+      - presentazione
+    emits:
+      source_resolution: matching_source
+
   # --- Existing operational / intranet bridge (keep stable) ---
   - id: intranet_site_pages
     terms:
@@ -25,11 +121,19 @@ vertices:
       - sitepages
       - intranet_fetch_page
       - intranet_search_pages
+    emits:
+      suggested_sources:
+        - intranet
   - id: document_library_boundary
     terms:
       - document library
       - search_sharepoint_site_documents
       - sharepoint documents
+      - sharepoint
+      - onedrive
+    emits:
+      suggested_sources:
+        - sharepoint_docs
   - id: integration_patterns_area
     terms:
       - integration pattern

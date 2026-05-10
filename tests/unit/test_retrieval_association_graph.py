@@ -1,4 +1,4 @@
-"""Tests for registry retrieval association graph expansion."""
+"""Tests for registry semantic graph expansion."""
 
 from pathlib import Path
 
@@ -6,6 +6,7 @@ import pytest
 
 from crisai.orchestration.retrieval_association_graph import (
     build_deterministic_retrieval_context,
+    collect_graph_emits,
     deterministic_context_from_registry,
     deterministic_context_trace_metadata,
     expand_retrieval_hints,
@@ -68,6 +69,17 @@ def test_build_deterministic_retrieval_context_infers_sources(registry_dir: Path
     context = build_deterministic_retrieval_context("Use intranet site pages for integration principles", graph)
     assert "intranet" in context.suggested_sources
     assert context.is_active is True
+
+
+def test_graph_emits_task_contract_facts(registry_dir: Path):
+    graph = load_retrieval_association_graph(registry_dir)
+    assert graph is not None
+    seeds, _ = expand_retrieval_hints("Summarise the latest Integration Strategy deck.", graph)
+    emits = collect_graph_emits(graph, seeds)
+    assert emits["primary_intent"] == "summarize_source"
+    assert emits["deliverable_type"] == "deck_summary"
+    assert emits["source_resolution"] == "latest_matching_source"
+    assert emits["required_evidence_level"] == "content_read"
 
 
 def test_trace_metadata_contains_counts(registry_dir: Path):

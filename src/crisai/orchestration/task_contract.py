@@ -4,47 +4,16 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
-from .semantic_catalog import load_semantic_catalog
+from crisai.config import load_settings
 
-SUMMARY_INTENTS = frozenset(
-    {
-        "summarise",
-        "summarize",
-        "summary",
-        "recap",
-        "overview",
-        "brief me",
-        "extract key points",
-        "key points",
-        "tell me what this says",
-        "what does",
-        "what is in",
-        "riassumi",
-        "sintesi",
-        "riassunto",
-        "punti principali",
-        "cosa dice",
-    }
+from .retrieval_association_graph import (
+    collect_graph_emits,
+    expand_retrieval_hints,
+    load_retrieval_association_graph,
 )
-SOURCE_RESOLUTION_MARKERS = frozenset(
-    {
-        "latest",
-        "most recent",
-        "newest",
-        "current",
-        "master",
-        "best candidate",
-        "likely master",
-        "ultimo",
-        "piu recente",
-        "più recente",
-        "corrente",
-    }
-)
-DECK_MARKERS = frozenset({"deck", "presentation", "powerpoint", "ppt", "pptx", "slides", "slide"})
-DOCUMENT_MARKERS = frozenset({"document", "doc", "docx", "file", "source", "page", "documento"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,28 +50,19 @@ class TaskContract:
         return json.dumps(self.to_dict(), indent=2, sort_keys=True)
 
 
-def infer_task_contract(message: str) -> TaskContract:
-    """Infer the main user ask from text using deterministic semantic markers."""
-    text = " ".join((message or "").lower().split())
-    summary_terms = _summary_terms_from_catalog() | SUMMARY_INTENTS
-    if any(term in text for term in summary_terms):
-        deliverable_type = _infer_summary_deliverable_type(text)
-        source_resolution = _infer_source_resolution(text)
+def infer_task_contract(message: str, *, registry_dir: Path | None = None) -> TaskContract:
+    """Infer the main user ask from graph-emitted semantic facts."""
+    emits = _task_emits_from_graph(message, registry_dir=registry_dir)
+    primary_intent = _as_str(emits.get("primary_intent"))
+    if primary_intent:
         return TaskContract(
             schema_version="task_contract_v1",
-            primary_intent="summarize_source",
-            deliverable_type=deliverable_type,
-            source_resolution=source_resolution,
-            required_evidence_level="content_read",
-            success_criteria=(
-                "Produce the requested summary as the main answer.",
-                "Use only content that was actually read or directly supplied.",
-                "Keep source-selection rationale secondary when source resolution was required.",
-            ),
-            anti_goals=(
-                "Do not make candidate ranking the main answer.",
-                "Do not add unsupported caveats about unread content.",
-            ),
+            primary_intent=primary_intent,
+            deliverable_type=_as_str(emits.get("deliverable_type"), default="general_answer"),
+            source_resolution=_as_str(emits.get("source_resolution"), default="as_needed"),
+            required_evidence_level=_as_str(emits.get("required_evidence_level"), default="as_needed"),
+            success_criteria=_as_tuple(emits.get("success_criteria")),
+            anti_goals=_as_tuple(emits.get("anti_goals")),
         )
     return TaskContract(
         schema_version="task_contract_v1",
@@ -136,29 +96,29 @@ def render_task_contract_summary(contract: TaskContract) -> str:
     return "\n".join(lines)
 
 
-def _summary_terms_from_catalog() -> frozenset[str]:
+def _task_emits_from_graph(message: str, *, registry_dir: Path | None = None) -> dict[str, object]:
+    root = _resolve_registry_dir(registry_dir)
+    graph = load_retrieval_association_graph(root)
+    activated, _terms = expand_retrieval_hints(message, graph)
+    return collect_graph_emits(graph, activated)
+
+
+def _resolve_registry_dir(registry_dir: Path | None) -> Path:
+    if registry_dir is not None:
+        return registry_dir
     try:
-        catalog = load_semantic_catalog()
-    except Exception:  # noqa: BLE001 - fail open when registry is unavailable in tests.
-        return frozenset()
-    return getattr(catalog.router, "summary_terms", frozenset())
+        return Path(load_settings().registry_dir)
+    except Exception:  # noqa: BLE001 - fail open when settings are unavailable in tests.
+        return Path("registry")
 
 
-def _infer_summary_deliverable_type(text: str) -> str:
-    if any(marker in text for marker in DECK_MARKERS):
-        return "deck_summary"
-    if any(marker in text for marker in DOCUMENT_MARKERS):
-        return "document_summary"
-    if "executive" in text or "leadership" in text:
-        return "executive_summary"
-    if "key point" in text or "punti principali" in text:
-        return "key_points"
-    return "text_summary"
+def _as_str(value: object, *, default: str = "") -> str:
+    text = str(value or "").strip()
+    return text or default
 
 
-def _infer_source_resolution(text: str) -> str:
-    if any(marker in text for marker in SOURCE_RESOLUTION_MARKERS):
-        return "latest_matching_source"
-    if any(marker in text for marker in DOCUMENT_MARKERS | DECK_MARKERS):
-        return "matching_source"
-    return "none"
+def _as_tuple(value: object) -> tuple[str, ...]:
+    if isinstance(value, list):
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    text = str(value or "").strip()
+    return (text,) if text else ()

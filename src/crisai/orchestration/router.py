@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .retrieval_association_graph import deterministic_context_from_registry
 from .semantic_catalog import load_semantic_catalog
+from .task_contract import infer_task_contract
 
 
 @dataclass
@@ -66,6 +67,7 @@ def _deterministic_source_nudge(text: str, registry_dir: Path | None) -> bool:
 
 def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | None = None) -> RoutingDecision:
     terms = load_semantic_catalog().router
+    task_contract = infer_task_contract(text, registry_dir=registry_dir)
     if _contains_any(text, set(terms.explicit_discovery_patterns)):
         return RoutingDecision(
             intent="discovery",
@@ -78,7 +80,6 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
         )
 
     discovery_score = _score_terms(text, set(terms.discovery_terms))
-    summary_score = _score_terms(text, set(getattr(terms, "summary_terms", frozenset())))
     design_score = _score_terms(text, set(terms.design_terms))
     review_score = _score_terms(text, set(terms.review_terms))
     operations_score = _score_terms(text, set(terms.operations_terms))
@@ -91,7 +92,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
     if deterministic_retrieval_nudge:
         has_source_signal = True
     has_design_signal = design_score >= 2
-    has_summary_signal = summary_score >= 1
+    has_summary_signal = task_contract.is_summary
     architecture_used_as_location = _is_architecture_location_phrase(
         text,
         terms.architecture_location_markers,
@@ -129,7 +130,8 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt asks to package output into a formal artefact using templates or a requested document format.",
         )
 
-    if has_summary_signal and has_source_signal:
+    summary_needs_source_resolution = task_contract.source_resolution not in {"", "none", "as_needed"}
+    if has_summary_signal and (has_source_signal or summary_needs_source_resolution):
         return RoutingDecision(
             intent="summary",
             mode="pipeline",
