@@ -68,6 +68,12 @@ def fake_specs():
             prompt_file="prompts/design.md",
             allowed_servers=["document"],
         ),
+        "summary": AgentSpec(
+            id="summary",
+            name="Summary",
+            prompt_file="prompts/summary.md",
+            allowed_servers=["document"],
+        ),
         "review": AgentSpec(
             id="review",
             name="Review",
@@ -102,11 +108,12 @@ def patch_pipeline_runtime(monkeypatch):
     monkeypatch.setattr(
         pipelines,
         "build_context_synthesizer_prompt",
-        lambda message, discovery: f"CONTEXT::{message}::{discovery}",
+        lambda message, discovery, **kwargs: f"CONTEXT::{message}::{discovery}",
     )
-    monkeypatch.setattr(pipelines, "build_design_prompt", lambda message, context: f"DESIGN::{message}::{context}")
-    monkeypatch.setattr(pipelines, "build_review_prompt", lambda message, discovery, design: f"REVIEW::{message}::{design}")
-    monkeypatch.setattr(pipelines, "build_pipeline_final_prompt", lambda message, discovery, design, review: f"FINAL::{message}::{review}")
+    monkeypatch.setattr(pipelines, "build_design_prompt", lambda message, context, **kwargs: f"DESIGN::{message}::{context}")
+    monkeypatch.setattr(pipelines, "build_summary_prompt", lambda message, context, task_contract: f"SUMMARY::{message}::{context}")
+    monkeypatch.setattr(pipelines, "build_review_prompt", lambda message, discovery, design, **kwargs: f"REVIEW::{message}::{design}")
+    monkeypatch.setattr(pipelines, "build_pipeline_final_prompt", lambda message, discovery, design, review, **kwargs: f"FINAL::{message}::{review}")
 
 
 @pytest.mark.anyio
@@ -204,3 +211,66 @@ async def test_pipeline_runs_expected_stage_order_when_review_on(monkeypatch, fa
         "orchestrator",
     ]
     assert result == "ORCHESTRATOR OUTPUT"
+
+
+@pytest.mark.anyio
+async def test_pipeline_uses_summary_agent_for_summary_request(
+    monkeypatch,
+    fake_specs,
+    fake_settings,
+    patch_pipeline_runtime,
+):
+    server_specs, agent_specs = fake_specs
+    calls: list[str] = []
+    prompts: dict[str, str] = {}
+
+    async def fake_run_with_transient_box(agent_id, agent, prompt):
+        calls.append(agent.id)
+        prompts[agent.id] = prompt
+        if agent.id == "context_retrieval":
+            return """Context read.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise the latest Integration Strategy deck.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Integration Strategy.pptx",
+        "read_handle": "handle-1"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "inspect_sharepoint_powerpoint_by_handle",
+      "content_excerpt": "Integration strategy summary content.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+        return f"{agent.id.upper()} OUTPUT"
+
+    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
+
+    result = await pipelines.run_pipeline(
+        "Summarise the latest Integration Strategy deck.",
+        verbose=False,
+        review=False,
+        settings=fake_settings,
+        server_specs=server_specs,
+        agent_specs=agent_specs,
+    )
+
+    assert calls == [
+        "retrieval_planner",
+        "context_retrieval",
+        "context_synthesizer",
+        "summary",
+        "orchestrator",
+    ]
+    assert result == "ORCHESTRATOR OUTPUT"
+    assert prompts["summary"].startswith("SUMMARY::")

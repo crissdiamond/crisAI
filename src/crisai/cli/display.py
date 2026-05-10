@@ -23,6 +23,7 @@ _ICONS = {
     # Puzzle: assembles retrieved facts into a brief for design.
     "context_synthesizer": "🧩",
     "design": "✍",
+    "summary": "📝",
     "design_author": "✍",
     "design_challenger": "⚔",
     "design_refiner": "🛠",
@@ -40,6 +41,7 @@ _LABELS = {
     "context_retrieval": "Context Retrieval",
     "context_synthesizer": "Context Synthesizer",
     "design": "Design",
+    "summary": "Summary",
     "design_author": "Author",
     "design_challenger": "Challenger",
     "design_refiner": "Refiner",
@@ -55,6 +57,7 @@ _STYLES = {
     "context_retrieval": "cyan",
     "context_synthesizer": "magenta",
     "design": "green",
+    "summary": "green",
     "design_author": "green",
     "design_challenger": "blue",
     "design_refiner": "red",
@@ -78,7 +81,10 @@ _RENDER_STYLES = {
 }
 
 _FENCED_CODE_BLOCK_RE = re.compile(r"```[^\n`]*\n.*?```", re.DOTALL)
-_EVIDENCE_SCHEMA_RE = re.compile(r'"schema_version"\s*:\s*"evidence_bundle_v1"', re.IGNORECASE)
+_MACHINE_SCHEMA_RE = re.compile(
+    r'"schema_version"\s*:\s*"(?:evidence_bundle_v1|task_contract_v1)"',
+    re.IGNORECASE,
+)
 
 
 def _icon(agent_id: str) -> str:
@@ -107,33 +113,33 @@ def _strip_markdown(text: str) -> str:
 
 
 def _hide_machine_evidence_blocks(text: str) -> str:
-    """Remove machine-readable evidence JSON from user-facing CLI rendering."""
-    cleaned = _strip_fenced_evidence_blocks(text or "")
-    cleaned = _strip_bare_evidence_objects(cleaned)
+    """Remove machine-readable JSON contracts from user-facing CLI rendering."""
+    cleaned = _strip_fenced_machine_blocks(text or "")
+    cleaned = _strip_bare_machine_objects(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned
 
 
-def _strip_fenced_evidence_blocks(text: str) -> str:
-    """Remove fenced code blocks that contain an evidence bundle schema marker."""
+def _strip_fenced_machine_blocks(text: str) -> str:
+    """Remove fenced code blocks that contain a machine schema marker."""
     parts: list[str] = []
     cursor = 0
     for match in _FENCED_CODE_BLOCK_RE.finditer(text):
         parts.append(text[cursor : match.start()])
         block = match.group(0)
-        if not _EVIDENCE_SCHEMA_RE.search(block):
+        if not _MACHINE_SCHEMA_RE.search(block):
             parts.append(block)
         cursor = match.end()
     parts.append(text[cursor:])
     return "".join(parts)
 
 
-def _strip_bare_evidence_objects(text: str) -> str:
-    """Remove bare evidence JSON objects using balanced braces instead of regex."""
+def _strip_bare_machine_objects(text: str) -> str:
+    """Remove bare machine JSON objects using balanced braces instead of regex."""
     output: list[str] = []
     cursor = 0
     while True:
-        marker = _EVIDENCE_SCHEMA_RE.search(text, cursor)
+        marker = _MACHINE_SCHEMA_RE.search(text, cursor)
         if marker is None:
             output.append(text[cursor:])
             break
@@ -260,6 +266,7 @@ def _strip_compact_agent_prefix(agent_id: str, summary: str) -> str:
         ("retrieval_planner", re.compile(r"^The Retrieval planner:\s*", re.I)),
         ("context_retrieval", re.compile(r"^Context Retrieval:\s*")),
         ("context_synthesizer", re.compile(r"^Context Synthesizer:\s*")),
+        ("summary", re.compile(r"^Summary:\s*")),
         ("review", re.compile(r"^The Review notes:\s*", re.I)),
         ("operations", re.compile(r"^Operations:\s*")),
         ("orchestrator", re.compile(r"^The Orchestrator:\s*")),
@@ -546,6 +553,20 @@ def _review_summary(
     return f"The Review notes: {recap}"
 
 
+def _summary_agent_summary(
+    text: str,
+    *,
+    max_fragments: int = 4,
+    max_chars: int = 1100,
+) -> str:
+    clean = _clean_agent_text(text)
+    parts = _substantive_sentence_list(clean, max_count=max_fragments, max_chars=max_chars)
+    if not parts:
+        return "Summary produced no substantive text; check verbose output."
+    recap = _join_recap_sentences(parts, max_chars=max_chars)
+    return f"Summary: {recap}"
+
+
 def _operations_summary(
     text: str,
     *,
@@ -603,6 +624,8 @@ def _role_led_summary(agent_id: str, body: str, width: int = 100, *, compact: bo
         summary = _context_retrieval_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "context_synthesizer":
         summary = _context_synthesizer_summary(body, max_fragments=mf, max_chars=mc)
+    elif agent_id == "summary":
+        summary = _summary_agent_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "review":
         summary = _review_summary(body, max_fragments=mf, max_chars=mc)
     elif agent_id == "operations":

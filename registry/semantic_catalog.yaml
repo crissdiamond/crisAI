@@ -42,6 +42,24 @@ router:
     - pagine
     - pagina
 
+  summary_terms:
+    - summarise
+    - summarize
+    - summary
+    - recap
+    - overview
+    - brief me
+    - extract key points
+    - key points
+    - tell me what this says
+    - what does
+    - what is in
+    - riassumi
+    - sintesi
+    - riassunto
+    - punti principali
+    - cosa dice
+
   design_terms:
     - design
     - draft
@@ -56,8 +74,6 @@ router:
     - operating model
     - blueprint
     - solution
-    - summarise
-    - summary
     - propose
     - plan
     - progetta
@@ -255,6 +271,12 @@ router:
     - documenti
     - files
     - file
+    - deck
+    - presentation
+    - powerpoint
+    - ppt
+    - pptx
+    - slides
     - sources
     - fonti
     - sorgenti

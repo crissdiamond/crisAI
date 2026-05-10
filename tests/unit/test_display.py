@@ -81,6 +81,31 @@ def test_print_final_answer_hides_bare_evidence_json(monkeypatch) -> None:
     assert "evidence_bundle_v1" not in md.markup
 
 
+def test_print_agent_output_hides_task_contract_json(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+    body = """Task selected.
+
+```json
+{
+  "schema_version": "task_contract_v1",
+  "primary_intent": "summarize_source",
+  "deliverable_type": "deck_summary"
+}
+```
+
+Ready.
+"""
+
+    display.print_agent_output("summary", body, verbose=True)
+
+    md = captured[0].renderable
+    assert isinstance(md, Markdown)
+    assert "Task selected." in md.markup
+    assert "Ready." in md.markup
+    assert "task_contract_v1" not in md.markup
+
+
 def test_print_agent_output_hides_nested_evidence_json(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))

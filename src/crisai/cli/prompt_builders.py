@@ -16,6 +16,10 @@ from crisai.orchestration.retrieval_association_graph import (
     format_retrieval_expansion_block,
     load_retrieval_association_graph,
 )
+from crisai.orchestration.task_contract import (
+    TaskContract,
+    render_task_contract_summary,
+)
 
 
 def _resolve_deterministic_context(
@@ -105,6 +109,7 @@ def build_retrieval_planner_prompt(
     *,
     registry_dir: Path | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
+    task_contract: TaskContract | None = None,
 ) -> str:
     """Build the runtime prompt for the retrieval planner stage.
 
@@ -126,9 +131,9 @@ def build_retrieval_planner_prompt(
         registry_dir=registry_dir,
         deterministic_context=context,
     ).strip()
-    blocks = [
-        _section("User request", message),
-    ]
+    blocks = [_section("User request", message)]
+    if task_contract is not None:
+        blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
     if expansion:
         blocks.append(expansion)
     blocks.extend(
@@ -140,6 +145,7 @@ def build_retrieval_planner_prompt(
             "**Do not** repeat, paraphrase, or re-argue that routing recap.",
             "Task:\n"
             "Produce a **compact retrieval handoff** for the Context Retrieval stage.\n"
+            "- Preserve the Task Contract's primary deliverable. Retrieval is a support step, not the final answer.\n"
             "- Do **not** retrieve or read source documents in this stage.\n"
             "- Provide only what helps search: 3–7 concrete angles (folders, doc "
             "types, product areas, keywords, standards IDs), ambiguities that change "
@@ -216,6 +222,7 @@ def build_context_retrieval_prompt(
     *,
     registry_dir: Path | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
+    task_contract: TaskContract | None = None,
 ) -> str:
     """Build the runtime prompt for the context retrieval stage.
 
@@ -241,9 +248,9 @@ def build_context_retrieval_prompt(
         registry_dir=registry_dir,
         deterministic_context=context,
     ).strip()
-    blocks = [
-        _section("User request", message),
-    ]
+    blocks = [_section("User request", message)]
+    if task_contract is not None:
+        blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
     if expansion:
         blocks.append(expansion)
     blocks.extend(
@@ -261,6 +268,7 @@ def build_context_retrieval_prompt(
             "- When in doubt, ``list_workspace_files('context')`` (or a deeper subfolder) then open the best candidates.\n"
             + intranet_rules
             + "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
+            "When source selection is needed, keep selection rationale short and make the read content prominent. "
             "For SharePoint (not OneDrive-only) use `search_sharepoint_site_documents` or site-scoped search after `list_sites`. "
             "When the user asks for a summary of a document/deck/file, read the content first and mark the item `content_read`; if the read fails, mark it `read_failed` and include the raw error. "
             "Do not draft, recommend, or optimise the final design response.",
@@ -273,47 +281,94 @@ def build_context_retrieval_prompt(
     return "\n\n".join(blocks)
 
 
-def build_design_prompt(message: str, discovery_text: str) -> str:
+def build_design_prompt(message: str, discovery_text: str, task_contract: TaskContract | None = None) -> str:
     """Build the runtime prompt for the design stage."""
-    return "\n\n".join(
+    blocks = [_section("User request", message)]
+    if task_contract is not None:
+        blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
+    blocks.extend(
         [
-            _section("User request", message),
             _section("Discovery findings", discovery_text),
             "Task:\nProduce the best possible architecture, design, or documentation response for the user's request.",
             DOCUMENT_EXTRACTION_CONTRACT,
         ]
     )
+    return "\n\n".join(blocks)
 
 
-def build_review_prompt(message: str, discovery_text: str, design_text: str) -> str:
-    """Build the runtime prompt for the review stage."""
+def build_summary_prompt(message: str, discovery_text: str, task_contract: TaskContract) -> str:
+    """Build the runtime prompt for the summary stage."""
     return "\n\n".join(
         [
             _section("User request", message),
-            _section("Discovery findings", discovery_text),
-            _section("Draft design response", design_text),
-            "Task:\nCritically review the draft.",
+            _section("Task Contract", render_task_contract_summary(task_contract)),
+            _section("Grounded context and evidence", discovery_text),
+            "Task:\nProduce the requested summary as the main answer.",
+            "Summary rules:\n"
+            "- Use only content that was read or directly supplied in the grounded context.\n"
+            "- Start with summary content, not candidate ranking or retrieval caveats.\n"
+            "- If source resolution was required, add a short Source Note after the summary.\n"
+            "- Mention gaps only when they block the requested summary.\n"
+            "- Do not add architecture/design recommendations unless the user asked for them.",
+            DOCUMENT_EXTRACTION_CONTRACT,
         ]
     )
 
 
-def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: str, review_text: str) -> str:
-    """Build the runtime prompt for the pipeline final stage."""
-    return "\n\n".join(
+def build_review_prompt(
+    message: str,
+    discovery_text: str,
+    design_text: str,
+    task_contract: TaskContract | None = None,
+) -> str:
+    """Build the runtime prompt for the review stage."""
+    blocks = [_section("User request", message)]
+    if task_contract is not None:
+        blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
+    draft_label = "Draft summary response" if task_contract and task_contract.is_summary else "Draft design response"
+    blocks.extend(
         [
-            _section("User request", message),
             _section("Discovery findings", discovery_text),
-            _section("Draft design response", design_text),
+            _section(draft_label, design_text),
+            "Task:\nCritically review the draft against the Task Contract when present.",
+        ]
+    )
+    return "\n\n".join(blocks)
+
+
+def build_pipeline_final_prompt(
+    message: str,
+    discovery_text: str,
+    design_text: str,
+    review_text: str,
+    task_contract: TaskContract | None = None,
+) -> str:
+    """Build the runtime prompt for the pipeline final stage."""
+    blocks = [_section("User request", message)]
+    if task_contract is not None:
+        blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
+    main_body_label = "Draft summary response" if task_contract and task_contract.is_summary else "Draft design response"
+    main_body_guidance = (
+        "- Use the summary output as the main body and preserve its answer-first structure.\n"
+        "- Do not turn a summary request back into candidate selection or retrieval analysis.\n"
+        if task_contract and task_contract.is_summary
+        else "- Use the design output as the main body.\n"
+    )
+    blocks.extend(
+        [
+            _section("Discovery findings", discovery_text),
+            _section(main_body_label, design_text),
             _section("Review feedback", review_text),
             "Task:\nProduce the final answer to the user.",
             "Handoff guidance:\n"
-            "- Use the design output as the main body.\n"
-            "- Incorporate review feedback only where it improves the answer.\n"
+            + main_body_guidance
+            + "- Incorporate review feedback only where it improves the answer.\n"
             + DOCUMENT_EXTRACTION_CONTRACT
             + "\n",
             "- do not mention internal pipeline stages unless the user explicitly asked to see them.",
         ]
     )
+    return "\n\n".join(blocks)
 
 
 def build_author_prompt(
@@ -561,7 +616,11 @@ def build_peer_final_prompt(
     )
 
 
-def build_context_synthesizer_prompt(message: str, discovery_text: str) -> str:
+def build_context_synthesizer_prompt(
+    message: str,
+    discovery_text: str,
+    task_contract: TaskContract | None = None,
+) -> str:
     """Build a grounded prompt for the context synthesizer agent.
 
     The context_synthesizer stage is intentionally separate from both the retrieval
@@ -579,6 +638,12 @@ Your job is to transform retrieved source material into a concise, grounded cont
 {message}
 ```
 
+## Task Contract
+
+```text
+{render_task_contract_summary(task_contract) if task_contract is not None else "None."}
+```
+
 ## Context retrieval output
 
 ```text
@@ -587,7 +652,7 @@ Your job is to transform retrieved source material into a concise, grounded cont
 
 ## Task
 
-Create a context brief that helps the design agent draft a solution design using only the information available in the context retrieval output.
+Create a context brief that helps the next agent satisfy the Task Contract using only the information available in the context retrieval output.
 
 ## Rules
 
@@ -598,6 +663,7 @@ Create a context brief that helps the design agent draft a solution design using
 - Remove irrelevant findings, duplication, and low-value noise.
 - Do not invent missing details.
 - Do not draft, recommend, or optimise the solution design.
+- If the Task Contract asks for a summary, organise facts around answer-ready summary content and keep source-selection rationale separate.
 - If the context retrieval output is empty, weak, or not relevant, say so clearly and explain what is missing.
 
 ## Runtime contracts

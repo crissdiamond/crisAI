@@ -48,6 +48,16 @@ agents:
       - workspace
       - diagrams
 
+  - id: summary
+    name: Summary Agent
+    model_ref: openai_fast
+    prompt_file: prompts/summary_agent.md
+    allowed_servers:
+      - workspace
+      - documents
+      - sharepoint_docs
+      - intranet
+
   - id: review
     name: Review Agent
     model_ref: openai_strong

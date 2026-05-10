@@ -19,6 +19,7 @@ from crisai.config import load_settings
 @dataclass(frozen=True)
 class RouterTerms:
     discovery_terms: frozenset[str]
+    summary_terms: frozenset[str]
     design_terms: frozenset[str]
     review_terms: frozenset[str]
     operations_terms: frozenset[str]
@@ -155,6 +156,7 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     return SemanticCatalog(
         router=RouterTerms(
             discovery_terms=_as_frozenset(router_block.get("discovery_terms")),
+            summary_terms=_as_frozenset(router_block.get("summary_terms")),
             design_terms=_as_frozenset(router_block.get("design_terms")),
             review_terms=_as_frozenset(router_block.get("review_terms")),
             operations_terms=_as_frozenset(router_block.get("operations_terms")),

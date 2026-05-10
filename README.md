@@ -12,6 +12,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - Specialist agents with separate responsibilities and configurable model assignment.
 - Local workspace, document, diagram, SharePoint document, and scoped intranet content MCP servers.
 - Three workflow modes: `single`, `pipeline`, and `peer`.
+- Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
 - Deterministic retrieval expansion from registry dictionaries.
 - Runtime policy gates for intranet-grounded work and file-producing workflows.
 - Peer judge/verifier controls for higher-effort architecture work.
@@ -54,15 +55,20 @@ flowchart TB
 flowchart LR
     Request[User Request] --> Route[Route Decision]
 
-    Route -->|single| SingleAgent[Selected Agent]
-    Route -->|pipeline| RetrievalPlanner[Retrieval Planner]
+    Route --> Contract[Task Contract]
+
+    Contract -->|single| SingleAgent[Selected Agent]
+    Contract -->|pipeline| RetrievalPlanner[Retrieval Planner]
     RetrievalPlanner --> ContextRetrieval[Context Retrieval]
     ContextRetrieval --> ContextSynth[Context Synthesizer]
-    ContextSynth --> Design[Design]
-    Design --> Review[Review when needed]
+    ContextSynth --> DraftChoice{Deliverable}
+    DraftChoice -->|summary| Summary[Summary]
+    DraftChoice -->|design / docs| Design[Design]
+    Summary --> Review[Review when needed]
+    Design --> Review
     Review --> Orchestrator[Orchestrator]
 
-    Route -->|peer| PeerRetrieval[Optional Retrieval]
+    Contract -->|peer| PeerRetrieval[Optional Retrieval]
     PeerRetrieval --> Author[Design Author]
     Author --> Challenger[Design Challenger]
     Challenger --> Refiner[Design Refiner]
@@ -165,7 +171,7 @@ python -m crisai.cli.main ask -m "Find the most relevant document for integratio
 | Mode | Purpose |
 |---|---|
 | `single` | Run one selected specialist agent for bounded work. |
-| `pipeline` | Retrieve, synthesize, design, optionally review, then orchestrate. |
+| `pipeline` | Retrieve, synthesize, summarize or design, optionally review, then orchestrate. |
 | `peer` | Run author, challenger, refiner, judge, bounded revise loops, and final verification. |
 
 Use `/mode auto` to let the router decide, or pin a mode with `/mode single`, `/mode pipeline`, or `/mode peer`.
@@ -178,7 +184,7 @@ The registry is the main control plane:
 - `registry/models.yaml`: provider-specific model names and API key env vars.
 - `registry/servers.yaml`: MCP server definitions and allowed tools.
 - `registry/workflow_policy.yaml`: runtime hard gates.
-- `registry/semantic_catalog.yaml`: router, verifier, and peer-contract terms.
+- `registry/semantic_catalog.yaml`: router, summary intent, verifier, and peer-contract terms.
 - `registry/retrieval_association_graph.yaml`: deterministic retrieval topic expansion.
 
 Run `crisai doctor` after registry edits.

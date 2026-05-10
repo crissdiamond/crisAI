@@ -40,6 +40,30 @@ def test_route_pipeline_for_source_based_design():
     assert decision.needs_review is True
 
 
+def test_route_pipeline_for_source_summary():
+    decision = decide_route(
+        "Summarise the latest Integration Strategy document from OneDrive.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "pipeline"
+    assert decision.agent == "retrieval_planner"
+    assert decision.intent == "summary"
+    assert decision.needs_retrieval is True
+    assert decision.needs_review is False
+
+
+def test_route_single_summary_for_pasted_text_summary():
+    decision = decide_route(
+        "Summarise this text.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "single"
+    assert decision.agent == "summary"
+    assert decision.intent == "summary"
+
+
 def test_route_pipeline_for_design_plus_review_without_sources():
     decision = decide_route(
         "Propose a simple CLI design and critique the main weaknesses.",

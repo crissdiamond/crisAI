@@ -78,6 +78,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
         )
 
     discovery_score = _score_terms(text, set(terms.discovery_terms))
+    summary_score = _score_terms(text, set(getattr(terms, "summary_terms", frozenset())))
     design_score = _score_terms(text, set(terms.design_terms))
     review_score = _score_terms(text, set(terms.review_terms))
     operations_score = _score_terms(text, set(terms.operations_terms))
@@ -90,6 +91,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
     if deterministic_retrieval_nudge:
         has_source_signal = True
     has_design_signal = design_score >= 2
+    has_summary_signal = summary_score >= 1
     architecture_used_as_location = _is_architecture_location_phrase(
         text,
         terms.architecture_location_markers,
@@ -125,6 +127,17 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             needs_review=False,
             confidence=0.93,
             reason="Prompt asks to package output into a formal artefact using templates or a requested document format.",
+        )
+
+    if has_summary_signal and has_source_signal:
+        return RoutingDecision(
+            intent="summary",
+            mode="pipeline",
+            agent="retrieval_planner",
+            needs_retrieval=True,
+            needs_review=False,
+            confidence=0.91,
+            reason="Prompt asks for a summary of source material; pipeline runs retrieval and summary drafting.",
         )
 
     if has_criticality_signal and (
@@ -184,6 +197,17 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             needs_review=True,
             confidence=0.85,
             reason="Prompt primarily focuses on critique or evaluation.",
+        )
+
+    if has_summary_signal:
+        return RoutingDecision(
+            intent="summary",
+            mode="single",
+            agent="summary",
+            needs_retrieval=False,
+            needs_review=False,
+            confidence=0.86,
+            reason="Prompt primarily asks for a summary without a clear retrieval source.",
         )
 
     if has_design_signal:

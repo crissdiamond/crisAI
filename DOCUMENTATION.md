@@ -48,6 +48,7 @@ Specialist reasoning roles such as:
 - `context_retrieval`
 - `context_synthesizer`
 - `design`
+- `summary`
 - `review`
 - `operations`
 - `orchestrator`
@@ -71,7 +72,12 @@ The router distinguishes between:
 - **pinned mode**
 - **pinned agent**
 
-### 2.5 Model registry
+### 2.5 Task contract
+After routing, crisAI infers a small runtime **Task Contract** that preserves the user’s main ask across agent handoffs.
+
+The router decides the workflow shape. The Task Contract defines the expected deliverable. For example, a request to summarise the latest matching deck is treated as a summary deliverable with a supporting source-resolution step, not as a candidate-ranking task.
+
+### 2.6 Model registry
 Agents do not need to hard-code provider model names anymore.
 
 Instead:
@@ -84,7 +90,7 @@ This allows examples such as:
 - `judge` → Gemini
 - `design_challenger` → Anthropic
 
-### 2.6 Installation and virtual environment
+### 2.7 Installation and virtual environment
 
 crisAI is meant to run from a **local Python virtual environment** named **`.venv`** at the project root. The **`./start`** script activates `.venv` for both CLI and web; if `.venv` is missing, it prints short setup commands and exits.
 
@@ -283,12 +289,13 @@ Best for:
 Structured flow:
 
 ```text
-retrieval_planner -> context_retrieval -> context_synthesizer -> design -> review -> orchestrator
+task_contract -> retrieval_planner -> context_retrieval -> context_synthesizer -> summary|design -> review -> orchestrator
 ```
 
 Best for:
 - find source material
 - turn source material into a draft
+- summarise source material without letting source selection become the final answer
 - critique and polish complex retrieval+drafting outputs with a mandatory review gate on that route
 
 ### 7.3 `peer`
@@ -333,10 +340,13 @@ Plans a compact retrieval handoff (search angles, paths, constraints) before **C
 The evidence retrieval specialist for local context chunks and source-grounded extracts.
 
 ### `context_synthesizer`
-The context structuring specialist that turns retrieved evidence into a grounded brief for downstream design.
+The context structuring specialist that turns retrieved evidence into a grounded brief for the next deliverable agent.
 
 ### `design`
 The drafting and architecture specialist.
+
+### `summary`
+The summary specialist. It produces document, deck, page, file, or pasted-text summaries from content that was actually read or directly supplied. If retrieval had to resolve the best source, source-selection rationale stays brief and secondary.
 
 ### `review`
 The critique specialist.
@@ -386,7 +396,7 @@ For peer mode specifically, there are two additional runtime guardrails:
 
 Router and verifier semantics are configurable from `registry/semantic_catalog.yaml`:
 
-- router term families (discovery/design/review/operations/peer/publication)
+- router term families (discovery/summary/design/review/operations/peer/publication)
 - router criticality terms for high-accuracy/high-risk prompts that can promote complex design/review asks to peer mode
 - explicit routing phrase patterns
 - source and architecture-location marker lists
@@ -403,6 +413,7 @@ This keeps semantic/heuristic tuning maintainable outside code, similar to `regi
 | Prompt type | Likely route |
 |---|---|
 | Find documents only | `single` + `retrieval_planner` |
+| Summarise a matching document/deck | `pipeline` + `summary` |
 | Find documents and draft a note | `pipeline` + review |
 | Propose and critique a design | `pipeline` with review |
 | Review this draft | `single` + `review` |
@@ -501,6 +512,12 @@ agents treat this as the canonical evidence handoff. A document/deck/file
 summary requires at least one item with `evidence_level: "content_read"`; search
 hits, metadata rows, and failed reads are treated as candidates or gaps, not as
 source content.
+
+For summary requests, the pipeline also carries a `task_contract_v1` machine
+payload. This tells downstream agents that the main deliverable is the summary
+and that any “latest/best candidate” work is only a source-resolution subtask.
+Machine payloads are retained in traces for debugging but hidden from normal CLI
+stage panels and final answers.
 
 PowerPoint retrieval has dedicated inspection support. Use:
 - `inspect_powerpoint_document` for local workspace `.pptx` files

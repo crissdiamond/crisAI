@@ -51,6 +51,10 @@ from crisai.orchestration.retrieval_association_graph import (
     deterministic_context_from_registry,
     deterministic_context_trace_metadata,
 )
+from crisai.orchestration.task_contract import (
+    infer_task_contract,
+    render_task_contract_block,
+)
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
 
@@ -69,6 +73,7 @@ from .prompt_builders import (
     build_retrieval_planner_prompt,
     build_review_prompt,
     build_single_retrieval_planner_prompt,
+    build_summary_prompt,
 )
 from .workflow_policy import (
     WorkflowPolicyViolation,
@@ -397,6 +402,7 @@ async def run_pipeline(
             intent_message,
             Path(registry_dir),
         )
+    task_contract = infer_task_contract(intent_message)
     policy = infer_workflow_policy(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
@@ -407,9 +413,18 @@ async def run_pipeline(
 
     logger.info("Running pipeline workflow.", extra={"run_id": _get_run_id(environment), "review": review})
 
+    drafting_agent_id = "summary" if task_contract.is_summary else "design"
+    required_agent_ids = [
+        "retrieval_planner",
+        "context_retrieval",
+        "context_synthesizer",
+        drafting_agent_id,
+        "review",
+        "orchestrator",
+    ]
     specs = resolve_required_agents(
         agent_specs,
-        ["retrieval_planner", "context_retrieval", "context_synthesizer", "design", "review", "orchestrator"],
+        required_agent_ids,
         mode_name="Pipeline mode",
     )
 
@@ -421,6 +436,13 @@ async def run_pipeline(
             metadata={"mode": "pipeline", "review": review},
         )
         workflow.trace_user_input(message)
+        _trace_workflow_policy_event(
+            workflow,
+            "TASK_CONTRACT",
+            render_task_contract_block(task_contract),
+            event_type="policy_signal",
+            metadata=task_contract.to_dict(),
+        )
         _trace_workflow_policy_event(
             workflow,
             "DETERMINISTIC_RETRIEVAL_CONTEXT",
@@ -443,6 +465,7 @@ async def run_pipeline(
                 message,
                 deterministic_context=deterministic_context,
                 registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                task_contract=task_contract,
             ),
             trace_label="RETRIEVAL_PLANNER OUTPUT",
             verbose=verbose,
@@ -456,6 +479,7 @@ async def run_pipeline(
                 retrieval_plan_text,
                 deterministic_context=deterministic_context,
                 registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                task_contract=task_contract,
             ),
             trace_label="CONTEXT RETRIEVAL OUTPUT",
             verbose=verbose,
@@ -484,16 +508,26 @@ async def run_pipeline(
         context_text = await workflow.run_stage(
             spec=specs["context_synthesizer"],
             ui_agent_id="context_synthesizer",
-            prompt=build_context_synthesizer_prompt(message, validated_context_retrieval_text),
+            prompt=build_context_synthesizer_prompt(
+                message,
+                validated_context_retrieval_text,
+                task_contract=task_contract,
+            ),
             trace_label="CONTEXT OUTPUT",
             verbose=verbose,
         )
 
+        draft_prompt = (
+            build_summary_prompt(message, context_text, task_contract)
+            if task_contract.is_summary
+            else build_design_prompt(message, context_text, task_contract=task_contract)
+        )
+        draft_trace_label = "SUMMARY OUTPUT" if task_contract.is_summary else "DESIGN OUTPUT"
         design_text = await workflow.run_stage(
-            spec=specs["design"],
-            ui_agent_id="design",
-            prompt=build_design_prompt(message, context_text),
-            trace_label="DESIGN OUTPUT",
+            spec=specs[drafting_agent_id],
+            ui_agent_id=drafting_agent_id,
+            prompt=draft_prompt,
+            trace_label=draft_trace_label,
             verbose=verbose,
         )
 
@@ -501,7 +535,7 @@ async def run_pipeline(
             review_text = await workflow.run_stage(
                 spec=specs["review"],
                 ui_agent_id="review",
-                prompt=build_review_prompt(message, context_text, design_text),
+                prompt=build_review_prompt(message, context_text, design_text, task_contract=task_contract),
                 trace_label="REVIEW OUTPUT",
                 verbose=verbose,
             )
@@ -515,7 +549,13 @@ async def run_pipeline(
         final_text = await workflow.run_stage(
             spec=specs["orchestrator"],
             ui_agent_id="orchestrator",
-            prompt=build_pipeline_final_prompt(message, context_text, design_text, review_text),
+            prompt=build_pipeline_final_prompt(
+                message,
+                context_text,
+                design_text,
+                review_text,
+                task_contract=task_contract,
+            ),
             trace_label="FINAL OUTPUT",
             verbose=verbose,
             print_output=False,
