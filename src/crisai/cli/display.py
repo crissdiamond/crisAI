@@ -735,14 +735,7 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
     label = _label(agent_id)
     style = _style(agent_id)
     title = Text(f"{icon} {label}", style=f"bold {style}")
-    display_body = _hide_machine_evidence_blocks(body)
-    if not verbose:
-        recap = _role_led_summary(agent_id, display_body, compact=True).strip()
-        recap = _strip_compact_agent_prefix(agent_id, recap)
-        md = f"**Summary:** {recap}" if recap else "**Summary:** _(empty)_"
-        rendered_body = Markdown(md)
-    else:
-        rendered_body = Markdown(display_body.strip() or "_empty_")
+    rendered_body = Markdown(render_stage_output_text(agent_id, body, verbose=verbose))
     console.print(
         Panel(
             rendered_body,
@@ -753,6 +746,20 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
             expand=True,
         )
     )
+
+
+def render_stage_output_text(agent_id: str, body: str, *, verbose: bool) -> str:
+    """Return user-facing Markdown for one stage body.
+
+    Normal mode is intentionally concise and shared by CLI and web. Verbose mode
+    may preserve more structure, but still removes machine-readable contracts.
+    """
+    display_body = _hide_machine_evidence_blocks(body)
+    if verbose:
+        return display_body.strip() or "_empty_"
+    recap = _role_led_summary(agent_id, display_body, compact=True).strip()
+    recap = _strip_compact_agent_prefix(agent_id, recap)
+    return f"**Summary:** {recap}" if recap else "**Summary:** _(empty)_"
 
 
 def render_peer_message(message: PeerMessage) -> Panel:

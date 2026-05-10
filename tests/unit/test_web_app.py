@@ -53,7 +53,7 @@ def test_trace_line_maps_single_agent_workflow_output_to_agent_tab():
         "content": "Listed 3 matching files.",
         "run_id": "run-x",
     }
-    out = _trace_line_to_stage_output(entry)
+    out = _trace_line_to_stage_output(entry, verbose=True)
     assert out is not None
     assert out["key"] == "retrieval_planner"
     assert out["agent_id"] == "retrieval_planner"
@@ -69,7 +69,7 @@ def test_trace_line_sanitizes_single_agent_workflow_output():
         "content": 'Found files.\n\n{"schema_version": "evidence_bundle_v1", "request": "x", "items": []}',
         "run_id": "run-x",
     }
-    out = _trace_line_to_stage_output(entry)
+    out = _trace_line_to_stage_output(entry, verbose=True)
     assert out is not None
     assert out["content"] == "Found files."
 
@@ -86,7 +86,7 @@ def test_collect_stage_outputs_keeps_only_renderable_stage_events():
         {"event_type": "stage_skipped", "stage": "REVIEW_OUTPUT", "content": "skipped", "agent_id": "review"},
     ]
 
-    result = _collect_stage_outputs(entries)
+    result = _collect_stage_outputs(entries, verbose=True)
 
     assert result == [
         {
@@ -114,9 +114,26 @@ def test_collect_stage_outputs_sanitizes_machine_json():
         },
     ]
 
-    result = _collect_stage_outputs(entries)
+    result = _collect_stage_outputs(entries, verbose=True)
 
     assert result[0]["content"] == "handoff"
+
+
+def test_collect_stage_outputs_defaults_to_clean_stage_summary():
+    entries = [
+        {
+            "event_type": "stage_output",
+            "stage": "CONTEXT RETRIEVAL OUTPUT",
+            "content": 'Retrieved the deck.\n```json\n{"schema_version": "evidence_bundle_v1", "request": "x", "items": []}\n```',
+            "agent_id": "context_retrieval",
+        },
+    ]
+
+    result = _collect_stage_outputs(entries)
+
+    assert result[0]["content"].startswith("**Summary:**")
+    assert "Retrieved the deck" in result[0]["content"]
+    assert "evidence_bundle_v1" not in result[0]["content"]
 
 
 def test_run_endpoint_returns_execution_payload(monkeypatch):

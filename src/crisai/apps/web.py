@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from crisai.apps.ui_config import UI_CONFIG
 from crisai.cli.chat_context import build_chat_input
-from crisai.cli.display import sanitize_user_visible_text
+from crisai.cli.display import render_stage_output_text, sanitize_user_visible_text
 from crisai.cli.main import (
     _apply_decision_overrides,
     _detect_explicit_mode,
@@ -102,7 +102,7 @@ def _select_latest_run(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [entry for entry in entries if entry.get("run_id") == run_id]
 
 
-def _collect_stage_outputs(entries: list[dict[str, Any]]) -> list[dict[str, str]]:
+def _collect_stage_outputs(entries: list[dict[str, Any]], *, verbose: bool = False) -> list[dict[str, str]]:
     """Build ordered stage output records for UI tabs."""
     stage_records: list[dict[str, str]] = []
     for entry in entries:
@@ -115,7 +115,7 @@ def _collect_stage_outputs(entries: list[dict[str, Any]]) -> list[dict[str, str]
                 "agent_id": agent_id,
                 "stage": str(entry.get("stage", "")),
                 "event_type": event_type,
-                "content": sanitize_user_visible_text(str(entry.get("content", ""))),
+                "content": render_stage_output_text(agent_id, str(entry.get("content", "")), verbose=verbose),
             }
         )
     return stage_records
@@ -173,7 +173,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
 
     appended_entries = _read_json_lines_from_offset(trace_path, before_size)
     run_entries = _select_latest_run(appended_entries)
-    stage_outputs = _collect_stage_outputs(run_entries)
+    stage_outputs = _collect_stage_outputs(run_entries, verbose=payload.verbose)
 
     return {
         "decision": asdict(decision),
@@ -272,7 +272,7 @@ def _extract_stage_key(entry: dict[str, str]) -> str:
     return "system"
 
 
-def _trace_line_to_stage_output(entry: dict[str, Any]) -> dict[str, Any] | None:
+def _trace_line_to_stage_output(entry: dict[str, Any], *, verbose: bool = False) -> dict[str, Any] | None:
     """Map one JSONL trace line to a UI stage_output row, or None if not renderable.
 
     Pipeline and peer runs emit ``stage_output`` / ``stage_skipped`` events.
@@ -292,6 +292,7 @@ def _trace_line_to_stage_output(entry: dict[str, Any]) -> dict[str, Any] | None:
     else:
         return None
 
+    agent_id = str(entry.get("agent_id") or "system")
     return {
         "key": _extract_stage_key(
             {
@@ -299,10 +300,10 @@ def _trace_line_to_stage_output(entry: dict[str, Any]) -> dict[str, Any] | None:
                 "stage": str(entry.get("stage", "")),
             }
         ),
-        "agent_id": str(entry.get("agent_id") or "system"),
+        "agent_id": agent_id,
         "stage": str(entry.get("stage", "")),
         "event_type": render_event,
-        "content": sanitize_user_visible_text(str(entry.get("content", ""))),
+        "content": render_stage_output_text(agent_id, str(entry.get("content", "")), verbose=verbose),
     }
 
 
@@ -464,7 +465,8 @@ def run_status(job_id: str) -> dict[str, Any]:
         run_entries = []
 
     for entry in run_entries:
-        stage_entry = _trace_line_to_stage_output(entry)
+        payload = job.get("payload")
+        stage_entry = _trace_line_to_stage_output(entry, verbose=bool(getattr(payload, "verbose", False)))
         if stage_entry is None:
             continue
         job["stage_outputs"] = [e for e in job["stage_outputs"] if e.get("key") != stage_entry["key"]]

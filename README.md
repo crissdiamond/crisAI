@@ -13,6 +13,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
+- Clean CLI and web stage rendering that hides internal machine handoffs while keeping raw traces for debugging.
 - Source-fit validation so retrieved content must match explicit title and source-scope constraints before it is summarized.
 - Deterministic retrieval expansion from registry dictionaries.
 - Runtime policy gates for intranet-grounded work and file-producing workflows.
@@ -201,6 +202,8 @@ crisAI can retrieve from:
 - Standalone workspace images and embedded PowerPoint pictures through the `vision` MCP server.
 - SharePoint / OneDrive documents through delegated Microsoft Graph, with opaque read handles, PowerPoint inspection tools, and validated evidence handoffs to prevent ID transcription errors.
 - Published intranet pages through the scoped intranet MCP. The default provider is SharePoint Site Pages; custom providers can adapt wiki-style intranets.
+
+For latest/master document summaries, crisAI asks for source confirmation when modified-date and version/master signals conflict instead of guessing.
 
 SharePoint documents and SharePoint-backed intranet pages use separate MCP servers and separate token caches. Full Graph setup, auth behavior, and prompting guidance are in [DOCUMENTATION.md](DOCUMENTATION.md).
 

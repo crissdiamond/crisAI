@@ -56,6 +56,7 @@ from crisai.orchestration.source_constraints import (
     infer_source_fit_constraints,
     source_fit_failure_message,
 )
+from crisai.orchestration.source_resolution import latest_source_conflict_message
 from crisai.orchestration.task_contract import (
     infer_task_contract,
     render_task_contract_block,
@@ -154,6 +155,9 @@ def _validated_evidence_text(message: str, retrieval_text: str) -> str:
     constraints = infer_source_fit_constraints(message)
     if must_read and constraints.is_active and not evidence_bundle_satisfies_constraints(bundle, constraints):
         raise WorkflowPolicyViolation(source_fit_failure_message(bundle, constraints))
+    conflict_message = latest_source_conflict_message(message, bundle, constraints)
+    if must_read and conflict_message:
+        raise WorkflowPolicyViolation(conflict_message)
     return retrieval_text + "\n\n## Validated Evidence Bundle\n" + render_evidence_bundle_block(bundle)
 
 

@@ -216,7 +216,7 @@ The same validator runs automatically as part of the **peer post-run verifier** 
 /verbose off
 ```
 
-With **`/verbose off`** (the usual default for readable transcripts), pipeline and peer **stage output** is shown as **compact Markdown**: short headings, bullets, and recaps rather than dumping full raw model text. Turn **`/verbose on`** when you need the full verbatim stage bodies for debugging.
+With **`/verbose off`** (the usual default for readable transcripts), pipeline and peer **stage output** is shown as **compact Markdown**: short headings, bullets, and recaps rather than dumping full raw model text. Machine handoffs such as evidence bundles, task contracts, and retrieval planning payloads are hidden from normal stage panels. Turn **`/verbose on`** when you need fuller stage bodies for debugging; machine contracts are still stripped from user-facing rendering and remain available in `logs/agent_trace.jsonl`.
 
 ### Agent controls
 
@@ -526,6 +526,13 @@ summary requires at least one item with `evidence_level: "content_read"`; search
 hits, metadata rows, and failed reads are treated as candidates or gaps, not as
 source content.
 
+For “latest”, “most recent”, or “likely master” source summaries, retrieval
+should include the top matching candidate metadata in the evidence bundle. If
+the newest modified file and the strongest version/master candidate disagree,
+crisAI stops before summarising and asks the user to choose the source. This
+prevents the pipeline from silently flipping between date-based and
+version-based interpretations.
+
 For source-read summaries, crisAI also infers **source-fit constraints** from
 the user request. Explicit title phrases such as quoted text, or phrases before
 terms like "document", "deck", or "file", become hard title constraints; explicit
@@ -539,7 +546,7 @@ For summary requests, the pipeline also carries a `task_contract_v1` machine
 payload. This tells downstream agents that the main deliverable is the summary
 and that any “latest/best candidate” work is only a source-resolution subtask.
 Machine payloads are retained in traces for debugging but hidden from normal CLI
-stage panels and final answers.
+and web stage panels and final answers.
 
 PowerPoint retrieval has dedicated inspection support. Use:
 - `inspect_powerpoint_document` for local workspace `.pptx` files

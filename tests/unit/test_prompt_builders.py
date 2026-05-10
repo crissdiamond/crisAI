@@ -32,7 +32,8 @@ def test_build_retrieval_planner_prompt_contains_only_runtime_context():
     assert "User request:\nFind the latest design note" in text
     assert "Do not" in text and "repeat" in text.lower()
     assert "retrieval handoff" in text.lower()
-    assert "Structured retrieval handoff" in text
+    assert "Retrieval handoff summary" in text
+    assert "Do not output JSON" in text
     assert "Deterministic retrieval handoff (pre-computed)" in text
     assert "Paths to open" in text
     assert "Rules:" not in text
@@ -41,7 +42,7 @@ def test_build_retrieval_planner_prompt_contains_only_runtime_context():
 
 def test_build_retrieval_planner_prompt_includes_association_graph_hints():
     text = build_retrieval_planner_prompt(
-        "Fetch consumer pattern pages from the intranet site pages corpus.",
+        "Fetch consumer pattern guidance from the architecture corpus.",
     )
     assert "Deterministic retrieval expansion" in text
     assert "semantic_graph.yaml" in text
@@ -62,6 +63,8 @@ def test_build_retrieval_prompts_include_source_fit_constraints():
     assert "personal_onedrive" in planner_text
     assert "Source Fit Constraints" in retrieval_text
     assert "title phrases" in retrieval_text
+    assert "queries_expanded: (suppressed: explicit source constraints active)" in planner_text
+    assert "api strategy" not in planner_text.lower()
 
 
 def test_build_context_retrieval_prompt_documents_workspace_search_semantics():

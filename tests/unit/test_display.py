@@ -284,6 +284,25 @@ def test_print_agent_output_non_verbose_markdown_is_short_summary_not_full_body(
     assert len(md.markup) < len(long_body) * 0.6
 
 
+def test_render_stage_output_text_matches_clean_default() -> None:
+    body = """Retrieved the source.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "x",
+  "items": []
+}
+```
+"""
+
+    result = display.render_stage_output_text("context_retrieval", body, verbose=False)
+
+    assert result.startswith("**Summary:**")
+    assert "Retrieved the source" in result
+    assert "evidence_bundle_v1" not in result
+
+
 def test_print_status_message_keeps_router_literal_text(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))

@@ -54,15 +54,16 @@ def _retrieval_expansion_section(
     return format_retrieval_expansion_block(message, context=context)
 
 
-def _deterministic_handoff_block(context: DeterministicRetrievalContext) -> str:
+def _deterministic_handoff_block(context: DeterministicRetrievalContext, *, include_terms: bool = True) -> str:
     if not context.is_active:
         return "None."
+    query_terms = ", ".join(sorted(context.suggested_terms)[:24]) if include_terms else "(suppressed: explicit source constraints active)"
     return (
         f"schema_version: {context.schema_version}\n"
         f"graph_loaded: {'yes' if context.graph_loaded else 'no'}\n"
         f"graph_version: {context.graph_version}\n"
         f"topics_activated: {', '.join(sorted(context.activated_topic_ids)) or '(none)'}\n"
-        f"queries_expanded: {', '.join(sorted(context.suggested_terms)[:24]) or '(none)'}\n"
+        f"queries_expanded: {query_terms or '(none)'}\n"
         f"source_priority: {', '.join(sorted(context.suggested_sources)) or '(none)'}"
     )
 
@@ -131,11 +132,15 @@ def build_retrieval_planner_prompt(
         deterministic_context=deterministic_context,
     )
     source_constraints = infer_source_fit_constraints(message, registry_dir=registry_dir)
-    expansion = _retrieval_expansion_section(
-        message,
-        registry_dir=registry_dir,
-        deterministic_context=context,
-    ).strip()
+    expansion = (
+        ""
+        if source_constraints.is_active
+        else _retrieval_expansion_section(
+            message,
+            registry_dir=registry_dir,
+            deterministic_context=context,
+        ).strip()
+    )
     blocks = [_section("User request", message)]
     if task_contract is not None:
         blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
@@ -162,10 +167,13 @@ def build_retrieval_planner_prompt(
             "- When the user names explicit workspace-relative paths (for example "
             "``context/patterns/foo.txt``), list them verbatim under **Paths to open** "
             "so the retrieval stage can call ``read_workspace_file`` immediately.\n"
-            "- Include a **Structured retrieval handoff** block with keys: "
-            "`topics_activated`, `queries_expanded`, `source_priority`.\n"
+            "- End with a **Retrieval handoff summary** using plain bullets for activated topics, query terms, and source priority.\n"
+            "- Do not output JSON; machine-readable deterministic context is already supplied separately by the runtime.\n"
             "Keep the response brief (about one screen of tight bullets).",
-            _section("Deterministic retrieval handoff (pre-computed)", _deterministic_handoff_block(context)),
+            _section(
+                "Deterministic retrieval handoff (pre-computed)",
+                _deterministic_handoff_block(context, include_terms=not source_constraints.is_active),
+            ),
         ]
     )
     return "\n\n".join(blocks)
@@ -192,11 +200,15 @@ def build_single_retrieval_planner_prompt(
         deterministic_context=deterministic_context,
     )
     source_constraints = infer_source_fit_constraints(message, registry_dir=registry_dir)
-    expansion = _retrieval_expansion_section(
-        message,
-        registry_dir=registry_dir,
-        deterministic_context=context,
-    ).strip()
+    expansion = (
+        ""
+        if source_constraints.is_active
+        else _retrieval_expansion_section(
+            message,
+            registry_dir=registry_dir,
+            deterministic_context=context,
+        ).strip()
+    )
     blocks = [_section("User request", message)]
     blocks.append(_section("Source Fit Constraints", render_source_fit_constraints(source_constraints)))
     if expansion:
@@ -254,11 +266,15 @@ def build_context_retrieval_prompt(
         deterministic_context=deterministic_context,
     )
     source_constraints = infer_source_fit_constraints(message, registry_dir=registry_dir)
-    expansion = _retrieval_expansion_section(
-        message,
-        registry_dir=registry_dir,
-        deterministic_context=context,
-    ).strip()
+    expansion = (
+        ""
+        if source_constraints.is_active
+        else _retrieval_expansion_section(
+            message,
+            registry_dir=registry_dir,
+            deterministic_context=context,
+        ).strip()
+    )
     blocks = [_section("User request", message)]
     if task_contract is not None:
         blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
@@ -268,7 +284,10 @@ def build_context_retrieval_prompt(
     blocks.extend(
         [
             _section("Retrieval handoff (from retrieval planner)", discovery_text),
-            _section("Deterministic retrieval context", _deterministic_handoff_block(context)),
+            _section(
+                "Deterministic retrieval context",
+                _deterministic_handoff_block(context, include_terms=not source_constraints.is_active),
+            ),
             "Task:\nRetrieve the most relevant material for this request from available context sources. "
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "

@@ -244,6 +244,115 @@ Retrieved and read a deck.
         )
 
 
+def test_validated_evidence_text_rejects_latest_version_date_conflict():
+    raw = """
+Retrieved and read the newest modified deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise the most recent Integration Strategy document.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy_Full Presentation v2_data.pptx",
+        "open_url": "https://example.com/v2-data.pptx",
+        "read_handle": "sharepoint_doc:v2",
+        "metadata": {
+          "lastModifiedDateTime": "2023-11-17T12:52:10Z"
+        }
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "inspect_sharepoint_powerpoint_by_handle",
+      "content_excerpt": "Readable slide text.",
+      "raw_error": ""
+    },
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy full deck v3.pptx",
+        "open_url": "https://example.com/v3.pptx",
+        "read_handle": "sharepoint_doc:v3",
+        "metadata": {
+          "lastModifiedDateTime": "2022-02-01T09:00:00Z"
+        }
+      },
+      "evidence_level": "search_hit_only",
+      "read_status": "not_read",
+      "read_tool": "",
+      "content_excerpt": "",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="newest modified file"):
+        pipelines._validated_evidence_text(
+            "Summarise the most recent Integration Strategy document.",
+            raw,
+        )
+
+
+def test_validated_evidence_text_accepts_latest_when_date_and_version_agree():
+    raw = """
+Retrieved and read the selected deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise the most recent Integration Strategy document.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy full deck v3.pptx",
+        "open_url": "https://example.com/v3.pptx",
+        "read_handle": "sharepoint_doc:v3",
+        "metadata": {
+          "lastModifiedDateTime": "2023-11-17T12:52:10Z"
+        }
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "inspect_sharepoint_powerpoint_by_handle",
+      "content_excerpt": "Readable slide text.",
+      "raw_error": ""
+    },
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy_Full Presentation v2_data.pptx",
+        "open_url": "https://example.com/v2-data.pptx",
+        "read_handle": "sharepoint_doc:v2",
+        "metadata": {
+          "lastModifiedDateTime": "2022-02-01T09:00:00Z"
+        }
+      },
+      "evidence_level": "search_hit_only",
+      "read_status": "not_read",
+      "read_tool": "",
+      "content_excerpt": "",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    result = pipelines._validated_evidence_text(
+        "Summarise the most recent Integration Strategy document.",
+        raw,
+    )
+
+    assert "## Validated Evidence Bundle" in result
+
+
 @pytest.mark.anyio
 async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
