@@ -409,6 +409,7 @@ The legacy router, peer-contract, and verifier semantics remain configurable fro
 - router criticality terms for high-accuracy/high-risk prompts that can promote complex design/review asks to peer mode
 - explicit routing phrase patterns
 - source and architecture-location marker lists
+- retrieval source-fit constraint vocabulary (`retrieval_constraints`) for generic title phrase extraction, source-scope markers, and title-noise words
 - peer-verifier regex patterns (for example gap-line and leaf-file matching)
 - peer-verifier semantic leaf-file terminology (`leaf_file_terms`) to classify architecture-oriented deliverables by filename terms (for example `patterns`, `template`, `hld`, `guides`, `standards`, `principles`, `toolkit`)
 - **peer_contract** marker phrase lists (`file_write_markers`, `code_change_markers`, `code_target_markers`, `grounding_markers`, `assessment_markers`) used by `infer_peer_run_contract` (substring match on lowercased user text; inference logic stays in code)
@@ -521,6 +522,15 @@ agents treat this as the canonical evidence handoff. A document/deck/file
 summary requires at least one item with `evidence_level: "content_read"`; search
 hits, metadata rows, and failed reads are treated as candidates or gaps, not as
 source content.
+
+For source-read summaries, crisAI also infers **source-fit constraints** from
+the user request. Explicit title phrases such as quoted text, or phrases before
+terms like "document", "deck", or "file", become hard title constraints; explicit
+source scopes such as personal OneDrive, SharePoint, intranet, or workspace
+become hard source constraints. A `content_read` item must satisfy those
+constraints before downstream summary/design stages can use it. Semantic
+expansion terms remain optional search hints and cannot override explicit source
+fit.
 
 For summary requests, the pipeline also carries a `task_contract_v1` machine
 payload. This tells downstream agents that the main deliverable is the summary

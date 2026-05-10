@@ -52,10 +52,21 @@ class PeerContractMarkers:
 
 
 @dataclass(frozen=True)
+class RetrievalConstraintTerms:
+    """Terms used to infer generic source-fit constraints from user requests."""
+
+    object_type_terms: frozenset[str]
+    title_noise_terms: frozenset[str]
+    title_connector_terms: frozenset[str]
+    source_scope_markers: dict[str, frozenset[str]]
+
+
+@dataclass(frozen=True)
 class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
     peer_contract: PeerContractMarkers
+    retrieval_constraints: RetrievalConstraintTerms
 
 
 class SemanticCatalogError(ValueError):
@@ -90,6 +101,20 @@ def _peer_contract_marker_field(data: dict[str, Any], field: str) -> frozenset[s
     return _peer_marker_phrases(raw) if isinstance(raw, list) else frozenset()
 
 
+def _source_scope_markers(values: Any) -> dict[str, frozenset[str]]:
+    if not isinstance(values, dict):
+        return {}
+    result: dict[str, frozenset[str]] = {}
+    for scope, markers in values.items():
+        clean_scope = str(scope).strip().lower()
+        if not clean_scope:
+            continue
+        marker_set = _as_frozenset(markers)
+        if marker_set:
+            result[clean_scope] = marker_set
+    return result
+
+
 def merge_semantic_catalog_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Deep-merge two catalogue dicts (fork overlays, tests).
 
@@ -106,7 +131,7 @@ def merge_semantic_catalog_dicts(base: dict[str, Any], overlay: dict[str, Any]) 
 
 
 def _validate_top_level(data: dict[str, Any]) -> None:
-    for key in ("router", "peer_verifier", "peer_contract"):
+    for key in ("router", "peer_verifier", "peer_contract", "retrieval_constraints"):
         if key not in data or not isinstance(data[key], dict):
             raise SemanticCatalogError(
                 f"registry/semantic_catalog.yaml must contain a top-level '{key}' mapping."
@@ -134,6 +159,7 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     _validate_peer_contract_lists(data["peer_contract"])
     router_block = data["router"]
     verifier_block = data["peer_verifier"]
+    retrieval_block = data["retrieval_constraints"]
     pattern_gap_line = str(verifier_block.get("pattern_gap_line") or "").strip()
     leaf_file_pattern = str(verifier_block.get("leaf_file_pattern") or "").strip()
     if not pattern_gap_line or not leaf_file_pattern:
@@ -151,6 +177,19 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
         raise SemanticCatalogError(
             "registry/semantic_catalog.yaml: peer_verifier.data_architecture_terms must be "
             "a non-empty list."
+        )
+    for field in ("object_type_terms", "title_noise_terms", "title_connector_terms"):
+        values = retrieval_block.get(field)
+        if not isinstance(values, list) or not values:
+            raise SemanticCatalogError(
+                f"registry/semantic_catalog.yaml: retrieval_constraints.{field} "
+                "must be a non-empty list."
+            )
+    scope_markers = _source_scope_markers(retrieval_block.get("source_scope_markers"))
+    if not scope_markers:
+        raise SemanticCatalogError(
+            "registry/semantic_catalog.yaml: retrieval_constraints.source_scope_markers "
+            "must contain at least one non-empty scope."
         )
 
     return SemanticCatalog(
@@ -179,6 +218,12 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             code_target_markers=_peer_contract_marker_field(data, "code_target_markers"),
             grounding_markers=_peer_contract_marker_field(data, "grounding_markers"),
             assessment_markers=_peer_contract_marker_field(data, "assessment_markers"),
+        ),
+        retrieval_constraints=RetrievalConstraintTerms(
+            object_type_terms=_as_frozenset(retrieval_block.get("object_type_terms")),
+            title_noise_terms=_as_frozenset(retrieval_block.get("title_noise_terms")),
+            title_connector_terms=_as_frozenset(retrieval_block.get("title_connector_terms")),
+            source_scope_markers=scope_markers,
         ),
     )
 

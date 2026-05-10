@@ -56,6 +56,8 @@ def test_load_semantic_catalog_reads_registry_overrides(tmp_path: Path):
     assert "high level design" in catalog.peer_verifier.leaf_file_terms
     assert "playbook" in catalog.peer_verifier.leaf_file_terms
     assert "data mesh" in catalog.peer_verifier.data_architecture_terms
+    assert "document" in catalog.retrieval_constraints.object_type_terms
+    assert "personal_onedrive" in catalog.retrieval_constraints.source_scope_markers
 
 
 def test_load_semantic_catalog_peer_contract_markers_override(tmp_path: Path):

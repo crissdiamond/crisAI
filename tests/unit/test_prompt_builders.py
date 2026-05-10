@@ -48,6 +48,22 @@ def test_build_retrieval_planner_prompt_includes_association_graph_hints():
     assert "consumer pattern" in text.lower() or "intranet_list_page_links" in text
 
 
+def test_build_retrieval_prompts_include_source_fit_constraints():
+    planner_text = build_retrieval_planner_prompt(
+        "Summarise the most recent Integration Strategy document in my OneDrive."
+    )
+    retrieval_text = build_context_retrieval_prompt(
+        "Summarise the most recent Integration Strategy document in my OneDrive.",
+        "handoff text",
+    )
+
+    assert "Source Fit Constraints" in planner_text
+    assert "Integration Strategy" in planner_text
+    assert "personal_onedrive" in planner_text
+    assert "Source Fit Constraints" in retrieval_text
+    assert "title phrases" in retrieval_text
+
+
 def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     text = build_context_retrieval_prompt("hello", "handoff text")
     assert "search_workspace_text" in text

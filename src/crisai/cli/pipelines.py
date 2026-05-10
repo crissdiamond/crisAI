@@ -51,6 +51,11 @@ from crisai.orchestration.retrieval_association_graph import (
     deterministic_context_from_registry,
     deterministic_context_trace_metadata,
 )
+from crisai.orchestration.source_constraints import (
+    evidence_bundle_satisfies_constraints,
+    infer_source_fit_constraints,
+    source_fit_failure_message,
+)
 from crisai.orchestration.task_contract import (
     infer_task_contract,
     render_task_contract_block,
@@ -146,6 +151,9 @@ def _validated_evidence_text(message: str, retrieval_text: str) -> str:
             "Policy gate failed: this request requires content-read evidence, "
             "but no source in the evidence bundle has evidence_level='content_read'."
         )
+    constraints = infer_source_fit_constraints(message)
+    if must_read and constraints.is_active and not evidence_bundle_satisfies_constraints(bundle, constraints):
+        raise WorkflowPolicyViolation(source_fit_failure_message(bundle, constraints))
     return retrieval_text + "\n\n## Validated Evidence Bundle\n" + render_evidence_bundle_block(bundle)
 
 

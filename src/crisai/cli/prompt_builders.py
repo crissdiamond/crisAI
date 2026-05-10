@@ -16,6 +16,10 @@ from crisai.orchestration.retrieval_association_graph import (
     format_retrieval_expansion_block,
     load_retrieval_association_graph,
 )
+from crisai.orchestration.source_constraints import (
+    infer_source_fit_constraints,
+    render_source_fit_constraints,
+)
 from crisai.orchestration.task_contract import (
     TaskContract,
     render_task_contract_summary,
@@ -126,6 +130,7 @@ def build_retrieval_planner_prompt(
         registry_dir=registry_dir,
         deterministic_context=deterministic_context,
     )
+    source_constraints = infer_source_fit_constraints(message, registry_dir=registry_dir)
     expansion = _retrieval_expansion_section(
         message,
         registry_dir=registry_dir,
@@ -134,6 +139,7 @@ def build_retrieval_planner_prompt(
     blocks = [_section("User request", message)]
     if task_contract is not None:
         blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
+    blocks.append(_section("Source Fit Constraints", render_source_fit_constraints(source_constraints)))
     if expansion:
         blocks.append(expansion)
     blocks.extend(
@@ -146,6 +152,7 @@ def build_retrieval_planner_prompt(
             "Task:\n"
             "Produce a **compact retrieval handoff** for the Context Retrieval stage.\n"
             "- Preserve the Task Contract's primary deliverable. Retrieval is a support step, not the final answer.\n"
+            "- Preserve Source Fit Constraints exactly: explicit title phrases and source scopes outrank semantic expansion hints.\n"
             "- Do **not** retrieve or read source documents in this stage.\n"
             "- Provide only what helps search: 3–7 concrete angles (folders, doc "
             "types, product areas, keywords, standards IDs), ambiguities that change "
@@ -184,12 +191,14 @@ def build_single_retrieval_planner_prompt(
         registry_dir=registry_dir,
         deterministic_context=deterministic_context,
     )
+    source_constraints = infer_source_fit_constraints(message, registry_dir=registry_dir)
     expansion = _retrieval_expansion_section(
         message,
         registry_dir=registry_dir,
         deterministic_context=context,
     ).strip()
     blocks = [_section("User request", message)]
+    blocks.append(_section("Source Fit Constraints", render_source_fit_constraints(source_constraints)))
     if expansion:
         blocks.append(expansion)
     blocks.extend(
@@ -197,6 +206,7 @@ def build_single_retrieval_planner_prompt(
             "Task:\nPerform retrieval now and return concrete results for the user request.",
             "Execution rules:\n"
             "- Use available retrieval tools for OneDrive/SharePoint/workspace as needed.\n"
+            "- Preserve Source Fit Constraints exactly: explicit title phrases and source scopes are hard filters.\n"
             "- **SharePoint vs OneDrive:** if the user asks for SharePoint (not personal OneDrive only), "
             "prefer `search_sharepoint_site_documents` or `list_sites` + `search_site_drive_documents`; "
             "do not use only `list_my_drives` + `search_drive_documents` for that case.\n"
@@ -243,6 +253,7 @@ def build_context_retrieval_prompt(
         registry_dir=registry_dir,
         deterministic_context=deterministic_context,
     )
+    source_constraints = infer_source_fit_constraints(message, registry_dir=registry_dir)
     expansion = _retrieval_expansion_section(
         message,
         registry_dir=registry_dir,
@@ -251,6 +262,7 @@ def build_context_retrieval_prompt(
     blocks = [_section("User request", message)]
     if task_contract is not None:
         blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
+    blocks.append(_section("Source Fit Constraints", render_source_fit_constraints(source_constraints)))
     if expansion:
         blocks.append(expansion)
     blocks.extend(
@@ -269,6 +281,7 @@ def build_context_retrieval_prompt(
             + intranet_rules
             + "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
             "When source selection is needed, keep selection rationale short and make the read content prominent. "
+            "Enforce Source Fit Constraints before reading: title phrases and user-scoped sources are hard filters, while deterministic expansion terms are optional hints. "
             "For SharePoint (not OneDrive-only) use `search_sharepoint_site_documents` or site-scoped search after `list_sites`. "
             "When the user asks for a summary of a document/deck/file, read the content first and mark the item `content_read`; if the read fails, mark it `read_failed` and include the raw error. "
             "Do not draft, recommend, or optimise the final design response.",

@@ -174,6 +174,76 @@ Retrieved and read the selected deck.
     assert '"evidence_level": "content_read"' in result
 
 
+def test_validated_evidence_text_rejects_content_read_source_that_misses_title_constraint():
+    raw = """
+Retrieved and read a deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise the most recent Integration Strategy document.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Local people planning guide.pptx",
+        "open_url": "https://liveuclac.sharepoint.com/sites/UCLPeopleandCulture/guide.pptx",
+        "read_handle": "sharepoint_doc:abc"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "People planning guide.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="source constraints"):
+        pipelines._validated_evidence_text(
+            "Summarise in 4 paragraphs the content of the most recent Integration Strategy document.",
+            raw,
+        )
+
+
+def test_validated_evidence_text_rejects_content_read_source_that_misses_onedrive_scope():
+    raw = """
+Retrieved and read a deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise the most recent Integration Strategy document in my OneDrive.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy full deck v3.pptx",
+        "open_url": "https://liveuclac.sharepoint.com/sites/Architecture/Shared%20Documents/UCL%20Integration%20Strategy.pptx",
+        "read_handle": "sharepoint_doc:abc"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Integration Strategy.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="personal_onedrive"):
+        pipelines._validated_evidence_text(
+            "Summarise the most recent Integration Strategy document in my OneDrive.",
+            raw,
+        )
+
+
 @pytest.mark.anyio
 async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
