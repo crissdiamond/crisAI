@@ -16,10 +16,12 @@ The suite provides confidence around:
 - heuristic routing
 - pipeline mode sequencing
 - peer mode sequencing and transcript handling
+- peer judge decision parsing and peer filesystem evidence collection
 - command parsing and chat controller behaviour
 - CLI state rendering helpers
 - session persistence
 - prompt builder assembly
+- web app job lifecycle and bounded eviction
 - import smoke tests for main orchestration modules
 
 ---
@@ -31,32 +33,59 @@ tests/
   conftest.py
 
   cli/
+    test_main.py
     test_main_imports.py
     test_pipelines.py
     test_workflow_support.py
 
   orchestration/
+    test_graph_login.py          (manual smoke test; skipped by pytest)
     test_pipeline_mode.py
     test_peer_mode.py
 
   unit/
+    test_agent_display_icons.py
     test_agent_factory.py
     test_agent_factory_provider.py
+    test_artefact_validation.py
     test_chat_context.py
     test_chat_controller.py
     test_chat_pin_state.py
     test_cli_commands.py
+    test_config.py
     test_display.py
+    test_document_context_retrieval.py
+    test_intranet_provider.py
+    test_intranet_server.py
+    test_logging_utils.py
     test_main_review_routing.py
     test_model_resolver.py
+    test_openai_agents_trace_compat.py
     test_output_stability.py
+    test_peer_contract.py
+    test_peer_evidence.py
+    test_peer_judge.py
     test_peer_transcript.py
+    test_peer_verifier.py
+    test_pipeline_engine.py
     test_prompt_builders.py
+    test_prompt_scaffolding.py
+    test_registry_defaults.py
     test_registry_models.py
+    test_registry_validation.py
+    test_retrieval_association_graph.py
     test_router.py
     test_router_publisher.py
+    test_runtime_mcp_timeout.py
+    test_semantic_catalog.py
     test_session_store.py
+    test_sharepoint_browser_open.py
+    test_sharepoint_item_normalise.py
+    test_sharepoint_site_filter.py
     test_status_views.py
+    test_web_app.py
+    test_workflow_policy.py
+    test_workspace_server_search.py
 ```
 
 ---
@@ -95,6 +124,18 @@ tests/
 - `run_pipeline(...)` keeps the expected stage order
 - `run_peer_pipeline(...)` keeps the expected stage order
 - workflow helper functions keep shared runtime behaviour stable
+
+### Peer judge and evidence layer
+- judge decision parsing correctly classifies `accept`, `revise`, and `unknown` outcomes
+- judge reason excerpt extraction prefers `Reason:` field, falls back to first non-decision line
+- filesystem evidence builder reports changed markdown files with front-matter, source, and excerpt metadata
+- filesystem evidence builder prioritises index-section content for index files
+
+### Web app layer
+- `/api/run/start` returns correct job id and decision metadata
+- `_run_job` wraps session history into chat input and saves history on completion
+- `_evict_old_jobs` removes oldest completed/failed entries when the count exceeds the limit
+- running jobs are never evicted
 
 ### Prompt layer
 - prompt builders still assemble the expected runtime sections
@@ -240,7 +281,9 @@ Check:
 Check:
 - `src/crisai/cli/pipelines.py`
 - `src/crisai/cli/workflow_support.py`
-- compatibility with existing monkeypatch seams
+- `src/crisai/orchestration/peer_judge.py`
+- `src/crisai/orchestration/peer_evidence.py`
+- compatibility with existing monkeypatch seams (judge and evidence helpers are patched via their own modules, not via `pipelines`)
 
 ### If CLI tests fail
 Check:
