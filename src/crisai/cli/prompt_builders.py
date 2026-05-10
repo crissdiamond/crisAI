@@ -314,6 +314,31 @@ def build_context_retrieval_prompt(
     return "\n\n".join(blocks)
 
 
+def build_context_retrieval_repair_prompt(
+    message: str,
+    retrieval_plan_text: str,
+    invalid_output: str,
+    validation_error: str,
+) -> str:
+    """Build a generic retry prompt for invalid retrieval evidence transport."""
+    return "\n\n".join(
+        [
+            _section("User request", message),
+            _section("Retrieval handoff", retrieval_plan_text),
+            _section("Previous retrieval output that failed validation", invalid_output),
+            _section("Validation error", validation_error),
+            "Task:\nRepair the retrieval evidence contract for the same user request. "
+            "If the previous output does not contain enough source metadata and content evidence to construct a valid bundle, use the available retrieval tools again before answering. "
+            "Return concise grounded retrieval prose, then end with a fenced `json` block containing `schema_version: \"evidence_bundle_v1\"`. "
+            "For document/deck/file summary requests, the bundle must include at least one `content_read` item backed by a successful read or inspect tool call. "
+            "Do not draft the final answer; only provide retrieval findings and the evidence bundle.",
+            SHAREPOINT_READ_HANDLE_CONTRACT,
+            RETRIEVAL_EVIDENCE_POLICY_CONTRACT,
+            EVIDENCE_BUNDLE_CONTRACT,
+        ]
+    )
+
+
 def build_design_prompt(message: str, discovery_text: str, task_contract: TaskContract | None = None) -> str:
     """Build the runtime prompt for the design stage."""
     blocks = [_section("User request", message)]

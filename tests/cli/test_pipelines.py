@@ -41,13 +41,17 @@ class FakeWorkflowSession:
         return content
 
     async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
-        del kwargs
         self._stage_calls.append((ui_agent_id, prompt))
         if ui_agent_id == "judge":
-            return "Decision: accept"
-        if ui_agent_id == "orchestrator":
-            return self._final_output
-        return f"{ui_agent_id}-output"
+            result = "Decision: accept"
+        elif ui_agent_id == "orchestrator":
+            result = self._final_output
+        else:
+            result = f"{ui_agent_id}-output"
+        output_processor = kwargs.get("output_processor")
+        if output_processor is not None:
+            output_processor(result)
+        return result
 
 
 class FakeWorkflowEngine:
@@ -436,6 +440,94 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
         ("REVIEW OUTPUT", "Review stage skipped because review is disabled."),
         ("WORKFLOW_END", "Pipeline workflow completed."),
     ]
+
+
+@pytest.mark.anyio
+async def test_run_pipeline_repairs_missing_required_evidence_bundle(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    evidence_bundle = """
+Retrieved and read the deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise this document",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Deck.pptx",
+        "open_url": "https://example.com/deck.pptx",
+        "read_handle": "sharepoint_doc:abc",
+        "metadata": {}
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Slide 1: Strategy overview.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    class RepairingWorkflowSession(FakeWorkflowSession):
+        def __init__(self) -> None:
+            super().__init__(trace_calls, stage_calls, "final summary")
+            self.context_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "context_retrieval":
+                self.context_calls += 1
+                result = "I read the deck but forgot the evidence bundle." if self.context_calls == 1 else evidence_bundle
+            elif ui_agent_id == "orchestrator":
+                result = self._final_output
+            elif ui_agent_id == "summary":
+                result = "summary draft"
+            else:
+                result = f"{ui_agent_id}-output"
+            output_processor = kwargs.get("output_processor")
+            if output_processor is not None:
+                output_processor(result)
+            return result
+
+    session = RepairingWorkflowSession()
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    result = await pipelines.run_pipeline(
+        "Summarise this document",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+    )
+
+    context_prompts = [prompt for name, prompt in stage_calls if name == "context_retrieval"]
+    assert result == "final summary"
+    assert len(context_prompts) == 2
+    assert "Repair the retrieval evidence contract" in context_prompts[1]
+    assert any(name == "summary" for name, _ in stage_calls)
 
 
 @pytest.mark.anyio

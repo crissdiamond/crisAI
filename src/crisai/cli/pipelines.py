@@ -72,6 +72,7 @@ from .prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
     build_context_retrieval_prompt,
+    build_context_retrieval_repair_prompt,
     build_context_synthesizer_prompt,
     build_design_prompt,
     build_peer_final_prompt,
@@ -158,6 +159,30 @@ class ValidatedEvidenceTransport:
             },
             "evidence_summary": self.evidence_brief,
         }
+
+
+@dataclass(slots=True)
+class EvidenceValidationCapture:
+    """Capture parsed evidence transport from a retrieval stage output."""
+
+    intent_message: str
+    transport: ValidatedEvidenceTransport | None = None
+    error: WorkflowPolicyViolation | None = None
+
+    def process(self, raw_text: str) -> tuple[str, dict[str, Any] | None]:
+        """Parse evidence output and keep validation failures available to callers."""
+        try:
+            self.transport = _validated_evidence_transport(self.intent_message, raw_text)
+        except WorkflowPolicyViolation as exc:
+            self.error = exc
+            self.transport = ValidatedEvidenceTransport(
+                prose=sanitize_user_visible_text(raw_text),
+                bundle=None,
+                evidence_brief="",
+            )
+            return self.transport.prose, {"evidence_validation_error": str(exc)}
+        self.error = None
+        return self.transport.prose, self.transport.trace_metadata
 
 
 def _evidence_brief(bundle: EvidenceBundle) -> str:
@@ -567,21 +592,7 @@ async def run_pipeline(
             verbose=verbose,
         )
 
-        evidence_transport: ValidatedEvidenceTransport | None = None
-        evidence_policy_error: WorkflowPolicyViolation | None = None
-        def process_context_retrieval_output(raw_text: str) -> tuple[str, dict[str, Any] | None]:
-            nonlocal evidence_policy_error, evidence_transport
-            try:
-                evidence_transport = _validated_evidence_transport(intent_message, raw_text)
-            except WorkflowPolicyViolation as exc:
-                evidence_policy_error = exc
-                evidence_transport = ValidatedEvidenceTransport(
-                    prose=sanitize_user_visible_text(raw_text),
-                    bundle=None,
-                    evidence_brief="",
-                )
-                return evidence_transport.prose, {"evidence_validation_error": str(exc)}
-            return evidence_transport.prose, evidence_transport.trace_metadata
+        evidence_capture = EvidenceValidationCapture(intent_message)
 
         context_retrieval_text = await workflow.run_stage(
             spec=specs["context_retrieval"],
@@ -595,18 +606,43 @@ async def run_pipeline(
             ),
             trace_label="CONTEXT RETRIEVAL OUTPUT",
             verbose=verbose,
-            output_processor=process_context_retrieval_output,
+            output_processor=evidence_capture.process,
         )
-        if evidence_policy_error is not None:
+        if evidence_capture.error is not None and request_requires_content_read(intent_message):
+            _trace_workflow_policy_event(
+                workflow,
+                "EVIDENCE_CONTRACT_REPAIR",
+                "Retrying context retrieval because required evidence transport failed validation.",
+                event_type="policy_signal",
+                metadata={"validation_error": str(evidence_capture.error)},
+            )
+            repair_capture = EvidenceValidationCapture(intent_message)
+            context_retrieval_text = await workflow.run_stage(
+                spec=specs["context_retrieval"],
+                ui_agent_id="context_retrieval",
+                prompt=build_context_retrieval_repair_prompt(
+                    message,
+                    retrieval_plan_text,
+                    context_retrieval_text,
+                    str(evidence_capture.error),
+                ),
+                trace_label="CONTEXT RETRIEVAL REPAIR OUTPUT",
+                verbose=verbose,
+                output_processor=repair_capture.process,
+            )
+            evidence_capture = repair_capture
+        if evidence_capture.error is not None:
             _trace_workflow_policy_event(
                 workflow,
                 "POLICY_VIOLATION",
-                str(evidence_policy_error),
+                str(evidence_capture.error),
                 event_type="policy_violation",
             )
-            raise typer.BadParameter(str(evidence_policy_error)) from evidence_policy_error
+            raise typer.BadParameter(str(evidence_capture.error)) from evidence_capture.error
         validated_context_retrieval_text = (
-            evidence_transport.prompt_text if evidence_transport is not None else sanitize_user_visible_text(context_retrieval_text)
+            evidence_capture.transport.prompt_text
+            if evidence_capture.transport is not None
+            else sanitize_user_visible_text(context_retrieval_text)
         )
         try:
             enforce_intranet_fetch_policy(policy, validated_context_retrieval_text)
@@ -815,21 +851,7 @@ async def run_peer_pipeline(
                 verbose=verbose,
             )
             if use_context_retrieval:
-                evidence_transport: ValidatedEvidenceTransport | None = None
-                evidence_policy_error: WorkflowPolicyViolation | None = None
-                def process_context_retrieval_output(raw_text: str) -> tuple[str, dict[str, Any] | None]:
-                    nonlocal evidence_policy_error, evidence_transport
-                    try:
-                        evidence_transport = _validated_evidence_transport(intent_message, raw_text)
-                    except WorkflowPolicyViolation as exc:
-                        evidence_policy_error = exc
-                        evidence_transport = ValidatedEvidenceTransport(
-                            prose=sanitize_user_visible_text(raw_text),
-                            bundle=None,
-                            evidence_brief="",
-                        )
-                        return evidence_transport.prose, {"evidence_validation_error": str(exc)}
-                    return evidence_transport.prose, evidence_transport.trace_metadata
+                evidence_capture = EvidenceValidationCapture(intent_message)
 
                 context_retrieval_text = await workflow.run_stage(
                     spec=specs["context_retrieval"],
@@ -842,19 +864,42 @@ async def run_peer_pipeline(
                     ),
                     trace_label="CONTEXT RETRIEVAL OUTPUT",
                     verbose=verbose,
-                    output_processor=process_context_retrieval_output,
+                    output_processor=evidence_capture.process,
                 )
-                if evidence_policy_error is not None:
+                if evidence_capture.error is not None and request_requires_content_read(intent_message):
+                    _trace_workflow_policy_event(
+                        workflow,
+                        "EVIDENCE_CONTRACT_REPAIR",
+                        "Retrying context retrieval because required evidence transport failed validation.",
+                        event_type="policy_signal",
+                        metadata={"validation_error": str(evidence_capture.error)},
+                    )
+                    repair_capture = EvidenceValidationCapture(intent_message)
+                    context_retrieval_text = await workflow.run_stage(
+                        spec=specs["context_retrieval"],
+                        ui_agent_id="context_retrieval",
+                        prompt=build_context_retrieval_repair_prompt(
+                            message,
+                            retrieval_plan_text,
+                            context_retrieval_text,
+                            str(evidence_capture.error),
+                        ),
+                        trace_label="CONTEXT RETRIEVAL REPAIR OUTPUT",
+                        verbose=verbose,
+                        output_processor=repair_capture.process,
+                    )
+                    evidence_capture = repair_capture
+                if evidence_capture.error is not None:
                     _trace_workflow_policy_event(
                         workflow,
                         "POLICY_VIOLATION",
-                        str(evidence_policy_error),
+                        str(evidence_capture.error),
                         event_type="policy_violation",
                     )
-                    raise typer.BadParameter(str(evidence_policy_error)) from evidence_policy_error
+                    raise typer.BadParameter(str(evidence_capture.error)) from evidence_capture.error
                 context_retrieval_text = (
-                    evidence_transport.prompt_text
-                    if evidence_transport is not None
+                    evidence_capture.transport.prompt_text
+                    if evidence_capture.transport is not None
                     else sanitize_user_visible_text(context_retrieval_text)
                 )
                 try:
