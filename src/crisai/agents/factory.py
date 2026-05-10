@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import inspect
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,8 @@ from agents import Agent
 
 from crisai.model_resolver import ModelResolver, ResolvedModel
 from crisai.registry import AgentSpec, ModelSpec
+
+logger = logging.getLogger(__name__)
 
 
 class AgentFactory:
@@ -53,7 +57,30 @@ class AgentFactory:
                 kwargs["api_key"] = resolved_model.api_key
             if resolved_model.base_url:
                 kwargs["base_url"] = resolved_model.base_url
-            kwargs.update(resolved_model.extra)
+            kwargs.update(_supported_litellm_kwargs(LitellmModel, resolved_model.extra))
             return LitellmModel(model=resolved_model.model_name, **kwargs)
 
         raise ValueError(f"Unsupported model provider: {resolved_model.provider}")
+
+
+def _supported_litellm_kwargs(model_cls: Any, extra: dict[str, Any]) -> dict[str, Any]:
+    """Return registry extras accepted by the installed LiteLLM adapter."""
+    if not extra:
+        return {}
+    try:
+        parameters = inspect.signature(model_cls).parameters
+    except (TypeError, ValueError):
+        logger.warning("Could not inspect LiteLLM model signature; ignoring registry model extras.")
+        return {}
+    supported = {
+        key: value
+        for key, value in extra.items()
+        if key in parameters and key not in {"self", "model", "api_key", "base_url"}
+    }
+    ignored = sorted(set(extra) - set(supported))
+    if ignored:
+        logger.warning(
+            "Ignoring unsupported LiteLLM model registry option(s): %s",
+            ", ".join(ignored),
+        )
+    return supported
