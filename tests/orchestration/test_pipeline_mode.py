@@ -98,7 +98,7 @@ def patch_pipeline_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "MultiServerContext", DummyAsyncContext)
     monkeypatch.setattr(pipelines, "append_trace", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "print_agent_output", lambda *args, **kwargs: None)
-    monkeypatch.setattr(pipelines, "build_retrieval_planner_prompt", lambda message: f"RETRIEVAL_PLANNER::{message}")
+    monkeypatch.setattr(pipelines, "build_retrieval_planner_prompt", lambda message, **kwargs: f"RETRIEVAL_PLANNER::{message}")
     monkeypatch.setattr(
         pipelines,
         "build_context_synthesizer_prompt",

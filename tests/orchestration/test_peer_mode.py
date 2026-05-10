@@ -108,7 +108,7 @@ def patch_peer_runtime(monkeypatch):
     monkeypatch.setattr(pipelines, "MultiServerContext", DummyAsyncContext)
     monkeypatch.setattr(pipelines, "append_trace", lambda *args, **kwargs: None)
     monkeypatch.setattr(pipelines, "print_agent_output", lambda *args, **kwargs: None)
-    monkeypatch.setattr(pipelines, "build_retrieval_planner_prompt", lambda message: f"RETRIEVAL_PLANNER::{message}")
+    monkeypatch.setattr(pipelines, "build_retrieval_planner_prompt", lambda message, **kwargs: f"RETRIEVAL_PLANNER::{message}")
     monkeypatch.setattr(pipelines, "build_author_prompt", lambda message, discovery: f"AUTHOR::{message}")
     monkeypatch.setattr(pipelines, "build_challenger_prompt", lambda message, discovery, author: f"CHALLENGER::{message}")
     monkeypatch.setattr(pipelines, "build_refiner_prompt", lambda message, discovery, author, challenger: f"REFINER::{message}")

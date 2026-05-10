@@ -114,19 +114,6 @@ def _trace_workflow_policy_event(
         tracer(stage, content, event_type=event_type, metadata=metadata)
 
 
-def _append_trace_compat(path: Path, stage: str, content: str, **kwargs: Any) -> None:
-    """Call append_trace with backward-compatible fallback.
-
-    Some existing tests monkeypatch append_trace with the historical
-    three-argument signature. Production code uses structured keyword
-    arguments. This helper preserves both call styles.
-    """
-    try:
-        append_trace(path, stage, content, **kwargs)
-    except TypeError:
-        append_trace(path, stage, content)
-
-
 def _append_trace_entry_compat(
     environment: WorkflowEnvironment,
     stage: str,
@@ -254,7 +241,7 @@ def append_trace_entry(
     This wrapper keeps append_trace patchable from tests through the pipelines
     module surface.
     """
-    _append_trace_compat(
+    append_trace(
         environment.trace_file,
         stage,
         content,
@@ -271,18 +258,6 @@ def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
     if model_specs is not None and "model_specs" in signature.parameters:
         return create_workflow_environment(settings, model_specs=model_specs)
     return create_workflow_environment(settings)
-
-
-def _build_prompt_with_deterministic_context(builder, *args, **extra_kwargs: Any) -> str:
-    """Call prompt builders with optional deterministic-context support.
-
-    Some tests monkeypatch legacy builder signatures that do not accept
-    deterministic context kwargs. Fallback preserves compatibility.
-    """
-    try:
-        return builder(*args, **extra_kwargs)
-    except TypeError:
-        return builder(*args)
 
 
 def _create_workflow_engine(environment: WorkflowEnvironment, server_specs) -> WorkflowEngine:
@@ -358,7 +333,7 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
             else message
         )
         result = await _run_agent_silently(agent, prompt)
-        _append_trace_compat(
+        append_trace(
             environment.trace_file,
             "FINAL_OUTPUT",
             result,
@@ -434,8 +409,7 @@ async def run_pipeline(
         retrieval_plan_text = await workflow.run_stage(
             spec=specs["retrieval_planner"],
             ui_agent_id="retrieval_planner",
-            prompt=_build_prompt_with_deterministic_context(
-                build_retrieval_planner_prompt,
+            prompt=build_retrieval_planner_prompt(
                 message,
                 deterministic_context=deterministic_context,
                 registry_dir=Path(registry_dir) if registry_dir is not None else None,
@@ -447,8 +421,7 @@ async def run_pipeline(
         context_retrieval_text = await workflow.run_stage(
             spec=specs["context_retrieval"],
             ui_agent_id="context_retrieval",
-            prompt=_build_prompt_with_deterministic_context(
-                build_context_retrieval_prompt,
+            prompt=build_context_retrieval_prompt(
                 message,
                 retrieval_plan_text,
                 deterministic_context=deterministic_context,
@@ -639,8 +612,7 @@ async def run_peer_pipeline(
             retrieval_plan_text = await workflow.run_stage(
                 spec=specs["retrieval_planner"],
                 ui_agent_id="retrieval_planner",
-                prompt=_build_prompt_with_deterministic_context(
-                    build_retrieval_planner_prompt,
+                prompt=build_retrieval_planner_prompt(
                     message,
                     deterministic_context=deterministic_context,
                     registry_dir=Path(registry_dir) if registry_dir is not None else None,
@@ -652,8 +624,7 @@ async def run_peer_pipeline(
                 context_retrieval_text = await workflow.run_stage(
                     spec=specs["context_retrieval"],
                     ui_agent_id="context_retrieval",
-                    prompt=_build_prompt_with_deterministic_context(
-                        build_context_retrieval_prompt,
+                    prompt=build_context_retrieval_prompt(
                         message,
                         retrieval_plan_text,
                         deterministic_context=deterministic_context,
