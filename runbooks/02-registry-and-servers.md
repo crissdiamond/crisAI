@@ -25,3 +25,5 @@ Remote servers (`sse`, `streamable-http`) are not started by crisAI — they mus
 See the commented example at the bottom of `registry/servers.yaml` for the full remote-server schema.
 
 Workspace write tools are intentionally bounded. `write_workspace_file` and `append_workspace_file` default to `outputs/`, `context_staging/`, and `scratch/`, with text/markdown/data/diagram extensions only. Override cautiously with `CRISAI_WORKSPACE_WRITE_SUBDIRS`, `CRISAI_WORKSPACE_WRITE_EXTENSIONS`, and `CRISAI_WORKSPACE_MAX_WRITE_BYTES`.
+
+The built-in `vision` server is a stdio MCP server for workspace-bounded image inspection. It exposes `describe_image` for standalone images and `describe_powerpoint_slide_images` for picture shapes embedded in local `.pptx` files. Add `vision` to an agent's `servers:` list before expecting that agent to inspect image content; live descriptions require `OPENAI_API_KEY` and can use `CRISAI_VISION_MODEL` to override the default vision model.

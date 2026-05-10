@@ -22,6 +22,7 @@ The suite provides confidence around:
 - session persistence
 - prompt builder assembly
 - web app job lifecycle and bounded eviction
+- PowerPoint image extraction and vision MCP path safety/tool behaviour
 - import smoke tests for main orchestration modules
 
 ---
@@ -57,6 +58,7 @@ tests/
     test_document_context_retrieval.py
     test_intranet_provider.py
     test_intranet_server.py
+    test_image_server.py
     test_logging_utils.py
     test_main_review_routing.py
     test_model_resolver.py
@@ -69,6 +71,7 @@ tests/
     test_peer_verifier.py
     test_pipeline_engine.py
     test_prompt_builders.py
+    test_powerpoint.py
     test_prompt_scaffolding.py
     test_registry_defaults.py
     test_registry_models.py
@@ -141,6 +144,12 @@ tests/
 - prompt builders still assemble the expected runtime sections
 - final-stage prompt assembly keeps the required handoff framing
 - prompt-builder drift is reduced by keeping role policy in markdown prompts
+
+### Document and vision layer
+- PowerPoint extraction exposes slide text, tables, notes, and extraction limitations
+- PowerPoint image extraction returns picture blobs in slide order
+- vision server tools enforce workspace-bounded paths and supported image types
+- vision server tests monkeypatch provider calls, so the suite remains network-free
 
 ### Transcript and display layer
 - peer transcript assembly keeps the expected speaker sequence
