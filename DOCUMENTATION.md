@@ -870,7 +870,53 @@ A good way to use crisAI in practice:
 
 ---
 
-## 17. Logs and troubleshooting
+## 17. Smoke tests (opt-in LLM integration tests)
+
+Smoke tests validate end-to-end contract shapes against real LLM APIs. They are deliberately cheap — short prompts, minimal turns, no MCP servers — and are skipped in normal test runs.
+
+### Running smoke tests
+
+```bash
+# Enable the guard and supply provider keys:
+CRISAI_RUN_SMOKE_TESTS=1 \
+  OPENAI_API_KEY=sk-... \
+  DEEPSEEK_API_KEY=sk-... \
+  GEMINI_API_KEY=AI... \
+  ANTHROPIC_API_KEY=sk-ant-... \
+  python -m pytest tests/smoke/ -v
+```
+
+Individual provider keys can be omitted — tests that need the missing key skip automatically.
+
+### What is tested
+
+| Test | Providers required | Contract |
+|---|---|---|
+| `test_single_agent_provider_responds` | one per run (parametrized) | non-empty output; `stage_output` trace entry |
+| `test_pipeline_all_stages_traced` | openai + deepseek | all core stages in trace with non-empty content |
+| `test_peer_judge_decision_contract` | openai + deepseek + gemini | judge trace entry; output contains `Decision:` |
+
+### Cost controls built in
+
+- `CRISAI_AGENT_MAX_TURNS=5` (default is 30) — limits per-agent token spend.
+- `needs_retrieval=False` for peer mode — skips MCP retrieval stages.
+- `CRISAI_PEER_MAX_REFINEMENT_ROUNDS=0` and `CRISAI_PEER_MAX_ESCALATIONS=0` — peer test exits after the first judge decision.
+- Knowledge questions only — no MCP server connections needed.
+
+### Cheap model refs used
+
+| Provider | Model ref |
+|---|---|
+| openai | `openai_nano` |
+| gemini | `gemini_fast` |
+| anthropic | `anthropic_fast` |
+| deepseek | `deepseek_fast` |
+
+These refs are defined in `registry/models.yaml`. Adjust them there to change which model is used during smoke testing.
+
+---
+
+## 18. Logs and troubleshooting
 
 Useful logs (default directory **`./logs`**, override with **`CRISAI_LOG_DIR`**):
 
@@ -909,7 +955,7 @@ Check:
 
 ---
 
-## 18. Closing note
+## 19. Closing note
 
 crisAI works best when it is:
 - retrieval-disciplined
