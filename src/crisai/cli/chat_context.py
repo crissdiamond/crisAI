@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,7 +67,16 @@ def load_session_memory_config(registry_dir: Path | None = None) -> SessionMemor
             payload = block if isinstance(block, dict) else {}
         except (OSError, yaml.YAMLError):
             payload = {}
+    env_overrides = {
+        "strategy": os.getenv("CRISAI_SESSION_MEMORY_STRATEGY"),
+        "agentic_agent_id": os.getenv("CRISAI_SESSION_MEMORY_AGENT_ID"),
+        "max_recent_turns": os.getenv("CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS"),
+        "max_runtime_chars": os.getenv("CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS"),
+        "max_memory_chars": os.getenv("CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS"),
+        "task_drift_nudge": os.getenv("CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE"),
+    }
     merged = {**_DEFAULT_CONFIG, **{k: v for k, v in payload.items() if v is not None}}
+    merged.update({k: v for k, v in env_overrides.items() if v is not None})
     strategy = str(merged.get("strategy") or "deterministic").strip().lower()
     if strategy not in {"deterministic", "agentic"}:
         strategy = "deterministic"
@@ -76,7 +86,7 @@ def load_session_memory_config(registry_dir: Path | None = None) -> SessionMemor
         max_recent_turns=max(0, _int_setting(merged.get("max_recent_turns"), 2)),
         max_runtime_chars=max(1000, _int_setting(merged.get("max_runtime_chars"), 6000)),
         max_memory_chars=max(500, _int_setting(merged.get("max_memory_chars"), 3000)),
-        task_drift_nudge=bool(merged.get("task_drift_nudge", True)),
+        task_drift_nudge=_bool_setting(merged.get("task_drift_nudge"), True),
     )
 
 
@@ -235,6 +245,19 @@ def _int_setting(value: object, default: int) -> int:
             return int(value)
     except (TypeError, ValueError):
         return default
+    return default
+
+
+def _bool_setting(value: object, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
     return default
 
 

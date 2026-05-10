@@ -241,7 +241,18 @@ Use one session per task when possible:
 - `/context show` previews the compact memory and recent-turn budget that would be supplied to the next request.
 - `/context reset` clears compact memory while keeping raw history intact.
 
-Session memory behavior is configured in `registry/session_memory.yaml`. The default strategy is deterministic, with bounded memory and recent-turn budgets. `memory_summarizer` is registered as the dedicated summarization role for future agentic compaction, but normal runtime compaction currently uses the deterministic contract for predictable cost and offline tests.
+Session memory defaults are configured in `registry/session_memory.yaml`. Local operators can override those defaults from `.env` without editing registry files:
+
+```dotenv
+CRISAI_SESSION_MEMORY_STRATEGY=deterministic
+CRISAI_SESSION_MEMORY_AGENT_ID=memory_summarizer
+CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS=2
+CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS=6000
+CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS=3000
+CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE=true
+```
+
+The default strategy is deterministic, with bounded memory and recent-turn budgets. `memory_summarizer` is registered as the dedicated summarization role for future agentic compaction, but normal runtime compaction currently uses the deterministic contract for predictable cost and offline tests.
 
 ### Agent controls
 

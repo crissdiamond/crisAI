@@ -191,7 +191,7 @@ The registry is the main control plane:
 - `registry/models.yaml`: provider-specific model names and API key env vars.
 - `registry/servers.yaml`: MCP server definitions and allowed tools.
 - `registry/workflow_policy.yaml`: runtime hard gates.
-- `registry/session_memory.yaml`: compact session memory budget and behavior.
+- `registry/session_memory.yaml`: compact session memory defaults, with `.env` overrides via `CRISAI_SESSION_MEMORY_*`.
 - `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, and retrieval source-fit constraints.
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
 

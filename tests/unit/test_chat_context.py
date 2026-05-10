@@ -86,3 +86,30 @@ def test_runtime_context_package_flags_task_drift():
 
     assert package.drift_nudge
     assert package.included_recent_entries <= 4
+
+
+def test_session_memory_config_env_overrides_registry(tmp_path, monkeypatch):
+    (tmp_path / "session_memory.yaml").write_text(
+        """
+session_memory:
+  strategy: deterministic
+  max_recent_turns: 9
+  task_drift_nudge: true
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_STRATEGY", "agentic")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_AGENT_ID", "custom_memory_agent")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS", "3")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS", "7000")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS", "3500")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE", "false")
+
+    config = chat_context.load_session_memory_config(tmp_path)
+
+    assert config.strategy == "agentic"
+    assert config.agentic_agent_id == "custom_memory_agent"
+    assert config.max_recent_turns == 3
+    assert config.max_runtime_chars == 7000
+    assert config.max_memory_chars == 3500
+    assert config.task_drift_nudge is False
