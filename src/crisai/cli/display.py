@@ -77,6 +77,14 @@ _RENDER_STYLES = {
     "final": "bright_black",
 }
 
+_EVIDENCE_JSON_BLOCK_RE = re.compile(
+    r"```(?:json)?\s*\{[^`]*?\"schema_version\"\s*:\s*\"evidence_bundle_v1\".*?\}\s*```",
+    re.DOTALL | re.IGNORECASE,
+)
+_BARE_EVIDENCE_JSON_RE = re.compile(
+    r"(?ms)^\s*\{\s*\n\s*\"schema_version\"\s*:\s*\"evidence_bundle_v1\".*?^\s*\}\s*$"
+)
+
 
 def _icon(agent_id: str) -> str:
     return _ICONS.get(agent_id, "🧠")
@@ -101,6 +109,14 @@ def _strip_markdown(text: str) -> str:
     stripped = re.sub(r"[*_~]", "", stripped)
     stripped = re.sub(r"\s+", " ", stripped)
     return stripped.strip()
+
+
+def _hide_machine_evidence_blocks(text: str) -> str:
+    """Remove machine-readable evidence JSON from user-facing CLI rendering."""
+    cleaned = _EVIDENCE_JSON_BLOCK_RE.sub("", text or "")
+    cleaned = _BARE_EVIDENCE_JSON_RE.sub("", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned
 
 
 def _clean_agent_text(text: str) -> str:
@@ -615,13 +631,14 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
     label = _label(agent_id)
     style = _style(agent_id)
     title = Text(f"{icon} {label}", style=f"bold {style}")
+    display_body = _hide_machine_evidence_blocks(body)
     if not verbose:
-        recap = _role_led_summary(agent_id, body, compact=True).strip()
+        recap = _role_led_summary(agent_id, display_body, compact=True).strip()
         recap = _strip_compact_agent_prefix(agent_id, recap)
         md = f"**Summary:** {recap}" if recap else "**Summary:** _(empty)_"
         rendered_body = Markdown(md)
     else:
-        rendered_body = Markdown(body.strip() or "_empty_")
+        rendered_body = Markdown(display_body.strip() or "_empty_")
     console.print(
         Panel(
             rendered_body,
@@ -641,7 +658,7 @@ def render_peer_message(message: PeerMessage) -> Panel:
     if getattr(message, "step", ""):
         subtitle = Text(f"{_RENDER_TITLES['stage']} • {message.step}", style=f"italic {_style(speaker)}")
 
-    content = (message.content or "").strip() or "_empty_"
+    content = _hide_machine_evidence_blocks(message.content or "").strip() or "_empty_"
 
     return Panel(
         Markdown(content),
@@ -655,9 +672,10 @@ def render_peer_message(message: PeerMessage) -> Panel:
 
 def print_final_answer(body: str, *, title: str | None = None) -> None:
     panel_title = Text(title or _RENDER_TITLES["final"], style=f"bold {_RENDER_STYLES['final']}")
+    display_body = _hide_machine_evidence_blocks(body)
     console.print(
         Panel(
-            Markdown(body.strip() or "_empty_"),
+            Markdown(display_body.strip() or "_empty_"),
             title=panel_title,
             border_style=_RENDER_STYLES["final"],
             padding=(0, 1),

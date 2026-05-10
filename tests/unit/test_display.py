@@ -37,6 +37,50 @@ def test_print_agent_output_verbose_uses_markdown_panel(monkeypatch) -> None:
     assert isinstance(panel.renderable, Markdown)
 
 
+def test_print_agent_output_hides_evidence_json_in_verbose(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+    body = """Found files.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "find docs",
+  "items": [],
+  "gaps": []
+}
+```
+"""
+
+    display.print_agent_output("retrieval_planner", body, verbose=True)
+
+    md = captured[0].renderable
+    assert isinstance(md, Markdown)
+    assert "Found files." in md.markup
+    assert "evidence_bundle_v1" not in md.markup
+
+
+def test_print_final_answer_hides_bare_evidence_json(monkeypatch) -> None:
+    captured = []
+    monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
+    body = """Here are the documents.
+
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "find docs",
+  "items": [],
+  "gaps": []
+}
+"""
+
+    display.print_final_answer(body)
+
+    md = captured[0].renderable
+    assert isinstance(md, Markdown)
+    assert "Here are the documents." in md.markup
+    assert "evidence_bundle_v1" not in md.markup
+
+
 def test_print_agent_output_non_verbose_markdown_is_short_summary_not_full_body(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))
