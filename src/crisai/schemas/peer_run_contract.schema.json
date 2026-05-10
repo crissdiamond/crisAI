@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/peer_run_contract.schema.json",
+  "title": "Peer Run Contract",
+  "type": "object",
+  "required": [
+    "expected_output_type",
+    "must_create_or_update_files",
+    "must_modify_code",
+    "must_ground_in_sources",
+    "acceptance_dimensions",
+    "role_focus_author",
+    "role_focus_challenger",
+    "role_focus_refiner",
+    "role_focus_judge"
+  ],
+  "properties": {
+    "expected_output_type": {
+      "enum": ["artifact_package", "code_change", "assessment", "direct_answer"]
+    },
+    "must_create_or_update_files": { "type": "boolean" },
+    "must_modify_code": { "type": "boolean" },
+    "must_ground_in_sources": { "type": "boolean" },
+    "acceptance_dimensions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "role_focus_author": { "type": "string", "minLength": 1 },
+    "role_focus_challenger": { "type": "string", "minLength": 1 },
+    "role_focus_refiner": { "type": "string", "minLength": 1 },
+    "role_focus_judge": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

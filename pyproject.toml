@@ -70,3 +70,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+crisai = ["schemas/*.json", "schemas/*.md"]

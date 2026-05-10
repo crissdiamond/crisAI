@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/evidence_bundle_v1.schema.json",
+  "title": "Evidence Bundle",
+  "type": "object",
+  "required": ["schema_version", "request", "items", "gaps"],
+  "properties": {
+    "schema_version": { "const": "evidence_bundle_v1" },
+    "request": { "type": "string", "minLength": 1 },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidence_item" }
+    },
+    "gaps": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "source_reference": {
+      "type": "object",
+      "required": ["source_type", "title"],
+      "properties": {
+        "source_type": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "open_url": { "type": "string" },
+        "location": { "type": "string" },
+        "read_handle": { "type": "string" },
+        "workspace_path": { "type": "string" },
+        "content_id": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "anyOf": [
+        { "required": ["open_url"] },
+        { "required": ["read_handle"] },
+        { "required": ["workspace_path"] },
+        { "required": ["content_id"] }
+      ],
+      "additionalProperties": false
+    },
+    "evidence_item": {
+      "type": "object",
+      "required": [
+        "source",
+        "evidence_level",
+        "read_status",
+        "read_tool",
+        "content_excerpt",
+        "raw_error"
+      ],
+      "properties": {
+        "source": {
+          "oneOf": [
+            { "$ref": "#/$defs/source_reference" },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "evidence_level": {
+          "enum": ["search_hit_only", "metadata_read", "content_read", "read_failed"]
+        },
+        "read_status": { "type": "string", "minLength": 1 },
+        "read_tool": { "type": "string" },
+        "content_excerpt": { "type": "string" },
+        "raw_error": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -163,7 +163,8 @@ Recommended event label:
 ## 8. Key Files
 
 - `src/crisai/orchestration/retrieval_association_graph.py`
-- `src/crisai/cli/prompt_builders.py`
+- `src/crisai/orchestration/prompt_generation.py`
+- `src/crisai/schemas/`
 - `src/crisai/cli/pipelines.py`
 - `src/crisai/cli/workflow_policy.py`
 - `src/crisai/servers/workspace_server.py`

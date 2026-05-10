@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/deterministic_context_v1.schema.json",
+  "title": "Deterministic Retrieval Context",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "graph_loaded",
+    "graph_version",
+    "activated_topics_count",
+    "hint_terms_count",
+    "activated_topics",
+    "suggested_sources"
+  ],
+  "properties": {
+    "schema_version": { "const": "deterministic_context_v1" },
+    "graph_loaded": { "type": "boolean" },
+    "graph_version": { "type": "string" },
+    "activated_topics_count": { "type": "integer", "minimum": 0 },
+    "hint_terms_count": { "type": "integer", "minimum": 0 },
+    "activated_topics": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "suggested_sources": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "additionalProperties": false
+}

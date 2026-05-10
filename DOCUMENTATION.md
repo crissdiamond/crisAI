@@ -550,6 +550,10 @@ and that any “latest/best candidate” work is only a source-resolution subtas
 Machine payloads are retained in traces for debugging but hidden from normal CLI
 and web stage panels, verbose panels, and final answers.
 
+JSON Schemas and prompt-facing schema contracts live under
+`src/crisai/schemas/`. Python code should load those resources rather than
+embedding schema examples or contract blocks directly in modules.
+
 PowerPoint retrieval has dedicated inspection support. Use:
 - `inspect_powerpoint_document` for local workspace `.pptx` files
 - `inspect_sharepoint_powerpoint_by_handle` for SharePoint / OneDrive `.pptx` files returned by search
