@@ -27,11 +27,9 @@ from crisai.registry import AgentSpec
 
 from .conftest import (
     CHEAP_MODEL_REF,
-    PROVIDER_KEY_ENV,
     assert_stage_traced,
     read_trace,
     require_providers,
-    require_smoke,
 )
 
 _SMOKE_QUESTION = "List two concrete benefits of using an API gateway in a microservice architecture."
