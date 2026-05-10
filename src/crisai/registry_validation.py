@@ -325,15 +325,18 @@ def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[
 
 
 def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
-    """Check basic environment setup: .env file presence and critical variables."""
+    """Check optional local environment setup."""
     errors: list[DoctorIssue] = []
     warnings: list[DoctorIssue] = []
 
     env_file = root_dir / ".env"
     if not env_file.is_file():
-        errors.append(DoctorIssue(
-            message=".env file not found — no API keys or paths will be loaded.",
-            hint="Copy the example and fill in your keys: `cp .env.example .env`",
+        warnings.append(DoctorIssue(
+            message=".env file not found; local dotenv values will not be loaded.",
+            hint=(
+                "Create one from the example if you rely on dotenv configuration: "
+                "`cp .env.example .env`"
+            ),
         ))
 
     return errors, warnings

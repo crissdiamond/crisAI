@@ -8,6 +8,7 @@ import yaml
 
 from crisai.registry_validation import (
     DoctorIssue,
+    _check_env_setup,
     _validate_registry_cross_references,
     run_doctor,
 )
@@ -184,15 +185,12 @@ def test_issue_hint_is_none_by_default() -> None:
 
 
 def test_doctor_warns_about_missing_env_file(tmp_path: Path) -> None:
-    """Doctor raises an error when .env is absent from the project root."""
-    root = Path(__file__).resolve().parents[2]
-    registry_dir = tmp_path / "registry"
-    shutil.copytree(root / "registry", registry_dir)
-    # Use tmp_path as root so there is no .env there
-    result = run_doctor(root_dir=tmp_path, registry_dir=registry_dir)
+    """Doctor keeps clean checkouts valid when .env is absent."""
+    errors, warnings = _check_env_setup(tmp_path)
 
-    assert any(".env file not found" in e.message for e in result.errors)
-    matching = next(e for e in result.errors if ".env file not found" in e.message)
+    assert errors == []
+    assert any(".env file not found" in w.message for w in warnings)
+    matching = next(w for w in warnings if ".env file not found" in w.message)
     assert matching.hint is not None
     assert ".env.example" in matching.hint
 
