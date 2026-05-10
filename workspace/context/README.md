@@ -27,6 +27,7 @@ Curated knowledge for **Higher Education (HE)** architecture work: colleges, uni
 | **`reference/landscape/`** | Platform capabilities, technology estate, hosting zones. | What the “data platform” does, regions, major products. |
 | **`reference/domains/`** | Business / data domain background, not only IT. | Student lifecycle, finance, research data sensitivities. |
 | **`reference/integrations/`** | System-to-system patterns, vendor touchpoints (no secrets). | “How we connect SIS to warehouse” at architecture level. |
+| **`reference/template/`** | Reusable document templates and skeletons. | HLD, options paper, assessment, or assurance templates. |
 | **`intake/`** | **Non-authoritative** workshop notes, raw discovery, “what we heard”. | Replace ad-hoc `notes/` over time for new material. |
 | **`notes/`** | **Legacy / demo** informal notes (kept for existing crisAI tests). | Prefer **`intake/`** for new HE corpus material. |
 | **`_templates/`** | Copy-paste starters. | `integration-pattern-artefact-template.txt` |
