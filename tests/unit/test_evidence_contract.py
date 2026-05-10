@@ -64,6 +64,33 @@ def test_parse_evidence_bundle_from_fenced_json() -> None:
     assert bundle.items[0].source.title == "Deck.pptx"
 
 
+def test_parse_evidence_bundle_accepts_legacy_string_source() -> None:
+    raw = """
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Can you summarise the most recent and likely master document?",
+  "items": [
+    {
+      "source": "UCL Integration Strategy_Full Presentation v2.pptx",
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Integration Strategy v1.0, September 2021.",
+      "raw_error": null
+    }
+  ]
+}
+```
+"""
+    bundle = parse_evidence_bundle(raw)
+
+    assert bundle.has_content_read() is True
+    assert bundle.items[0].source.title == "UCL Integration Strategy_Full Presentation v2.pptx"
+    assert bundle.items[0].source.source_type == "sharepoint_document"
+    assert bundle.items[0].source.metadata["normalised_from"] == "string_source"
+
+
 def test_evidence_bundle_rejects_invalid_level() -> None:
     payload = _bundle(level="made_up")
     with pytest.raises(ValueError, match="evidence_level"):

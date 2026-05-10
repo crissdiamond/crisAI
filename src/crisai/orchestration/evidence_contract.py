@@ -45,13 +45,23 @@ class SourceReference:
             metadata=dict(metadata),
         )
 
+    @classmethod
+    def from_legacy_title(cls, title: str, *, read_tool: str = "") -> SourceReference:
+        """Build a source reference from the pre-schema string source format."""
+        return cls(
+            source_type=_infer_source_type(read_tool),
+            title=title.strip(),
+            metadata={"normalised_from": "string_source"},
+        )
+
     def validate(self) -> None:
         if not self.source_type:
             raise ValueError("source.source_type is required.")
         if not self.title:
             raise ValueError("source.title is required.")
         has_reference = any((self.open_url, self.read_handle, self.workspace_path, self.content_id))
-        if not has_reference:
+        is_legacy_string_source = self.metadata.get("normalised_from") == "string_source"
+        if not has_reference and not is_legacy_string_source:
             raise ValueError(
                 "source must include at least one of open_url, read_handle, workspace_path, or content_id."
             )
@@ -83,13 +93,18 @@ class EvidenceItem:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EvidenceItem:
         source_raw = data.get("source") or {}
-        if not isinstance(source_raw, dict):
+        read_tool = str(data.get("read_tool") or "").strip()
+        if isinstance(source_raw, str):
+            source = SourceReference.from_legacy_title(source_raw, read_tool=read_tool)
+        elif isinstance(source_raw, dict):
+            source = SourceReference.from_dict(source_raw)
+        else:
             raise ValueError("item.source must be an object.")
         return cls(
-            source=SourceReference.from_dict(source_raw),
+            source=source,
             evidence_level=str(data.get("evidence_level") or "").strip(),
             read_status=str(data.get("read_status") or "").strip(),
-            read_tool=str(data.get("read_tool") or "").strip(),
+            read_tool=read_tool,
             content_excerpt=str(data.get("content_excerpt") or ""),
             raw_error=str(data.get("raw_error") or ""),
         )
@@ -182,6 +197,17 @@ def parse_evidence_bundle(text: str) -> EvidenceBundle:
             errors.append(str(exc))
     suffix = f" Last validation error: {errors[-1]}" if errors else ""
     raise ValueError(f"No valid fenced evidence_bundle_v1 JSON block found.{suffix}")
+
+
+def _infer_source_type(read_tool: str) -> str:
+    tool = (read_tool or "").lower()
+    if "sharepoint" in tool:
+        return "sharepoint_document"
+    if "workspace" in tool:
+        return "workspace_document"
+    if "intranet" in tool:
+        return "intranet_page"
+    return "legacy_text"
 
 
 def request_requires_content_read(message: str) -> bool:

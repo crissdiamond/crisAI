@@ -112,6 +112,37 @@ def test_validated_evidence_text_fails_closed_without_content_read():
         pipelines._validated_evidence_text("Can you summarise this document?", raw)
 
 
+def test_validated_evidence_text_accepts_trace_legacy_string_source():
+    raw = """
+Retrieved the likely master deck and read the candidate content.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Can you summarise the most recent and likely master document?",
+  "items": [
+    {
+      "source": "UCL Integration Strategy_Full Presentation v2.pptx",
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Integration Strategy v1.0, September 2021.",
+      "raw_error": null
+    }
+  ]
+}
+```
+"""
+    result = pipelines._validated_evidence_text(
+        "Can you summarise the most recent and likely master document?",
+        raw,
+    )
+
+    assert "## Validated Evidence Bundle" in result
+    assert '"source_type": "sharepoint_document"' in result
+    assert '"normalised_from": "string_source"' in result
+
+
 @pytest.mark.anyio
 async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []

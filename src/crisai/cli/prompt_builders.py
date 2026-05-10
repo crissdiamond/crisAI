@@ -93,6 +93,31 @@ def _section(title: str, body: str) -> str:
     return f"{title}:\n{clean}"
 
 
+_EVIDENCE_BUNDLE_EXAMPLE = """Example item shape:
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise the deck",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Deck.pptx",
+        "open_url": "https://example.com/deck.pptx",
+        "read_handle": "sharepoint_doc:...",
+        "metadata": {}
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Short quoted or paraphrased excerpt from the read content.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+`source` must be an object, not a filename string."""
+
+
 def build_retrieval_planner_prompt(
     message: str,
     *,
@@ -207,7 +232,9 @@ def build_single_retrieval_planner_prompt(
             "Evidence bundle contract:\n"
             "- Return a fenced `json` block with `schema_version: \"evidence_bundle_v1\"`, `request`, `items`, and `gaps`.\n"
             "- Each item must include `source`, `evidence_level`, `read_status`, `read_tool`, `content_excerpt`, and `raw_error`.\n"
-            "- Use `evidence_level: \"content_read\"` only after a successful content read. Use `read_failed` with raw tool error text when reading fails.",
+            "- `source` must be an object with `source_type`, `title`, and at least one durable reference such as `open_url`, `read_handle`, `workspace_path`, or `content_id`.\n"
+            "- Use `evidence_level: \"content_read\"` only after a successful content read. Use `read_failed` with raw tool error text when reading fails.\n"
+            + _EVIDENCE_BUNDLE_EXAMPLE,
         ]
     )
     return "\n\n".join(blocks)
@@ -271,6 +298,9 @@ def build_context_retrieval_prompt(
             "For SharePoint/OneDrive documents, use the returned `read_handle` with `read_sharepoint_document_by_handle`; do not copy, infer, or alter raw `driveId` / `id` values. "
             "When the user asks for a summary of a document/deck/file, read the content first and mark the item `content_read`; if the read fails, mark it `read_failed` and include the raw error. "
             "Return a fenced `json` EvidenceBundle with `schema_version: \"evidence_bundle_v1\"` plus a short markdown rendering for humans. "
+            "In the EvidenceBundle, `source` must be an object with `source_type`, `title`, and at least one durable reference such as `open_url`, `read_handle`, `workspace_path`, or `content_id`; never use a filename string as `source`. "
+            + _EVIDENCE_BUNDLE_EXAMPLE
+            + "\n"
             "Do not draft, recommend, or optimise the final design response.",
         ]
     )

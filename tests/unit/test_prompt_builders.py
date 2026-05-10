@@ -43,6 +43,8 @@ def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     assert "Deterministic retrieval context" in text
     assert "EvidenceBundle" in text
     assert "read_handle" in text
+    assert "`source` must be an object" in text
+    assert '"source_type": "sharepoint_document"' in text
 
 
 def test_build_context_retrieval_prompt_enforces_intranet_tools_for_intranet_scope():
@@ -62,6 +64,7 @@ def test_build_single_retrieval_planner_prompt_requires_verbatim_tool_errors():
     assert "raw error text verbatim in a fenced code block" in text
     assert "evidence_bundle_v1" in text
     assert "read_sharepoint_document_by_handle" in text
+    assert "`source` must be an object" in text
 
 
 def test_build_design_prompt_normalises_empty_discovery():
