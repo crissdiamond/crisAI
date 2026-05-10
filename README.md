@@ -2,268 +2,111 @@
 
 > **A local AI workstation for architecture, design, documentation, research, and controlled multi-agent critique.**
 
-crisAI combines a registry-driven catalogue of MCP servers, a set of specialist agents, an interactive CLI, local and external document retrieval, optional peer-style critique workflows, and provider-aware model assignment.
+crisAI is a registry-driven local workstation that combines specialist agents, MCP tools, local and Microsoft Graph-backed retrieval, structured workflow modes, and provider-aware model assignment.
 
-The aim is to create a personal AI workstation that can retrieve source material, reason over it, draft outputs, critique them, and connect to tools such as local files, document readers, diagram generators, and SharePoint / OneDrive.
+Use it to find source material, reason over it, draft architecture or documentation outputs, challenge those outputs through peer-style critique, and keep generated artefacts grounded in inspectable sources.
 
----
+## What It Provides
 
-## Features
+- CLI and web app surfaces for the same routed workflows.
+- Specialist agents with separate responsibilities and configurable model assignment.
+- Local workspace, document, diagram, SharePoint document, and scoped intranet Site Pages MCP servers.
+- Three workflow modes: `single`, `pipeline`, and `peer`.
+- Deterministic retrieval expansion from registry dictionaries.
+- Runtime policy gates for intranet-grounded work and file-producing workflows.
+- Peer judge/verifier controls for higher-effort architecture work.
+- Persistent chat sessions, route visibility, logs, and validation commands.
 
-- Interactive CLI for one-off or ongoing sessions
-- Web interface mirroring CLI routing and workflows
-- Local workspace retrieval
-- Document reading for common formats:
-  - `.txt`
-  - `.md`
-  - `.csv`
-  - `.docx`
-  - `.pdf`
-  - `.pptx`
-  - `.xlsx`
-- Mermaid diagram generation support
-- SharePoint / OneDrive retrieval via delegated Microsoft Graph access
-- Scoped **intranet** MCP for published SharePoint **site pages** on configured sites only (`registry/intranet.yaml`; tools: `intranet_search`, `intranet_fetch`, `intranet_list_page_links`, **`intranet_list_all_pages`**)
-- Two-stage `intranet_search`: OData scored pass + cache expansion ensures leaf pages (e.g. `Consumer-Pattern-1`) are never silently dropped
-- Synonym dictionary (`registry/search_synonyms.yaml`) — maintainable YAML of equivalent-term groups (plural/singular, abbreviations, domain synonyms) applied to all intranet search; no code change needed to extend it
-- Retrieval association graph (`registry/retrieval_association_graph.yaml`) — deterministic topic expansion reused across `single`, `pipeline`, and `peer` workflows; see `DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md` for architecture, dictionary rules, and advisory MCP usage
-- Global semantic catalogue (`registry/semantic_catalog.yaml`) for router intent terms, peer-verifier semantic patterns, and **peer run-contract** substring markers (`peer_contract.*_markers`), including configurable `leaf_file_terms` architecture vocabulary (for example `hld`, `template`, `standards`, `toolkit`), maintained externally from code
-- Configurable on-disk page catalogue cache (default 4 h, `INTRANET_PAGE_CACHE_TTL_HOURS`) so agents can list every available page without repeated Graph API scans
-- Runtime workflow policy layer (`registry/workflow_policy.yaml`) with hard capability gates (for example: require intranet fetch evidence for intranet-scoped requests; require file writes for artefact-producing requests)
-- Peer run-contract inference (`src/crisai/orchestration/peer_contract.py`) to turn user intent into explicit peer role focus and acceptance dimensions; file-backed staging requests default to `artifact_package` unless clear code targets are present
-- Peer post-run verifier gate (`src/crisai/orchestration/peer_verifier.py`) to validate final peer claims against filesystem outputs and **registry artefact profiles** (`registry/workspace_artifact_profiles.yaml`) for integration patterns, standards, decision records, HLD/LLD, data models, and related architecture artefacts; run `crisai validate-artefacts` standalone to check the corpus without a full peer run
-- Optional **architecture context** corpus under `workspace/context/`, with **draft staging** in `workspace/context_staging/` for human review before promotion
-- Multi-agent orchestration with three execution modes:
-  - `single`
-  - `pipeline`
-  - `peer`
-- Phase 1 heuristic router for task-to-agent selection
-- Explicit chat-state visibility for routing and agent pinning
-- Persistent chat sessions
-- Command history in the CLI
-- In-chat slash commands for agent and server introspection
-- Provider-aware model registry with per-agent model assignment
-- Support-ready provider layer for OpenAI, Gemini, and Anthropic
+For the full operator manual, see [DOCUMENTATION.md](DOCUMENTATION.md). For deterministic retrieval internals, see [DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md](DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md).
 
----
+## High-Level Architecture
 
-## Architecture at a glance
+```mermaid
+flowchart TB
+    User[User] --> Surfaces[CLI and Web App]
+    Surfaces --> Router[Router and Chat State]
+    Router --> Workflows[Workflow Modes]
 
-crisAI is built around six layers:
+    Workflows --> Single[Single Agent]
+    Workflows --> Pipeline[Pipeline]
+    Workflows --> Peer[Peer Critique]
 
-1. **CLI and orchestration**
-   - `src/crisai/cli/main.py`
-   - command routing
-   - chat loop
-   - mode switching
-   - review toggling
-   - session history
-   - heuristic task routing
+    Single --> Agents[Specialist Agents]
+    Pipeline --> Agents
+    Peer --> Agents
 
-2. **CLI support modules**
-   - `src/crisai/cli/chat_context.py`
-   - `src/crisai/cli/chat_controller.py`
-   - `src/crisai/cli/commands.py`
-   - `src/crisai/cli/display.py`
-   - `src/crisai/cli/pipelines.py`
-   - `src/crisai/cli/prompt_builders.py`
-   - `src/crisai/cli/session_store.py`
-   - `src/crisai/cli/status_views.py`
-   - `src/crisai/cli/workflow_support.py`
+    Registry[Registry YAML] --> Router
+    Registry --> Agents
+    Registry --> Runtime[MCP Runtime]
+    Registry --> Models[Model Resolver]
 
-3. **Agents**
-   - configured in `registry/agents.yaml`
-   - prompts stored in `prompts/`
-   - created by `src/crisai/agents/factory.py`
+    Agents --> Runtime
+    Models --> Providers[OpenAI / Gemini / Anthropic]
+    Runtime --> Sources[Workspace / Documents / Diagrams / SharePoint / Intranet]
 
-4. **Model registry**
-   - configured in `registry/models.yaml`
-   - resolved by `src/crisai/model_resolver.py`
-   - assigns provider-specific models to agents through logical `model_ref` values
-
-5. **MCP servers**
-   - configured in `registry/servers.yaml`
-   - built and managed by `src/crisai/runtime.py`
-
-6. **Sources**
-   - local workspace (including curated `context/` retrieval and draft `context_staging/`)
-   - document parser
-   - diagram generator
-   - SharePoint / OneDrive documents via Microsoft Graph
-   - SharePoint **site pages** on allowed intranet hosts via the intranet MCP
-
----
-
-## Project structure
-
-```text
-crisAI/
-  start
-  README.md
-  DOCUMENTATION.md
-  TESTING.md
-  .env.example
-
-  registry/
-    servers.yaml
-    agents.yaml
-    models.yaml
-    policies.yaml
-    intranet.yaml
-    search_synonyms.yaml
-    semantic_catalog.yaml
-    workflow_policy.yaml
-
-  prompts/
-    TEMPLATE.md
-    README.md
-    orchestrator.md
-    retrieval_planner_agent.md
-    context_retrieval_agent.md
-    context_synthesizer_agent.md
-    design_agent.md
-    review_agent.md
-    operations_agent.md
-    publisher.md
-    design_author.md
-    design_challenger.md
-    design_refiner.md
-    judge.md
-    _shared/  (snippet library for prompt authors)
-
-  src/
-    crisai/
-      apps/
-        web.py
-        ui_config.py
-        ui/
-          index.html
-          styles.css
-          app.js
-      cli/
-        main.py
-        chat_context.py
-        chat_controller.py
-        commands.py
-        display.py
-        peer_transcript.py
-        pipelines.py
-        prompt_builders.py
-        session_store.py
-        status_views.py
-        workflow_support.py
-      agents/
-        factory.py
-      orchestration/
-        router.py
-        semantic_catalog.py
-        peer_contract.py
-        peer_verifier.py
-      servers/
-        workspace_server.py
-        document_server.py
-        diagram_server.py
-        sharepoint_server.py
-        intranet_server.py
-      config.py
-      model_resolver.py
-      registry.py
-      runtime.py
-      tracing.py
-      web/
-        app.py
-
-  tests/
-  workspace/
-    context/          # approved HE architecture corpus (retrieval default)
-    context_staging/  # agent drafts; promote into context/ after review
-  logs/
+    Workflows --> Trace[Trace and Logs]
+    Workflows --> Policy[Workflow Policy and Verifiers]
 ```
 
-Notes:
-- `src/crisai/apps/` is the canonical app-surface package (web today, mobile-ready structure for future apps).
-- `src/crisai/web/app.py` is a compatibility shim.
+## Workflow Shape
 
----
+```mermaid
+flowchart LR
+    Request[User Request] --> Route[Route Decision]
+
+    Route -->|single| SingleAgent[Selected Agent]
+    Route -->|pipeline| RetrievalPlanner[Retrieval Planner]
+    RetrievalPlanner --> ContextRetrieval[Context Retrieval]
+    ContextRetrieval --> ContextSynth[Context Synthesizer]
+    ContextSynth --> Design[Design]
+    Design --> Review[Review when needed]
+    Review --> Orchestrator[Orchestrator]
+
+    Route -->|peer| PeerRetrieval[Optional Retrieval]
+    PeerRetrieval --> Author[Design Author]
+    Author --> Challenger[Design Challenger]
+    Challenger --> Refiner[Design Refiner]
+    Refiner --> Judge[Judge]
+    Judge -->|revise| Refiner
+    Judge -->|accept| PeerFinal[Orchestrator + Verifier]
+
+    SingleAgent --> Final[Final Output]
+    Orchestrator --> Final
+    PeerFinal --> Final
+```
+
+## Repository Map
+
+```text
+registry/     Agent, server, model, routing, policy, and retrieval dictionaries
+prompts/      Agent prompt files and prompt-authoring guidance
+src/crisai/   CLI, web app, orchestration, MCP servers, runtime, and validation code
+tests/        Network-free unit, CLI, and orchestration regression tests
+workspace/    Local inputs, approved context, staged drafts, outputs, sessions, and caches
+runbooks/     Operational setup, security, registry, policy, and observability notes
+```
 
 ## Requirements
 
-Before getting started, make sure you have:
+- Python 3.10+
+- Linux, macOS, or WSL on Windows
+- `OPENAI_API_KEY` for OpenAI-backed agents
+- Optional: Gemini or Anthropic keys when selected in `registry/models.yaml`
+- Optional: Microsoft Entra app registration for SharePoint and intranet retrieval
 
-- **Python 3.10+** with the **`venv` standard library module available** (see installation notes below)
-- **Linux, macOS, or WSL on Windows**
-- **OpenAI API key** for OpenAI-backed agents
-- **Optional:** Gemini and Anthropic keys if you assign those providers to any agents
-- **Optional:** Microsoft Entra app registration for SharePoint access
-
----
-
-## Installation
-
-### 1. Clone the repository
+## Quick Install
 
 ```bash
-git clone <https://github.com/crissdiamond/crisAI> 
+git clone https://github.com/crissdiamond/crisAI
 cd crisAI
-```
-
-### 2. Create a virtual environment
-
-crisAI expects a project-local virtual environment at **`.venv`** in the repository root. The **`./start`** launcher sources `.venv/bin/activate` and exits with instructions if that directory is missing.
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-On **Debian / Ubuntu** (and many derivatives), `python3 -m venv` can fail until you install the matching OS package for your Python minor version, for example:
-
-```bash
-sudo apt install python3-venv
-# or, if you use Python 3.12 specifically:
-sudo apt install python3.12-venv
-```
-
-### 3. Install dependencies
-
-With `.venv` activated:
-
-```bash
 pip install --upgrade pip
 pip install -e .
-```
-
-Equivalent using the requirements file (same default dependencies as `pip install -e .`):
-
-```bash
-pip install -r requirements.txt
-```
-
-For local development, tests, linting, and type checks, install the dev extra:
-
-```bash
-pip install -e ".[dev]"
-```
-
-If you want Gemini or Anthropic support through LiteLLM-backed integration, install the optional extra:
-
-```bash
-pip install -r requirements-litellm.txt
-```
-
-or:
-
-```bash
-pip install -e ".[litellm]"
-```
-
-### 4. Create your environment file
-
-```bash
 cp .env.example .env
 ```
 
-Edit `.env` and set at least:
+Set at least:
 
 ```dotenv
 OPENAI_API_KEY=your_openai_api_key
@@ -273,68 +116,26 @@ CRISAI_LOG_DIR=./logs
 CRISAI_REGISTRY_DIR=./registry
 ```
 
-Provider keys when needed:
-
-```dotenv
-GEMINI_API_KEY=your_gemini_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-```
-
-Optional SharePoint / intranet settings:
-
-```dotenv
-MS_TENANT_ID=your_tenant_id
-MS_CLIENT_ID=your_client_id
-MS_CLIENT_SECRET=your_client_secret   # optional; "Allow public client flows" must be on in Azure
-MS_REDIRECT_URI=http://localhost
-
-# Intranet page catalogue cache TTL (used by intranet_list_all_pages)
-INTRANET_PAGE_CACHE_TTL_HOURS=4
-
-# Optional: advisory-only MCP association expansion in peer analysis stages
-# (`challenger` / `judge`). Canonical deterministic context still wins.
-CRISAI_DETERMINISTIC_MCP_ADVISORY=false
-
-# Peer mode: max extra refiner/judge rounds after initial judge decision
-CRISAI_PEER_MAX_REFINEMENT_ROUNDS=2
-
-# Peer mode: max structural escalation attempts (author/challenger rerun)
-# after unresolved revise loops
-CRISAI_PEER_MAX_ESCALATIONS=1
-```
-
-Microsoft Entra app registration quick setup:
-
-1. Open **Microsoft Entra admin center** -> **App registrations** -> **New registration**.
-2. Set a name (for example `crisAI-local`).
-3. Choose supported account type (normally **Accounts in this organizational directory only** for internal use).
-4. Set redirect URI to **Public client/native** with value `http://localhost` (or add it later under Authentication).
-5. Open **Authentication** and enable **Allow public client flows**.
-6. Open **API permissions** and add delegated Microsoft Graph permissions required by your SharePoint/intranet setup, then grant admin consent when your tenant policy requires it.
-7. Copy **Directory (tenant) ID** and **Application (client) ID** into `.env` as `MS_TENANT_ID` and `MS_CLIENT_ID`.
-
-Client secret (only if you choose confidential-client auth or your tenant policy requires it):
-
-1. Open **Certificates & secrets** -> **Client secrets** -> **New client secret**.
-2. Enter description + expiry, then create.
-3. Copy the secret **Value** immediately (it is shown once) and store it in `.env` as `MS_CLIENT_SECRET`.
-4. Rotate before expiry; after rotation update `.env` and restart crisAI.
-
-> **WSL2 note:** crisAI uses the OAuth 2.0 **device code flow** for Microsoft Entra login in WSL2 environments. When the token is missing or expired a URL and short code are printed to the terminal — open the URL in any browser and enter the code to authenticate. No localhost redirect is required. Your Azure app registration must have **"Allow public client flows"** enabled (App registrations → Authentication → Advanced settings).
-
-### 5. Make the launcher executable
+For local development, tests, linting, and type checks:
 
 ```bash
-chmod +x start
+pip install -e ".[dev]"
 ```
 
-### 6. Start crisAI (CLI or Web)
+For Gemini or Anthropic through LiteLLM-backed integration:
 
 ```bash
+pip install -e ".[litellm]"
+```
+
+## Start
+
+```bash
+crisai doctor
 ./start cli
 ```
 
-Start web mode with:
+For the web app:
 
 ```bash
 ./start web
@@ -342,80 +143,9 @@ Start web mode with:
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-You can still run the direct script if needed:
+## First Commands
 
-```bash
-crisai-web
-```
-
-### 8. Clean install verification
-
-After a fresh install, validate both runtime surfaces:
-
-```bash
-crisai doctor
-./start cli
-./start web
-```
-
-If `./start` reports a missing `.venv`, create it and install dependencies first.
-
-Dependency note:
-- `traced` is part of the base install.
-- `pytest`, `pytest-timeout`, `ruff`, and `mypy` are dev dependencies; install them with `pip install -e ".[dev]"`.
-
-Microsoft Graph auth note:
-- SharePoint (documents) and Intranet (site pages) each have an **independent token cache** — losing or resetting one does not affect the other
-- when a token cache is missing or expired, crisAI triggers interactive Microsoft Entra login automatically (CLI and web)
-- on WSL2 the **device code flow** is used: a URL and short user code are printed to the terminal; open the URL in any browser and enter the code — no localhost redirect is needed
-- your Azure app registration must have **"Allow public client flows"** enabled under Authentication → Advanced settings
-- `MS_CLIENT_SECRET` is optional for device-code/public-client flows, but required when you run confidential-client auth
-- for a manual login smoke test, run:
-
-```bash
-python tests/orchestration/test_graph_login.py
-```
-
----
-
-## Model assignment
-
-Agents no longer need to hard-code raw provider model strings.
-
-### `registry/agents.yaml`
-Assign a logical model reference:
-
-```yaml
-- id: retrieval_planner
-  model_ref: openai_fast
-
-- id: judge
-  model_ref: gemini_strong
-```
-
-### `registry/models.yaml`
-Define the real provider and model name:
-
-```yaml
-models:
-  - id: openai_fast
-    provider: openai
-    model_name: gpt-5.4-mini
-    api_key_env: OPENAI_API_KEY
-
-  - id: gemini_strong
-    provider: gemini
-    model_name: gemini/gemini-2.5-pro
-    api_key_env: GEMINI_API_KEY
-```
-
-This allows per-agent model assignment regardless of provider.
-
----
-
-## Quick start
-
-Once inside the interactive CLI, try:
+Inside the CLI:
 
 ```text
 /status
@@ -424,217 +154,87 @@ Once inside the interactive CLI, try:
 /help
 ```
 
-Typical first prompt:
-
-```text
-Search my personal OneDrive, not SharePoint sites, and find all documents related to the integration strategy.
-```
-
-Example one-off invocation:
+Example one-off request:
 
 ```bash
 python -m crisai.cli.main ask -m "Find the most relevant document for integration strategy and summarise it."
 ```
 
----
+## Workflow Modes
 
-## CLI modes
+| Mode | Purpose |
+|---|---|
+| `single` | Run one selected specialist agent for bounded work. |
+| `pipeline` | Retrieve, synthesize, design, optionally review, then orchestrate. |
+| `peer` | Run author, challenger, refiner, judge, bounded revise loops, and final verification. |
 
-### `single`
-Runs one selected agent directly (best for bounded/simple tasks).
+Use `/mode auto` to let the router decide, or pin a mode with `/mode single`, `/mode pipeline`, or `/mode peer`.
 
-### `pipeline`
-Runs the main structured flow:
+## Configuration
 
-1. `retrieval_planner` → `context_retrieval` → `context_synthesizer`
-2. `design`
-3. `review` for retrieval+drafting routes (quality gate on complex multi-stage work)
-4. `orchestrator`
+The registry is the main control plane:
 
-### `peer`
-Runs the peer-style flow:
+- `registry/agents.yaml`: agent ids, prompts, allowed MCP servers, and model refs.
+- `registry/models.yaml`: provider-specific model names and API key env vars.
+- `registry/servers.yaml`: MCP server definitions and allowed tools.
+- `registry/workflow_policy.yaml`: runtime hard gates.
+- `registry/semantic_catalog.yaml`: router, verifier, and peer-contract terms.
+- `registry/retrieval_association_graph.yaml`: deterministic retrieval topic expansion.
 
-1. optional `retrieval_planner` → `context_retrieval` → `context_synthesizer`, when retrieval is needed
-2. `design_author`
-3. `design_challenger`
-4. `design_refiner`
-5. `judge`
-6. if judge says `revise`, run extra refiner/judge rounds (bounded by `CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`)
-7. if unresolved, run bounded structural escalation (`design_author` → `design_challenger` → `design_refiner` → `judge`) using judge feedback (bounded by `CRISAI_PEER_MAX_ESCALATIONS`, default `1`)
-8. `orchestrator`
-9. post-run peer verifier checks final file-backed claims against on-disk artefacts
+Run `crisai doctor` after registry edits.
 
-Notes:
-- in chat mode, peer contract inference uses the latest user message (not wrapped history transcript) to avoid intent drift from previous turns.
-- peer finalization is hard-gated on judge `accept`; unresolved judge outcomes stop the run before orchestration.
-- peer final prompt now includes a runtime changed-file manifest and requires verbatim path reuse in close-out summaries.
-- if verifier fails due to file-reference/close-out drift, peer mode runs one bounded orchestrator repair pass and re-verifies before failing.
-- peer verifier cross-checks close-out vs changed files and gap/leaf consistency for staged markdown packages; retrieval-gaps markdown files are exempt from mandatory `## Source` sections.
+## Retrieval Sources
 
----
+crisAI can retrieve from:
 
-## Heuristic routing
+- Approved local architecture context under `workspace/context/`.
+- Local user files and generated outputs under `workspace/`.
+- Supported local documents such as `.md`, `.txt`, `.csv`, `.docx`, `.pdf`, `.pptx`, and `.xlsx`.
+- SharePoint / OneDrive documents through delegated Microsoft Graph.
+- Published SharePoint Site Pages through the scoped intranet MCP.
 
-crisAI includes a Phase 1 heuristic router.
-
-Typical behaviour:
-
-- pure retrieval task → `single` + `retrieval_planner`
-- retrieval + drafting task → `pipeline` (with review)
-- proposal + critique task → `pipeline` with review
-- critique-only task → `single` + `review`
-- platform/debug task → `single` + `operations`
-- peer-style debate request → `peer`
-- high-criticality/high-accuracy design or review task → `peer` (even without explicit "peer mode")
-- vague or mixed multi-signal task → `pipeline` + `design` + review
-
-Explicit user instructions always win:
-- `/mode ...` and `/agent ...` pin behaviour
-- `/mode auto` and `/agent auto` clear pins
-
----
-
-## Chat commands
-
-Inside the interactive CLI:
-
-```text
-/help
-/status
-/list servers
-/list agents
-/mode auto
-/mode single
-/mode pipeline
-/mode peer
-/review on
-/review off
-/verbose on
-/verbose off
-/agent auto
-/agent retrieval_planner
-/agent design
-/agent review
-/agent operations
-/agent orchestrator
-/history
-/session architecture
-/clear
-/clear-session
-/clear-session architecture
-/exit
-```
-
-One-off reset outside chat:
-
-```bash
-crisai clear-session --session architecture
-```
-
----
-
-## Retrieval discipline
-
-crisAI is designed around retrieval discipline:
-
-- never guess file paths, site names, drive IDs, or item IDs
-- always list or search before reading
-- only read a path or item returned in the current run
-- report exact tool errors when retrieval fails
-
-This matters for architecture and documentation work because trustworthy source handling is more important than sounding clever.
-
----
-
-## Workspace usage
-
-Recommended local source locations:
-
-```text
-workspace/inputs/
-workspace/reference/
-workspace/outputs/
-workspace/scratch/
-workspace/context/          # approved architecture corpus (see workspace/context/README.md)
-workspace/context_staging/  # drafts for human review before promotion into context/
-workspace/chat_sessions/
-```
-
-Retrieval agents search **`context/`** by default; **`context_staging/`** is for drafts only until you promote files. Workspace paths are relative to the workspace root.
-
-Correct examples:
-
-```text
-inputs/strategy.md
-reference/integration-principles.pdf
-```
-
-Incorrect examples:
-
-```text
-workspace/inputs/strategy.md
-```
-
----
-
-## SharePoint / OneDrive
-
-SharePoint access is delegated and tied to the signed-in user.
-
-The expected flow is:
-
-1. Microsoft Entra app registration
-2. delegated Microsoft Graph permissions
-3. MSAL token caching
-4. Graph access through `sharepoint_server.py` (documents) and, when enabled, `intranet_server.py` (published **site pages** on configured sites)
-
-**Documents** (libraries, drives) use the SharePoint docs MCP. **Modern intranet / Site Pages** (aspx content) use the separate **intranet** MCP so retrieval can search and fetch pages without treating them as generic file search.
-
-SharePoint and Intranet maintain **independent token caches**; authenticating or clearing one does not affect the other.
-
-Intranet MCP tools:
-- `intranet_search` — two-stage search: OData scored pass + cache expansion with synonym-expanded tokens; leaf pages are included even when they score below the OData cap
-- `intranet_list_all_pages(query="<keywords>")` — full catalogue filtered by synonym-expanded tokens, no scoring cap; use for exhaustive listing
-- `intranet_fetch` — retrieve full page text by Graph site/page id
-- `intranet_list_page_links` — enumerate child Site Page links from a hub or catalogue page, enriched with Graph IDs from the cache
-- `intranet_login` / `intranet_auth_status` — manual auth control
-
-**Synonym dictionary** (`registry/search_synonyms.yaml`): add a group when a query misses relevant pages. Restart the CLI to apply. No code change needed.
-
-Configuration, guardrails, and prompting patterns are in **DOCUMENTATION.md**. Deterministic retrieval architecture details are in **DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md**.
-
-Operational recommendation:
-- `intranet_search` is now comprehensive for most queries — cache expansion runs automatically when the catalogue is warm
-- for explicit exhaustive listing without a cap, use `intranet_list_all_pages(query="...")`
-- check auth status before the first search; expect the device code prompt when the token is missing or expired
-- use intranet tools for Site Pages; use document search only when you need library files
-
----
+SharePoint documents and intranet Site Pages use separate MCP servers and separate token caches. Full Graph setup, auth behavior, and prompting guidance are in [DOCUMENTATION.md](DOCUMENTATION.md).
 
 ## Testing
 
-See `TESTING.md` for the current suite structure, how to run tests, and what the test layers protect.
+Install dev dependencies first:
 
----
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+Static checks:
+
+```bash
+ruff check .
+mypy src
+```
+
+See [TESTING.md](TESTING.md) for the suite layout and manual Graph login smoke test.
 
 ## Logs
 
-Useful logs (all under **`CRISAI_LOG_DIR`**, default `./logs`) include:
+Logs default to `./logs`:
 
 ```text
-logs/agent_trace.jsonl
-logs/crisai.log
-logs/workspace_mcp.log
-logs/document_mcp.log
-logs/diagram_mcp.log
-logs/sharepoint_mcp.log
-logs/intranet_mcp.log
+agent_trace.jsonl
+crisai.log
+workspace_mcp.log
+document_mcp.log
+diagram_mcp.log
+sharepoint_mcp.log
+intranet_mcp.log
 ```
 
-MCP stdio servers write next to the main app log so the **workspace** tree stays for documents and generated artefacts, not server diagnostics.
+## More Documentation
 
----
+- [DOCUMENTATION.md](DOCUMENTATION.md): full operator manual.
+- [DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md](DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md): deterministic retrieval architecture.
+- [TESTING.md](TESTING.md): test suite and development checks.
+- [runbooks/](runbooks): setup, registry, policies, observability, and security.
+- [prompts/README.md](prompts/README.md): prompt authoring guidance.
 
 ## Licence
 
-crisAI is released under the MIT License. See the `LICENSE` file for details.
+crisAI is released under the MIT License. See [LICENSE](LICENSE).
