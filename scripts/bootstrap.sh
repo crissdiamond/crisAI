@@ -17,7 +17,6 @@ mkdir -p workspace/inputs workspace/outputs workspace/reference workspace/scratc
 
 echo "crisAI bootstrap complete."
 echo "Next:"
-echo "  1. Edit .env"
+echo "  1. Edit .env with your API keys"
 echo "  2. source .venv/bin/activate"
-echo "  3. export PYTHONPATH=./src"
-echo "  4. python -m crisai.cli.main list-servers"
+echo "  3. crisai doctor"
