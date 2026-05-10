@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 
+from crisai.cli.prompt_contracts import PROMPT_CONTRACT_TOOL_REFERENCES
 from crisai.orchestration.retrieval_association_graph import (
     load_retrieval_association_graph,
 )
@@ -93,6 +94,13 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
         allowed_tools = server.raw.get("tools", {}).get("allow", [])
         if not isinstance(allowed_tools, list):
             errors.append(f"Server '{server.id}' tools.allow must be a list.")
+            continue
+        for tool_name in sorted(PROMPT_CONTRACT_TOOL_REFERENCES.get(server.id, frozenset())):
+            if tool_name not in allowed_tools:
+                warnings.append(
+                    f"Server '{server.id}' prompt contract references tool '{tool_name}' "
+                    "but tools.allow does not expose it."
+                )
 
     for agent in agents:
         prompt_path = root_dir / agent.prompt_file

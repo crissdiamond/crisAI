@@ -44,6 +44,12 @@ compose step exists.
 - `_shared/sharepoint-vs-onedrive.md` — retrieval scope for SharePoint vs OneDrive.
 - `_shared/context-staging.md` — agent drafts under `workspace/context_staging/` vs canonical `context/`.
 
+Runtime prompt builders use central contracts from
+`src/crisai/cli/prompt_contracts.py` for evidence bundles, link formatting,
+read handles, and document extraction coverage. Prefer changing those contracts
+or the underlying tool capability over adding one-off instructions to an agent
+prompt for a single observed trace.
+
 ## Tests
 
 `tests/unit/test_prompt_scaffolding.py` checks that:

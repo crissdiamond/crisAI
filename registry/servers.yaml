@@ -73,6 +73,7 @@ servers:
         - list_supported_document_files
         - get_document_metadata
         - read_document
+        - inspect_powerpoint_document
     approval:
       required_for: []
       mode: none
@@ -109,6 +110,8 @@ servers:
         - get_sharepoint_document_metadata_by_handle
         - read_sharepoint_document
         - read_sharepoint_document_by_handle
+        - inspect_sharepoint_powerpoint
+        - inspect_sharepoint_powerpoint_by_handle
     approval:
       required_for: []
       mode: none

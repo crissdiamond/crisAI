@@ -31,6 +31,21 @@ def test_doctor_passes_current_registry() -> None:
     assert result.errors == ()
 
 
+def test_validation_warns_when_prompt_contract_tool_is_not_allowed(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    servers_path = registry_dir / "servers.yaml"
+    payload = yaml.safe_load(servers_path.read_text(encoding="utf-8"))
+    documents = next(server for server in payload["servers"] if server["id"] == "documents")
+    documents["tools"]["allow"].remove("inspect_powerpoint_document")
+    servers_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    _errors, warnings = _validate_registry_cross_references(root, registry_dir)
+
+    assert any("inspect_powerpoint_document" in warning for warning in warnings)
+
+
 def test_doctor_reports_unknown_model_ref(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     registry_dir = tmp_path / "registry"

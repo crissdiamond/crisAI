@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import yaml
+
 from crisai.cli.prompt_builders import (
     build_author_prompt,
     build_challenger_prompt,
@@ -13,6 +17,14 @@ from crisai.cli.prompt_builders import (
     build_review_prompt,
     build_single_retrieval_planner_prompt,
 )
+from crisai.cli.prompt_contracts import (
+    DOCUMENT_EXTRACTION_CONTRACT,
+    EVIDENCE_BUNDLE_CONTRACT,
+    LINK_FORMATTING_CONTRACT,
+    PROMPT_CONTRACT_TOOL_REFERENCES,
+)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_build_retrieval_planner_prompt_contains_only_runtime_context():
@@ -41,8 +53,10 @@ def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     assert "search_workspace_text" in text
     assert "one line" in text.lower() or "single line" in text.lower()
     assert "Deterministic retrieval context" in text
-    assert "EvidenceBundle" in text
+    assert "evidence_bundle_v1" in text
     assert "read_handle" in text
+    assert EVIDENCE_BUNDLE_CONTRACT in text
+    assert LINK_FORMATTING_CONTRACT in text
     assert "`source` must be an object" in text
     assert '"source_type": "sharepoint_document"' in text
 
@@ -64,6 +78,8 @@ def test_build_single_retrieval_planner_prompt_requires_verbatim_tool_errors():
     assert "raw error text verbatim in a fenced code block" in text
     assert "evidence_bundle_v1" in text
     assert "read_sharepoint_document_by_handle" in text
+    assert EVIDENCE_BUNDLE_CONTRACT in text
+    assert LINK_FORMATTING_CONTRACT in text
     assert "`source` must be an object" in text
 
 
@@ -71,7 +87,7 @@ def test_build_design_prompt_normalises_empty_discovery():
     text = build_design_prompt("Draft an approach", "")
     assert "Discovery findings:\nNone." in text
     assert "Task:\nProduce the best possible architecture, design, or documentation response" in text
-    assert "not as proof of complete document coverage" in text
+    assert DOCUMENT_EXTRACTION_CONTRACT in text
     assert "inspect_sharepoint_powerpoint_by_handle" in text
 
 
@@ -89,7 +105,7 @@ def test_build_pipeline_final_prompt_keeps_only_transition_specific_guidance():
     assert "Handoff guidance:" in text
     assert "Do not mention internal pipeline stages" not in text
     assert "do not mention internal pipeline stages unless the user explicitly asked" in text.lower()
-    assert "Keep caveats aligned to the extraction coverage" in text
+    assert DOCUMENT_EXTRACTION_CONTRACT in text
 
 
 def test_peer_builders_use_stable_section_labels():
@@ -177,5 +193,33 @@ def test_build_context_synthesizer_prompt_includes_request_and_retrieval():
     assert "retrieved context here" in text
     assert "Context Synthesizer" in text
     assert "Do not draft" in text
-    assert "not as proof of complete document coverage" in text
+    assert DOCUMENT_EXTRACTION_CONTRACT in text
     assert "inspect_powerpoint_document" in text
+
+
+def test_runtime_prompts_do_not_include_known_trace_patch_phrases():
+    combined = "\n\n".join(
+        [
+            build_single_retrieval_planner_prompt("Find files in OneDrive"),
+            build_context_retrieval_prompt("Use intranet site pages only and fetch pattern pages.", "handoff"),
+            build_context_synthesizer_prompt("Summarise the design", "retrieved context here"),
+            build_design_prompt("Draft an approach", ""),
+            build_pipeline_final_prompt("Question", "facts", "design", "review"),
+        ]
+    )
+
+    banned = ("slide-by-slide", "Integration Strategy", "v3 1")
+    assert not any(phrase in combined for phrase in banned)
+
+
+def test_prompt_contract_tool_references_are_exposed_by_registry():
+    payload = yaml.safe_load((REPO_ROOT / "registry" / "servers.yaml").read_text(encoding="utf-8"))
+    servers = {server["id"]: set(server["tools"]["allow"]) for server in payload["servers"]}
+
+    missing = []
+    for server_id, tool_names in PROMPT_CONTRACT_TOOL_REFERENCES.items():
+        for tool_name in tool_names:
+            if tool_name not in servers.get(server_id, set()):
+                missing.append(f"{server_id}:{tool_name}")
+
+    assert missing == []

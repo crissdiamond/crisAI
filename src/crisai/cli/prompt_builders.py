@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from crisai.cli.prompt_contracts import (
+    DOCUMENT_EXTRACTION_CONTRACT,
+    EVIDENCE_BUNDLE_CONTRACT,
+    LINK_FORMATTING_CONTRACT,
+    RETRIEVAL_EVIDENCE_POLICY_CONTRACT,
+    SHAREPOINT_READ_HANDLE_CONTRACT,
+)
 from crisai.config import load_settings
 from crisai.orchestration.retrieval_association_graph import (
     DeterministicRetrievalContext,
@@ -91,31 +98,6 @@ def _section(title: str, body: str) -> str:
     """Render a stable prompt section with trimmed content."""
     clean = (body or "").strip() or "None."
     return f"{title}:\n{clean}"
-
-
-_EVIDENCE_BUNDLE_EXAMPLE = """Example item shape:
-{
-  "schema_version": "evidence_bundle_v1",
-  "request": "Summarise the deck",
-  "items": [
-    {
-      "source": {
-        "source_type": "sharepoint_document",
-        "title": "Deck.pptx",
-        "open_url": "https://example.com/deck.pptx",
-        "read_handle": "sharepoint_doc:...",
-        "metadata": {}
-      },
-      "evidence_level": "content_read",
-      "read_status": "read",
-      "read_tool": "read_sharepoint_document_by_handle",
-      "content_excerpt": "Short quoted or paraphrased excerpt from the read content.",
-      "raw_error": ""
-    }
-  ],
-  "gaps": []
-}
-`source` must be an object, not a filename string."""
 
 
 def build_retrieval_planner_prompt(
@@ -212,29 +194,17 @@ def build_single_retrieval_planner_prompt(
             "- **SharePoint vs OneDrive:** if the user asks for SharePoint (not personal OneDrive only), "
             "prefer `search_sharepoint_site_documents` or `list_sites` + `search_site_drive_documents`; "
             "do not use only `list_my_drives` + `search_drive_documents` for that case.\n"
-            "- For SharePoint/OneDrive search results, use the returned `read_handle` with "
-            "`read_sharepoint_document_by_handle`; do not copy, infer, or edit raw `driveId` / `id` values.\n"
-            "- If the user asks to summarise a document/deck/file, you MUST read its content first. "
-            "Metadata and search hits are not enough to summarise contents.\n"
             "- Authenticate when required (for example interactive Microsoft Entra login when cached tokens are missing or expired).\n"
             "- If any retrieval/auth tool fails, report the exact failing tool name and include the raw error text verbatim in a fenced code block.\n"
             "- Do not replace tool errors with generic wording like 'unable to access' or 'login failed' when a concrete tool error is available.\n"
             "- List or search first, then inspect only matching results.\n"
             "- Do not return a planning brief, workflow framing, or clarifying questionnaire unless the request is truly ambiguous.\n"
             "- Return grounded results with file names/paths and concise relevance notes.\n"
-            "- When listing **three or more** files (or the user asked for a list), use one **markdown table** with header row and separator: "
-            "columns **File** | **Location** | **Note**.\n"
-            "  - **File:** `[file_name](url)` only — visible text is the **file name**; URL **only** inside `(...)` (no raw URL as text). "
-            "Graph: `open_url`/`webUrl`. Workspace: `file_uri` / `workspace_file_link`. Never put `&action=edit` on the visible name.\n"
-            "  - **Location:** site or library name, drive, or folder (plain text).\n"
-            "  - **Note:** one short relevance line (for example matched query); do not repeat the full file name.\n"
             "- For one or two files, a short bullet with the same link rules is acceptable.",
-            "Evidence bundle contract:\n"
-            "- Return a fenced `json` block with `schema_version: \"evidence_bundle_v1\"`, `request`, `items`, and `gaps`.\n"
-            "- Each item must include `source`, `evidence_level`, `read_status`, `read_tool`, `content_excerpt`, and `raw_error`.\n"
-            "- `source` must be an object with `source_type`, `title`, and at least one durable reference such as `open_url`, `read_handle`, `workspace_path`, or `content_id`.\n"
-            "- Use `evidence_level: \"content_read\"` only after a successful content read. Use `read_failed` with raw tool error text when reading fails.\n"
-            + _EVIDENCE_BUNDLE_EXAMPLE,
+            SHAREPOINT_READ_HANDLE_CONTRACT,
+            RETRIEVAL_EVIDENCE_POLICY_CONTRACT,
+            LINK_FORMATTING_CONTRACT,
+            EVIDENCE_BUNDLE_CONTRACT,
         ]
     )
     return "\n\n".join(blocks)
@@ -291,17 +261,13 @@ def build_context_retrieval_prompt(
             "- When in doubt, ``list_workspace_files('context')`` (or a deeper subfolder) then open the best candidates.\n"
             + intranet_rules
             + "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
-            "For each source row, include **Link:** `[file_name](url)` only — visible text is the **file name**, URL **only** inside parentheses; do not duplicate the URL as plain text "
-            "and never append `&action=edit` or other query text to the file name. "
-            "Graph: use `open_url`/`webUrl`; workspace: use `file_uri` from `search_workspace_text` or `workspace_file_link`. "
             "For SharePoint (not OneDrive-only) use `search_sharepoint_site_documents` or site-scoped search after `list_sites`. "
-            "For SharePoint/OneDrive documents, use the returned `read_handle` with `read_sharepoint_document_by_handle`; do not copy, infer, or alter raw `driveId` / `id` values. "
             "When the user asks for a summary of a document/deck/file, read the content first and mark the item `content_read`; if the read fails, mark it `read_failed` and include the raw error. "
-            "Return a fenced `json` EvidenceBundle with `schema_version: \"evidence_bundle_v1\"` plus a short markdown rendering for humans. "
-            "In the EvidenceBundle, `source` must be an object with `source_type`, `title`, and at least one durable reference such as `open_url`, `read_handle`, `workspace_path`, or `content_id`; never use a filename string as `source`. "
-            + _EVIDENCE_BUNDLE_EXAMPLE
-            + "\n"
             "Do not draft, recommend, or optimise the final design response.",
+            SHAREPOINT_READ_HANDLE_CONTRACT,
+            RETRIEVAL_EVIDENCE_POLICY_CONTRACT,
+            LINK_FORMATTING_CONTRACT,
+            EVIDENCE_BUNDLE_CONTRACT,
         ]
     )
     return "\n\n".join(blocks)
@@ -314,10 +280,7 @@ def build_design_prompt(message: str, discovery_text: str) -> str:
             _section("User request", message),
             _section("Discovery findings", discovery_text),
             "Task:\nProduce the best possible architecture, design, or documentation response for the user's request.",
-            "Evidence handling:\n"
-            "- Treat `content_read` evidence as confirmation that source text was extracted, not as proof of complete document coverage.\n"
-            "- Calibrate confidence to the extraction coverage and limitations reported in the discovery findings.\n"
-            "- For PowerPoint summaries, prefer slide-level extraction from `inspect_powerpoint_document` or `inspect_sharepoint_powerpoint_by_handle` when available.",
+            DOCUMENT_EXTRACTION_CONTRACT,
         ]
     )
 
@@ -346,8 +309,8 @@ def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: 
             "Handoff guidance:\n"
             "- Use the design output as the main body.\n"
             "- Incorporate review feedback only where it improves the answer.\n"
-            "- Treat `content_read` evidence as confirmation that source text was extracted, not as proof of complete document coverage.\n"
-            "- Keep caveats aligned to the extraction coverage and limitations in the retrieval evidence.",
+            + DOCUMENT_EXTRACTION_CONTRACT
+            + "\n",
             "- do not mention internal pipeline stages unless the user explicitly asked to see them.",
         ]
     )
@@ -630,16 +593,18 @@ Create a context brief that helps the design agent draft a solution design using
 
 - Use only facts supported by the context retrieval output.
 - Treat a fenced JSON `evidence_bundle_v1` block as authoritative when present.
-- Summarise document/deck/file contents only from items with `evidence_level: "content_read"`.
-- Treat `content_read` as confirmation that source text was extracted, not as proof of complete document coverage.
-- For PowerPoint summaries, prefer slide-level extraction from `inspect_powerpoint_document` or `inspect_sharepoint_powerpoint_by_handle` when available, and preserve extraction coverage and limitations.
-- Treat `search_hit_only`, `metadata_read`, and `read_failed` items as candidates or gaps, not as source content.
 - Preserve file names, paths, document titles, sections, links, citations, or other source references when they are available.
 - Separate confirmed facts from assumptions and uncertainties.
 - Remove irrelevant findings, duplication, and low-value noise.
 - Do not invent missing details.
 - Do not draft, recommend, or optimise the solution design.
 - If the context retrieval output is empty, weak, or not relevant, say so clearly and explain what is missing.
+
+## Runtime contracts
+
+{RETRIEVAL_EVIDENCE_POLICY_CONTRACT}
+
+{DOCUMENT_EXTRACTION_CONTRACT}
 
 ## Output format
 
