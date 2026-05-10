@@ -52,7 +52,7 @@ agents:
 
   - id: summary
     name: Summary Agent
-    model_ref: openai_fast
+    model_ref: deepseek_reasoner
     prompt_file: prompts/summary_agent.md
     allowed_servers:
       - workspace
