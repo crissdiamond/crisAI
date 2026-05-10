@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import sys
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+from pptx import Presentation
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCUMENT_SERVER_CANDIDATES = [
@@ -48,6 +50,17 @@ def _write_context_file(workspace: Path, relative_path: str, content: str) -> No
     path = workspace / "context" / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def _write_sample_pptx(path: Path) -> None:
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    slide.shapes.title.text = "Integration Strategy"
+    textbox = slide.shapes.add_textbox(914400, 1371600, 4572000, 914400)
+    textbox.text_frame.text = "Strategic themes and target operating model"
+    output = io.BytesIO()
+    prs.save(output)
+    path.write_bytes(output.getvalue())
 
 
 def test_build_context_index_creates_chunks_across_context_folders(
@@ -177,3 +190,19 @@ def test_chunk_text_validates_chunk_settings(document_server: ModuleType) -> Non
 
     with pytest.raises(ValueError, match="overlap_chars"):
         document_server._chunk_text("example", max_chars=100, overlap_chars=100)
+
+
+def test_inspect_powerpoint_document_returns_structured_slides(
+    document_server: ModuleType,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "context" / "deck.pptx"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_sample_pptx(path)
+
+    result = document_server.inspect_powerpoint_document("context/deck.pptx")
+
+    assert result["status"] == "partial_text"
+    assert result["path"] == "context/deck.pptx"
+    assert result["slides"][0]["title"] == "Integration Strategy"
+    assert "Strategic themes and target operating model" in result["slides"][0]["text"]

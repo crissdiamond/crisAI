@@ -14,12 +14,12 @@ from docx import Document as DocxDocument
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from openpyxl import load_workbook
-from pptx import Presentation
 from pypdf import PdfReader
 
 from crisai import ms_graph
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
+from crisai.powerpoint import extract_powerpoint_from_bytes
 
 load_dotenv()
 
@@ -136,19 +136,7 @@ def _read_pdf_bytes(data: bytes) -> str:
 
 
 def _read_pptx_bytes(data: bytes) -> str:
-    with io.BytesIO(data) as bio:
-        prs = Presentation(bio)
-        slides_out = []
-        for idx, slide in enumerate(prs.slides, start=1):
-            parts = []
-            for shape in slide.shapes:
-                if hasattr(shape, "text") and shape.text:
-                    text = shape.text.strip()
-                    if text:
-                        parts.append(text)
-            if parts:
-                slides_out.append(f"[Slide {idx}]\n" + "\n".join(parts))
-    return "\n\n".join(slides_out)
+    return extract_powerpoint_from_bytes(data).to_text()
 
 
 def _read_xlsx_bytes(data: bytes, max_rows: int = 50, max_cols: int = 20) -> str:
@@ -468,6 +456,32 @@ def read_sharepoint_document(drive_id: str, item_id: str) -> str:
 
     extracted = _extract_bytes_by_suffix(data, suffix)
     return extracted if extracted.strip() else f"[No readable text extracted from {name}]"
+
+
+@mcp.tool()
+def inspect_sharepoint_powerpoint(drive_id: str, item_id: str) -> dict[str, Any]:
+    """Download a SharePoint PowerPoint and return structured slide extraction data."""
+    log_event(f"inspect_sharepoint_powerpoint drive_id={drive_id} item_id={item_id}")
+
+    item = _graph_get(f"/drives/{drive_id}/items/{item_id}")
+    name = str(item.get("name") or "")
+    suffix = Path(name).suffix.lower()
+    if suffix != ".pptx":
+        raise ValueError(f"Expected a .pptx file, got: {suffix or 'no extension'}")
+
+    content_url = f"{ms_graph.GRAPH_BASE}/drives/{drive_id}/items/{item_id}/content"
+    extraction = extract_powerpoint_from_bytes(_graph_get_bytes(content_url))
+    result = extraction.to_dict()
+    result["source"] = _normalise_item(item)
+    return result
+
+
+@mcp.tool()
+def inspect_sharepoint_powerpoint_by_handle(read_handle: str) -> dict[str, Any]:
+    """Inspect a SharePoint PowerPoint using an opaque read handle."""
+    log_event("inspect_sharepoint_powerpoint_by_handle")
+    drive_id, item_id = _decode_read_handle(read_handle)
+    return inspect_sharepoint_powerpoint(drive_id=drive_id, item_id=item_id)
 
 
 @mcp.tool()

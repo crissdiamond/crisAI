@@ -16,11 +16,11 @@ import chardet
 from docx import Document as DocxDocument
 from mcp.server.fastmcp import FastMCP
 from openpyxl import load_workbook
-from pptx import Presentation
 from pypdf import PdfReader
 
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
+from crisai.powerpoint import extract_powerpoint_from_path
 
 mcp = FastMCP("crisai-document-reader")
 
@@ -160,18 +160,7 @@ def _read_pdf(file_path: Path) -> str:
 
 
 def _read_pptx(file_path: Path) -> str:
-    prs = Presentation(str(file_path))
-    slides_out = []
-    for idx, slide in enumerate(prs.slides, start=1):
-        parts = []
-        for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text:
-                text = shape.text.strip()
-                if text:
-                    parts.append(text)
-        if parts:
-            slides_out.append(f"[Slide {idx}]\n" + "\n".join(parts))
-    return "\n\n".join(slides_out)
+    return extract_powerpoint_from_path(file_path).to_text()
 
 
 def _read_xlsx(file_path: Path, max_rows: int = 50, max_cols: int = 20) -> str:
@@ -409,6 +398,24 @@ def read_document(path: str) -> str:
         raise FileNotFoundError(f"No such file: {file_path}")
 
     return _read_supported_document(file_path)
+
+
+@mcp.tool()
+def inspect_powerpoint_document(path: str) -> dict[str, Any]:
+    """Return structured slide text and extraction coverage for a workspace PowerPoint."""
+    log_event(f"inspect_powerpoint_document path={path}")
+    file_path = _safe_path(path)
+
+    if not file_path.exists():
+        raise FileNotFoundError(f"No such file: {file_path}")
+    if file_path.suffix.lower() != ".pptx":
+        raise ValueError(f"Expected a .pptx file, got: {file_path.suffix or 'no extension'}")
+
+    extraction = extract_powerpoint_from_path(file_path)
+    result = extraction.to_dict()
+    result["path"] = str(file_path.relative_to(ROOT))
+    result["name"] = file_path.name
+    return result
 
 
 @mcp.tool()

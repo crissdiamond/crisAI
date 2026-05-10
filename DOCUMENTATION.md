@@ -502,6 +502,20 @@ summary requires at least one item with `evidence_level: "content_read"`; search
 hits, metadata rows, and failed reads are treated as candidates or gaps, not as
 source content.
 
+PowerPoint retrieval has dedicated inspection support. Use:
+- `inspect_powerpoint_document` for local workspace `.pptx` files
+- `inspect_sharepoint_powerpoint_by_handle` for SharePoint / OneDrive `.pptx` files returned by search
+
+These tools return structured slide records plus extraction metadata:
+- `status`
+- `slide_count`
+- `slides_with_text`
+- `coverage`
+- `limitations`
+- per-slide title, text, tables, and speaker notes when available
+
+Standard `read_document` and `read_sharepoint_document_by_handle` also include a PowerPoint extraction header for `.pptx` files. Current coverage is text boxes, slide titles, table cells, grouped shape text where exposed by `python-pptx`, and speaker notes when present in the package XML. Image text, embedded objects, and some SmartArt can still require manual inspection or future OCR support.
+
 ### Intranet content pages (scoped MCP server)
 
 For **published intranet pages**, use the separate **`intranet`** MCP server — not a generic web browser. The default provider reads modern SharePoint site pages, but the MCP contract is provider-neutral so an organisation can replace it with a wiki or custom intranet adapter.

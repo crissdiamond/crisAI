@@ -315,9 +315,9 @@ def build_design_prompt(message: str, discovery_text: str) -> str:
             _section("Discovery findings", discovery_text),
             "Task:\nProduce the best possible architecture, design, or documentation response for the user's request.",
             "Evidence handling:\n"
-            "- Treat `content_read` evidence as confirmation that the source was opened/read.\n"
-            "- Do not downgrade read evidence by saying the document could not be opened or that no detailed content is available unless that limitation is explicitly present in the discovery findings.\n"
-            "- If the retrieved content is outline-level, summarise the available extracted content directly and avoid broad caveats such as not having slide-by-slide content.",
+            "- Treat `content_read` evidence as confirmation that source text was extracted, not as proof of complete document coverage.\n"
+            "- Calibrate confidence to the extraction coverage and limitations reported in the discovery findings.\n"
+            "- For PowerPoint summaries, prefer slide-level extraction from `inspect_powerpoint_document` or `inspect_sharepoint_powerpoint_by_handle` when available.",
         ]
     )
 
@@ -346,8 +346,8 @@ def build_pipeline_final_prompt(message: str, discovery_text: str, design_text: 
             "Handoff guidance:\n"
             "- Use the design output as the main body.\n"
             "- Incorporate review feedback only where it improves the answer.\n"
-            "- Treat `content_read` evidence as confirmation that the source was opened/read.\n"
-            "- Do not add new caveats about missing slide-by-slide or detailed content unless that limitation is explicit in the retrieval evidence.\n"
+            "- Treat `content_read` evidence as confirmation that source text was extracted, not as proof of complete document coverage.\n"
+            "- Keep caveats aligned to the extraction coverage and limitations in the retrieval evidence.",
             "- do not mention internal pipeline stages unless the user explicitly asked to see them.",
         ]
     )
@@ -631,11 +631,11 @@ Create a context brief that helps the design agent draft a solution design using
 - Use only facts supported by the context retrieval output.
 - Treat a fenced JSON `evidence_bundle_v1` block as authoritative when present.
 - Summarise document/deck/file contents only from items with `evidence_level: "content_read"`.
-- Treat `content_read` as confirmation that a source was opened/read; do not describe it as search-only, unopened, or unavailable.
+- Treat `content_read` as confirmation that source text was extracted, not as proof of complete document coverage.
+- For PowerPoint summaries, prefer slide-level extraction from `inspect_powerpoint_document` or `inspect_sharepoint_powerpoint_by_handle` when available, and preserve extraction coverage and limitations.
 - Treat `search_hit_only`, `metadata_read`, and `read_failed` items as candidates or gaps, not as source content.
 - Preserve file names, paths, document titles, sections, links, citations, or other source references when they are available.
 - Separate confirmed facts from assumptions and uncertainties.
-- Do not introduce new limitations such as missing slide-by-slide detail unless that limitation is explicitly stated by the retrieval output or evidence gaps.
 - Remove irrelevant findings, duplication, and low-value noise.
 - Do not invent missing details.
 - Do not draft, recommend, or optimise the solution design.
