@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha1
 from pathlib import Path
 from typing import Any
 
@@ -134,26 +135,34 @@ def infer_workflow_policy(
     )
 
 
-def snapshot_tree(root: Path, target_subdir: str | None) -> dict[str, int]:
-    """Return a simple file mtime snapshot for a relative subtree."""
+FileSnapshot = tuple[int, int, str]
+
+
+def snapshot_tree(root: Path, target_subdir: str | None) -> dict[str, FileSnapshot]:
+    """Return a content-aware file snapshot for a relative subtree."""
     if not target_subdir:
         return {}
     base = (root / target_subdir).resolve()
     if not base.exists() or not base.is_dir():
         return {}
-    snapshot: dict[str, int] = {}
+    snapshot: dict[str, FileSnapshot] = {}
     for path in base.rglob("*"):
         if path.is_file():
             try:
-                snapshot[str(path.relative_to(root))] = path.stat().st_mtime_ns
+                stat = path.stat()
+                snapshot[str(path.relative_to(root))] = (
+                    stat.st_mtime_ns,
+                    stat.st_size,
+                    sha1(path.read_bytes()).hexdigest(),
+                )
             except OSError:
                 continue
     return snapshot
 
 
 def changed_paths(
-    before: dict[str, int],
-    after: dict[str, int],
+    before: dict[str, FileSnapshot],
+    after: dict[str, FileSnapshot],
 ) -> list[str]:
     """Return relative file paths that changed between snapshots."""
     changed: list[str] = []
@@ -196,7 +205,7 @@ def enforce_intranet_fetch_policy(policy: WorkflowPolicy, context_retrieval_text
 def enforce_workspace_write_policy(
     policy: WorkflowPolicy,
     root: Path,
-    before_snapshot: dict[str, int],
+    before_snapshot: dict[str, FileSnapshot],
 ) -> list[str]:
     """Raise when policy requires workspace writes but no files changed."""
     if not policy.require_workspace_write:
