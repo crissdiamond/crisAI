@@ -138,9 +138,10 @@ Retrieved the likely master deck and read the candidate content.
         raw,
     )
 
-    assert "## Validated Evidence Bundle" in result
-    assert '"source_type": "sharepoint_document"' in result
-    assert '"normalised_from": "string_source"' in result
+    assert "## Validated Evidence Summary" in result
+    assert "UCL Integration Strategy_Full Presentation v2.pptx" in result
+    assert "content_read / read" in result
+    assert "evidence_bundle_v1" not in result
 
 
 def test_validated_evidence_text_accepts_unclosed_fenced_bundle():
@@ -170,8 +171,9 @@ Retrieved and read the selected deck.
 """
     result = pipelines._validated_evidence_text("Can you summarise this document?", raw)
 
-    assert "## Validated Evidence Bundle" in result
-    assert '"evidence_level": "content_read"' in result
+    assert "## Validated Evidence Summary" in result
+    assert "Deck.pptx" in result
+    assert "evidence_bundle_v1" not in result
 
 
 def test_validated_evidence_text_rejects_content_read_source_that_misses_title_constraint():
@@ -350,7 +352,42 @@ Retrieved and read the selected deck.
         raw,
     )
 
-    assert "## Validated Evidence Bundle" in result
+    assert "## Validated Evidence Summary" in result
+    assert "evidence_bundle_v1" not in result
+
+
+def test_validated_evidence_transport_keeps_bundle_in_metadata_not_prose():
+    raw = """
+Retrieved and read the selected deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Can you summarise this document?",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Deck.pptx",
+        "read_handle": "sharepoint_doc:abc"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Readable slide text.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+    transport = pipelines._validated_evidence_transport("Can you summarise this document?", raw)
+
+    assert transport.prose == "Retrieved and read the selected deck."
+    assert transport.trace_metadata is not None
+    assert transport.trace_metadata["artifacts"]["evidence_bundle_v1"]["items"][0]["source"]["title"] == "Deck.pptx"
+    assert "evidence_bundle_v1" not in transport.prompt_text
 
 
 @pytest.mark.anyio

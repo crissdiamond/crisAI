@@ -689,7 +689,7 @@ Create a context brief that helps the next agent satisfy the Task Contract using
 ## Rules
 
 - Use only facts supported by the context retrieval output.
-- Treat a fenced JSON `evidence_bundle_v1` block as authoritative when present.
+- Treat the `Validated Evidence Summary` section as authoritative when present.
 - Preserve file names, paths, document titles, sections, links, citations, or other source references when they are available.
 - Separate confirmed facts from assumptions and uncertainties.
 - Remove irrelevant findings, duplication, and low-value noise.

@@ -8,6 +8,7 @@ import inspect
 import io
 import os
 from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -18,8 +19,8 @@ from agents import Runner
 from crisai.agents.factory import AgentFactory
 from crisai.logging_utils import get_logger
 from crisai.orchestration.evidence_contract import (
+    EvidenceBundle,
     parse_evidence_bundle,
-    render_evidence_bundle_block,
     request_requires_content_read,
 )
 from crisai.orchestration.peer_contract import (
@@ -64,7 +65,7 @@ from crisai.orchestration.task_contract import (
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
 
-from .display import create_agent_live, print_agent_output
+from .display import create_agent_live, print_agent_output, sanitize_user_visible_text
 from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_engine import WorkflowEngine
 from .prompt_builders import (
@@ -130,23 +131,69 @@ def _trace_workflow_policy_event(
         tracer(stage, content, event_type=event_type, metadata=metadata)
 
 
-def _validated_evidence_text(message: str, retrieval_text: str) -> str:
-    """Return canonical evidence JSON when a retrieval response includes it.
+@dataclass(frozen=True, slots=True)
+class ValidatedEvidenceTransport:
+    """Clean prose plus typed evidence carried between retrieval stages."""
 
-    For document-summary/source-read requests, the bundle is mandatory and must
-    contain at least one content_read item. For other requests, older markdown
-    retrieval output remains compatible.
-    """
+    prose: str
+    bundle: EvidenceBundle | None
+    evidence_brief: str
+
+    @property
+    def prompt_text(self) -> str:
+        """Return readable retrieval context for downstream prompts."""
+        if not self.evidence_brief:
+            return self.prose
+        sections = [self.prose.strip(), "## Validated Evidence Summary", self.evidence_brief.strip()]
+        return "\n\n".join(section for section in sections if section)
+
+    @property
+    def trace_metadata(self) -> dict[str, Any] | None:
+        """Return structured trace metadata for machine evidence artifacts."""
+        if self.bundle is None:
+            return None
+        return {
+            "artifacts": {
+                "evidence_bundle_v1": self.bundle.to_dict(),
+            },
+            "evidence_summary": self.evidence_brief,
+        }
+
+
+def _evidence_brief(bundle: EvidenceBundle) -> str:
+    """Render a human-readable evidence summary for downstream agents."""
+    lines = [f"- Request covered: {bundle.request}"]
+    for item in bundle.items:
+        source = item.source
+        source_bits = [source.title]
+        if source.location:
+            source_bits.append(source.location)
+        if source.source_type:
+            source_bits.append(source.source_type)
+        metadata_bits = []
+        for key in ("createdDateTime", "lastModifiedDateTime", "mimeType"):
+            value = source.metadata.get(key)
+            if value:
+                metadata_bits.append(f"{key}: {value}")
+        detail = "; ".join(source_bits)
+        if metadata_bits:
+            detail = f"{detail}; " + "; ".join(metadata_bits)
+        line = f"- {item.evidence_level} / {item.read_status}: {detail}"
+        if item.read_tool:
+            line += f" via {item.read_tool}"
+        lines.append(line)
+        if item.content_excerpt.strip():
+            lines.append(f"  Evidence excerpt: {item.content_excerpt.strip()}")
+        if item.raw_error.strip():
+            lines.append(f"  Retrieval error: {item.raw_error.strip()}")
+    if bundle.gaps:
+        lines.append("- Gaps: " + "; ".join(gap for gap in bundle.gaps if gap))
+    return "\n".join(lines)
+
+
+def _validate_evidence_bundle(message: str, bundle: EvidenceBundle) -> None:
+    """Apply workflow evidence policy gates to a parsed bundle."""
     must_read = request_requires_content_read(message)
-    try:
-        bundle = parse_evidence_bundle(retrieval_text)
-    except ValueError as exc:
-        if must_read:
-            raise WorkflowPolicyViolation(
-                "Policy gate failed: this request requires content-read evidence, "
-                f"but context retrieval did not return a valid evidence bundle. {exc}"
-            ) from exc
-        return retrieval_text
     if must_read and not bundle.has_content_read():
         raise WorkflowPolicyViolation(
             "Policy gate failed: this request requires content-read evidence, "
@@ -158,7 +205,41 @@ def _validated_evidence_text(message: str, retrieval_text: str) -> str:
     conflict_message = latest_source_conflict_message(message, bundle, constraints)
     if must_read and conflict_message:
         raise WorkflowPolicyViolation(conflict_message)
-    return retrieval_text + "\n\n## Validated Evidence Bundle\n" + render_evidence_bundle_block(bundle)
+
+
+def _validated_evidence_transport(message: str, retrieval_text: str) -> ValidatedEvidenceTransport:
+    """Parse evidence once and keep machine transport separate from prose.
+
+    For document-summary/source-read requests, the bundle is mandatory and must
+    contain at least one content_read item. For other requests, older markdown
+    retrieval output remains compatible.
+    """
+    prose = sanitize_user_visible_text(retrieval_text)
+    must_read = request_requires_content_read(message)
+    try:
+        bundle = parse_evidence_bundle(retrieval_text)
+    except ValueError as exc:
+        if must_read:
+            raise WorkflowPolicyViolation(
+                "Policy gate failed: this request requires content-read evidence, "
+                f"but context retrieval did not return a valid evidence bundle. {exc}"
+            ) from exc
+        return ValidatedEvidenceTransport(prose=prose, bundle=None, evidence_brief="")
+    _validate_evidence_bundle(message, bundle)
+    return ValidatedEvidenceTransport(
+        prose=prose,
+        bundle=bundle,
+        evidence_brief=_evidence_brief(bundle),
+    )
+
+
+def _validated_evidence_text(message: str, retrieval_text: str) -> str:
+    """Return readable retrieval context after evidence validation.
+
+    Kept for compatibility with tests and older call sites. Machine evidence is
+    exposed through ``_validated_evidence_transport`` instead of embedded JSON.
+    """
+    return _validated_evidence_transport(message, retrieval_text).prompt_text
 
 
 def _append_trace_entry_compat(
@@ -486,21 +567,27 @@ async def run_pipeline(
             verbose=verbose,
         )
 
-        context_retrieval_text = await workflow.run_stage(
-            spec=specs["context_retrieval"],
-            ui_agent_id="context_retrieval",
-            prompt=build_context_retrieval_prompt(
-                message,
-                retrieval_plan_text,
-                deterministic_context=deterministic_context,
-                registry_dir=Path(registry_dir) if registry_dir is not None else None,
-                task_contract=task_contract,
-            ),
-            trace_label="CONTEXT RETRIEVAL OUTPUT",
-            verbose=verbose,
-        )
+        evidence_transport: ValidatedEvidenceTransport | None = None
+        def process_context_retrieval_output(raw_text: str) -> tuple[str, dict[str, Any] | None]:
+            nonlocal evidence_transport
+            evidence_transport = _validated_evidence_transport(intent_message, raw_text)
+            return evidence_transport.prose, evidence_transport.trace_metadata
+
         try:
-            validated_context_retrieval_text = _validated_evidence_text(intent_message, context_retrieval_text)
+            context_retrieval_text = await workflow.run_stage(
+                spec=specs["context_retrieval"],
+                ui_agent_id="context_retrieval",
+                prompt=build_context_retrieval_prompt(
+                    message,
+                    retrieval_plan_text,
+                    deterministic_context=deterministic_context,
+                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                    task_contract=task_contract,
+                ),
+                trace_label="CONTEXT RETRIEVAL OUTPUT",
+                verbose=verbose,
+                output_processor=process_context_retrieval_output,
+            )
         except WorkflowPolicyViolation as exc:
             _trace_workflow_policy_event(
                 workflow,
@@ -509,6 +596,9 @@ async def run_pipeline(
                 event_type="policy_violation",
             )
             raise typer.BadParameter(str(exc)) from exc
+        validated_context_retrieval_text = (
+            evidence_transport.prompt_text if evidence_transport is not None else sanitize_user_visible_text(context_retrieval_text)
+        )
         try:
             enforce_intranet_fetch_policy(policy, validated_context_retrieval_text)
         except WorkflowPolicyViolation as exc:
@@ -716,20 +806,26 @@ async def run_peer_pipeline(
                 verbose=verbose,
             )
             if use_context_retrieval:
-                context_retrieval_text = await workflow.run_stage(
-                    spec=specs["context_retrieval"],
-                    ui_agent_id="context_retrieval",
-                    prompt=build_context_retrieval_prompt(
-                        message,
-                        retrieval_plan_text,
-                        deterministic_context=deterministic_context,
-                        registry_dir=Path(registry_dir) if registry_dir is not None else None,
-                    ),
-                    trace_label="CONTEXT RETRIEVAL OUTPUT",
-                    verbose=verbose,
-                )
+                evidence_transport: ValidatedEvidenceTransport | None = None
+                def process_context_retrieval_output(raw_text: str) -> tuple[str, dict[str, Any] | None]:
+                    nonlocal evidence_transport
+                    evidence_transport = _validated_evidence_transport(intent_message, raw_text)
+                    return evidence_transport.prose, evidence_transport.trace_metadata
+
                 try:
-                    context_retrieval_text = _validated_evidence_text(intent_message, context_retrieval_text)
+                    context_retrieval_text = await workflow.run_stage(
+                        spec=specs["context_retrieval"],
+                        ui_agent_id="context_retrieval",
+                        prompt=build_context_retrieval_prompt(
+                            message,
+                            retrieval_plan_text,
+                            deterministic_context=deterministic_context,
+                            registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                        ),
+                        trace_label="CONTEXT RETRIEVAL OUTPUT",
+                        verbose=verbose,
+                        output_processor=process_context_retrieval_output,
+                    )
                 except WorkflowPolicyViolation as exc:
                     _trace_workflow_policy_event(
                         workflow,
@@ -738,6 +834,11 @@ async def run_peer_pipeline(
                         event_type="policy_violation",
                     )
                     raise typer.BadParameter(str(exc)) from exc
+                context_retrieval_text = (
+                    evidence_transport.prompt_text
+                    if evidence_transport is not None
+                    else sanitize_user_visible_text(context_retrieval_text)
+                )
                 try:
                     enforce_intranet_fetch_policy(policy, context_retrieval_text)
                 except WorkflowPolicyViolation as exc:

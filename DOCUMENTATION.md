@@ -216,7 +216,7 @@ The same validator runs automatically as part of the **peer post-run verifier** 
 /verbose off
 ```
 
-With **`/verbose off`** (the usual default for readable transcripts), pipeline and peer **stage output** is shown as **compact Markdown**: short headings, bullets, and recaps rather than dumping full raw model text. Machine handoffs such as evidence bundles, task contracts, and retrieval planning payloads are hidden from normal stage panels. Turn **`/verbose on`** when you need fuller stage bodies for debugging; machine contracts are still stripped from user-facing rendering and remain available in `logs/agent_trace.jsonl`.
+With **`/verbose off`** (the usual default for readable transcripts), pipeline and peer **stage output** is shown as **compact Markdown**: short headings, bullets, and recaps rather than dumping full raw model text. Machine handoffs such as evidence bundles, task contracts, and retrieval planning payloads are hidden from normal stage panels. Turn **`/verbose on`** when you need fuller readable stage bodies for debugging; raw machine contracts are still stripped from stage rendering and retained as structured metadata in `logs/agent_trace.jsonl`.
 
 ### Agent controls
 
@@ -520,11 +520,13 @@ handle to `read_sharepoint_document_by_handle` or
 `get_sharepoint_document_metadata_by_handle`; they should not infer identifiers
 from browser URLs or copy raw IDs between stages.
 
-Retrieval stages also emit a fenced JSON `evidence_bundle_v1` block. Downstream
-agents treat this as the canonical evidence handoff. A document/deck/file
-summary requires at least one item with `evidence_level: "content_read"`; search
-hits, metadata rows, and failed reads are treated as candidates or gaps, not as
-source content.
+Retrieval stages provide an `evidence_bundle_v1` machine payload for source
+grounding. crisAI parses and validates that payload at the pipeline boundary,
+stores it as structured trace metadata, and removes raw JSON from agent prose.
+Downstream agents receive a readable **Validated Evidence Summary** instead of a
+fenced JSON block. A document/deck/file summary requires at least one item with
+`evidence_level: "content_read"`; search hits, metadata rows, and failed reads
+are treated as candidates or gaps, not as source content.
 
 For “latest”, “most recent”, or “likely master” source summaries, retrieval
 should include the top matching candidate metadata in the evidence bundle. If
@@ -546,7 +548,7 @@ For summary requests, the pipeline also carries a `task_contract_v1` machine
 payload. This tells downstream agents that the main deliverable is the summary
 and that any “latest/best candidate” work is only a source-resolution subtask.
 Machine payloads are retained in traces for debugging but hidden from normal CLI
-and web stage panels and final answers.
+and web stage panels, verbose panels, and final answers.
 
 PowerPoint retrieval has dedicated inspection support. Use:
 - `inspect_powerpoint_document` for local workspace `.pptx` files

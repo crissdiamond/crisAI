@@ -13,7 +13,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
-- Clean CLI and web stage rendering that hides internal machine handoffs while keeping raw traces for debugging.
+- Clean CLI and web stage rendering that separates readable agent prose from structured evidence metadata in traces.
 - Source-fit validation so retrieved content must match explicit title and source-scope constraints before it is summarized.
 - Deterministic retrieval expansion from registry dictionaries.
 - Runtime policy gates for intranet-grounded work and file-producing workflows.

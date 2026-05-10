@@ -141,6 +141,33 @@ async def test_workflow_session_traces_stage_lifecycle_and_prints_output(engine_
 
 
 @pytest.mark.anyio
+async def test_workflow_session_processes_stage_output_before_trace_and_print(engine_fixture):
+    fixture = engine_fixture
+
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+        result = await workflow.run_stage(
+            spec=fixture.retrieval_planner_spec,
+            ui_agent_id="retrieval_planner",
+            prompt="find context",
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
+            verbose=True,
+            output_processor=lambda raw: ("clean stage output", {"artifacts": {"raw_length": len(raw)}}),
+        )
+
+    assert result == "retrieval_planner::find context"
+    assert fixture.trace_calls[1] == (
+        "RETRIEVAL_PLANNER OUTPUT",
+        "clean stage output",
+        {
+            "event_type": "stage_output",
+            "agent_id": "retrieval_planner",
+            "metadata": {"artifacts": {"raw_length": len("retrieval_planner::find context")}},
+        },
+    )
+    assert fixture.output_calls == [("retrieval_planner", "clean stage output", True)]
+
+
+@pytest.mark.anyio
 async def test_workflow_session_records_workflow_events_and_skipped_stages(engine_fixture):
     fixture = engine_fixture
 

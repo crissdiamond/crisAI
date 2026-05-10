@@ -212,6 +212,8 @@ def test_build_context_synthesizer_prompt_includes_request_and_retrieval():
     assert "retrieved context here" in text
     assert "Context Synthesizer" in text
     assert "Do not draft" in text
+    assert "Validated Evidence Summary" in text
+    assert "fenced JSON `evidence_bundle_v1`" not in text
     assert DOCUMENT_EXTRACTION_CONTRACT in text
     assert "inspect_powerpoint_document" in text
 

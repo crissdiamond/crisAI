@@ -11,6 +11,7 @@ StageRunner = Callable[[str, Any, str], Awaitable[str]]
 TraceWriter = Callable[..., None]
 OutputPrinter = Callable[..., None]
 ServerContextFactory = Callable[..., Any]
+StageOutputProcessor = Callable[[str], tuple[str, dict[str, Any] | None]]
 
 
 class WorkflowSession:
@@ -112,6 +113,7 @@ class WorkflowSession:
         trace_label: str,
         verbose: bool,
         print_output: bool = True,
+        output_processor: StageOutputProcessor | None = None,
     ) -> str:
         """Build, run, trace, and optionally render a workflow stage.
 
@@ -122,6 +124,7 @@ class WorkflowSession:
             trace_label: Output label written to the trace log.
             verbose: Whether stage output should be printed verbosely.
             print_output: Whether to render the stage output to the console.
+            output_processor: Optional sanitizer/extractor for trace and UI text.
 
         Returns:
             The final text emitted by the agent.
@@ -134,11 +137,16 @@ class WorkflowSession:
             agent_id=ui_agent_id,
         )
         result = await self._stage_runner(ui_agent_id, agent, prompt)
+        trace_content = result
+        trace_metadata: dict[str, Any] | None = None
+        if output_processor is not None:
+            trace_content, trace_metadata = output_processor(result)
         self.trace_event(
             trace_label,
-            result,
+            trace_content,
             event_type="stage_output",
             agent_id=ui_agent_id,
+            metadata=trace_metadata,
         )
         self.trace_event(
             f"{trace_label}_END",
@@ -147,7 +155,7 @@ class WorkflowSession:
             agent_id=ui_agent_id,
         )
         if print_output:
-            self._output_printer(ui_agent_id, result, verbose=verbose)
+            self._output_printer(ui_agent_id, trace_content, verbose=verbose)
         return result
 
 
@@ -203,4 +211,3 @@ class WorkflowEngine:
                 trace_writer=self._trace_writer,
                 output_printer=self._output_printer,
             )
-
