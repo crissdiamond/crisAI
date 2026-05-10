@@ -547,6 +547,11 @@ def doctor(
         lines.extend(_format_issues(result.warnings))
     if not lines:
         lines.append("No configuration issues found.")
+        lines.append("")
+        lines.append("Setup guidance:")
+        lines.append("- Put local credentials and runtime overrides in `.env` copied from `.env.example`.")
+        lines.append("- Keep shared agents, models, MCP servers, policy, and memory defaults in `registry/*.yaml`.")
+        lines.append("- Run `crisai doctor --models` after changing model providers or agent model_ref values.")
 
     if result.ok:
         print_status_message("\n".join(lines), title="✅ crisai doctor")

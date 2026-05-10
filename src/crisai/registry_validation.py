@@ -16,6 +16,22 @@ from crisai.orchestration.retrieval_association_graph import (
 from crisai.orchestration.semantic_catalog import load_semantic_catalog
 from crisai.registry import Registry
 
+_PLACEHOLDER_ENV_VALUES = {
+    "your-openai-api-key",
+    "your-gemini-api-key",
+    "your-anthropic-api-key",
+    "your-deepseek-api-key",
+    "<your-key>",
+}
+_SESSION_MEMORY_ENV_VARS = {
+    "CRISAI_SESSION_MEMORY_STRATEGY": "deterministic or agentic",
+    "CRISAI_SESSION_MEMORY_AGENT_ID": "a registered agent id such as memory_summarizer",
+    "CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS": "a non-negative integer",
+    "CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS": "an integer >= 1000",
+    "CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS": "an integer >= 500",
+    "CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE": "true or false",
+}
+
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
@@ -50,6 +66,14 @@ def _read_yaml(path: Path) -> Any:
     if not path.is_file():
         raise FileNotFoundError(f"Missing required registry file: {path}")
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def _is_placeholder_env_value(value: str) -> bool:
+    """Return True for values copied directly from .env.example."""
+    stripped = value.strip().lower()
+    return stripped in _PLACEHOLDER_ENV_VALUES or (
+        stripped.startswith("your-") and stripped.endswith("-api-key")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -144,10 +168,13 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                     hint=f"Add a `url` field to server `{server.id}` in `registry/servers.yaml`.",
                 ))
             api_key_env = server.raw.get("api_key_env")
-            if api_key_env and isinstance(api_key_env, str) and not os.getenv(api_key_env, ""):
+            if api_key_env and isinstance(api_key_env, str):
+                key_value = os.getenv(api_key_env, "")
+                if key_value and not _is_placeholder_env_value(key_value):
+                    continue
                 warnings.append(DoctorIssue(
-                    message=f"Server '{server.id}' expects unset environment variable: {api_key_env}",
-                    hint=f"Add `{api_key_env}=<your-key>` to your `.env` file.",
+                    message=f"Server '{server.id}' expects unset or placeholder environment variable: {api_key_env}",
+                    hint=f"Add a real `{api_key_env}=<your-key>` value to your `.env` file.",
                 ))
         allowed_tools = server.raw.get("tools", {}).get("allow", [])
         if not isinstance(allowed_tools, list):
@@ -196,10 +223,13 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                 message=f"Model '{model.id}' has unsupported provider: {model.provider}",
                 hint="Valid providers are `openai`, `gemini`, `anthropic`, and `deepseek`. Update `registry/models.yaml`.",
             ))
-        if model.api_key_env and not os.getenv(model.api_key_env, ""):
+        if model.api_key_env:
+            key_value = os.getenv(model.api_key_env, "")
+            if key_value and not _is_placeholder_env_value(key_value):
+                continue
             warnings.append(DoctorIssue(
-                message=f"Model '{model.id}' expects unset environment variable: {model.api_key_env}",
-                hint=f"Add `{model.api_key_env}=<your-key>` to your `.env` file.",
+                message=f"Model '{model.id}' expects unset or placeholder environment variable: {model.api_key_env}",
+                hint=f"Add a real `{model.api_key_env}=<your-key>` value to your `.env` file.",
             ))
 
     return errors, warnings
@@ -381,6 +411,38 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
                 "Create one from the example if you rely on dotenv configuration: "
                 "`cp .env.example .env`"
             ),
+        ))
+
+    strategy = os.getenv("CRISAI_SESSION_MEMORY_STRATEGY")
+    if strategy and strategy.strip().lower() not in {"deterministic", "agentic"}:
+        warnings.append(DoctorIssue(
+            message="CRISAI_SESSION_MEMORY_STRATEGY has an unsupported value.",
+            hint="Use `CRISAI_SESSION_MEMORY_STRATEGY=deterministic` or `CRISAI_SESSION_MEMORY_STRATEGY=agentic` in `.env`.",
+        ))
+
+    for name, minimum in (
+        ("CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS", 0),
+        ("CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS", 1000),
+        ("CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS", 500),
+    ):
+        raw = os.getenv(name)
+        if raw is None:
+            continue
+        try:
+            value = int(raw)
+        except ValueError:
+            value = minimum - 1
+        if value < minimum:
+            warnings.append(DoctorIssue(
+                message=f"{name} should be {_SESSION_MEMORY_ENV_VARS[name]}.",
+                hint=f"Update `{name}` in `.env`, or remove it to use `registry/session_memory.yaml` defaults.",
+            ))
+
+    raw_nudge = os.getenv("CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE")
+    if raw_nudge and raw_nudge.strip().lower() not in {"1", "0", "true", "false", "yes", "no", "on", "off"}:
+        warnings.append(DoctorIssue(
+            message="CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE should be true or false.",
+            hint="Use `CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE=true` or remove it to use the registry default.",
         ))
 
     return errors, warnings

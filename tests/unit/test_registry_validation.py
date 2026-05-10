@@ -195,6 +195,25 @@ def test_doctor_warns_about_missing_env_file(tmp_path: Path) -> None:
     assert ".env.example" in matching.hint
 
 
+def test_doctor_warns_about_invalid_session_memory_env(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / ".env").write_text("", encoding="utf-8")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_STRATEGY", "random")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS", "-1")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS", "small")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS", "400")
+    monkeypatch.setenv("CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE", "maybe")
+
+    errors, warnings = _check_env_setup(tmp_path)
+
+    assert errors == []
+    messages = "\n".join(w.message for w in warnings)
+    assert "CRISAI_SESSION_MEMORY_STRATEGY" in messages
+    assert "CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS" in messages
+    assert "CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS" in messages
+    assert "CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS" in messages
+    assert "CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE" in messages
+
+
 def test_issues_carry_hints_for_unknown_model_ref(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     registry_dir = tmp_path / "registry"
@@ -225,6 +244,17 @@ def test_issues_carry_hints_for_missing_api_key(tmp_path: Path, monkeypatch) -> 
     for w in key_warnings:
         assert w.hint is not None
         assert ".env" in w.hint
+
+
+def test_validation_warns_about_placeholder_api_keys(tmp_path: Path, monkeypatch) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    monkeypatch.setenv("GEMINI_API_KEY", "your-gemini-api-key")
+
+    _errors, warnings = _validate_registry_cross_references(root, registry_dir)
+
+    assert any("GEMINI_API_KEY" in w.message and "placeholder" in w.message for w in warnings)
 
 
 # --- Transport validation ---
