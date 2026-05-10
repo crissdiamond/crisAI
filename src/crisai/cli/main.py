@@ -22,6 +22,7 @@ from crisai.cli.session_store import clear_cli_history, clear_history, cli_histo
 from crisai.cli.status_views import print_agents_table, print_chat_state, print_servers_table, route_display
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
+from crisai.registry_validation import run_doctor
 from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
@@ -490,6 +491,31 @@ def validate_artefacts(
         raise typer.Exit(0)
     body = "- " + "\n- ".join(result.violations)
     print_status_message(body, title="❌ Artefact validation failed")
+    raise typer.Exit(1)
+
+
+@app.command("doctor")
+def doctor() -> None:
+    """Validate local registry, prompt, environment, and repo hygiene."""
+    settings = load_settings()
+    result = run_doctor(
+        root_dir=Path(settings.root_dir),
+        registry_dir=Path(settings.registry_dir),
+    )
+    lines: list[str] = []
+    if result.errors:
+        lines.append("Errors:")
+        lines.extend(f"- {error}" for error in result.errors)
+    if result.warnings:
+        lines.append("Warnings:")
+        lines.extend(f"- {warning}" for warning in result.warnings)
+    if not lines:
+        lines.append("No configuration issues found.")
+
+    if result.ok:
+        print_status_message("\n".join(lines), title="✅ crisai doctor")
+        raise typer.Exit(0)
+    print_status_message("\n".join(lines), title="❌ crisai doctor")
     raise typer.Exit(1)
 
 

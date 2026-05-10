@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import os
 import sys
 from pathlib import Path
 
@@ -14,6 +15,9 @@ mcp = FastMCP("crisai-workspace")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
 LOG_FILE = load_settings().log_dir / "workspace_mcp.log"
+DEFAULT_WRITE_SUBDIRS = ("outputs", "context_staging", "scratch")
+DEFAULT_WRITE_EXTENSIONS = (".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".mmd")
+DEFAULT_MAX_WRITE_BYTES = 1_000_000
 
 
 
@@ -61,6 +65,44 @@ def _safe_path(relative_path: str) -> Path:
 
     return candidate
 
+
+def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.getenv(name, "")
+    values = tuple(item.strip().strip("/") for item in raw.split(",") if item.strip())
+    return values or default
+
+
+def _max_write_bytes() -> int:
+    raw = os.getenv("CRISAI_WORKSPACE_MAX_WRITE_BYTES", str(DEFAULT_MAX_WRITE_BYTES))
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_WRITE_BYTES
+    return max(1_024, parsed)
+
+
+def _enforce_write_policy(relative_path: str, content: str) -> Path:
+    file_path = _safe_path(relative_path)
+    if file_path == ROOT or not file_path.name:
+        raise ValueError("Workspace write target must be a file path.")
+
+    rel = file_path.relative_to(ROOT).as_posix()
+    allowed_subdirs = _csv_env("CRISAI_WORKSPACE_WRITE_SUBDIRS", DEFAULT_WRITE_SUBDIRS)
+    if not any(rel == subdir or rel.startswith(f"{subdir}/") for subdir in allowed_subdirs):
+        allowed = ", ".join(allowed_subdirs)
+        raise ValueError(f"Workspace writes are restricted to these subdirectories: {allowed}")
+
+    allowed_extensions = _csv_env("CRISAI_WORKSPACE_WRITE_EXTENSIONS", DEFAULT_WRITE_EXTENSIONS)
+    if file_path.suffix.lower() not in allowed_extensions:
+        allowed = ", ".join(allowed_extensions)
+        raise ValueError(f"Workspace writes are restricted to these file extensions: {allowed}")
+
+    size = len(content.encode("utf-8"))
+    max_size = _max_write_bytes()
+    if size > max_size:
+        raise ValueError(f"Workspace write exceeds maximum size of {max_size} bytes.")
+    return file_path
+
 _configure_mcp_logging()
 
 log_event(f"workspace_server_started root={ROOT}")
@@ -85,7 +127,7 @@ def read_workspace_file(path: str) -> str:
 @mcp.tool()
 def write_workspace_file(path: str, content: str) -> str:
     log_event(f"write_workspace_file path={path} chars={len(content)}")
-    file_path = _safe_path(path)
+    file_path = _enforce_write_policy(path, content)
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_text(content, encoding="utf-8")
     return str(file_path.relative_to(ROOT))
@@ -94,7 +136,7 @@ def write_workspace_file(path: str, content: str) -> str:
 @mcp.tool()
 def append_workspace_file(path: str, content: str) -> str:
     log_event(f"append_workspace_file path={path} chars={len(content)}")
-    file_path = _safe_path(path)
+    file_path = _enforce_write_policy(path, content)
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with file_path.open("a", encoding="utf-8") as f:
         f.write(content)

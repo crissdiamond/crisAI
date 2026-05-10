@@ -1,7 +1,8 @@
 # Security
 
-- Keep API keys in `.env`, not in prompts or YAML files.
-- Start with low-risk read and write tools only.
-- Add approvals before enabling higher-risk actions.
-- Treat SharePoint, intranet pages, Maps, and other enterprise connectors as separate servers with their own auth handling.
-- Review agent-produced **context** drafts under `workspace/context_staging/` before promoting to `workspace/context/`.
+- Keep credentials in `.env` or delegated token caches only; do not put secrets in prompts, YAML, markdown artefacts, or tests.
+- `crisai doctor` checks for tracked `.env`, `.auth`, token-cache, and log paths.
+- SharePoint documents and intranet site pages use separate Microsoft Graph token caches under `workspace/.auth/`.
+- Intranet page access is scoped by `registry/intranet.yaml`; `intranet_fetch` accepts only configured Graph site ids.
+- Workspace writes are restricted by server-side path, extension, and size guards. Review drafts under `workspace/context_staging/` before promoting them to `workspace/context/`.
+- Treat registry `allowed_servers` as the authority for agent tool access, and keep high-risk tools out of agent allow lists until their runtime policy is explicit.

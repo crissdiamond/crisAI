@@ -1,42 +1,84 @@
+# Python build/test artefacts
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
-# Local diagnostics and traces (see CRISAI_LOG_DIR); not versioned.
-logs/
 .venv/
 venv/
 env/
+.env/
 dist/
 build/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
 .coverage
+.coverage.*
 htmlcov/
+
+# Local diagnostics and traces
+logs/
+tests/logs/
+
+# Editor/agent local state
+.agents/
+.codex/
+.continue/
+.cursor
+.cursor/
 .idea/
 .vscode/
 .DS_Store
+
+# Local env, auth, and secrets
 .env
-.cursor
-.cursor/
-workspace/.cli_history
-workspace/chat_sessions/*.json
-workspace/chat_sessions/
-workspace/context_staging/
-chat_session/
+.env.*
+!.env.example
 .secrets/
-*.sqlite
 .auth/
 workspace/.auth/
-.continue/
 *.token
 *token_cache*
+
+# JavaScript artefacts accidentally created by local tooling
+node_modules/
+package.json
+package-lock.json
+
+# crisAI runtime workspace state
+workspace/.cache/
+workspace/.cli_history
+workspace/chat_sessions/
+workspace/context_staging/
+workspace/inputs/
+workspace/reference/
+workspace/scratch/
+workspace/__inputs/
+workspace/outputs/
+chat_session/
+
+# Test/runtime scratch directories
+tests/.cache/
+tests/.auth/
+tests/registry/
+tests/workspace/
+src/crisai/app/
+--tb=no/
+--tb=short/
+-q/
+
+# Local databases and OS artefacts
+*.sqlite
 *Zone.Identifier
 *.Zone.Identifier
 *zone.identifier
+
+# Local backup files
 *.old?
 *.old
 **/*.old
 **/*.old?
-

@@ -116,6 +116,7 @@ pytest
 ```
 
 That is the preferred command for checking the full current project state.
+CI runs the same suite with `pytest-timeout` enabled so hung async or web tests fail within the configured per-test timeout.
 
 For a clean-install smoke check, also verify both launch modes:
 

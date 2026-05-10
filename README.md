@@ -347,6 +347,7 @@ crisai-web
 After a fresh install, validate both runtime surfaces:
 
 ```bash
+crisai doctor
 ./start cli
 ./start web
 ```

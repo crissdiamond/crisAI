@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sys
 
+import pytest
+
 
 def test_search_workspace_text_token_fallback_on_long_query(tmp_path, monkeypatch) -> None:
     """Long queries that match no single line still find files via token fallback."""
@@ -60,3 +62,66 @@ def test_expand_associations_returns_advisory_payload(tmp_path, monkeypatch) -> 
     assert payload["graph_loaded"] is True
     assert payload["schema_version"] == "deterministic_context_v1"
     assert payload["activated_topics"] == ["integration_principles_corpus"]
+
+
+def test_workspace_write_policy_allows_staged_markdown(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    fake_workspace.mkdir()
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    written = workspace_server.write_workspace_file("context_staging/patterns/a.md", "# A\n")
+
+    assert written == "context_staging/patterns/a.md"
+    assert (fake_workspace / "context_staging/patterns/a.md").read_text(encoding="utf-8") == "# A\n"
+
+
+def test_workspace_write_policy_blocks_unapproved_subdir(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    fake_workspace.mkdir()
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    with pytest.raises(ValueError, match="restricted to these subdirectories"):
+        workspace_server.write_workspace_file("context/canonical.md", "# No\n")
+
+
+def test_workspace_write_policy_blocks_unapproved_extension(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    fake_workspace.mkdir()
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    with pytest.raises(ValueError, match="restricted to these file extensions"):
+        workspace_server.write_workspace_file("outputs/script.py", "print('no')\n")
+
+
+def test_workspace_write_policy_blocks_oversized_content(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    fake_workspace.mkdir()
+    monkeypatch.setenv("CRISAI_WORKSPACE_MAX_WRITE_BYTES", "1024")
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    with pytest.raises(ValueError, match="exceeds maximum size"):
+        workspace_server.write_workspace_file("outputs/large.md", "x" * 2048)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import os
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ mcp = FastMCP("crisai-diagrams")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
 LOG_FILE = load_settings().log_dir / "diagram_mcp.log"
+DEFAULT_MAX_DIAGRAM_BYTES = 500_000
 
 
 
@@ -36,6 +38,15 @@ def log_event(message: str) -> None:
 
 def _slugify(value: str) -> str:
     return re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip()).strip("-").lower()
+
+
+def _max_diagram_bytes() -> int:
+    raw = os.getenv("CRISAI_DIAGRAM_MAX_WRITE_BYTES", str(DEFAULT_MAX_DIAGRAM_BYTES))
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_DIAGRAM_BYTES
+    return max(1_024, parsed)
 
 
 _configure_mcp_logging()
@@ -68,12 +79,17 @@ def validate_mermaid(content: str) -> dict[str, str | bool]:
 @mcp.tool()
 def save_diagram(filename: str, content: str, subdir: str = "outputs/diagrams") -> str:
     log_event(f"save_diagram filename={filename} subdir={subdir} chars={len(content)}")
+    if len(content.encode("utf-8")) > _max_diagram_bytes():
+        raise ValueError(f"Diagram write exceeds maximum size of {_max_diagram_bytes()} bytes.")
     safe_name = _slugify(filename)
     if not safe_name.endswith(".mmd"):
         safe_name += ".mmd"
     target_dir = (ROOT / subdir).resolve()
     if ROOT not in target_dir.parents and target_dir != ROOT:
         raise ValueError("Path escapes the workspace root.")
+    rel_dir = target_dir.relative_to(ROOT).as_posix()
+    if rel_dir != "outputs/diagrams" and not rel_dir.startswith("outputs/diagrams/"):
+        raise ValueError("Diagram writes are restricted to outputs/diagrams.")
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / safe_name
     target.write_text(content, encoding="utf-8")

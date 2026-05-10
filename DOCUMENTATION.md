@@ -177,9 +177,12 @@ crisai clear-session --session architecture
 Structural checks on staged or promoted corpus Markdown (`workspace/context/` and `workspace/context_staging/`) are driven by **`registry/workspace_artifact_profiles.yaml`**. The first matching profile (by declare order) supplies rules on top of `defaults`; front-matter **`type`** can be spelled with synonyms listed under `type_aliases` (for example **`HLD`** maps to **`high_level_design`**). Run validation manually:
 
 ```bash
+crisai doctor
 crisai validate-artefacts
 crisai validate-artefacts -p workspace/context_staging/patterns/example.md
 ```
+
+`crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, and tracked secret/cache hygiene.
 
 The same validator runs automatically as part of the **peer post-run verifier** for Markdown files touched in that workflow (`src/crisai/orchestration/peer_verifier.py` calling `validate_workspace_artefact_paths`).
 

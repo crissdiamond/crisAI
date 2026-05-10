@@ -4,17 +4,30 @@ import os
 import time
 from dataclasses import dataclass
 
-from fastapi.testclient import TestClient
-
 from fastapi import HTTPException
+import pytest
 
 from crisai.apps.web import (
     _collect_stage_outputs,
     _select_latest_run,
     _to_http_exception,
     _trace_line_to_stage_output,
-    app,
+    RunRequest,
+    SessionCreateRequest,
+    create_session,
+    get_session,
+    list_sessions,
+    run,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_run_jobs():
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS.clear()
+    yield
+    web_mod._RUN_JOBS.clear()
 
 
 def test_select_latest_run_filters_by_last_run_id():
@@ -93,24 +106,24 @@ def test_run_endpoint_returns_execution_payload(monkeypatch):
         lambda session_name, history: saved.update({"session": session_name, "history": history}),
     )
     monkeypatch.setattr("crisai.apps.web._execute", fake_execute)
-    client = TestClient(app)
 
-    response = client.post(
-        "/api/run",
-        json={
-            "message": "hello",
-            "mode": "auto",
-            "agent": "auto",
-            "review": False,
-            "verbose": False,
-            "session": "default",
-        },
+    response = run(
+        RunRequest(
+            message="hello",
+            mode="auto",
+            agent="auto",
+            review=False,
+            verbose=False,
+            session="default",
+        )
     )
+    from crisai.apps import web as web_mod
 
-    assert response.status_code == 200
-    assert response.json()["final_output"] == "ok"
-    assert response.json()["current_session"] == "default"
-    assert len(response.json()["history"]) == 2
+    payload = web_mod._run_async(response)
+
+    assert payload["final_output"] == "ok"
+    assert payload["current_session"] == "default"
+    assert len(payload["history"]) == 2
     assert saved["session"] == "default"
     assert saved["history"][0] == ("user", "hello")
     assert saved["history"][1] == ("assistant", "ok")
@@ -161,6 +174,57 @@ def test_execute_wraps_message_with_session_history(monkeypatch, tmp_path):
     assert captured["message"].startswith("Conversation so far")
 
 
+def test_run_job_wraps_message_with_session_history(monkeypatch):
+    captured: dict[str, str] = {}
+    saved: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "crisai.apps.web.load_history",
+        lambda session_name: [("user", "prior user"), ("assistant", "prior assistant")],
+    )
+    monkeypatch.setattr(
+        "crisai.apps.web.build_chat_input",
+        lambda user_input, history: f"Wrapped history\\nUser: {user_input}",
+    )
+    monkeypatch.setattr(
+        "crisai.apps.web.save_history",
+        lambda session_name, history: saved.update({"session": session_name, "history": history}),
+    )
+
+    async def _fake_run_with_routing(**kwargs):
+        captured["message"] = kwargs["message"]
+        captured["intent"] = kwargs["user_intent_message"]
+        return "ok"
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run_with_routing)
+
+    @dataclass
+    class _Payload:
+        message: str = "fresh request"
+        mode: str = "auto"
+        agent: str = "auto"
+        review: bool = False
+        verbose: bool = False
+        session: str = "default"
+
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS.clear()
+    web_mod._RUN_JOBS["job-1"] = {"status": "running"}
+    result = web_mod._run_async(web_mod._run_job("job-1", _Payload(), decision=object()))
+
+    assert result is None
+    assert captured["message"].startswith("Wrapped history")
+    assert captured["intent"] == "fresh request"
+    assert saved["session"] == "default"
+    assert saved["history"] == [
+        ("user", "prior user"),
+        ("assistant", "prior assistant"),
+        ("user", "fresh request"),
+        ("assistant", "ok"),
+    ]
+
+
 def test_to_http_exception_maps_max_turns_to_422():
     error = Exception("Error: Max turns (10) exceeded")
     http_error = _to_http_exception(error)
@@ -177,12 +241,8 @@ def test_list_sessions_endpoint_returns_default_history(monkeypatch):
         "crisai.apps.web.load_history",
         lambda session_name: [("user", "u1"), ("assistant", "a1")] if session_name == "default" else [],
     )
-    client = TestClient(app)
 
-    response = client.get("/api/sessions")
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = list_sessions()
     assert payload["current_session"] == "default"
     assert payload["sessions"] == ["default", "design"]
     assert payload["history"] == [{"role": "user", "content": "u1"}, {"role": "assistant", "content": "a1"}]
@@ -202,12 +262,8 @@ def test_list_sessions_selects_session_with_newest_json_mtime(tmp_path, monkeypa
             [("user", "old")] if session_name == "older" else [("user", "new")]
         ),
     )
-    client = TestClient(app)
 
-    response = client.get("/api/sessions")
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = list_sessions()
     assert payload["current_session"] == "newer"
     assert "newer" in payload["sessions"]
     assert payload["history"] == [{"role": "user", "content": "new"}]
@@ -217,24 +273,15 @@ def test_create_session_endpoint_sanitizes_and_returns_session(monkeypatch):
     monkeypatch.setattr("crisai.apps.web.load_history", lambda session_name: [])
     monkeypatch.setattr("crisai.apps.web.save_history", lambda session_name, history: None)
     monkeypatch.setattr("crisai.apps.web._list_session_names", lambda: ["default", "new_session"])
-    client = TestClient(app)
 
-    response = client.post("/api/sessions", json={"session": "new session"})
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = create_session(SessionCreateRequest(session="new session"))
     assert payload["current_session"] == "new_session"
     assert "new_session" in payload["sessions"]
 
 
 def test_get_session_endpoint_returns_specific_history(monkeypatch):
     monkeypatch.setattr("crisai.apps.web.load_history", lambda _name: [("user", "hello")])
-    client = TestClient(app)
 
-    response = client.get("/api/sessions/my-session")
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = get_session("my-session")
     assert payload["current_session"] == "my-session"
     assert payload["history"] == [{"role": "user", "content": "hello"}]
-
