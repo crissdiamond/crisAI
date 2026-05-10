@@ -147,3 +147,30 @@ servers:
       required_for: []
       mode: none
     risk_level: medium
+
+# ---------------------------------------------------------------------------
+# Remote server example (SSE transport)
+#
+# Use transport: sse or transport: streamable-http to connect to an external
+# MCP server. Remote servers are not managed as subprocesses by crisAI —
+# they must already be running and reachable at the configured url.
+#
+# api_key_env names an environment variable whose value is injected as
+#   Authorization: Bearer <value>
+# Additional static headers can be placed under headers:.
+#
+# - id: remote_knowledge_base
+#   name: Remote Knowledge Base
+#   description: External MCP server accessible over SSE.
+#   enabled: false
+#   transport: sse
+#   url: https://mcp.example.com/sse
+#   api_key_env: REMOTE_MCP_API_KEY
+#   headers:
+#     X-Tenant-Id: my-tenant
+#   tags: [remote]
+#   auth:
+#     type: api_key
+#   tools:
+#     allow: []   # empty list = all tools exposed by the server; list names to restrict
+# ---------------------------------------------------------------------------

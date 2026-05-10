@@ -66,17 +66,30 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
 
     server_ids = {server.id for server in servers}
     model_ids = {model.id for model in models}
+    _supported_transports = {"stdio", "sse", "streamable-http"}
     for server in servers:
-        if server.transport != "stdio":
+        if server.transport not in _supported_transports:
             errors.append(f"Server '{server.id}' uses unsupported transport '{server.transport}'.")
-        command = server.raw.get("command")
-        if not command:
-            errors.append(f"Server '{server.id}' is missing command.")
-        args = server.raw.get("args") or []
-        if args:
-            script_path = root_dir / str(args[0])
-            if str(args[0]).endswith(".py") and not script_path.is_file():
-                errors.append(f"Server '{server.id}' references missing script: {args[0]}")
+        elif server.transport == "stdio":
+            command = server.raw.get("command")
+            if not command:
+                errors.append(f"Server '{server.id}' is missing command.")
+            args = server.raw.get("args") or []
+            if args:
+                script_path = root_dir / str(args[0])
+                if str(args[0]).endswith(".py") and not script_path.is_file():
+                    errors.append(f"Server '{server.id}' references missing script: {args[0]}")
+        else:
+            url = server.raw.get("url")
+            if not url or not isinstance(url, str) or not url.strip():
+                errors.append(
+                    f"Server '{server.id}' ({server.transport}) requires a non-empty 'url' field."
+                )
+            api_key_env = server.raw.get("api_key_env")
+            if api_key_env and isinstance(api_key_env, str) and not os.getenv(api_key_env, ""):
+                warnings.append(
+                    f"Server '{server.id}' expects unset environment variable: {api_key_env}"
+                )
         allowed_tools = server.raw.get("tools", {}).get("allow", [])
         if not isinstance(allowed_tools, list):
             errors.append(f"Server '{server.id}' tools.allow must be a list.")
