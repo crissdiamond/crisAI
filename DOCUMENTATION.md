@@ -709,6 +709,7 @@ crisAI now supports provider-aware model assignment.
 - `registry/agents.yaml` assigns a `model_ref` to each agent
 - `registry/models.yaml` defines the actual provider and model name
 - the runtime resolves the provider-specific model when building the agent
+- `registry/examples/agents.openai.yaml`, `agents.deepseek.yaml`, `agents.gemini.yaml`, and `agents.anthropic.yaml` provide complete mono-provider assignment examples
 
 ### Example
 

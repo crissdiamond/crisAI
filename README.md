@@ -184,6 +184,7 @@ Use `/mode auto` to let the router decide, or pin a mode with `/mode single`, `/
 The registry is the main control plane:
 
 - `registry/agents.yaml`: agent ids, prompts, allowed MCP servers, and model refs.
+- `registry/examples/agents.*.yaml`: mono-provider agent assignment examples.
 - `registry/models.yaml`: provider-specific model names and API key env vars.
 - `registry/servers.yaml`: MCP server definitions and allowed tools.
 - `registry/workflow_policy.yaml`: runtime hard gates.

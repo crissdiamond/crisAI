@@ -1,0 +1,80 @@
+version: 1
+
+agents:
+  - id: orchestrator
+    name: Orchestrator
+    model_ref: gemini_fast
+    prompt_file: prompts/orchestrator.md
+    allowed_servers: [workspace, diagrams, documents, intranet]
+
+  - id: retrieval_planner
+    name: Retrieval Planner
+    model_ref: gemini_fast
+    prompt_file: prompts/retrieval_planner_agent.md
+    allowed_servers: [workspace, documents, sharepoint_docs, intranet, vision]
+
+  - id: context_retrieval
+    name: Context Retrieval Agent
+    model_ref: gemini_fast
+    prompt_file: prompts/context_retrieval_agent.md
+    allowed_servers: [workspace, documents, sharepoint_docs, intranet, vision]
+
+  - id: context_synthesizer
+    name: Context Synthesizer Agent
+    model_ref: gemini_fast
+    prompt_file: prompts/context_synthesizer_agent.md
+    allowed_servers: [workspace, documents, intranet]
+
+  - id: design
+    name: Design Agent
+    model_ref: gemini_fast
+    prompt_file: prompts/design_agent.md
+    allowed_servers: [workspace, diagrams]
+
+  - id: summary
+    name: Summary Agent
+    model_ref: gemini_fast
+    prompt_file: prompts/summary_agent.md
+    allowed_servers: [workspace, documents, sharepoint_docs, intranet, vision]
+
+  - id: review
+    name: Review Agent
+    model_ref: gemini_strong
+    prompt_file: prompts/review_agent.md
+    allowed_servers: [workspace, documents, intranet]
+
+  - id: operations
+    name: Operations Agent
+    model_ref: gemini_fast
+    prompt_file: prompts/operations_agent.md
+    allowed_servers: [workspace]
+
+  - id: publisher
+    name: Publisher
+    model_ref: gemini_fast
+    prompt_file: prompts/publisher.md
+    allowed_servers: [workspace, documents, diagrams, intranet]
+
+  - id: design_author
+    name: Design Author
+    model_ref: gemini_fast
+    prompt_file: prompts/design_author.md
+    allowed_servers: [workspace, diagrams]
+
+  - id: design_challenger
+    name: Design Challenger
+    model_ref: gemini_strong
+    prompt_file: prompts/design_challenger.md
+    allowed_servers: [workspace]
+
+  - id: design_refiner
+    name: Design Refiner
+    model_ref: gemini_fast
+    prompt_file: prompts/design_refiner.md
+    allowed_servers: [workspace, diagrams]
+
+  - id: judge
+    name: Judge
+    model_ref: gemini_strong
+    prompt_file: prompts/judge.md
+    allowed_servers: [workspace]
