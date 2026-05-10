@@ -568,34 +568,43 @@ async def run_pipeline(
         )
 
         evidence_transport: ValidatedEvidenceTransport | None = None
+        evidence_policy_error: WorkflowPolicyViolation | None = None
         def process_context_retrieval_output(raw_text: str) -> tuple[str, dict[str, Any] | None]:
-            nonlocal evidence_transport
-            evidence_transport = _validated_evidence_transport(intent_message, raw_text)
+            nonlocal evidence_policy_error, evidence_transport
+            try:
+                evidence_transport = _validated_evidence_transport(intent_message, raw_text)
+            except WorkflowPolicyViolation as exc:
+                evidence_policy_error = exc
+                evidence_transport = ValidatedEvidenceTransport(
+                    prose=sanitize_user_visible_text(raw_text),
+                    bundle=None,
+                    evidence_brief="",
+                )
+                return evidence_transport.prose, {"evidence_validation_error": str(exc)}
             return evidence_transport.prose, evidence_transport.trace_metadata
 
-        try:
-            context_retrieval_text = await workflow.run_stage(
-                spec=specs["context_retrieval"],
-                ui_agent_id="context_retrieval",
-                prompt=build_context_retrieval_prompt(
-                    message,
-                    retrieval_plan_text,
-                    deterministic_context=deterministic_context,
-                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
-                    task_contract=task_contract,
-                ),
-                trace_label="CONTEXT RETRIEVAL OUTPUT",
-                verbose=verbose,
-                output_processor=process_context_retrieval_output,
-            )
-        except WorkflowPolicyViolation as exc:
+        context_retrieval_text = await workflow.run_stage(
+            spec=specs["context_retrieval"],
+            ui_agent_id="context_retrieval",
+            prompt=build_context_retrieval_prompt(
+                message,
+                retrieval_plan_text,
+                deterministic_context=deterministic_context,
+                registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                task_contract=task_contract,
+            ),
+            trace_label="CONTEXT RETRIEVAL OUTPUT",
+            verbose=verbose,
+            output_processor=process_context_retrieval_output,
+        )
+        if evidence_policy_error is not None:
             _trace_workflow_policy_event(
                 workflow,
                 "POLICY_VIOLATION",
-                str(exc),
+                str(evidence_policy_error),
                 event_type="policy_violation",
             )
-            raise typer.BadParameter(str(exc)) from exc
+            raise typer.BadParameter(str(evidence_policy_error)) from evidence_policy_error
         validated_context_retrieval_text = (
             evidence_transport.prompt_text if evidence_transport is not None else sanitize_user_visible_text(context_retrieval_text)
         )
@@ -807,33 +816,42 @@ async def run_peer_pipeline(
             )
             if use_context_retrieval:
                 evidence_transport: ValidatedEvidenceTransport | None = None
+                evidence_policy_error: WorkflowPolicyViolation | None = None
                 def process_context_retrieval_output(raw_text: str) -> tuple[str, dict[str, Any] | None]:
-                    nonlocal evidence_transport
-                    evidence_transport = _validated_evidence_transport(intent_message, raw_text)
+                    nonlocal evidence_policy_error, evidence_transport
+                    try:
+                        evidence_transport = _validated_evidence_transport(intent_message, raw_text)
+                    except WorkflowPolicyViolation as exc:
+                        evidence_policy_error = exc
+                        evidence_transport = ValidatedEvidenceTransport(
+                            prose=sanitize_user_visible_text(raw_text),
+                            bundle=None,
+                            evidence_brief="",
+                        )
+                        return evidence_transport.prose, {"evidence_validation_error": str(exc)}
                     return evidence_transport.prose, evidence_transport.trace_metadata
 
-                try:
-                    context_retrieval_text = await workflow.run_stage(
-                        spec=specs["context_retrieval"],
-                        ui_agent_id="context_retrieval",
-                        prompt=build_context_retrieval_prompt(
-                            message,
-                            retrieval_plan_text,
-                            deterministic_context=deterministic_context,
-                            registry_dir=Path(registry_dir) if registry_dir is not None else None,
-                        ),
-                        trace_label="CONTEXT RETRIEVAL OUTPUT",
-                        verbose=verbose,
-                        output_processor=process_context_retrieval_output,
-                    )
-                except WorkflowPolicyViolation as exc:
+                context_retrieval_text = await workflow.run_stage(
+                    spec=specs["context_retrieval"],
+                    ui_agent_id="context_retrieval",
+                    prompt=build_context_retrieval_prompt(
+                        message,
+                        retrieval_plan_text,
+                        deterministic_context=deterministic_context,
+                        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                    ),
+                    trace_label="CONTEXT RETRIEVAL OUTPUT",
+                    verbose=verbose,
+                    output_processor=process_context_retrieval_output,
+                )
+                if evidence_policy_error is not None:
                     _trace_workflow_policy_event(
                         workflow,
                         "POLICY_VIOLATION",
-                        str(exc),
+                        str(evidence_policy_error),
                         event_type="policy_violation",
                     )
-                    raise typer.BadParameter(str(exc)) from exc
+                    raise typer.BadParameter(str(evidence_policy_error)) from evidence_policy_error
                 context_retrieval_text = (
                     evidence_transport.prompt_text
                     if evidence_transport is not None

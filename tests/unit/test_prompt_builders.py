@@ -76,6 +76,8 @@ def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     assert "read_handle" in text
     assert EVIDENCE_BUNDLE_CONTRACT in text
     assert LINK_FORMATTING_CONTRACT in text
+    assert "always end with the required fenced `evidence_bundle_v1` JSON block" in text
+    assert "this fenced JSON block is mandatory" in text
     assert "`source` must be an object" in text
     assert '"source_type": "sharepoint_document"' in text
 

@@ -303,6 +303,7 @@ def build_context_retrieval_prompt(
             "Enforce Source Fit Constraints before reading: title phrases and user-scoped sources are hard filters, while deterministic expansion terms are optional hints. "
             "For SharePoint (not OneDrive-only) use `search_sharepoint_site_documents` or site-scoped search after `list_sites`. "
             "When the user asks for a summary of a document/deck/file, read the content first and mark the item `content_read`; if the read fails, mark it `read_failed` and include the raw error. "
+            "For document/deck/file summary requests, always end with the required fenced `evidence_bundle_v1` JSON block; never rely on prose-only retrieval notes. "
             "Do not draft, recommend, or optimise the final design response.",
             SHAREPOINT_READ_HANDLE_CONTRACT,
             RETRIEVAL_EVIDENCE_POLICY_CONTRACT,
