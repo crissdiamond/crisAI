@@ -112,6 +112,7 @@ tests/
 From the repo root:
 
 ```bash
+pip install -e ".[dev]"
 pytest
 ```
 
@@ -173,7 +174,13 @@ pytest tests/orchestration/test_peer_mode.py
 ### Base test environment
 For the core suite, the project should import and run without requiring live provider credentials.
 
-Clean installs should include `pytest` and `traced` automatically via `pip install -e .`.
+Install test and static-analysis tooling with the dev extra:
+
+```bash
+pip install -e ".[dev]"
+```
+
+The base install keeps runtime dependencies only; `pytest`, `pytest-timeout`, `ruff`, and `mypy` live in the dev extra. `traced` remains a runtime dependency.
 
 ### Microsoft Graph auth smoke test (manual)
 `tests/orchestration/test_graph_login.py` is a manual smoke test and is intentionally skipped by pytest.

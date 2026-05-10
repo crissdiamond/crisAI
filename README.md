@@ -239,6 +239,12 @@ Equivalent using the requirements file (same default dependencies as `pip instal
 pip install -r requirements.txt
 ```
 
+For local development, tests, linting, and type checks, install the dev extra:
+
+```bash
+pip install -e ".[dev]"
+```
+
 If you want Gemini or Anthropic support through LiteLLM-backed integration, install the optional extra:
 
 ```bash
@@ -355,7 +361,8 @@ crisai doctor
 If `./start` reports a missing `.venv`, create it and install dependencies first.
 
 Dependency note:
-- `pytest` and `traced` are part of the base install and should be available after `pip install -e .`.
+- `traced` is part of the base install.
+- `pytest`, `pytest-timeout`, `ruff`, and `mypy` are dev dependencies; install them with `pip install -e ".[dev]"`.
 
 Microsoft Graph auth note:
 - SharePoint (documents) and Intranet (site pages) each have an **independent token cache** — losing or resetting one does not affect the other
