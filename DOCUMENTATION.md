@@ -490,24 +490,26 @@ crisAI supports delegated Microsoft Graph access for:
 - personal OneDrive
 - drives, items, and documents
 
-### Intranet site pages (scoped MCP server)
+### Intranet content pages (scoped MCP server)
 
-For **published SharePoint site pages** (modern intranet content), use the separate **`intranet`** MCP server — not a generic web browser.
+For **published intranet pages**, use the separate **`intranet`** MCP server — not a generic web browser. The default provider reads modern SharePoint site pages, but the MCP contract is provider-neutral so an organisation can replace it with a wiki or custom intranet adapter.
 
 **Available tools:**
 
 | Tool | Purpose |
 |---|---|
-| `intranet_list_all_pages` | Full page catalogue across all configured sites (deterministic; uses local cache) |
-| `intranet_search` | Keyword search against page titles, names, and descriptions |
-| `intranet_fetch` | Retrieve full page text by `graph_site_id` + `graph_page_id` |
-| `intranet_list_page_links` | Enumerate child Site Page links from a hub or catalogue page |
+| `intranet_list_pages` | Full page catalogue across all configured sources (deterministic; cached when supported) |
+| `intranet_search_pages` | Keyword search against configured intranet pages |
+| `intranet_fetch_page` | Retrieve full page text by opaque `content_id` |
+| `intranet_list_page_links_by_id` | Enumerate child page links from a hub or catalogue page by `content_id` |
 | `intranet_login` | Trigger interactive Microsoft Entra authentication for the intranet token cache |
 | `intranet_auth_status` | Check authentication status without prompting |
 
+Compatibility aliases remain available for SharePoint-backed deployments: `intranet_list_all_pages`, `intranet_search`, `intranet_fetch`, and `intranet_list_page_links`. New prompts and providers should use `content_id` and the neutral tool names.
+
 **Two-stage search strategy:**
 
-`intranet_search` runs a two-stage strategy to ensure leaf pages (e.g. `Consumer-Pattern-1`, `Producer-Pattern-2`) are never silently dropped:
+With the SharePoint provider, `intranet_search_pages` runs a two-stage strategy to ensure leaf pages (e.g. `Consumer-Pattern-1`, `Producer-Pattern-2`) are never silently dropped:
 
 1. **OData / scored pass** — Graph OData filter returns the most relevant pages first (fast, capped per site).
 2. **Cache expansion** — any pages in the local catalogue that match at least one expanded query token are merged in, deduplicated, up to `max_hits`. This stage only runs when the cache is warm and adds no Graph API calls.
@@ -534,28 +536,30 @@ For architecture diagrams, dictionary conventions, precedence rules, and impleme
 
 **Configuration in `registry/intranet.yaml`:**
 
-- **`provider`**: `sharepoint_pages` (default) or `wiki` (placeholder for future adapters).
+- **`provider`**: `sharepoint_pages` (default), `wiki` (placeholder), or `custom`.
 - **`allow_hosts`**: optional lowercase hostnames; page `webUrl` hosts must match exactly. If omitted, hosts are **derived only** from the configured sites' `webUrl` values (still not open internet).
 - **`sharepoint_pages.sites`**: list entries with either `site_path` (for example `contoso.sharepoint.com:/sites/Intranet`) or `graph_site_id`.
+- **`custom.class_path`**: adapter class path in `module:ClassName` format when `provider: custom`.
+- **`custom.settings`**: provider-specific configuration passed to the custom adapter constructor when supported.
 - **`search_synonyms_file`**: path to a synonym YAML file relative to `registry/` (default `search_synonyms.yaml`).
 - **`limits`**:
-  - `max_fetch_chars` — maximum characters returned by `intranet_fetch`.
+  - `max_fetch_chars` — maximum characters returned by `intranet_fetch_page`.
   - `graph_timeout_seconds` — Graph API call timeout.
-  - `page_cache_ttl_hours` — how long the `intranet_list_all_pages` catalogue is kept on disk before re-fetching (default `4`). Override at runtime with **`INTRANET_PAGE_CACHE_TTL_HOURS`** in `.env`.
+  - `page_cache_ttl_hours` — how long the SharePoint catalogue is kept on disk before re-fetching (default `4`). Override at runtime with **`INTRANET_PAGE_CACHE_TTL_HOURS`** in `.env`.
 
 **Page catalogue cache:**
 
-`intranet_list_all_pages` stores results at `workspace/.cache/intranet_pages_cache.json`. The cache is reused until it is older than `INTRANET_PAGE_CACHE_TTL_HOURS` (env var) or `limits.page_cache_ttl_hours` (YAML). A cache miss triggers a full paginated Graph scan and updates the file. Each entry contains `title`, `web_url`, `graph_site_id`, `graph_page_id`, and `site_label`.
+For SharePoint, `intranet_list_pages` stores results at `workspace/.cache/intranet_pages_cache.json`. The cache is reused until it is older than `INTRANET_PAGE_CACHE_TTL_HOURS` (env var) or `limits.page_cache_ttl_hours` (YAML). A cache miss triggers a full paginated Graph scan and updates the file. Each entry contains `content_id`, `provider`, `title`, `web_url`, and SharePoint metadata for compatibility.
 
-`intranet_list_all_pages(query="<keywords>")` accepts an optional query parameter that filters the full catalogue using the same synonym-expanded any-token matching, with no scoring cap — useful when an agent needs a comprehensive list without fetching every page.
+`intranet_list_pages(query="<keywords>")` accepts an optional query parameter that filters the full catalogue using the same synonym-expanded any-token matching, with no scoring cap — useful when an agent needs a comprehensive list without fetching every page.
 
-`intranet_fetch` only accepts `graph_site_id` values that came from that configuration, so agents cannot pivot to arbitrary Graph sites.
+`intranet_fetch_page` only accepts provider-issued `content_id` values. With SharePoint, legacy `intranet_fetch` also validates that the Graph site id came from the configured SharePoint sites, so agents cannot pivot to arbitrary Graph sites.
 
 ### Best practice
 
-- for broad or open-ended intranet requests, `intranet_search` now returns comprehensive results via cache expansion — no extra steps required for most queries
-- for explicit exhaustive listing, use `intranet_list_all_pages(query="<keywords>")` — returns all catalogue matches with no cap
-- after fetching any hub or catalogue page, call `intranet_list_page_links` to enumerate child pages — search may still miss pages reachable only via navigation links
+- for broad or open-ended intranet requests, `intranet_search_pages` returns comprehensive results via cache expansion where the provider supports it
+- for explicit exhaustive listing, use `intranet_list_pages(query="<keywords>")` — returns all catalogue matches with no cap
+- after fetching any hub or catalogue page, call `intranet_list_page_links_by_id` to enumerate child pages — search may still miss pages reachable only via navigation links
 - add synonym groups to `registry/search_synonyms.yaml` when a user query misses obviously relevant pages — no code change needed
 - check auth status first when uncertain whether the token is still valid
 - do not let the system guess identifiers; only inspect results returned in the current run
@@ -662,16 +666,16 @@ Use `.env.example` as the template for repo-safe configuration.
 
 ## 15. Prompting patterns
 
-### 15.1 Intranet Site Pages (SharePoint publishing)
+### 15.1 Intranet Pages
 
-For **published site pages** (intranet articles, integration pattern pages, hub catalogues):
+For **published intranet pages** (articles, integration pattern pages, hub catalogues):
 
-1. Use **`intranet_search`** for targeted or broad lookup — it now runs a two-stage strategy (OData scored pass + cache expansion with synonym-expanded tokens) so leaf pages like `Consumer-Pattern-1` are included even when they score below the OData cap.
-2. For **exhaustive listing** without a scoring cap, call **`intranet_list_all_pages(query="<keywords>")`** — it filters the full catalogue with synonym expansion and no result limit.
-3. Call **`intranet_fetch`** to retrieve the full body of each candidate page.
-4. After fetching any hub or catalogue page, call **`intranet_list_page_links`** to enumerate child pages reachable only via navigation links.
+1. Use **`intranet_search_pages`** for targeted or broad lookup. The SharePoint provider runs a two-stage strategy (OData scored pass + cache expansion with synonym-expanded tokens) so leaf pages like `Consumer-Pattern-1` are included even when they score below the OData cap.
+2. For **exhaustive listing** without a scoring cap, call **`intranet_list_pages(query="<keywords>")`** — it filters the full catalogue with synonym expansion and no result limit when the provider supports a catalogue.
+3. Call **`intranet_fetch_page(content_id)`** to retrieve the full body of each candidate page.
+4. After fetching any hub or catalogue page, call **`intranet_list_page_links_by_id(content_id)`** to enumerate child pages reachable only via navigation links.
 
-Do **not** use generic SharePoint **document** search for `.aspx` Site Pages unless you intend library files. The Intranet MCP has its own independent Microsoft Graph token cache; check **`intranet_auth_status`** first when unsure.
+Do **not** use generic SharePoint **document** search for `.aspx` Site Pages unless you intend library files. The Intranet MCP has its own independent authentication/cache boundary; check **`intranet_auth_status`** first when unsure.
 
 ### 15.2 Source finding only
 

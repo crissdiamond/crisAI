@@ -38,9 +38,13 @@ def test_load_intranet_settings_round_trip(tmp_path: Path) -> None:
             {
                 "version": 1,
                 "intranet": {
-                    "provider": "sharepoint_pages",
+                    "provider": "SharePoint_Pages",
                     "allow_hosts": ["Contoso.Sharepoint.COM"],
                     "limits": {"max_fetch_chars": 5000, "graph_timeout_seconds": 45},
+                    "custom": {
+                        "class_path": "example.intranet:Provider",
+                        "settings": {"base_url": "https://wiki.example.com"},
+                    },
                     "sharepoint_pages": {
                         "sites": [{"label": "a", "graph_site_id": "x,y,z"}],
                     },
@@ -54,6 +58,8 @@ def test_load_intranet_settings_round_trip(tmp_path: Path) -> None:
     assert cfg.allow_hosts == ["contoso.sharepoint.com"]
     assert cfg.max_fetch_chars == 5000
     assert cfg.graph_timeout_seconds == 45
+    assert cfg.custom_class_path == "example.intranet:Provider"
+    assert cfg.custom_settings == {"base_url": "https://wiki.example.com"}
     assert len(cfg.raw_sharepoint_sites) == 1
 
 
@@ -227,7 +233,10 @@ def test_sharepoint_search_token_fallback_when_odata_title_empty(monkeypatch: py
     )
     hits = prov.search("integration pattern", max_hits=10)
     assert len(hits) == 1
+    assert hits[0]["provider"] == "sharepoint_pages"
+    assert hits[0]["content_id"].startswith("sharepoint_pages:")
     assert hits[0]["graph_page_id"] == "p1"
+    assert hits[0]["metadata"]["graph_site_id"] == "site-a"
     assert "Integration" in hits[0]["title"]
 
 
@@ -298,6 +307,34 @@ def test_sharepoint_fetch_rejects_unknown_site() -> None:
     )
     with pytest.raises(RuntimeError, match="not one of the configured"):
         prov.fetch("other-site", "page-1", max_chars=1000)
+
+
+def test_sharepoint_fetch_accepts_neutral_content_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_graph_get(path: str, params: dict | None = None, timeout: int = 60) -> dict:
+        assert path == "/sites/site-a/pages/page-1/microsoft.graph.sitePage"
+        return {
+            "title": "Neutral Page",
+            "webUrl": "https://contoso.sharepoint.com/sites/hr/SitePages/neutral.aspx",
+            "canvasLayout": {"horizontalSections": []},
+        }
+
+    monkeypatch.setattr(sharepoint_pages.ms_graph, "graph_get", fake_graph_get)
+    prov = SharePointPagesProvider(
+        settings=_make_settings(),
+        sites=_make_sites(),
+        allowed_hosts={"contoso.sharepoint.com"},
+    )
+    page_ref = prov._page_reference(
+        {
+            "title": "Neutral Page",
+            "web_url": "https://contoso.sharepoint.com/sites/hr/SitePages/neutral.aspx",
+            "graph_site_id": "site-a",
+            "graph_page_id": "page-1",
+            "site_label": "hr",
+        }
+    )
+    text = prov.fetch(page_ref["content_id"], max_chars=1000)
+    assert "Neutral Page" in text
 
 
 # ---------------------------------------------------------------------------

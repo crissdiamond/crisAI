@@ -69,8 +69,8 @@ def _is_intranet_scoped_request(message: str) -> bool:
         "intranet",
         "site pages",
         "sitepages",
-        "intranet_fetch",
-        "intranet_search",
+        "intranet_fetch_page",
+        "intranet_search_pages",
     )
     return any(marker in text for marker in markers)
 
@@ -222,7 +222,7 @@ def build_context_retrieval_prompt(
     if _is_intranet_scoped_request(message):
         intranet_rules = (
             "Intranet-scoped hard rules:\n"
-            "- This request is scoped to intranet Site Pages. You MUST run intranet tools (`intranet_search`, `intranet_list_all_pages`, `intranet_list_page_links`, `intranet_fetch`) in this stage.\n"
+            "- This request is scoped to intranet pages. You MUST run intranet tools (`intranet_search_pages`, `intranet_list_pages`, `intranet_list_page_links_by_id`, `intranet_fetch_page`) in this stage.\n"
             "- Do NOT treat existing workspace draft files under `context_staging/` as evidence for factual claims.\n"
             "- If no successful intranet fetch happened in this turn, report retrieval failure clearly rather than producing a workspace-only evidence set.\n"
         )

@@ -23,8 +23,8 @@ vertices:
       - intranet
       - site pages
       - sitepages
-      - intranet_fetch
-      - intranet_search
+      - intranet_fetch_page
+      - intranet_search_pages
   - id: document_library_boundary
     terms:
       - document library
@@ -57,8 +57,8 @@ vertices:
       - consumer flows
   - id: catalogue_and_leaf_drilldown
     terms:
-      - intranet_list_page_links
-      - intranet_list_all_pages
+      - intranet_list_page_links_by_id
+      - intranet_list_pages
       - catalogue
       - hub page
       - leaf page

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import datetime
 import json
 import re
@@ -11,10 +12,41 @@ from urllib.parse import urljoin, urlparse
 
 from crisai import ms_graph
 from crisai.intranet.config import IntranetSettings, SharePointSiteEntry
+from crisai.intranet.providers.base import IntranetPage
 
 # Site page list pagination (Graph returns @odata.nextLink; deep pages are often past the first batch).
 _PAGE_LIST_BATCH = 100
 _MAX_SITE_PAGES_TO_SCAN = 500
+_PROVIDER_ID = "sharepoint_pages"
+
+
+def _encode_content_id(graph_site_id: str, graph_page_id: str) -> str:
+    """Encode SharePoint Graph ids as an opaque provider-neutral content id."""
+    payload = {"graph_site_id": graph_site_id, "graph_page_id": graph_page_id}
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    token = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+    return f"{_PROVIDER_ID}:{token}"
+
+
+def _decode_content_id(content_id: str) -> tuple[str, str]:
+    """Decode a SharePoint content id and return ``(graph_site_id, graph_page_id)``."""
+    prefix = f"{_PROVIDER_ID}:"
+    if not content_id.startswith(prefix):
+        raise ValueError(
+            "content_id is not a SharePoint intranet page id. "
+            "Use ids returned by intranet_search_pages or intranet_list_pages."
+        )
+    token = content_id[len(prefix) :]
+    try:
+        padded = token + ("=" * (-len(token) % 4))
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise ValueError("content_id is malformed; use ids returned by intranet tools.") from exc
+    graph_site_id = str(payload.get("graph_site_id") or "")
+    graph_page_id = str(payload.get("graph_page_id") or "")
+    if not graph_site_id or not graph_page_id:
+        raise ValueError("content_id is missing SharePoint page metadata.")
+    return graph_site_id, graph_page_id
 
 
 def _load_synonym_groups(path: Path | None) -> list[frozenset[str]] | None:
@@ -383,20 +415,27 @@ class SharePointPagesProvider:
         def _to_hit(page: dict[str, Any], site_label: str, site_id: str, *, include_snippet: bool = True) -> dict[str, Any]:
             web_url = str(page.get("webUrl") or page.get("web_url") or "")
             title = str(page.get("title") or page.get("name") or "")
+            graph_page_id = str(page.get("id") or page.get("graph_page_id") or "")
             # Stage-1 (OData) hits carry a description snippet as a relevance hint.
             # Stage-2 (cache expansion) hits deliberately carry NO snippet so agents
             # cannot treat the cached description as a substitute for intranet_fetch.
             # Without snippet content, the agent must fetch the page to write anything.
             snippet = (str(page.get("description") or "") or title)[:280] if include_snippet else ""
-            return {
-                "site_label": site_label,
-                "graph_site_id": site_id,
-                "graph_page_id": str(page.get("id") or page.get("graph_page_id") or ""),
-                "title": title,
-                "web_url": web_url,
-                "open_url": web_url,
-                "snippet": snippet,
-            }
+            return IntranetPage(
+                content_id=_encode_content_id(site_id, graph_page_id),
+                provider=_PROVIDER_ID,
+                title=title,
+                web_url=web_url,
+                open_url=web_url,
+                source_label=site_label,
+                snippet=snippet,
+                metadata={
+                    "site_label": site_label,
+                    "graph_site_id": site_id,
+                    "graph_page_id": graph_page_id,
+                    "description": str(page.get("description") or ""),
+                },
+            ).to_dict()
 
         # --- Stage 1: OData / scored pass ---
         hits: list[dict[str, Any]] = []
@@ -444,7 +483,21 @@ class SharePointPagesProvider:
 
         return hits
 
-    def fetch(self, graph_site_id: str, graph_page_id: str, max_chars: int) -> str:
+    def fetch(self, content_id: str, graph_page_id: str | None = None, max_chars: int = 120_000) -> str:
+        """Fetch normalized text for a SharePoint page.
+
+        ``content_id`` is the provider-neutral path.  ``graph_page_id`` remains
+        accepted for direct legacy callers while MCP exposes a separate legacy
+        tool wrapper.
+        """
+        if graph_page_id is not None:
+            graph_site_id = content_id
+        else:
+            graph_site_id, graph_page_id = _decode_content_id(content_id)
+        return self.fetch_graph_page(graph_site_id, graph_page_id, max_chars=max_chars)
+
+    def fetch_graph_page(self, graph_site_id: str, graph_page_id: str, max_chars: int) -> str:
+        """Fetch normalized text for a legacy SharePoint Graph site/page id pair."""
         if not graph_site_id or not graph_page_id:
             raise ValueError("graph_site_id and graph_page_id are required.")
         self._ensure_sites()
@@ -468,6 +521,11 @@ class SharePointPagesProvider:
         if len(text) > max_chars:
             text = text[: max_chars - 20] + "\n...[truncated]"
         return text
+
+    def list_links(self, content_id: str) -> list[dict[str, Any]]:
+        """Return linked intranet pages for a provider-neutral SharePoint content id."""
+        graph_site_id, graph_page_id = _decode_content_id(content_id)
+        return self.list_page_links(graph_site_id, graph_page_id)
 
     def list_page_links(self, graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
         """Return same-site Site Pages URLs linked from a page's web-part HTML (hub → child navigation)."""
@@ -524,10 +582,7 @@ class SharePointPagesProvider:
                 norm_key = entry["web_url"].lower()
                 match = url_index.get(norm_key)
                 if match:
-                    entry["title"] = match["title"]
-                    entry["graph_site_id"] = match["graph_site_id"]
-                    entry["graph_page_id"] = match["graph_page_id"]
-                    entry["site_label"] = match["site_label"]
+                    entry.update(self._page_reference(match))
 
         return results
 
@@ -577,6 +632,33 @@ class SharePointPagesProvider:
             path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         except OSError:
             pass
+
+    def list_all(self, query: str = "") -> list[dict[str, Any]]:
+        """Return the provider-neutral page catalogue for all configured SharePoint sites."""
+        return [self._page_reference(page) for page in self.list_all_pages(query=query)]
+
+    def _page_reference(self, page: dict[str, Any]) -> dict[str, Any]:
+        """Convert cached SharePoint page metadata to a neutral page reference."""
+        site_label = str(page.get("site_label") or "")
+        graph_site_id = str(page.get("graph_site_id") or "")
+        graph_page_id = str(page.get("graph_page_id") or "")
+        web_url = str(page.get("web_url") or page.get("webUrl") or "")
+        return IntranetPage(
+            content_id=_encode_content_id(graph_site_id, graph_page_id),
+            provider=_PROVIDER_ID,
+            title=str(page.get("title") or page.get("name") or ""),
+            web_url=web_url,
+            open_url=web_url,
+            source_label=site_label,
+            snippet=str(page.get("description") or "")[:280],
+            metadata={
+                "site_label": site_label,
+                "graph_site_id": graph_site_id,
+                "graph_page_id": graph_page_id,
+                "name": str(page.get("name") or ""),
+                "description": str(page.get("description") or ""),
+            },
+        ).to_dict()
 
     def list_all_pages(self, query: str = "") -> list[dict[str, Any]]:
         """Return the complete page catalogue for all configured sites.

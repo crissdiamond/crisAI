@@ -41,7 +41,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
             "intranet",
             "site pages",
             "sitepages",
-            "intranet_fetch",
+            "intranet_fetch_page",
         ],
         "produce_artifacts": [
             "write_workspace_file",

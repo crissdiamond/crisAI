@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib
+import inspect
 import sys
 from pathlib import Path
 from typing import Any
@@ -48,12 +50,37 @@ def _build_provider(cfg: IntranetSettings, workspace_root: Path) -> Any:
     """
     if cfg.provider == "wiki":
         return WikiProvider()
+    if cfg.provider == "custom":
+        return _build_custom_provider(cfg, workspace_root)
     if cfg.provider == "sharepoint_pages":
         return SharePointPagesProvider(settings=cfg, workspace_root=workspace_root)
     raise RuntimeError(
         f"Unknown intranet.provider {cfg.provider!r} in registry/intranet.yaml "
-        "(expected sharepoint_pages or wiki)."
+        "(expected sharepoint_pages, wiki, or custom)."
     )
+
+
+def _build_custom_provider(cfg: IntranetSettings, workspace_root: Path) -> Any:
+    """Load a user-supplied intranet provider class from ``module:Class``."""
+    if not cfg.custom_class_path:
+        raise RuntimeError("intranet.provider is 'custom' but intranet.custom.class_path is empty.")
+    if ":" not in cfg.custom_class_path:
+        raise RuntimeError("intranet.custom.class_path must use 'module:ClassName' format.")
+    module_name, class_name = cfg.custom_class_path.split(":", 1)
+    provider_cls = getattr(importlib.import_module(module_name), class_name)
+    signature = inspect.signature(provider_cls)
+    accepts_kwargs = any(
+        param.kind is inspect.Parameter.VAR_KEYWORD
+        for param in signature.parameters.values()
+    )
+    kwargs: dict[str, Any] = {}
+    if accepts_kwargs or "settings" in signature.parameters:
+        kwargs["settings"] = cfg.custom_settings
+    if accepts_kwargs or "workspace_root" in signature.parameters:
+        kwargs["workspace_root"] = workspace_root
+    if kwargs:
+        return provider_cls(**kwargs)
+    return provider_cls()
 
 
 INTRANET_CFG = load_intranet_settings(SETTINGS.registry_dir)
@@ -83,36 +110,50 @@ def intranet_auth_status() -> dict[str, Any]:
 
 @mcp.tool()
 def intranet_search(query: str, max_hits: int = 40) -> list[dict[str, Any]]:
-    """Search configured intranet sites (SharePoint site pages). Not a general web search.
+    """Legacy alias for intranet_search_pages.
 
-    Returns graph_site_id and graph_page_id for use with intranet_fetch.
-    If the token has expired and cannot be silently refreshed, an interactive
-    re-authentication flow is triggered automatically (device code in WSL2,
-    browser redirect otherwise).
+    SharePoint results still include graph_site_id and graph_page_id for
+    compatibility. New callers should use content_id with intranet_fetch_page.
+    """
+    return intranet_search_pages(query=query, max_hits=max_hits)
+
+
+@mcp.tool()
+def intranet_search_pages(query: str, max_hits: int = 40) -> list[dict[str, Any]]:
+    """Search configured intranet pages. Not a general web search.
+
+    Returns provider-neutral content_id values for use with intranet_fetch_page.
+    Provider-specific metadata may be included for diagnostics or legacy
+    compatibility, but agents should treat content_id as opaque.
     """
     cap = max(1, min(max_hits, 50))
-    log_event(f"intranet_search query={query!r} max_hits={cap}")
+    log_event(f"intranet_search_pages query={query!r} max_hits={cap}")
     try:
         hits = PROVIDER.search(query, max_hits=cap)
     except Exception as exc:
-        log_event(f"intranet_search error={exc!r}")
+        log_event(f"intranet_search_pages error={exc!r}")
         raise
     titles = [str(h.get("title") or "")[:80] for h in hits[:5]]
-    log_event(f"intranet_search done hits={len(hits)} sample_titles={titles!r}")
+    log_event(f"intranet_search_pages done hits={len(hits)} sample_titles={titles!r}")
     return hits
 
 
 @mcp.tool()
 def intranet_fetch(graph_site_id: str, graph_page_id: str) -> str:
-    """Fetch normalized text for a SharePoint site page from intranet_search results.
+    """Legacy SharePoint fetch by Graph ids.
 
-    If the token has expired and cannot be silently refreshed, an interactive
-    re-authentication flow is triggered automatically.
+    New callers should use intranet_fetch_page(content_id). This tool is only
+    available for the sharepoint_pages provider.
     """
     log_event(f"intranet_fetch site={graph_site_id!r} page={graph_page_id!r}")
     max_chars = max(4_000, INTRANET_CFG.max_fetch_chars)
     try:
-        text = PROVIDER.fetch(graph_site_id, graph_page_id, max_chars=max_chars)
+        if INTRANET_CFG.provider != "sharepoint_pages" or not hasattr(PROVIDER, "fetch_graph_page"):
+            raise RuntimeError(
+                "Legacy graph id tools require intranet.provider: sharepoint_pages. "
+                "Use intranet_fetch_page(content_id) for provider-neutral intranet content."
+            )
+        text = PROVIDER.fetch_graph_page(graph_site_id, graph_page_id, max_chars=max_chars)
     except Exception as exc:
         log_event(f"intranet_fetch error={exc!r}")
         raise
@@ -121,19 +162,33 @@ def intranet_fetch(graph_site_id: str, graph_page_id: str) -> str:
 
 
 @mcp.tool()
+def intranet_fetch_page(content_id: str) -> str:
+    """Fetch normalized text for a provider-neutral intranet page content_id."""
+    log_event(f"intranet_fetch_page content_id={content_id!r}")
+    max_chars = max(4_000, INTRANET_CFG.max_fetch_chars)
+    try:
+        text = PROVIDER.fetch(content_id, max_chars=max_chars)
+    except Exception as exc:
+        log_event(f"intranet_fetch_page error={exc!r}")
+        raise
+    log_event(f"intranet_fetch_page done chars={len(text)} max_chars={max_chars}")
+    return text
+
+
+@mcp.tool()
 def intranet_list_page_links(graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
-    """List same-host Site Pages URLs linked from a page (use after intranet_fetch on hub/catalog pages).
+    """Legacy SharePoint page-link listing by Graph ids.
 
-    Each result always contains web_url and open_url.  When the page catalogue
-    cache is warm, results are also enriched with title, graph_site_id,
-    graph_page_id, and site_label — so you can call intranet_fetch directly on
-    each entry without a separate search step to resolve the IDs.
-
-    If the token has expired and cannot be silently refreshed, an interactive
-    re-authentication flow is triggered automatically.
+    New callers should use intranet_list_page_links_by_id(content_id). This
+    tool is only available for the sharepoint_pages provider.
     """
     log_event(f"intranet_list_page_links site={graph_site_id!r} page={graph_page_id!r}")
     try:
+        if INTRANET_CFG.provider != "sharepoint_pages" or not hasattr(PROVIDER, "list_page_links"):
+            raise RuntimeError(
+                "Legacy graph id tools require intranet.provider: sharepoint_pages. "
+                "Use intranet_list_page_links_by_id(content_id) for provider-neutral intranet content."
+            )
         links = PROVIDER.list_page_links(graph_site_id, graph_page_id)
     except Exception as exc:
         log_event(f"intranet_list_page_links error={exc!r}")
@@ -143,33 +198,39 @@ def intranet_list_page_links(graph_site_id: str, graph_page_id: str) -> list[dic
 
 
 @mcp.tool()
-def intranet_list_all_pages(query: str = "") -> list[dict[str, Any]]:
-    """Return the page catalogue for all configured intranet sites, optionally filtered.
-
-    **When to use instead of intranet_search:**
-    - "List all X pages", "find every page about Y", or any comprehensive enumeration request.
-    - When you need ALL matching pages without a scoring cap (intranet_search caps results).
-    - Consumer/Producer/Ingestion pattern leaf pages are found here even when their titles
-      do not contain the hub keyword (e.g. query "integration pattern" → matches all 30
-      pattern pages because "pattern" appears in every page URL slug).
-
-    **query** (optional): whitespace-separated keywords. Pages whose title OR web_url slug
-    contain ANY of the tokens are returned (case-insensitive substring, no cap). Leave empty
-    to get the full unfiltered catalogue (~768 pages for a typical EA site).
-
-    Results come from an on-disk cache (workspace/.cache/intranet_pages_cache.json) valid for
-    INTRANET_PAGE_CACHE_TTL_HOURS (default 4 h). A cache miss triggers a full Graph scan.
-
-    Each entry contains: title, web_url, graph_site_id, graph_page_id, site_label.
-    Use graph_site_id + graph_page_id with intranet_fetch to retrieve page body.
-    """
-    log_event(f"intranet_list_all_pages query={query!r}")
+def intranet_list_page_links_by_id(content_id: str) -> list[dict[str, Any]]:
+    """List intranet page links discovered from a page identified by content_id."""
+    log_event(f"intranet_list_page_links_by_id content_id={content_id!r}")
     try:
-        pages = PROVIDER.list_all_pages(query=query)
+        links = PROVIDER.list_links(content_id)
     except Exception as exc:
-        log_event(f"intranet_list_all_pages error={exc!r}")
+        log_event(f"intranet_list_page_links_by_id error={exc!r}")
         raise
-    log_event(f"intranet_list_all_pages done count={len(pages)}")
+    log_event(f"intranet_list_page_links_by_id done count={len(links)}")
+    return links
+
+
+@mcp.tool()
+def intranet_list_all_pages(query: str = "") -> list[dict[str, Any]]:
+    """Legacy alias for intranet_list_pages."""
+    return intranet_list_pages(query=query)
+
+
+@mcp.tool()
+def intranet_list_pages(query: str = "") -> list[dict[str, Any]]:
+    """Return the page catalogue for all configured intranet sources, optionally filtered.
+
+    Use this for comprehensive enumeration requests where search result caps
+    are not appropriate. Results contain provider-neutral content_id values for
+    intranet_fetch_page.
+    """
+    log_event(f"intranet_list_pages query={query!r}")
+    try:
+        pages = PROVIDER.list_all(query=query)
+    except Exception as exc:
+        log_event(f"intranet_list_pages error={exc!r}")
+        raise
+    log_event(f"intranet_list_pages done count={len(pages)}")
     return pages
 
 

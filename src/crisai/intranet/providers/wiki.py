@@ -24,17 +24,29 @@ class WikiProvider:
             "Use provider: sharepoint_pages or contribute a wiki backend."
         )
 
-    def fetch(self, graph_site_id: str, graph_page_id: str, max_chars: int) -> str:
+    def fetch(self, content_id: str, max_chars: int) -> str:
         raise RuntimeError(
             "intranet.provider is set to 'wiki', but the wiki adapter is not implemented yet."
         )
 
+    def list_links(self, content_id: str) -> list[dict[str, Any]]:
+        raise RuntimeError(
+            "intranet.provider is set to 'wiki', but list_links is not implemented for wiki."
+        )
+
+    def list_all(self, query: str = "") -> list[dict[str, Any]]:
+        raise RuntimeError(
+            "intranet.provider is set to 'wiki', but list_all is not implemented for wiki."
+        )
+
     def list_page_links(self, graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
         raise RuntimeError(
-            "intranet.provider is set to 'wiki', but list_page_links is not implemented for wiki."
+            "intranet.provider is set to 'wiki', but legacy list_page_links is not implemented for wiki. "
+            "Use intranet_list_page_links_by_id with a wiki adapter content_id."
         )
 
     def list_all_pages(self, query: str = "") -> list[dict[str, Any]]:
         raise RuntimeError(
-            "intranet.provider is set to 'wiki', but list_all_pages is not implemented for wiki."
+            "intranet.provider is set to 'wiki', but legacy list_all_pages is not implemented for wiki. "
+            "Use intranet_list_pages with a wiki adapter."
         )

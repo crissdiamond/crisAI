@@ -10,7 +10,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 
 - CLI and web app surfaces for the same routed workflows.
 - Specialist agents with separate responsibilities and configurable model assignment.
-- Local workspace, document, diagram, SharePoint document, and scoped intranet Site Pages MCP servers.
+- Local workspace, document, diagram, SharePoint document, and scoped intranet content MCP servers.
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Deterministic retrieval expansion from registry dictionaries.
 - Runtime policy gates for intranet-grounded work and file-producing workflows.
@@ -92,7 +92,7 @@ runbooks/     Operational setup, security, registry, policy, and observability n
 - Linux, macOS, or WSL on Windows
 - `OPENAI_API_KEY` for OpenAI-backed agents
 - Optional: Gemini or Anthropic keys when selected in `registry/models.yaml`
-- Optional: Microsoft Entra app registration for SharePoint and intranet retrieval
+- Optional: Microsoft Entra app registration for SharePoint document retrieval and SharePoint-backed intranet retrieval
 
 ## Quick Install
 
@@ -191,9 +191,9 @@ crisAI can retrieve from:
 - Local user files and generated outputs under `workspace/`.
 - Supported local documents such as `.md`, `.txt`, `.csv`, `.docx`, `.pdf`, `.pptx`, and `.xlsx`.
 - SharePoint / OneDrive documents through delegated Microsoft Graph.
-- Published SharePoint Site Pages through the scoped intranet MCP.
+- Published intranet pages through the scoped intranet MCP. The default provider is SharePoint Site Pages; custom providers can adapt wiki-style intranets.
 
-SharePoint documents and intranet Site Pages use separate MCP servers and separate token caches. Full Graph setup, auth behavior, and prompting guidance are in [DOCUMENTATION.md](DOCUMENTATION.md).
+SharePoint documents and SharePoint-backed intranet pages use separate MCP servers and separate token caches. Full Graph setup, auth behavior, and prompting guidance are in [DOCUMENTATION.md](DOCUMENTATION.md).
 
 ## Testing
 

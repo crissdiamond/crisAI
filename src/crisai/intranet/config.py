@@ -29,6 +29,8 @@ class IntranetSettings:
     graph_timeout_seconds: int
     sharepoint_sites: list[SharePointSiteEntry] = field(default_factory=list)
     raw_sharepoint_sites: list[dict[str, Any]] = field(default_factory=list)
+    custom_class_path: str = ""
+    custom_settings: dict[str, Any] = field(default_factory=dict)
     # TTL for the intranet_list_all_pages local disk cache (in hours).
     # Override with INTRANET_PAGE_CACHE_TTL_HOURS env variable.
     page_cache_ttl_hours: int = 4
@@ -52,6 +54,7 @@ def load_intranet_settings(registry_dir: Path) -> IntranetSettings:
     block = data.get("intranet") or {}
     limits = block.get("limits") or {}
     sp = block.get("sharepoint_pages") or {}
+    custom = block.get("custom") or {}
     sites_raw = list(sp.get("sites") or [])
     # Env var overrides YAML; YAML overrides hard-coded default of 4 hours.
     _ttl_env = os.getenv("INTRANET_PAGE_CACHE_TTL_HOURS")
@@ -63,12 +66,14 @@ def load_intranet_settings(registry_dir: Path) -> IntranetSettings:
     synonyms_path: Path | None = synonyms_file if synonyms_file.exists() else None
 
     return IntranetSettings(
-        provider=str(block.get("provider") or "sharepoint_pages").strip(),
+        provider=str(block.get("provider") or "sharepoint_pages").strip().lower(),
         allow_hosts=[str(h).strip().lower() for h in (block.get("allow_hosts") or []) if str(h).strip()],
         max_fetch_chars=int(limits.get("max_fetch_chars") or 120_000),
         graph_timeout_seconds=int(limits.get("graph_timeout_seconds") or 90),
         sharepoint_sites=[],
         raw_sharepoint_sites=sites_raw,
+        custom_class_path=str(custom.get("class_path") or "").strip(),
+        custom_settings=dict(custom.get("settings") or {}),
         page_cache_ttl_hours=page_cache_ttl_hours,
         synonyms_path=synonyms_path,
     )

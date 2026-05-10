@@ -1,8 +1,41 @@
-"""Provider protocol for intranet MCP tools."""
+"""Provider protocol and shared models for intranet MCP tools."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any, Protocol
+
+
+@dataclass(frozen=True, slots=True)
+class IntranetPage:
+    """Provider-neutral page reference returned by intranet adapters."""
+
+    content_id: str
+    provider: str
+    title: str
+    web_url: str = ""
+    open_url: str = ""
+    source_label: str = ""
+    snippet: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable page reference for MCP responses."""
+        payload: dict[str, Any] = {
+            "content_id": self.content_id,
+            "provider": self.provider,
+            "title": self.title,
+            "web_url": self.web_url,
+            "open_url": self.open_url or self.web_url,
+            "source_label": self.source_label,
+            "snippet": self.snippet,
+            "metadata": dict(self.metadata),
+        }
+        # Preserve legacy top-level fields for existing SharePoint prompts and tests.
+        for key in ("graph_site_id", "graph_page_id", "site_label", "name", "description"):
+            if key in self.metadata:
+                payload[key] = self.metadata[key]
+        return payload
 
 
 class IntranetProvider(Protocol):
@@ -29,23 +62,23 @@ class IntranetProvider(Protocol):
         """
 
     def search(self, query: str, max_hits: int) -> list[dict[str, Any]]:
-        """Return hit dicts with keys including graph_site_id, graph_page_id, title, web_url, snippet."""
+        """Return page hits with provider-neutral ``content_id`` references."""
 
-    def fetch(self, graph_site_id: str, graph_page_id: str, max_chars: int) -> str:
-        """Return normalized text for the page."""
+    def fetch(self, content_id: str, max_chars: int) -> str:
+        """Return normalized text for the page identified by ``content_id``."""
 
-    def list_page_links(self, graph_site_id: str, graph_page_id: str) -> list[dict[str, Any]]:
-        """Return same-host Site Pages URLs linked from a hub or catalogue page."""
+    def list_links(self, content_id: str) -> list[dict[str, Any]]:
+        """Return same-source page links discovered from a hub or catalogue page."""
 
-    def list_all_pages(self, query: str = "") -> list[dict[str, Any]]:
-        """Return the complete page catalogue for all configured sites.
+    def list_all(self, query: str = "") -> list[dict[str, Any]]:
+        """Return the complete page catalogue for all configured sources.
 
         When ``query`` is non-empty, only pages whose title or ``web_url``
         slug contain **any** token from the query are returned (case-insensitive
         substring match, no scoring cap).  Pass an empty string to return the
         full unfiltered catalogue.
 
-        Results should be cached by the implementation to avoid repeated Graph
-        API calls.  Each entry must contain at minimum: ``title``, ``web_url``,
-        ``graph_site_id``, ``graph_page_id``, and ``site_label``.
+        Results should be cached by the implementation when the backend makes
+        catalogue enumeration expensive.  Each entry must contain at minimum:
+        ``content_id``, ``provider``, ``title``, and ``web_url``.
         """

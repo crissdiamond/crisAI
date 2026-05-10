@@ -4,6 +4,7 @@
 # provider:
 #   - sharepoint_pages: Microsoft Graph site pages (delegated; same MS env as SharePoint MCP)
 #   - wiki: reserved for future wiki adapters (currently not implemented)
+#   - custom: user-provided adapter class with the neutral intranet provider contract
 #
 # SharePoint permissions: Sites.Read.All (delegated), same as existing SharePoint tools.
 #
@@ -17,15 +18,15 @@ intranet:
   limits:
     max_fetch_chars: 120000
     graph_timeout_seconds: 90
-    # How long to keep the intranet_list_all_pages catalogue on disk before re-fetching.
+    # How long to keep the intranet_list_pages catalogue on disk before re-fetching.
     # Override at runtime with the INTRANET_PAGE_CACHE_TTL_HOURS environment variable.
     page_cache_ttl_hours: 4
   sharepoint_pages:
     sites:
       # Graph site path: {hostname}:/{server-relative-site-url}
       # Use the site path from the address bar on the site home (not /_layouts/... pages).
-      # intranet_search matches page title/name/description from the list API—not full page body
-      # until intranet_fetch. Child pages (e.g. Guides / Patterns) need matching keywords or browse.
+      # intranet_search_pages matches page title/name/description from the list API—not full page body
+      # until intranet_fetch_page. Child pages (e.g. Guides / Patterns) need matching keywords or browse.
       - label: "EA it-architecture"
         site_path: "liveuclac.sharepoint.com:/sites/it-architecture"
       # Legacy / migration copy linked from the EA home page (patterns may still live here).
@@ -36,3 +37,9 @@ intranet:
     #   site_path: "contoso.sharepoint.com:/sites/Intranet"
     # - label: hr-root
     #   graph_site_id: "contoso.sharepoint.com,abc...,def..."
+  # custom:
+  #   # Used when provider: custom. The class must implement search,
+  #   # fetch(content_id), list_links(content_id), and list_all.
+  #   class_path: "my_company.intranet:Provider"
+  #   settings:
+  #     base_url: "https://wiki.example.com"

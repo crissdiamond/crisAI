@@ -33,7 +33,7 @@ def test_expand_intranet_and_pattern_triggers_neighbor_terms(registry_dir: Path)
     seeds, terms = expand_retrieval_hints("Use intranet site pages for consumer pattern", graph)
     assert "intranet_site_pages" in seeds
     assert "integration_patterns_area" in seeds
-    assert "intranet_list_page_links" in terms
+    assert "intranet_list_page_links_by_id" in terms
 
 
 def test_format_block_empty_when_no_match(registry_dir: Path):
@@ -50,7 +50,7 @@ def test_enterprise_architecture_triggers_catalogue_and_data_hints(registry_dir:
     graph = load_retrieval_association_graph(registry_dir)
     assert graph is not None
     _, terms = expand_retrieval_hints("We need a business capability map for the enterprise architecture roadmap.", graph)
-    assert "intranet_list_all_pages" in terms
+    assert "intranet_list_pages" in terms
     assert "data architecture" in terms or "application portfolio" in terms
 
 
@@ -59,7 +59,7 @@ def test_integration_principles_vertex_expands_intranet_hints(registry_dir: Path
     assert graph is not None
     seeds, terms = expand_retrieval_hints("integration principles and producer flows", graph)
     assert "integration_principles_corpus" in seeds
-    assert "intranet_list_all_pages" in terms or "intranet_search" in terms
+    assert "intranet_list_pages" in terms or "intranet_search_pages" in terms
 
 
 def test_build_deterministic_retrieval_context_infers_sources(registry_dir: Path):
