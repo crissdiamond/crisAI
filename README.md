@@ -44,8 +44,8 @@ flowchart TB
     Registry --> Models[Model Resolver]
 
     Agents --> Runtime
-    Models --> Providers[OpenAI / Gemini / Anthropic]
-    Runtime --> Sources[Workspace / Documents / Diagrams / SharePoint / Intranet]
+    Models --> Providers[OpenAI / Gemini / Anthropic / DeepSeek]
+    Runtime --> Sources[Workspace / Documents / Diagrams / Vision / SharePoint / Intranet]
 
     Workflows --> Trace[Trace and Logs]
     Workflows --> Policy[Workflow Policy and Verifiers]
