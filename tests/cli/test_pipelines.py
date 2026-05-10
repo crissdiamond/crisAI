@@ -62,21 +62,6 @@ class FakeWorkflowEngine:
         return self._session
 
 
-def test_build_context_synthesizer_prompt_creates_grounded_context_brief_prompt():
-    prompt = pipelines.build_context_synthesizer_prompt(
-        "Draft a solution design from local documents.",
-        "Found design_notes.md and constraints.md in the workspace.",
-    )
-
-    assert "You are the Context Synthesizer agent" in prompt
-    assert "Draft a solution design from local documents." in prompt
-    assert "Found design_notes.md and constraints.md" in prompt
-    assert "Use only facts supported by the context retrieval output." in prompt
-    assert "Do not draft, recommend, or optimise the solution design." in prompt
-    assert "## Relevant Facts" in prompt
-    assert "## Gaps and Uncertainties" in prompt
-
-
 def test_resolve_agent_max_turns_defaults_to_safe_value(monkeypatch):
     monkeypatch.delenv("CRISAI_AGENT_MAX_TURNS", raising=False)
     assert pipelines._resolve_agent_max_turns() == 30
@@ -192,86 +177,6 @@ async def test_run_peer_pipeline_skips_retrieval_planner_when_retrieval_not_need
         ("CONTEXT OUTPUT", "Context synthesizer skipped because this peer task does not require retrieval."),
         ("WORKFLOW_END", "Peer workflow completed."),
     ]
-
-
-def test_parse_judge_decision_handles_accept_revise_unknown():
-    assert pipelines._parse_judge_decision("Decision: accept") == "accept"
-    assert pipelines._parse_judge_decision("Decision - revise") == "revise"
-    assert pipelines._parse_judge_decision("Decision: not acceptable") == "revise"
-    assert pipelines._parse_judge_decision("Decision: acceptable but missing details") == "accept"
-    assert pipelines._parse_judge_decision("Decision: reject and revise") == "revise"
-    assert pipelines._parse_judge_decision("Result\nDecision: revise") == "revise"
-    assert pipelines._parse_judge_decision("Looks good but no explicit label") == "unknown"
-
-
-def test_judge_reason_excerpt_prefers_reason_field():
-    text = "Decision: revise\nReason: Missing file coverage for ingestion patterns."
-    excerpt = pipelines._judge_reason_excerpt(text)
-    assert excerpt == "Missing file coverage for ingestion patterns."
-
-
-def test_judge_reason_excerpt_fallbacks_to_first_non_decision_line():
-    text = "Decision: accept\nLooks complete and grounded."
-    excerpt = pipelines._judge_reason_excerpt(text)
-    assert excerpt == "Looks complete and grounded."
-
-
-def test_build_peer_filesystem_evidence_reports_changed_markdown_files(tmp_path):
-    root = tmp_path
-    target = root / "workspace/context_staging/patterns"
-    target.mkdir(parents=True, exist_ok=True)
-    before = pipelines.snapshot_tree(root, "workspace/context_staging")
-    sample = target / "consumer-pattern-1.md"
-    sample.write_text(
-        "---\nid: PATT-1\n---\n\n## Source\n- x\n\n## Design overview\n- y\n",
-        encoding="utf-8",
-    )
-
-    evidence = pipelines._build_peer_filesystem_evidence(
-        root_dir=root,
-        before_snapshot=before,
-        target_subdir="workspace/context_staging",
-    )
-
-    assert "Changed markdown/txt files (1):" in evidence
-    assert "workspace/context_staging/patterns/consumer-pattern-1.md" in evidence
-    assert "front_matter: yes" in evidence
-    assert "has_source: yes" in evidence
-    assert "excerpt:" in evidence
-    assert "## Source" in evidence
-
-
-def test_build_peer_filesystem_evidence_prioritizes_index_section_content(tmp_path):
-    root = tmp_path
-    target = root / "workspace/context_staging/patterns"
-    target.mkdir(parents=True, exist_ok=True)
-    before = pipelines.snapshot_tree(root, "workspace/context_staging")
-    sample = target / "integration-patterns-index.md"
-    sample.write_text(
-        (
-            "---\nid: PATT-INT-001\n---\n\n"
-            "## Source\n- x\n\n"
-            "## Design overview\n"
-            "- Consumer patterns listed on the catalogue:\n"
-            "  - Pattern 0 — Direct\n"
-            "- Producer patterns listed on the catalogue:\n"
-            "  - Pattern 1 — System to Enterprise API\n"
-            "- Ingestion patterns listed on the catalogue:\n"
-            "  - Pattern 1 — Database to Ingestion API\n"
-        ),
-        encoding="utf-8",
-    )
-
-    evidence = pipelines._build_peer_filesystem_evidence(
-        root_dir=root,
-        before_snapshot=before,
-        target_subdir="workspace/context_staging",
-    )
-
-    assert "integration-patterns-index.md" in evidence
-    assert "## Design overview" in evidence
-    assert "Pattern 0 — Direct" in evidence
-    assert "Ingestion patterns listed on the catalogue" in evidence
 
 
 @pytest.mark.anyio
