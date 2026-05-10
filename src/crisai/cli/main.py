@@ -40,6 +40,7 @@ from crisai.cli.status_views import (
 )
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
+from crisai.orchestration.exceptions import WorkflowValidationError
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.registry import Registry
 from crisai.registry_validation import run_doctor
@@ -60,7 +61,7 @@ def _cli_bootstrap(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         return
     configure_logging(load_settings())
-_EXPECTED_RUNTIME_ERRORS = (typer.BadParameter, ValueError, RuntimeError, FileNotFoundError)
+_EXPECTED_RUNTIME_ERRORS = (typer.BadParameter, WorkflowValidationError, ValueError, RuntimeError, FileNotFoundError)
 
 _EXPLICIT_MODE_PATTERNS: dict[str, tuple[str, ...]] = {
     "peer": (

@@ -15,10 +15,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import typer
 
 import crisai.cli.pipelines as pipelines
 from crisai.agents.factory import AgentFactory as _RealAgentFactory
+from crisai.orchestration.exceptions import WorkflowValidationError
 from crisai.orchestration.peer_verifier import PeerVerificationResult
 from crisai.registry import Registry
 
@@ -221,7 +221,7 @@ async def test_peer_stagnation_detected_when_refiner_output_is_unchanged(peer_en
 
     monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", _runner)
 
-    with pytest.raises(typer.BadParameter, match="Peer quality gate failed"):
+    with pytest.raises(WorkflowValidationError, match="Peer quality gate failed"):
         await _run_peer(peer_env)
 
     stages = peer_env["called_stages"]
@@ -304,7 +304,7 @@ async def test_peer_raises_when_all_rounds_and_escalations_exhausted(peer_env, m
 
     monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", _runner)
 
-    with pytest.raises(typer.BadParameter, match="Peer quality gate failed"):
+    with pytest.raises(WorkflowValidationError, match="Peer quality gate failed"):
         await _run_peer(peer_env)
 
     stages = peer_env["called_stages"]

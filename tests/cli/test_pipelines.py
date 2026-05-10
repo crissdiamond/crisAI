@@ -3,10 +3,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-import typer
 
 from crisai.cli import pipelines
 from crisai.orchestration import peer_judge
+from crisai.orchestration.exceptions import WorkflowValidationError
 
 
 class FakeWorkflowSession:
@@ -246,6 +246,52 @@ Retrieved and read a deck.
     with pytest.raises(pipelines.WorkflowPolicyViolation, match="personal_onedrive"):
         pipelines._validated_evidence_text(
             "Summarise the most recent Integration Strategy document in my OneDrive.",
+            raw,
+        )
+
+
+def test_validated_evidence_text_rejects_auxiliary_reads_when_target_read_failed():
+    raw = """
+Retrieved local context and failed to read the latest deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise the latest Integration Strategy document in 4 paragraphs",
+  "items": [
+    {
+      "source": {
+        "source_type": "workspace_file",
+        "title": "context/reference/landscape/integration-operating-model.txt",
+        "workspace_path": "context/reference/landscape/integration-operating-model.txt"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_workspace_file",
+      "content_excerpt": "Federated model of empowered product teams.",
+      "raw_error": ""
+    },
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy full deck v3 1.pptx",
+        "read_handle": "sharepoint_doc:bad"
+      },
+      "evidence_level": "read_failed",
+      "read_status": "not_read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "",
+      "raw_error": "Malformed SharePoint read_handle."
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="required source read failed"):
+        pipelines._validated_evidence_text(
+            "Summarise the latest Integration Strategy document in 4 paragraphs",
             raw,
         )
 
@@ -914,7 +960,7 @@ async def test_run_peer_pipeline_stops_before_orchestrator_when_judge_not_accept
     monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
     monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "0")
 
-    with pytest.raises(typer.BadParameter) as exc:
+    with pytest.raises(WorkflowValidationError) as exc:
         await pipelines.run_peer_pipeline(
             "hello",
             verbose=False,
@@ -932,7 +978,7 @@ async def test_run_peer_pipeline_stops_before_orchestrator_when_judge_not_accept
 @pytest.mark.anyio
 async def test_run_single_raises_for_unknown_agent(monkeypatch, tmp_path):
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
-    with pytest.raises(typer.BadParameter) as exc:
+    with pytest.raises(WorkflowValidationError) as exc:
         await pipelines.run_single(
             "hello",
             "missing",
@@ -1052,7 +1098,7 @@ async def test_run_pipeline_enforces_intranet_fetch_policy(monkeypatch, tmp_path
     )
     monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
 
-    with pytest.raises(typer.BadParameter) as exc:
+    with pytest.raises(WorkflowValidationError) as exc:
         await pipelines.run_pipeline(
             "Use intranet site pages only and produce grounded output.",
             verbose=False,
@@ -1146,7 +1192,7 @@ async def test_run_peer_pipeline_enforces_workspace_write_policy(monkeypatch, tm
     )
     monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
 
-    with pytest.raises(typer.BadParameter) as exc:
+    with pytest.raises(WorkflowValidationError) as exc:
         await pipelines.run_peer_pipeline(
             "Write with write_workspace_file under workspace/context_staging/patterns/",
             verbose=False,

@@ -5,21 +5,18 @@ from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_p
 apply_openai_agents_trace_export_patch()
 
 import inspect
-import io
 import os
-from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import typer
-from agents import Runner
-
 from crisai.agents.factory import AgentFactory
 from crisai.logging_utils import get_logger
 from crisai.orchestration.evidence_contract import (
     EvidenceBundle,
+    EvidenceItem,
     parse_evidence_bundle,
     request_requires_content_read,
 )
@@ -65,7 +62,14 @@ from crisai.orchestration.task_contract import (
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
 
-from .display import create_agent_live, print_agent_output, sanitize_user_visible_text
+from crisai.orchestration.exceptions import WorkflowValidationError
+from .pipeline_display import (
+    _resolve_agent_max_turns,  # re-exported for test monkeypatch seam
+    _run_agent_silently,  # re-exported for test monkeypatch seam
+    _run_agent_with_transient_box,  # re-exported for test monkeypatch seam
+    print_agent_output,
+    sanitize_user_visible_text,
+)
 from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_engine import WorkflowEngine
 from crisai.orchestration.prompt_generation import (
@@ -100,7 +104,6 @@ from .workflow_support import (
 )
 
 logger = get_logger(__name__)
-_DEFAULT_AGENT_MAX_TURNS = 30
 
 
 def _empty_deterministic_context() -> DeterministicRetrievalContext:
@@ -224,12 +227,49 @@ def _validate_evidence_bundle(message: str, bundle: EvidenceBundle) -> None:
             "Policy gate failed: this request requires content-read evidence, "
             "but no source in the evidence bundle has evidence_level='content_read'."
         )
+    if must_read:
+        unresolved = _unresolved_required_read_failures(bundle)
+        if unresolved:
+            raise WorkflowPolicyViolation(
+                "Policy gate failed: required source read failed and was not recovered by "
+                "matching content-read evidence. Failed source(s): " + ", ".join(unresolved[:5]) + "."
+            )
     constraints = infer_source_fit_constraints(message)
     if must_read and constraints.is_active and not evidence_bundle_satisfies_constraints(bundle, constraints):
         raise WorkflowPolicyViolation(source_fit_failure_message(bundle, constraints))
     conflict_message = latest_source_conflict_message(message, bundle, constraints)
     if must_read and conflict_message:
         raise WorkflowPolicyViolation(conflict_message)
+
+
+def _unresolved_required_read_failures(bundle: EvidenceBundle) -> list[str]:
+    """Return non-workspace read failures not matched by a successful read."""
+    read_identities = {
+        _evidence_source_identity(item)
+        for item in bundle.items
+        if item.evidence_level == "content_read" and _evidence_source_identity(item)
+    }
+    unresolved: list[str] = []
+    for item in bundle.items:
+        if item.evidence_level != "read_failed":
+            continue
+        source_type = item.source.source_type.lower()
+        if source_type.startswith("workspace"):
+            continue
+        identity = _evidence_source_identity(item)
+        if identity and identity not in read_identities:
+            unresolved.append(item.source.title or identity)
+    return unresolved
+
+
+def _evidence_source_identity(item: EvidenceItem) -> str:
+    """Return a stable comparable identity for an evidence item source."""
+    source = item.source
+    for value in (source.read_handle, source.open_url, source.content_id, source.workspace_path, source.title):
+        cleaned = (value or "").strip().lower()
+        if cleaned:
+            return cleaned
+    return ""
 
 
 def _validated_evidence_transport(message: str, retrieval_text: str) -> ValidatedEvidenceTransport:
@@ -293,51 +333,6 @@ def _append_trace_entry_compat(
         )
     except TypeError:
         append_trace_entry(environment, stage, content)
-
-
-def _resolve_agent_max_turns() -> int:
-    """Return the max turns used for each agent run.
-
-    The OpenAI Agents SDK defaults to 10 turns, which can interrupt longer
-    multi-step prompts. This resolver provides a safer default while allowing
-    environment overrides.
-
-    Returns:
-        A positive integer max-turn value.
-    """
-    raw_value = os.getenv("CRISAI_AGENT_MAX_TURNS", str(_DEFAULT_AGENT_MAX_TURNS))
-    try:
-        parsed = int(raw_value)
-    except ValueError:
-        return _DEFAULT_AGENT_MAX_TURNS
-    return parsed if parsed > 0 else _DEFAULT_AGENT_MAX_TURNS
-
-
-async def _run_agent_silently(agent, prompt: str) -> str:
-    """Run an agent while suppressing direct stdout/stderr noise only.
-
-    Logging is handled centrally by the application logging configuration.
-    """
-    result = None
-    try:
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            result = await Runner.run(
-                agent,
-                prompt,
-                max_turns=_resolve_agent_max_turns(),
-            )
-    except Exception:
-        logger.exception("Agent execution failed.")
-        raise
-    return str(result.final_output)
-
-
-async def _run_agent_with_transient_box(agent_id: str, agent, prompt: str) -> str:
-    """Run an agent and render its transient progress box."""
-    live = create_agent_live(agent_id)
-    with live:
-        result = await _run_agent_silently(agent, prompt)
-    return result
 
 
 def _build_agent_factory(root_dir: Path, settings, model_specs=None):
@@ -440,7 +435,7 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
     ensure_openai_api_key(settings)
 
     if agent_id not in agent_specs:
-        raise typer.BadParameter(f"Unknown agent_id: {agent_id}")
+        raise WorkflowValidationError(f"Unknown agent_id: {agent_id}")
 
     environment = _create_environment(settings, model_specs=model_specs)
     agent_spec = agent_specs[agent_id]
@@ -638,7 +633,7 @@ async def run_pipeline(
                 str(evidence_capture.error),
                 event_type="policy_violation",
             )
-            raise typer.BadParameter(str(evidence_capture.error)) from evidence_capture.error
+            raise WorkflowValidationError(str(evidence_capture.error)) from evidence_capture.error
         validated_context_retrieval_text = (
             evidence_capture.transport.prompt_text
             if evidence_capture.transport is not None
@@ -653,7 +648,7 @@ async def run_pipeline(
                 str(exc),
                 event_type="policy_violation",
             )
-            raise typer.BadParameter(str(exc)) from exc
+            raise WorkflowValidationError(str(exc)) from exc
 
         context_text = await workflow.run_stage(
             spec=specs["context_synthesizer"],
@@ -731,7 +726,7 @@ async def run_pipeline(
                 str(exc),
                 event_type="policy_violation",
             )
-            raise typer.BadParameter(str(exc)) from exc
+            raise WorkflowValidationError(str(exc)) from exc
         workflow.finish_workflow("Pipeline workflow completed.", metadata={"mode": "pipeline"})
         return final_text
 
@@ -896,7 +891,7 @@ async def run_peer_pipeline(
                         str(evidence_capture.error),
                         event_type="policy_violation",
                     )
-                    raise typer.BadParameter(str(evidence_capture.error)) from evidence_capture.error
+                    raise WorkflowValidationError(str(evidence_capture.error)) from evidence_capture.error
                 context_retrieval_text = (
                     evidence_capture.transport.prompt_text
                     if evidence_capture.transport is not None
@@ -911,7 +906,7 @@ async def run_peer_pipeline(
                         str(exc),
                         event_type="policy_violation",
                     )
-                    raise typer.BadParameter(str(exc)) from exc
+                    raise WorkflowValidationError(str(exc)) from exc
             else:
                 workflow.skip_stage(
                     "CONTEXT RETRIEVAL OUTPUT",
@@ -1245,7 +1240,7 @@ async def run_peer_pipeline(
                 event_type="policy_violation",
                 metadata={"judge_decision": judge_decision},
             )
-            raise typer.BadParameter(
+            raise WorkflowValidationError(
                 "Peer quality gate failed: judge did not accept the refined draft. "
                 "Run stopped before final recommendation."
             )
@@ -1353,7 +1348,7 @@ async def run_peer_pipeline(
                         event_type="policy_violation",
                         metadata={"after_repair_attempt": 1},
                     )
-                    raise typer.BadParameter(str(repair_exc)) from repair_exc
+                    raise WorkflowValidationError(str(repair_exc)) from repair_exc
                 final_text = repaired_final_text
                 if verifier_result.checked_files:
                     _trace_workflow_policy_event(
@@ -1389,7 +1384,7 @@ async def run_peer_pipeline(
                 str(exc),
                 event_type="policy_violation",
             )
-            raise typer.BadParameter(str(exc)) from exc
+            raise WorkflowValidationError(str(exc)) from exc
         except WorkflowPolicyViolation as exc:
             _trace_workflow_policy_event(
                 workflow,
@@ -1397,7 +1392,7 @@ async def run_peer_pipeline(
                 str(exc),
                 event_type="policy_violation",
             )
-            raise typer.BadParameter(str(exc)) from exc
+            raise WorkflowValidationError(str(exc)) from exc
         workflow.finish_workflow(
             "Peer workflow completed.",
             metadata={

@@ -4,9 +4,9 @@ import types
 from pathlib import Path
 
 import pytest
-import typer
 
 import crisai.cli.pipelines as pipelines
+from crisai.orchestration.exceptions import WorkflowValidationError
 from crisai.registry import AgentSpec
 
 
@@ -142,7 +142,7 @@ async def test_run_single_uses_selected_agent(monkeypatch, fake_specs, fake_sett
 @pytest.mark.anyio
 async def test_run_single_raises_for_unknown_agent(fake_specs, fake_settings, patch_pipeline_runtime):
     server_specs, agent_specs = fake_specs
-    with pytest.raises(typer.BadParameter):
+    with pytest.raises(WorkflowValidationError):
         await pipelines.run_single(
             "hello",
             "missing",

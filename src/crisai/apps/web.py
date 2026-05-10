@@ -31,6 +31,7 @@ from crisai.cli.session_store import (
 )
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging
+from crisai.orchestration.exceptions import WorkflowValidationError
 
 
 @asynccontextmanager
@@ -141,6 +142,8 @@ def _to_http_exception(exc: Exception) -> HTTPException:
     """Map runtime failures to user-facing HTTP errors."""
     message = str(exc).strip() or "Unknown runtime error."
     lowered = message.lower()
+    if isinstance(exc, WorkflowValidationError):
+        return HTTPException(status_code=422, detail=message)
     if "max turns" in lowered and "exceeded" in lowered:
         return HTTPException(
             status_code=422,
