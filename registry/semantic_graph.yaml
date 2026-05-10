@@ -20,7 +20,118 @@ settings:
 
 vertices:
   # --- Main-ask semantics (task contract) ---
+  - id: intent.recommendation
+    priority: 80
+    terms:
+      - recommendation
+      - recommendations
+      - recommend
+      - advise
+      - guidance
+      - approach
+      - proposed approach
+      - architecture recommendation
+      - design recommendation
+      - concise recommendation
+      - target state recommendation
+      - interim recommendation
+      - what should we do
+      - what would you recommend
+    emits:
+      primary_intent: recommend
+      deliverable_type: architecture_recommendation
+      source_resolution: as_needed
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - Produce the recommendation as the main answer.
+        - Use retrieved or supplied context when the request asks for sourced advice.
+        - Keep source notes concise and secondary to the recommendation.
+      anti_goals:
+        - Do not replace the recommendation with a retrieval inventory.
+        - Do not repeat the same recommendation across multiple sections.
+  - id: intent.design_response
+    priority: 70
+    terms:
+      - design
+      - solution design
+      - architecture design
+      - high level design
+      - hld
+      - low level design
+      - lld
+      - target architecture
+      - target state
+      - interim design
+      - target-state design
+      - end-to-end design
+      - end to end design
+      - reference architecture
+      - architecture blueprint
+      - solution blueprint
+    emits:
+      primary_intent: design
+      deliverable_type: architecture_design
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - Produce the requested design response as the main answer.
+        - Separate interim, transition, and target-state guidance when the request asks for them.
+        - Ground design constraints in retrieved or supplied context where available.
+      anti_goals:
+        - Do not replace the design with source-selection commentary.
+        - Do not duplicate the same design flow in multiple sections.
+  - id: intent.options_analysis
+    priority: 90
+    terms:
+      - options paper
+      - option paper
+      - options analysis
+      - option analysis
+      - options appraisal
+      - option appraisal
+      - trade-off analysis
+      - trade off analysis
+      - decision paper
+      - compare options
+      - evaluate options
+      - pros and cons
+      - recommendation paper
+    emits:
+      primary_intent: recommend
+      deliverable_type: options_paper
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - Compare viable options before recommending a preferred option.
+        - Make assumptions, decision criteria, risks, and trade-offs explicit.
+        - Keep evidence and context traceable to retrieved or supplied sources.
+      anti_goals:
+        - Do not present only one option when the user asked for options.
+        - Do not hide the decision rationale.
+  - id: intent.assessment
+    priority: 75
+    terms:
+      - assess
+      - assessment
+      - review
+      - evaluate
+      - maturity assessment
+      - gap analysis
+      - health check
+      - architecture review
+      - design review
+      - risk assessment
+    emits:
+      primary_intent: assess
+      deliverable_type: assessment
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - Assess the current state against the requested criteria.
+        - Highlight material gaps, risks, and recommended next changes.
+        - Distinguish evidence from interpretation.
+      anti_goals:
+        - Do not turn the assessment into a generic explanation.
+        - Do not ignore gaps found in retrieved or supplied context.
   - id: intent.summary
+    priority: 100
     terms:
       - summarise
       - summarize
@@ -40,7 +151,6 @@ vertices:
       - cosa dice
     emits:
       primary_intent: summarize_source
-      deliverable_type: text_summary
       required_evidence_level: content_read
       success_criteria:
         - Produce the requested summary as the main answer.
@@ -50,6 +160,7 @@ vertices:
         - Do not make candidate ranking the main answer.
         - Do not add unsupported caveats about unread content.
   - id: deliverable.deck_summary
+    priority: 60
     terms:
       - deck
       - presentation
@@ -62,13 +173,16 @@ vertices:
     emits:
       deliverable_type: deck_summary
   - id: deliverable.document_summary
+    priority: 60
     terms:
       - document
       - documents
       - doc
       - docx
       - file
-      - source
+      - source document
+      - source file
+      - source material
       - page
       - documento
       - documenti
@@ -76,6 +190,7 @@ vertices:
     emits:
       deliverable_type: document_summary
   - id: deliverable.executive_summary
+    priority: 65
     terms:
       - executive
       - leadership
@@ -84,6 +199,7 @@ vertices:
     emits:
       deliverable_type: executive_summary
   - id: source_resolution.latest_matching_source
+    priority: 100
     terms:
       - latest
       - most recent
@@ -99,6 +215,7 @@ vertices:
     emits:
       source_resolution: latest_matching_source
   - id: source_resolution.matching_source
+    priority: 90
     terms:
       - document
       - documents
@@ -107,7 +224,9 @@ vertices:
       - powerpoint
       - pptx
       - file
-      - source
+      - source document
+      - source file
+      - source material
       - page
       - documento
       - documenti
@@ -173,20 +292,38 @@ vertices:
   - id: enterprise_architecture_core
     terms:
       - enterprise architecture
+      - lean enterprise architecture
+      - lean ea
+      - just enough architecture
+      - architectural runway
+      - architecture guardrails
+      - architecture principles
       - business architecture
       - capability map
+      - capability-based planning
+      - capability based planning
       - business capability
       - capability model
       - value stream
       - value chain
       - target operating model
+      - operating model
       - strategy map
       - corporate strategy
       - architecture vision
       - architecture roadmap
+      - technology roadmap
+      - transformation roadmap
       - portfolio management
       - architecture governance
       - architecture board
+      - architecture decision
+      - architecture decision record
+      - adr
+      - design authority
+      - architecture review board
+      - togaf
+      - togaf adm
   - id: application_portfolio_architecture
     terms:
       - application architecture
@@ -196,6 +333,8 @@ vertices:
       - system inventory
       - application rationalisation
       - application rationalization
+      - time model
+      - tolerate invest migrate eliminate
       - application lifecycle
       - software asset management
       - system context
@@ -256,13 +395,52 @@ vertices:
       - solution design
       - solution outline
       - high level design
+      - hld
       - detailed design
       - low level design
+      - lld
       - options paper
+      - decision log
+      - decision record
+      - architecture decision record
+      - adr
+      - design principles
+      - design constraints
+      - transition state
       - target architecture
       - as-is architecture
+      - current state architecture
       - to-be architecture
+      - future state architecture
       - transition architecture
+      - architecture runway
+      - minimum viable architecture
+      - mva
+      - architectural runway
+  - id: architecture_method_and_governance
+    terms:
+      - architecture development method
+      - adm
+      - preliminary phase
+      - architecture vision
+      - business architecture
+      - information systems architecture
+      - data architecture
+      - application architecture
+      - technology architecture
+      - opportunities and solutions
+      - migration planning
+      - implementation governance
+      - architecture change management
+      - architecture repository
+      - standards catalogue
+      - standards catalog
+      - architecture compliance
+      - architecture waiver
+      - design assurance
+      - lightweight governance
+      - federated architecture
+      - architecture guild
   - id: architecture_views_and_notations
     terms:
       - viewpoint
@@ -276,6 +454,12 @@ vertices:
       - c4 model
       - uml
       - bpmn
+      - value stream map
+      - capability heatmap
+      - roadmap
+      - dependency map
+      - decision tree
+      - decision matrix
   - id: quality_and_security_architecture
     terms:
       - non functional requirements
@@ -291,6 +475,13 @@ vertices:
       - security controls
       - identity architecture
       - zero trust
+      - privacy
+      - compliance
+      - observability
+      - maintainability
+      - operability
+      - performance
+      - reliability
   - id: integration_and_api_architecture
     terms:
       - integration architecture
@@ -304,6 +495,17 @@ vertices:
       - b2b integration
       - message broker
       - enterprise integration
+      - integration pattern
+      - integration patterns
+      - api gateway
+      - event streaming
+      - data integration
+      - etl
+      - elt
+      - pub sub
+      - publish subscribe
+      - canonical message
+      - contract-first api
 
 edges:
   # Intranet / pattern catalogue (original)
@@ -317,12 +519,23 @@ edges:
   - [integration_principles_corpus, enterprise_architecture_core]
 
   # EA internal links
+  - [intent.recommendation, solution_architecture_delivery]
+  - [intent.recommendation, enterprise_architecture_core]
+  - [intent.design_response, solution_architecture_delivery]
+  - [intent.design_response, architecture_views_and_notations]
+  - [intent.options_analysis, solution_architecture_delivery]
+  - [intent.options_analysis, enterprise_architecture_core]
+  - [intent.assessment, enterprise_architecture_core]
+  - [intent.assessment, architecture_method_and_governance]
   - [enterprise_architecture_core, application_portfolio_architecture]
   - [enterprise_architecture_core, technology_infrastructure_architecture]
   - [enterprise_architecture_core, data_architecture_core]
   - [enterprise_architecture_core, solution_architecture_delivery]
+  - [enterprise_architecture_core, architecture_method_and_governance]
 
   # EA / SA / portfolio / views
+  - [architecture_method_and_governance, solution_architecture_delivery]
+  - [architecture_method_and_governance, architecture_views_and_notations]
   - [application_portfolio_architecture, solution_architecture_delivery]
   - [application_portfolio_architecture, architecture_views_and_notations]
   - [solution_architecture_delivery, architecture_views_and_notations]

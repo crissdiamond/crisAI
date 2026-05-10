@@ -154,6 +154,38 @@ async def test_workflow_session_traces_timeout(monkeypatch, engine_fixture):
 
 
 @pytest.mark.anyio
+async def test_workflow_session_fails_closed_on_empty_stage_output(engine_fixture):
+    fixture = engine_fixture
+
+    async def empty_stage_runner(agent_id, agent, prompt):
+        del agent_id, agent, prompt
+        return "   "
+
+    fixture.engine._stage_runner = empty_stage_runner
+
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+        with pytest.raises(RuntimeError, match="returned empty output"):
+            await workflow.run_stage(
+                spec=fixture.retrieval_planner_spec,
+                ui_agent_id="retrieval_planner",
+                prompt="find context",
+                trace_label="RETRIEVAL_PLANNER OUTPUT",
+                verbose=False,
+            )
+
+    assert fixture.trace_calls[-1] == (
+        "RETRIEVAL_PLANNER OUTPUT_ERROR",
+        "Stage retrieval_planner returned empty output. This stage is required to produce a handoff or answer.",
+        {
+            "event_type": "stage_error",
+            "agent_id": "retrieval_planner",
+            "metadata": {"output_length": 0},
+        },
+    )
+    assert fixture.output_calls == []
+
+
+@pytest.mark.anyio
 async def test_workflow_session_traces_stage_lifecycle_and_prints_output(engine_fixture):
     fixture = engine_fixture
 

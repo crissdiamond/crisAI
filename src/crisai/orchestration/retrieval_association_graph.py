@@ -23,6 +23,7 @@ class RetrievalAssociationGraph:
 
     vertex_terms: dict[str, frozenset[str]]
     vertex_emits: dict[str, dict[str, object]]
+    vertex_priorities: dict[str, int]
     neighbors: dict[str, frozenset[str]]
     max_hops: int
 
@@ -115,14 +116,18 @@ def _collect_reachable_vertices(graph: RetrievalAssociationGraph, seeds: frozens
 def collect_graph_emits(graph: RetrievalAssociationGraph | None, vertex_ids: frozenset[str]) -> dict[str, object]:
     """Merge ``emits`` metadata from graph vertices.
 
-    Scalar values use first-wins ordering by sorted vertex id. List values are
-    concatenated with de-duplication. This keeps semantic facts in YAML while
-    keeping Python responsible only for deterministic merge mechanics.
+    Scalar values use first-wins ordering by registry priority, then vertex id.
+    List values are concatenated with de-duplication. This keeps semantic facts
+    in YAML while keeping Python responsible only for deterministic merge mechanics.
     """
     if graph is None:
         return {}
     merged: dict[str, object] = {}
-    for vid in sorted(vertex_ids):
+    ordered_vertex_ids = sorted(
+        vertex_ids,
+        key=lambda vid: (-graph.vertex_priorities.get(vid, 0), vid),
+    )
+    for vid in ordered_vertex_ids:
         emits = graph.vertex_emits.get(vid, {})
         for key, value in emits.items():
             if isinstance(value, list):
@@ -164,6 +169,7 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
 
     vertex_terms: dict[str, frozenset[str]] = {}
     vertex_emits: dict[str, dict[str, object]] = {}
+    vertex_priorities: dict[str, int] = {}
     vertices = raw.get("vertices") or []
     if not isinstance(vertices, list):
         return None
@@ -183,6 +189,10 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
             vertex_terms[vid] = terms
             emits = block.get("emits") or {}
             vertex_emits[vid] = dict(emits) if isinstance(emits, dict) else {}
+            try:
+                vertex_priorities[vid] = int(block.get("priority") or 0)
+            except (TypeError, ValueError):
+                vertex_priorities[vid] = 0
 
     neighbors: dict[str, set[str]] = {vid: set() for vid in vertex_terms}
     edges = raw.get("edges") or []
@@ -203,6 +213,7 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
     return RetrievalAssociationGraph(
         vertex_terms=vertex_terms,
         vertex_emits=vertex_emits,
+        vertex_priorities=vertex_priorities,
         neighbors={k: frozenset(v) for k, v in neighbors.items()},
         max_hops=max_hops,
     )

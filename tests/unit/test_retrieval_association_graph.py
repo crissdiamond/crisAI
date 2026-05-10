@@ -82,6 +82,32 @@ def test_graph_emits_task_contract_facts(registry_dir: Path):
     assert emits["required_evidence_level"] == "content_read"
 
 
+def test_graph_emit_priority_keeps_options_paper_as_main_deliverable(registry_dir: Path):
+    graph = load_retrieval_association_graph(registry_dir)
+    assert graph is not None
+    seeds, _ = expand_retrieval_hints(
+        "Prepare an options paper and recommendation for the target architecture.",
+        graph,
+    )
+    emits = collect_graph_emits(graph, seeds)
+
+    assert emits["primary_intent"] == "recommend"
+    assert emits["deliverable_type"] == "options_paper"
+
+
+def test_recommendation_request_expands_common_lean_ea_terms(registry_dir: Path):
+    graph = load_retrieval_association_graph(registry_dir)
+    assert graph is not None
+    seeds, terms = expand_retrieval_hints(
+        "I need a recommendation for a lean enterprise architecture approach.",
+        graph,
+    )
+
+    assert "intent.recommendation" in seeds
+    assert "just enough architecture" in terms
+    assert "architecture guardrails" in terms
+
+
 def test_trace_metadata_contains_counts(registry_dir: Path):
     graph = load_retrieval_association_graph(registry_dir)
     assert graph is not None

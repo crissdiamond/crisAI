@@ -166,7 +166,8 @@ def test_doctor_rejects_standalone_function_word_graph_terms(tmp_path: Path) -> 
     shutil.copytree(root / "registry", registry_dir)
     graph_path = registry_dir / "semantic_graph.yaml"
     payload = yaml.safe_load(graph_path.read_text(encoding="utf-8"))
-    payload["vertices"][0]["terms"].append("in")
+    summary_vertex = next(vertex for vertex in payload["vertices"] if vertex["id"] == "intent.summary")
+    summary_vertex["terms"].append("in")
     graph_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
     result = run_doctor(root_dir=root, registry_dir=registry_dir)

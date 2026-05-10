@@ -168,6 +168,19 @@ class WorkflowSession:
                 metadata={"timeout_seconds": timeout_seconds},
             )
             raise TimeoutError(message) from None
+        if not str(result or "").strip():
+            message = (
+                f"Stage {ui_agent_id} returned empty output. "
+                "This stage is required to produce a handoff or answer."
+            )
+            self.trace_event(
+                f"{trace_label}_ERROR",
+                message,
+                event_type="stage_error",
+                agent_id=ui_agent_id,
+                metadata={"output_length": 0},
+            )
+            raise RuntimeError(message)
         trace_content = result
         trace_metadata: dict[str, Any] | None = None
         if output_processor is not None:
