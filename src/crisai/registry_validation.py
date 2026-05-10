@@ -16,6 +16,10 @@ from crisai.orchestration.retrieval_association_graph import (
 from crisai.orchestration.semantic_catalog import load_semantic_catalog
 from crisai.registry import Registry
 
+# ---------------------------------------------------------------------------
+# Data models
+# ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class DoctorIssue:
@@ -37,10 +41,20 @@ class DoctorResult:
     warnings: tuple[DoctorIssue, ...]
 
 
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+
 def _read_yaml(path: Path) -> Any:
     if not path.is_file():
         raise FileNotFoundError(f"Missing required registry file: {path}")
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+# ---------------------------------------------------------------------------
+# Cross-reference validation
+# ---------------------------------------------------------------------------
 
 
 def _validate_unique_ids(
@@ -191,6 +205,11 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
     return errors, warnings
 
 
+# ---------------------------------------------------------------------------
+# File structure and semantic graph validation
+# ---------------------------------------------------------------------------
+
+
 def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
     errors: list[DoctorIssue] = []
     warnings: list[DoctorIssue] = []
@@ -259,6 +278,11 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
     return errors, warnings
 
 
+# ---------------------------------------------------------------------------
+# Environment and security hygiene
+# ---------------------------------------------------------------------------
+
+
 def _tracked_secret_like_paths(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
     warnings: list[DoctorIssue] = []
     errors: list[DoctorIssue] = []
@@ -287,6 +311,11 @@ def _tracked_secret_like_paths(root_dir: Path) -> tuple[list[DoctorIssue], list[
                 hint=f"Run `git rm --cached {line}` and add `{line}` to `.gitignore`.",
             ))
     return errors, warnings
+
+
+# ---------------------------------------------------------------------------
+# Model dry-build validation
+# ---------------------------------------------------------------------------
 
 
 def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
@@ -340,6 +369,11 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
         ))
 
     return errors, warnings
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator
+# ---------------------------------------------------------------------------
 
 
 def run_doctor(root_dir: Path, registry_dir: Path, *, validate_models: bool = False) -> DoctorResult:
