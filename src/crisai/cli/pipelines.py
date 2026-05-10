@@ -75,6 +75,7 @@ from .workflow_policy import (
 )
 from .workflow_support import (
     WorkflowEnvironment,
+    _get_run_id,
     collect_server_ids,
     ensure_openai_api_key,
     resolve_required_agents,
@@ -111,15 +112,6 @@ def _trace_workflow_policy_event(
     tracer = getattr(workflow, "trace_event", None)
     if callable(tracer):
         tracer(stage, content, event_type=event_type, metadata=metadata)
-
-
-def _get_run_id(environment: WorkflowEnvironment | object) -> str | None:
-    """Return the workflow run id when available.
-
-    This keeps pipeline logging and tracing compatible with older tests that
-    monkeypatch create_workflow_environment with lightweight objects.
-    """
-    return getattr(environment, "run_id", None)
 
 
 def _append_trace_compat(path: Path, stage: str, content: str, **kwargs: Any) -> None:
@@ -217,7 +209,6 @@ def _build_agent_factory(root_dir: Path, settings, model_specs=None):
     if "settings" in signature.parameters:
         kwargs["settings"] = settings
     return AgentFactory(root_dir, **kwargs)
-
 
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
