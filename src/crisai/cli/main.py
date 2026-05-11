@@ -549,13 +549,17 @@ def doctor(
         return out
 
     lines: list[str] = []
+    if result.info:
+        lines.append("Registry:")
+        lines.extend(f"  {line}" for line in result.info)
+        lines.append("")
     if result.errors:
         lines.append("Errors:")
         lines.extend(_format_issues(result.errors))
     if result.warnings:
         lines.append("Warnings:")
         lines.extend(_format_issues(result.warnings))
-    if not lines:
+    if not result.errors and not result.warnings:
         lines.append("No configuration issues found.")
         lines.append("")
         lines.append("Setup guidance:")

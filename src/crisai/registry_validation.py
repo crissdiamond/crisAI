@@ -55,6 +55,7 @@ class DoctorResult:
     ok: bool
     errors: tuple[DoctorIssue, ...]
     warnings: tuple[DoctorIssue, ...]
+    info: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -259,9 +260,10 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
 # ---------------------------------------------------------------------------
 
 
-def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
+def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue], list[str]]:
     errors: list[DoctorIssue] = []
     warnings: list[DoctorIssue] = []
+    info: list[str] = []
     required_files = (
         "agents.yaml",
         "servers.yaml",
@@ -297,25 +299,34 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
             hint="Check `registry/semantic_catalog.yaml` for YAML syntax errors and re-run `crisai doctor`.",
         ))
 
+    graph_path = registry_dir / "semantic_graph.yaml"
     graph = load_retrieval_association_graph(registry_dir)
     if graph is None:
-        errors.append(DoctorIssue(
-            message="semantic_graph.yaml is missing or invalid.",
-            hint="Ensure `registry/semantic_graph.yaml` exists and contains valid YAML, then re-run `crisai doctor`.",
-        ))
-    elif catalog is not None:
-        function_words = catalog.lexicon.all_function_words
-        for vertex_id, terms in sorted(graph.vertex_terms.items()):
-            leaked_terms = sorted(term for term in terms if term in function_words)
-            if leaked_terms:
-                errors.append(DoctorIssue(
-                    message=(
-                        "semantic_graph.yaml vertex "
-                        f"'{vertex_id}' contains standalone function word term(s): "
-                        + ", ".join(leaked_terms)
-                    ),
-                    hint=f"Remove {', '.join(f'`{t}`' for t in leaked_terms)} from the `terms` list of vertex `{vertex_id}` in `registry/semantic_graph.yaml`.",
-                ))
+        if not graph_path.is_file():
+            errors.append(DoctorIssue(
+                message="semantic_graph.yaml is missing.",
+                hint="Ensure `registry/semantic_graph.yaml` exists, then re-run `crisai doctor`.",
+            ))
+        else:
+            errors.append(DoctorIssue(
+                message="semantic_graph.yaml is invalid (failed to parse or produced no vertices).",
+                hint="Check `registry/semantic_graph.yaml` for YAML syntax errors and re-run `crisai doctor`.",
+            ))
+    else:
+        info.append(f"semantic_graph.yaml loaded ({len(graph.vertex_terms)} vertices)")
+        if catalog is not None:
+            function_words = catalog.lexicon.all_function_words
+            for vertex_id, terms in sorted(graph.vertex_terms.items()):
+                leaked_terms = sorted(term for term in terms if term in function_words)
+                if leaked_terms:
+                    errors.append(DoctorIssue(
+                        message=(
+                            "semantic_graph.yaml vertex "
+                            f"'{vertex_id}' contains standalone function word term(s): "
+                            + ", ".join(leaked_terms)
+                        ),
+                        hint=f"Remove {', '.join(f'`{t}`' for t in leaked_terms)} from the `terms` list of vertex `{vertex_id}` in `registry/semantic_graph.yaml`.",
+                    ))
 
     workflow_policy = registry_dir / "workflow_policy.yaml"
     if workflow_policy.is_file():
@@ -339,7 +350,7 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
                 message="session_memory.strategy must be deterministic or agentic.",
                 hint="Set `strategy: deterministic` or `strategy: agentic` in `registry/session_memory.yaml`.",
             ))
-    return errors, warnings
+    return errors, warnings, info
 
 
 # ---------------------------------------------------------------------------
@@ -491,14 +502,16 @@ def run_doctor(root_dir: Path, registry_dir: Path, *, validate_models: bool = Fa
     """Validate the local crisAI registry, prompts, env references, and hygiene."""
     errors: list[DoctorIssue] = []
     warnings: list[DoctorIssue] = []
+    info: list[str] = []
 
     setup_errors, setup_warnings = _check_env_setup(root_dir)
     errors.extend(setup_errors)
     warnings.extend(setup_warnings)
 
-    file_errors, file_warnings = _validate_registry_files(registry_dir)
+    file_errors, file_warnings, file_info = _validate_registry_files(registry_dir)
     errors.extend(file_errors)
     warnings.extend(file_warnings)
+    info.extend(file_info)
 
     ref_errors, ref_warnings = _validate_registry_cross_references(root_dir, registry_dir)
     errors.extend(ref_errors)
@@ -517,4 +530,5 @@ def run_doctor(root_dir: Path, registry_dir: Path, *, validate_models: bool = Fa
         ok=not errors,
         errors=tuple(errors),
         warnings=tuple(warnings),
+        info=tuple(info),
     )

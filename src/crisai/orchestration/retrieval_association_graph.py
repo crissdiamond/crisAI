@@ -6,6 +6,7 @@ adding intent, source, or deliverable terms to Python code or prompts.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import deque
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from pathlib import Path
 import yaml
 
 _DEFAULT_GRAPH_NAME = "semantic_graph.yaml"
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -151,12 +153,15 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
     """
     path = registry_dir / _DEFAULT_GRAPH_NAME
     if not path.is_file():
+        _log.warning("semantic_graph.yaml not found at %s; retrieval nudge disabled", path)
         return None
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except (OSError, yaml.YAMLError):
+    except (OSError, yaml.YAMLError) as exc:
+        _log.warning("semantic_graph.yaml could not be parsed: %s", exc)
         return None
     if not isinstance(raw, dict):
+        _log.warning("semantic_graph.yaml has unexpected structure (expected mapping); skipping")
         return None
     settings = raw.get("settings") or {}
     max_hops = 2
@@ -172,6 +177,7 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
     vertex_priorities: dict[str, int] = {}
     vertices = raw.get("vertices") or []
     if not isinstance(vertices, list):
+        _log.warning("semantic_graph.yaml 'vertices' must be a list; skipping")
         return None
     for block in vertices:
         if not isinstance(block, dict):
@@ -209,6 +215,7 @@ def load_retrieval_association_graph(registry_dir: Path) -> RetrievalAssociation
                 neighbors[b].add(a)
 
     if not vertex_terms:
+        _log.warning("semantic_graph.yaml produced no indexable vertices; graph disabled")
         return None
     return RetrievalAssociationGraph(
         vertex_terms=vertex_terms,

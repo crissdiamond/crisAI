@@ -132,3 +132,32 @@ def test_data_governance_triggers_lineage_and_catalogue_hints(registry_dir: Path
     _, terms = expand_retrieval_hints("Assess data lineage and data catalogue maturity.", graph)
     assert "data lineage" in terms or "data catalog" in terms
     assert "intranet_list_page_links" in terms or "hub page" in terms
+
+
+def test_missing_graph_emits_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="crisai.orchestration.retrieval_association_graph"):
+        result = load_retrieval_association_graph(tmp_path)
+    assert result is None
+    assert any("not found" in record.message for record in caplog.records)
+
+
+def test_malformed_graph_emits_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+    import logging
+
+    (tmp_path / "semantic_graph.yaml").write_text(": invalid: {[}", encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="crisai.orchestration.retrieval_association_graph"):
+        result = load_retrieval_association_graph(tmp_path)
+    assert result is None
+    assert any("could not be parsed" in record.message for record in caplog.records)
+
+
+def test_graph_with_no_vertices_emits_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+    import logging
+
+    (tmp_path / "semantic_graph.yaml").write_text("version: 1\nvertices: []\n", encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="crisai.orchestration.retrieval_association_graph"):
+        result = load_retrieval_association_graph(tmp_path)
+    assert result is None
+    assert any("no indexable vertices" in record.message for record in caplog.records)

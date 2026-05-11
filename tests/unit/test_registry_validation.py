@@ -38,6 +38,14 @@ def test_doctor_passes_current_registry() -> None:
     assert result.errors == ()
 
 
+def test_doctor_reports_semantic_graph_vertex_count() -> None:
+    root = Path(__file__).resolve().parents[2]
+
+    result = run_doctor(root_dir=root, registry_dir=root / "registry")
+
+    assert any("semantic_graph.yaml loaded" in line and "vertices" in line for line in result.info)
+
+
 def test_doctor_model_dry_build_passes_current_registry(monkeypatch) -> None:
     root = Path(__file__).resolve().parents[2]
 
