@@ -35,6 +35,7 @@ litellm = [
 ]
 dev = [
   "pytest>=7",
+  "pytest-cov>=4",
   "pytest-timeout>=2.3.1",
   "ruff>=0.4",
   "mypy>=1.10",
@@ -45,9 +46,18 @@ crisai = "crisai.cli.main:app"
 crisai-web = "crisai.apps.web:main"
 
 [tool.pytest.ini_options]
+addopts = "--cov=crisai --cov-report=term-missing"
 markers = [
     "smoke: opt-in integration tests that call real LLM APIs (set CRISAI_RUN_SMOKE_TESTS=1)",
 ]
+
+[tool.coverage.run]
+source = ["crisai"]
+omit = ["*/tests/*", "*/__init__.py", "*/web/app.py"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
 
 [tool.ruff]
 target-version = "py310"
