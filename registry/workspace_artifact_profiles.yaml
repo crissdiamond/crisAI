@@ -1,5 +1,6 @@
 # Workspace artefact validation profiles — declarative checks for Markdown under
-# `workspace/context/` and `workspace/context_staging/` (see validate_path_prefixes).
+# `workspace/knowledge/`, `workspace/knowledge_staging/`, and `workspace/tasks/`
+# (see validate_path_prefixes).
 #
 # Match semantics (first wins): profiles are evaluated top to bottom; the first profile
 # whose `match` clauses all pass applies. If none apply, `defaults.rules` apply.
@@ -10,8 +11,9 @@
 version: 1
 
 validate_path_prefixes:
-  - workspace/context/
-  - workspace/context_staging/
+  - workspace/knowledge/
+  - workspace/knowledge_staging/
+  - workspace/tasks/
 
 defaults:
   rules:
@@ -37,7 +39,18 @@ profiles:
         - "**/README.md"
     rules:
       skip_front_matter: true
-      min_h2_headings: 1
+      min_h2_headings: 0
+
+  - id: staging_prompt_or_archive
+    description: Prompt examples and archived/generated drafts are not active corpus artefacts.
+    match:
+      path_globs:
+        - workspace/knowledge_staging/_prompt*.md
+        - workspace/knowledge_staging/patterns/old*/*.md
+        - workspace/knowledge_staging/patterns/old*/**/*.md
+    rules:
+      skip_front_matter: true
+      min_h2_headings: 0
 
   - id: retrieval_gaps
     description: Retrieval gap logs — relax metadata requirements for peer runs.
@@ -55,8 +68,8 @@ profiles:
     match:
       all_of:
         - path_globs:
-            - workspace/context/patterns/*index*.md
-            - workspace/context_staging/patterns/*index*.md
+            - workspace/knowledge/patterns/*index*.md
+            - workspace/knowledge_staging/patterns/*index*.md
         - type_equals: pattern
     rules:
       required_h2_sections:
@@ -70,8 +83,9 @@ profiles:
     match:
       all_of:
         - path_globs:
-            - workspace/context/patterns/*.md
-            - workspace/context_staging/patterns/*.md
+            - workspace/knowledge/patterns/*.md
+            - workspace/knowledge_staging/patterns/*.md
+            - workspace/tasks/*/artefacts/patterns/*.md
         - type_equals: pattern
     rules:
       required_front_matter:

@@ -21,7 +21,7 @@ from crisai.orchestration.retrieval_association_graph import (
 
 def test_infer_workflow_policy_detects_intranet_and_artifact_capabilities():
     policy = infer_workflow_policy(
-        "Use intranet site pages only and write_workspace_file under workspace/context_staging/patterns."
+        "Use intranet site pages only and write_workspace_file under workspace/tasks/demo/artefacts/patterns."
     )
     assert policy.require_intranet_fetch is True
     assert policy.require_workspace_write is True
@@ -69,24 +69,24 @@ def test_enforce_intranet_fetch_policy_raises_when_required_and_missing():
 
 def test_snapshot_and_changed_paths_detect_file_update(tmp_path: Path):
     root = tmp_path
-    target = root / "workspace" / "context_staging"
+    target = root / "workspace" / "tasks"
     target.mkdir(parents=True)
     file_path = target / "a.md"
     file_path.write_text("one", encoding="utf-8")
-    before = snapshot_tree(root, "workspace/context_staging")
+    before = snapshot_tree(root, "workspace/tasks")
     time.sleep(0.01)
     file_path.write_text("two", encoding="utf-8")
-    after = snapshot_tree(root, "workspace/context_staging")
+    after = snapshot_tree(root, "workspace/tasks")
     changed = changed_paths(before, after)
-    assert "workspace/context_staging/a.md" in changed
+    assert "workspace/tasks/a.md" in changed
 
 
 def test_enforce_workspace_write_policy_raises_when_required_and_no_changes(tmp_path: Path):
     root = tmp_path
-    target = root / "workspace" / "context_staging"
+    target = root / "workspace" / "tasks"
     target.mkdir(parents=True)
-    before = snapshot_tree(root, "workspace/context_staging")
-    policy = infer_workflow_policy("create files under workspace/context_staging/")
+    before = snapshot_tree(root, "workspace/tasks")
+    policy = infer_workflow_policy("create files under workspace/tasks/")
     with pytest.raises(WorkflowPolicyViolation):
         enforce_workspace_write_policy(policy, root, before)
 

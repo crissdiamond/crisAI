@@ -8,9 +8,9 @@ last_reviewed: 2026-05-03
 applies_to: all
 tags: api, events, pub-sub, real-time, legacy
 related:
-  - context/patterns/integration-patterns-index.md
-  - context/standards/integration/architectural-guardrails.txt
-  - context/reference/landscape/integration-operating-model.txt
+  - knowledge/patterns/integration-patterns-index.md
+  - knowledge/standards/integration/architectural-guardrails.txt
+  - knowledge/reference/landscape/integration-operating-model.txt
 ---
 ## Core Patterns
 * **API-First**: Used for real-time synchronous integration (e.g., User Experience) to enable direct communication with responsible domains.

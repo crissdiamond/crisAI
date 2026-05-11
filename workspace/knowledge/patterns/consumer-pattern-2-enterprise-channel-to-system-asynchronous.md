@@ -1,6 +1,6 @@
 ---
 id: PATT-INT-003
-title: Consumer Pattern 2 - Enterprise Channel to System: Asynchronous
+title: "Consumer Pattern 2 - Enterprise Channel to System: Asynchronous"
 type: pattern
 status: reviewed
 owner: Architecture

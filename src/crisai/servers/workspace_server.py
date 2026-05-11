@@ -12,11 +12,12 @@ from crisai.logging_utils import append_json_log_line, configure_mcp_framework_l
 from crisai.orchestration.retrieval_association_graph import (
     deterministic_context_from_registry,
 )
+from crisai.workspace.spaces import load_workspace_spaces
 
 mcp = FastMCP("crisai-workspace")
 ROOT = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
-DEFAULT_WRITE_SUBDIRS = ("outputs", "context_staging", "scratch")
+DEFAULT_WRITE_SUBDIRS = ("outputs", "scratch", "knowledge_staging", "tasks")
 DEFAULT_WRITE_EXTENSIONS = (".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".mmd")
 DEFAULT_MAX_WRITE_BYTES = 1_000_000
 
@@ -41,12 +42,17 @@ def log_event(message: str) -> None:
 
 def _safe_path(relative_path: str) -> Path:
     raw = (relative_path or ".").strip()
+    spaces = load_workspace_spaces()
 
     # normalise common model mistakes
     if raw.startswith("/"):
         raw = raw.lstrip("/")
     if raw.startswith("workspace/"):
         raw = raw[len("workspace/"):]
+    if (raw == "context" or raw.startswith("context/")) and not (ROOT / raw).exists():
+        raw = raw.replace("context", spaces.knowledge_root, 1)
+    if (raw == "context_staging" or raw.startswith("context_staging/")) and not (ROOT / raw).exists():
+        raw = raw.replace("context_staging", spaces.knowledge_staging_root, 1)
 
     candidate = (ROOT / raw).resolve()
     root = ROOT.resolve()
@@ -65,6 +71,11 @@ def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return values or default
 
 
+def _default_write_subdirs() -> tuple[str, ...]:
+    spaces = load_workspace_spaces()
+    return spaces.writable_roots or DEFAULT_WRITE_SUBDIRS
+
+
 def _max_write_bytes() -> int:
     raw = os.getenv("CRISAI_WORKSPACE_MAX_WRITE_BYTES", str(DEFAULT_MAX_WRITE_BYTES))
     try:
@@ -80,7 +91,7 @@ def _enforce_write_policy(relative_path: str, content: str) -> Path:
         raise ValueError("Workspace write target must be a file path.")
 
     rel = file_path.relative_to(ROOT).as_posix()
-    allowed_subdirs = _csv_env("CRISAI_WORKSPACE_WRITE_SUBDIRS", DEFAULT_WRITE_SUBDIRS)
+    allowed_subdirs = _csv_env("CRISAI_WORKSPACE_WRITE_SUBDIRS", _default_write_subdirs())
     if not any(rel == subdir or rel.startswith(f"{subdir}/") for subdir in allowed_subdirs):
         allowed = ", ".join(allowed_subdirs)
         raise ValueError(f"Workspace writes are restricted to these subdirectories: {allowed}")

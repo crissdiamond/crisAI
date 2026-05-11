@@ -1,13 +1,13 @@
-# Architecture context (`workspace/context`)
+# Architecture knowledge base (`workspace/knowledge`)
 
-Curated knowledge for **Higher Education (HE)** architecture work: colleges, universities, and federations with many systems, integrations, and strong alignment needs. This tree is what **retrieval agents** search under `context/…` when grounding answers in your organisation’s patterns, standards, and landscape.
+Curated knowledge for **Higher Education (HE)** architecture work: colleges, universities, and federations with many systems, integrations, and strong alignment needs. This tree is what **retrieval agents** search under `knowledge/…` when grounding answers in your organisation’s patterns, standards, and landscape.
 
 **Audience:** Enterprise / solution architects maintaining the corpus.  
 **Consumers:** crisAI agents (retrieval planner → context retrieval → synthesizer → design).
 
-## Context staging (drafts)
+## Knowledge staging (drafts)
 
-**Agent-generated** context files (e.g. from intranet extraction or Copilot drafts awaiting review) belong under **`workspace/context_staging/`**, mirroring the folder layout you intend in `context/`. Humans **promote** approved files into **`workspace/context/`**; the approved tree is what retrieval searches by default. Rules: **`prompts/_shared/context-staging.md`** and **`workspace/context_staging/README.md`**.
+**Agent-generated** knowledge files (e.g. from intranet extraction or Copilot drafts awaiting review) belong under **`workspace/knowledge_staging/`**, mirroring the folder layout you intend in `knowledge/`. Humans **promote** approved files into **`workspace/knowledge/`**; the approved tree is what retrieval searches by default. Rules: **`prompts/_shared/context-staging.md`** and **`workspace/knowledge_staging/README.md`**.
 
 ---
 
@@ -59,8 +59,8 @@ last_reviewed: 2026-05-03
 applies_to: all
 tags: governance, reporting, ownership, lineage
 related:
-  - context/patterns/access-and-ownership.txt
-  - context/standards/naming-and-lineage.txt
+  - knowledge/patterns/access-and-ownership.txt
+  - knowledge/standards/naming-and-lineage.txt
 ---
 ```
 
@@ -76,22 +76,22 @@ related:
 | `last_reviewed` | Recommended | ISO date `YYYY-MM-DD`. |
 | `applies_to` | Optional | Scope: `all`, portfolio names, or environment (e.g. `production-only`). |
 | `tags` | Optional | Comma-separated keywords for humans / future catalogues. |
-| `related` | Optional | Repo-relative paths to linked artefacts under `context/`. |
+| `related` | Optional | Repo-relative paths to linked artefacts under `knowledge/`. |
 
 Copy from **`_templates/integration-pattern-artefact-template.txt`** when creating a new integration pattern file.
 
 ---
 
-## Turning Word, PDF, and PowerPoint into context files
+## Turning Word, PDF, and PowerPoint into knowledge files
 
-Goal: **structured, searchable text** under `context/…`, not a dump of the original binary.
+Goal: **structured, searchable text** under `knowledge/…`, not a dump of the original binary.
 
 ### Microsoft Word (`.docx`)
 
 1. **Save As** → **Plain Text (.txt)** or **Markdown (.md)** if you use a Markdown add-in.
 2. Or use **Pandoc** (recommended for repeatable conversions):
    ```bash
-   pandoc "Policy.docx" -t markdown -o "context/standards/new-standard.md"
+   pandoc "Policy.docx" -t markdown -o "knowledge/standards/new-standard.md"
    ```
 3. **Clean up:** remove corporate boilerplate pages, split into multiple artefacts if the doc mixes unrelated topics.
 4. **Add** the metadata YAML block at the top; set `type` and `status` honestly (`draft` until reviewed).
@@ -102,7 +102,7 @@ Goal: **structured, searchable text** under `context/…`, not a dump of the ori
 2. For **scanned** PDFs, run **OCR** first (Adobe, `ocrmypdf`, or enterprise tooling), then export text.
 3. **Pandoc** does not reliably read arbitrary PDFs; prefer OCR + text export or `pdftotext` where layout is simple:
    ```bash
-   pdftotext -layout "guidance.pdf" "context/patterns/guidance.txt"
+   pdftotext -layout "guidance.pdf" "knowledge/patterns/guidance.txt"
    ```
 4. **Fix line breaks:** PDFs often break lines mid-sentence; reflow paragraphs and add `##` headings from the original outline.
 5. **Do not** paste tables as misaligned text if critical—summarise the rule in bullets or a small markdown table.
@@ -112,48 +112,48 @@ Goal: **structured, searchable text** under `context/…`, not a dump of the ori
 1. **Outline view** in PowerPoint: copy slide titles and bullet lists into a `.txt` / `.md` file.
 2. Or **Pandoc**:
    ```bash
-   pandoc "Architecture-Overview.pptx" -t markdown -o "context/reference/landscape/overview.md"
+   pandoc "Architecture-Overview.pptx" -t markdown -o "knowledge/reference/landscape/overview.md"
    ```
 3. One deck often maps to **one** `reference/` or `patterns/` file per major theme; split if slides cover unrelated decisions.
 4. Speaker notes can hold nuance—include them under a `## Speaker notes` section only if approved for the corpus.
 
 ### Artefact structural validation
 
-For automated checks beyond this README (required headings per `type`, integration-pattern slug dedup, and similar rules), configure profiles in **`registry/workspace_artifact_profiles.yaml`** and run **`crisai validate-artefacts`** from the repo root. Peer mode applies the same rules to changed Markdown under `context/` and `context_staging/`.
+For automated checks beyond this README (required headings per `type`, integration-pattern slug dedup, and similar rules), configure profiles in **`registry/workspace_artifact_profiles.yaml`** and run **`crisai validate-artefacts`** from the repo root. Peer mode applies the same rules to changed Markdown under `knowledge/` and `knowledge_staging/`.
 
 ### Quality checklist before commit
 
 - [ ] Metadata block present with `id`, `type`, `status`.
 - [ ] Headings and bullets reflect the **original intent**, not only layout.
 - [ ] No passwords, API keys, or personal data (use anonymised examples).
-- [ ] `related` links point at real paths under `context/`.
+- [ ] `related` links point at real paths under `knowledge/`.
 - [ ] File name is readable: e.g. `governance-standard.txt` or `STD-GOV-001-governance.txt`.
 
 ---
 
 ## Using Microsoft 365 Copilot to transform existing architecture documents
 
-Use **Microsoft 365 Copilot** (the institution’s **Microsoft 365 / Office 365** assistant—e.g. in **Word**, **PowerPoint**, **Outlook**, **Teams**, or **Copilot** in the browser where your tenant allows it). Paste the prompts below into the Copilot chat alongside your source, or paste the **output** into a new Word document and then **Save As** plain text / Markdown into **`workspace/context_staging/…`** first; after human review, promote into **`workspace/context/…`**.
+Use **Microsoft 365 Copilot** (the institution’s **Microsoft 365 / Office 365** assistant—e.g. in **Word**, **PowerPoint**, **Outlook**, **Teams**, or **Copilot** in the browser where your tenant allows it). Paste the prompts below into the Copilot chat alongside your source, or paste the **output** into a new Word document and then **Save As** plain text / Markdown into **`workspace/knowledge_staging/…`** first; after human review, promote into **`workspace/knowledge/…`**.
 
 The goal is a **single crisAI-ready artefact** per file: YAML front matter + short sections + bullets—aligned with this README and **`_templates/integration-pattern-artefact-template.txt`**.
 
 **Before you start**
 
 1. Keep this README and **`_templates/integration-pattern-artefact-template.txt`** open (in the repo, SharePoint, or pasted at the top of your Copilot prompt) so the model follows the same metadata rules.
-2. Decide the target **folder** (`standards/`, `patterns/`, `decisions/`, etc.) and a **proposed filename** under staging (e.g. `context_staging/standards/integration/API-error-handling.txt`); move to `context/…` after approval.
+2. Decide the target **folder** (`standards/`, `patterns/`, `decisions/`, etc.) and a **proposed filename** under staging (e.g. `knowledge_staging/standards/integration/API-error-handling.txt`); move to `knowledge/…` after approval.
 3. Provide the **source text** in the Copilot conversation or attach a file **your tenant policy allows** (anonymise secrets and personal data first).
 4. **Respect your organisation’s Copilot and data policies** (what may be uploaded, retention, and approval for `status: approved`).
 
 **Base prompt (adapt the bracketed parts)**
 
 ```text
-You are helping build the architecture context corpus for crisAI. Save drafts under workspace/context_staging (mirror of context/ layout); humans promote to workspace/context after review.
+You are helping build the architecture knowledge base for crisAI. Save drafts under workspace/knowledge_staging (mirror of knowledge/ layout); humans promote to workspace/knowledge after review.
 
 Source material is below between ---SOURCE--- markers.
 
 Task:
-1. Produce ONE artefact as UTF-8 plain text suitable for saving as [FILENAME under context_staging/…].
-2. Start with a YAML front matter block exactly as described in workspace/context/README.md (fields: id, title, type, status, owner, last_reviewed, applies_to, tags, related). Use type=[principle|standard|pattern|design|decision|landscape|domain|integration|intake]. Set status=draft unless I say otherwise. Invent a sensible stable id prefix (e.g. STD-INT-001). Leave related: empty or list plausible context/ paths only if you are sure they exist.
+1. Produce ONE artefact as UTF-8 plain text suitable for saving as [FILENAME under knowledge_staging/…].
+2. Start with a YAML front matter block exactly as described in workspace/knowledge/README.md (fields: id, title, type, status, owner, last_reviewed, applies_to, tags, related). Use type=[principle|standard|pattern|design|decision|landscape|domain|integration|intake]. Set status=draft unless I say otherwise. Invent a sensible stable id prefix (e.g. STD-INT-001). Leave related: empty or list plausible knowledge/ paths only if you are sure they exist.
 3. Body: use ## headings and bullets; short paragraphs; line-oriented phrasing for search. Include explicit "Anti-pattern" or "When not to use" sections where relevant.
 4. Remove boilerplate, version history tables, and duplicate slides. Do not invent organisation-specific facts not in the source.
 5. End with no extra commentary outside the file content.
@@ -169,34 +169,34 @@ Task:
 The source is a long document mixing several topics. Split it into separate crisAI artefacts.
 
 For EACH distinct topic, output:
-- A suggested path under workspace/context_staging/ (folder + filename); final promotion to context/ is human-led.
+- A suggested path under workspace/knowledge_staging/ (folder + filename); final promotion to knowledge/ is human-led.
 - The full file content (YAML front matter + body) for that topic only.
 
-Rules: one main topic per file; cross-link using related: paths between files you create in this batch; same metadata conventions as workspace/context/README.md.
+Rules: one main topic per file; cross-link using related: paths between files you create in this batch; same metadata conventions as workspace/knowledge/README.md.
 ```
 
 **Prompt: turn a slide deck export into a landscape or pattern file**
 
 ```text
-Source is bullet text from a PowerPoint deck (titles and bullets pasted below). Transform into one markdown or plain-text artefact for context_staging/reference/landscape/ OR context_staging/patterns/ (you choose based on content). Preserve slide structure only as ## headings, not as "Slide 3". Add YAML front matter; type=landscape or pattern; tags from HE architecture (integration, data platform, identity, etc.). Promote to context/… after review.
+Source is bullet text from a PowerPoint deck (titles and bullets pasted below). Transform into one markdown or plain-text artefact for knowledge_staging/reference/landscape/ OR knowledge_staging/patterns/ (you choose based on content). Preserve slide structure only as ## headings, not as "Slide 3". Add YAML front matter; type=landscape or pattern; tags from HE architecture (integration, data platform, identity, etc.). Promote to knowledge/… after review.
 ```
 
 **Prompt: draft an ADR in `decisions/`**
 
 ```text
-From the source narrative below, produce a lightweight ADR for workspace/context_staging/decisions/ (promote to context/decisions/ after review). YAML front matter with type=decision. Body sections: ## Context, ## Decision, ## Consequences, ## Alternatives considered (short). No solution design detail that belongs in patterns/; focus on why we decided.
+From the source narrative below, produce a lightweight ADR for workspace/knowledge_staging/decisions/ (promote to knowledge/decisions/ after review). YAML front matter with type=decision. Body sections: ## Context, ## Decision, ## Consequences, ## Alternatives considered (short). No solution design detail that belongs in patterns/; focus on why we decided.
 ```
 
 **Prompt: raw workshop notes → `intake/`**
 
 ```text
-Turn these messy workshop notes into a single intake file for context_staging/intake/. YAML: type=intake, status=draft. Body: ## Attendees (optional anonymised), ## Raw themes, ## Open questions, ## Suspected links to standards/patterns (hypotheses only). Keep informal tone; flag uncertainty. Promote to context/intake/ after review if appropriate.
+Turn these messy workshop notes into a single intake file for knowledge_staging/intake/. YAML: type=intake, status=draft. Body: ## Attendees (optional anonymised), ## Raw themes, ## Open questions, ## Suspected links to standards/patterns (hypotheses only). Keep informal tone; flag uncertainty. Promote to knowledge/intake/ after review if appropriate.
 ```
 
 **Prompt: add `related:` links after files already exist**
 
 ```text
-Here is the body of an existing context file (below). List 3–8 other plausible paths under context/ that should be linked. Output ONLY an updated YAML front matter block with a filled related: list using paths that exist in this repo (infer from workspace/context tree if needed). Do not change the body.
+Here is the body of an existing context file (below). List 3–8 other plausible paths under knowledge/ that should be linked. Output ONLY an updated YAML front matter block with a filled related: list using paths that exist in this repo (infer from workspace/knowledge tree if needed). Do not change the body.
 
 ---FILE---
 [paste file content]
@@ -214,8 +214,8 @@ Here is the body of an existing context file (below). List 3–8 other plausible
 ## Retrieval behaviour (for authors)
 
 - Agents work best when **no single file** contains the entire answer to a complex question; **cross-link** related artefacts.
-- The **retrieval planner** benefits from explicit **paths** (e.g. `context/patterns/reporting-patterns.txt`) in user prompts or handoffs.
-- **Short** search queries and scoping under `context/…` beat one long sentence in `search_workspace_text`.
+- The **retrieval planner** benefits from explicit **paths** (e.g. `knowledge/patterns/reporting-patterns.txt`) in user prompts or handoffs.
+- **Short** search queries and scoping under `knowledge/…` beat one long sentence in `search_workspace_text`.
 
 ---
 

@@ -30,7 +30,7 @@ def test_load_artefact_profiles_reads_registry(registry_dir: Path):
 
 def test_validate_flags_missing_integration_pattern_section(tmp_path: Path, registry_dir: Path):
     root = tmp_path
-    rel = "workspace/context_staging/patterns/consumer-pattern-1-acme.md"
+    rel = "workspace/knowledge_staging/patterns/consumer-pattern-1-acme.md"
     _write(
         root / rel,
         (
@@ -53,8 +53,8 @@ def test_validate_flags_missing_integration_pattern_section(tmp_path: Path, regi
 
 def test_integration_pattern_slug_dedup(registry_dir: Path, tmp_path: Path):
     root = tmp_path
-    a = "workspace/context_staging/patterns/ingestion-pattern-3-one.md"
-    b = "workspace/context_staging/patterns/ingestion-pattern-3-two.md"
+    a = "workspace/knowledge_staging/patterns/ingestion-pattern-3-one.md"
+    b = "workspace/knowledge_staging/patterns/ingestion-pattern-3-two.md"
     body = (
         "---\nid: IA\ntitle: A\ntype: pattern\nstatus: draft\nowner: Architecture\n---\n\n"
         "## Design overview\nx\n## When to use\nx\n## Implementation\nx\n"
@@ -72,7 +72,7 @@ def test_integration_pattern_slug_dedup(registry_dir: Path, tmp_path: Path):
 
 def test_type_alias_maps_hld(registry_dir: Path, tmp_path: Path):
     root = tmp_path
-    rel = "workspace/context/designs/campus-network-hld.md"
+    rel = "workspace/knowledge/designs/campus-network-hld.md"
     _write(
         root / rel,
         (
@@ -90,7 +90,7 @@ def test_type_alias_maps_hld(registry_dir: Path, tmp_path: Path):
 
 def test_readme_relaxed_metadata(registry_dir: Path, tmp_path: Path):
     root = tmp_path
-    rel = "workspace/context/standards/sub/README.md"
+    rel = "workspace/knowledge/standards/sub/README.md"
     _write(root / rel, "# Folder notes\n\n## Overview\nBrief.\n")
     result = validate_workspace_artefact_paths(
         root_dir=root,
@@ -110,4 +110,3 @@ def test_skips_paths_outside_configured_prefixes(registry_dir: Path, tmp_path: P
         registry_dir=registry_dir,
     )
     assert result.ok
-

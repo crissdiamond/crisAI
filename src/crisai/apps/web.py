@@ -28,15 +28,18 @@ from crisai.cli.main import (
     _run_with_routing,
 )
 from crisai.cli.session_store import (
+    list_task_names,
     load_history,
     load_session_memory,
     sanitize_session_name,
     save_history,
     session_dir,
+    tasks_dir,
 )
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging
 from crisai.orchestration.exceptions import WorkflowValidationError
+from crisai.workspace.spaces import load_workspace_spaces
 
 
 @asynccontextmanager
@@ -67,6 +70,13 @@ class SessionCreateRequest(BaseModel):
     """Represent a request to create a new web session."""
 
     session: str = Field(min_length=1)
+
+
+class WorkspaceFileSaveRequest(BaseModel):
+    """Represent a web request to save editable workspace Markdown."""
+
+    path: str = Field(min_length=1)
+    content: str = Field(default="")
 
 
 def _trace_file_path() -> Path:
@@ -191,8 +201,9 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
 
 
 def _list_session_names() -> list[str]:
-    """List available persisted chat sessions."""
+    """List available persisted task sessions, including legacy sessions."""
     names: list[str] = []
+    names.extend(list_task_names())
     for file_path in session_dir().glob("*.json"):
         names.append(file_path.stem)
     if "default" not in names:
@@ -208,14 +219,20 @@ def _session_name_newest_by_mtime() -> str | None:
     """
     best_mtime: float | None = None
     best_name: str | None = None
-    for file_path in session_dir().glob("*.json"):
+    candidates = list(session_dir().glob("*.json"))
+    for task_name in list_task_names():
+        candidates.append(tasks_dir() / task_name / ".crisai" / "history.json")
+    for file_path in candidates:
         try:
             mtime = file_path.stat().st_mtime
         except OSError:
             continue
+        stem = file_path.stem
+        if file_path.name == "history.json" and file_path.parent.name == ".crisai":
+            stem = file_path.parent.parent.name
         if best_mtime is None or mtime >= best_mtime:
             best_mtime = mtime
-            best_name = file_path.stem
+            best_name = stem
     return best_name
 
 
@@ -238,6 +255,67 @@ def _serialize_memory(session_name: str) -> dict[str, Any]:
 def _read_ui_asset(name: str) -> str:
     """Read a UI asset file from the local apps UI directory."""
     return (_UI_DIR / name).read_text(encoding="utf-8")
+
+
+def _workspace_root() -> Path:
+    return load_settings().workspace_dir.resolve()
+
+
+def _safe_workspace_path(relative_path: str) -> Path:
+    raw = str(relative_path or "").strip().lstrip("/")
+    if raw.startswith("workspace/"):
+        raw = raw[len("workspace/") :]
+    root = _workspace_root()
+    candidate = (root / raw).resolve()
+    if candidate != root and root not in candidate.parents:
+        raise HTTPException(status_code=400, detail="Path escapes workspace root.")
+    return candidate
+
+
+def _browser_roots() -> dict[str, str]:
+    spaces = load_workspace_spaces(load_settings().registry_dir)
+    return {
+        "knowledge": spaces.knowledge_root,
+        "tasks": spaces.tasks_root,
+        "staging": spaces.knowledge_staging_root,
+    }
+
+
+def _assert_editable_workspace_file(path: Path) -> None:
+    root = _workspace_root()
+    rel = path.relative_to(root).as_posix()
+    roots = _browser_roots()
+    editable_roots = (roots["knowledge"], roots["tasks"], roots["staging"])
+    if not any(rel == item or rel.startswith(f"{item}/") for item in editable_roots):
+        raise HTTPException(status_code=403, detail="File is outside editable workspace areas.")
+    if path.suffix.lower() not in {".md", ".txt", ".mmd", ".json", ".yaml", ".yml"}:
+        raise HTTPException(status_code=403, detail="This file type is not editable in the web UI.")
+
+
+def _workspace_tree(base: Path) -> list[dict[str, Any]]:
+    root = _workspace_root()
+    if not base.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    for path in sorted(base.rglob("*")):
+        if path.name.startswith(".") and path.is_dir():
+            continue
+        if path.is_dir():
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        rel = path.relative_to(root).as_posix()
+        entries.append(
+            {
+                "path": rel,
+                "name": path.name,
+                "size": stat.st_size,
+                "editable": path.suffix.lower() in {".md", ".txt", ".mmd", ".json", ".yaml", ".yml"},
+            }
+        )
+    return entries
 
 
 def _expected_flow_tabs(decision: Any) -> list[dict[str, str]]:
@@ -548,6 +626,45 @@ def get_session(session_name: str) -> dict[str, Any]:
         "history": _serialize_history(history),
         "memory": _serialize_memory(safe_name),
     }
+
+
+@app.get("/api/workspace/roots")
+def workspace_roots() -> dict[str, Any]:
+    """Return browseable workspace roots."""
+    return {"roots": _browser_roots()}
+
+
+@app.get("/api/workspace/tree/{root_name}")
+def workspace_tree(root_name: str) -> dict[str, Any]:
+    """Return a flat file tree for one browseable workspace root."""
+    roots = _browser_roots()
+    if root_name not in roots:
+        raise HTTPException(status_code=404, detail="Unknown workspace root.")
+    base = _safe_workspace_path(roots[root_name])
+    return {"root": root_name, "path": roots[root_name], "files": _workspace_tree(base)}
+
+
+@app.get("/api/workspace/file")
+def workspace_file(path: str) -> dict[str, Any]:
+    """Read one workspace file for display/editing."""
+    file_path = _safe_workspace_path(path)
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Workspace file not found.")
+    _assert_editable_workspace_file(file_path)
+    return {
+        "path": file_path.relative_to(_workspace_root()).as_posix(),
+        "content": file_path.read_text(encoding="utf-8"),
+    }
+
+
+@app.post("/api/workspace/file")
+def save_workspace_file(payload: WorkspaceFileSaveRequest) -> dict[str, Any]:
+    """Save one editable workspace file."""
+    file_path = _safe_workspace_path(payload.path)
+    _assert_editable_workspace_file(file_path)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(payload.content, encoding="utf-8")
+    return {"path": file_path.relative_to(_workspace_root()).as_posix(), "saved": True}
 
 
 def main() -> None:

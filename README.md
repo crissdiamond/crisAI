@@ -19,7 +19,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - Deterministic retrieval expansion from registry dictionaries.
 - Runtime policy gates for intranet-grounded work and file-producing workflows.
 - Peer judge/verifier controls for higher-effort architecture work.
-- Persistent chat sessions, route visibility, logs, and validation commands.
+- Task-backed sessions, route visibility, logs, workspace browsing, and validation commands.
 
 For the full operator manual, see [DOCUMENTATION.md](DOCUMENTATION.md). For deterministic retrieval internals, see [DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md](DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md).
 
@@ -93,7 +93,7 @@ registry/     Agent, server, model, routing, policy, and retrieval dictionaries
 prompts/      Agent prompt files and prompt-authoring guidance
 src/crisai/   CLI, web app, orchestration, MCP servers, runtime, and validation code
 tests/        Network-free unit, CLI, and orchestration regression tests
-workspace/    Local inputs, approved context, staged drafts, outputs, sessions, and caches
+workspace/    Knowledge base, task workspaces, staged knowledge, outputs, sessions, and caches
 runbooks/     Operational setup, security, registry, policy, and observability notes
 ```
 
@@ -191,6 +191,7 @@ The registry is the main control plane:
 - `registry/models.yaml`: provider-specific model names and API key env vars.
 - `registry/servers.yaml`: MCP server definitions and allowed tools.
 - `registry/workflow_policy.yaml`: runtime hard gates.
+- `registry/workspace_spaces.yaml`: workspace roots, task artefact folders, promotion roots, and architecture vocabulary.
 - `registry/session_memory.yaml`: compact session memory defaults, with `.env` overrides via `CRISAI_SESSION_MEMORY_*`.
 - `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, and retrieval source-fit constraints.
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
@@ -202,14 +203,26 @@ Run `crisai doctor --models` after model/provider edits to dry-build configured 
 
 crisAI can retrieve from:
 
-- Approved local architecture context under `workspace/context/`.
-- Local user files and generated outputs under `workspace/`.
+- Approved local architecture knowledge under `workspace/knowledge/`.
+- Active task artefacts and inputs under `workspace/tasks/<task>/`.
+- Staged knowledge promotion candidates under `workspace/knowledge_staging/`.
+- Local user files and generated outputs under `workspace/outputs/`.
 - Supported local documents such as `.md`, `.txt`, `.csv`, `.docx`, `.pdf`, `.pptx`, and `.xlsx`; PowerPoint files expose slide-level text, tables, and extraction coverage.
 - Standalone workspace images and embedded PowerPoint pictures through the `vision` MCP server.
 - SharePoint / OneDrive documents through delegated Microsoft Graph, with opaque read handles, PowerPoint inspection tools, and validated evidence handoffs to prevent ID transcription errors.
 - Published intranet pages through the scoped intranet MCP. The default provider is SharePoint Site Pages; custom providers can adapt wiki-style intranets.
 
 For latest/master document summaries, crisAI asks for source confirmation when modified-date and version/master signals conflict instead of guessing.
+
+## Workspace Model
+
+crisAI separates team-owned knowledge from task work:
+
+- `workspace/knowledge/` is the curated, approved, machine-readable knowledge base used for retrieval.
+- `workspace/tasks/<task>/` is the working space for one task session. Agents write Markdown/Mermaid source artefacts under `artefacts/` and can reuse them as context later in the same task.
+- `workspace/knowledge_staging/` is the review area for content promoted from task artefacts or generated from source documentation.
+
+Markdown is the authoritative generated artefact format. Native Word, PowerPoint, Excel, email, JSON, and diagram exports should be generated later from reviewed Markdown and organisation templates.
 
 SharePoint documents and SharePoint-backed intranet pages use separate MCP servers and separate token caches. Full Graph setup, auth behavior, and prompting guidance are in [DOCUMENTATION.md](DOCUMENTATION.md).
 

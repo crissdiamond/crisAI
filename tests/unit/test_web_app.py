@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from crisai.apps.web import (
     RunRequest,
     SessionCreateRequest,
+    WorkspaceFileSaveRequest,
     _collect_stage_outputs,
     _evict_old_jobs,
     _select_latest_run,
@@ -19,6 +20,9 @@ from crisai.apps.web import (
     get_session,
     list_sessions,
     run,
+    save_workspace_file,
+    workspace_file,
+    workspace_tree,
 )
 
 
@@ -360,3 +364,52 @@ def test_evict_old_jobs_noop_when_under_limit():
     _evict_old_jobs(max_completed=20)
 
     assert len(web_mod._RUN_JOBS) == 5
+
+
+def test_workspace_tree_lists_knowledge_files(tmp_path, monkeypatch):
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    knowledge = workspace / "knowledge"
+    knowledge.mkdir(parents=True)
+    (knowledge / "standard.md").write_text("# Standard\n", encoding="utf-8")
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+
+    payload = workspace_tree("knowledge")
+
+    assert payload["root"] == "knowledge"
+    assert payload["files"][0]["path"] == "knowledge/standard.md"
+    assert payload["files"][0]["editable"] is True
+
+
+def test_workspace_file_read_and_save_markdown(tmp_path, monkeypatch):
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    path = workspace / "tasks/demo/artefacts/design.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("# Draft\n", encoding="utf-8")
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+
+    read_payload = workspace_file("tasks/demo/artefacts/design.md")
+    assert read_payload["content"] == "# Draft\n"
+
+    save_payload = save_workspace_file(
+        WorkspaceFileSaveRequest(path="tasks/demo/artefacts/design.md", content="# Updated\n")
+    )
+
+    assert save_payload["saved"] is True
+    assert path.read_text(encoding="utf-8") == "# Updated\n"
+
+
+def test_workspace_file_rejects_path_traversal(tmp_path, monkeypatch):
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+
+    with pytest.raises(HTTPException) as exc_info:
+        workspace_file("../outside.md")
+
+    assert exc_info.value.status_code == 400

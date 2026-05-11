@@ -49,7 +49,8 @@ _DEFAULT_CONFIG: dict[str, Any] = {
             "create file",
             "create files",
             "deliver files",
-            "context_staging/",
+            "knowledge_staging/",
+            "tasks/",
             "under workspace/",
         ],
     },
@@ -57,7 +58,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
         "intranet_fetch_for_capabilities": ["intranet_grounded"],
         "workspace_write_for_capabilities": ["produce_artifacts"],
     },
-    "write_target_subdir": "workspace/context_staging",
+    "write_target_subdir": "workspace/tasks",
 }
 
 
@@ -123,7 +124,7 @@ def infer_workflow_policy(
         for capability in (requirements.get("workspace_write_for_capabilities") or [])
     )
     write_target_subdir = (
-        str(config.get("write_target_subdir") or "workspace/context_staging")
+        str(config.get("write_target_subdir") or "workspace/tasks")
         if require_workspace_write
         else None
     )

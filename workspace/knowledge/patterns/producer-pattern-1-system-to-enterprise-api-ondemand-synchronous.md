@@ -1,6 +1,6 @@
 ---
 id: PATT-INT-006
-title: Producer Pattern 1 - System to Enterprise API: onDemand Synchronous
+title: "Producer Pattern 1 - System to Enterprise API: onDemand Synchronous"
 type: pattern
 status: reviewed
 owner: Architecture

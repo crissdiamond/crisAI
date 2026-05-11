@@ -11,7 +11,7 @@ def test_search_workspace_text_token_fallback_on_long_query(tmp_path, monkeypatc
     """Long queries that match no single line still find files via token fallback."""
     fake_workspace = tmp_path / "ws"
     fake_workspace.mkdir()
-    ctx = fake_workspace / "context"
+    ctx = fake_workspace / "knowledge"
     ctx.mkdir()
     (ctx / "reporting-patterns.txt").write_text(
         "Use a staging layer before Power BI connects to curated sources.\n",
@@ -29,7 +29,7 @@ def test_search_workspace_text_token_fallback_on_long_query(tmp_path, monkeypatc
         "Challenge a speed-first approach and find governance patterns for "
         "Power BI connecting to Excel in a monthly reporting scenario"
     )
-    hits = workspace_server.search_workspace_text(long_query, subdir="context", max_hits=10)
+    hits = workspace_server.search_workspace_text(long_query, subdir="knowledge", max_hits=10)
     assert hits, "expected token fallback to match a distinctive word on a line"
     assert any("reporting-patterns.txt" in str(h["path"]) for h in hits)
 
@@ -64,7 +64,7 @@ def test_expand_associations_returns_advisory_payload(tmp_path, monkeypatch) -> 
     assert payload["activated_topics"] == ["integration_principles_corpus"]
 
 
-def test_workspace_write_policy_allows_staged_markdown(tmp_path, monkeypatch) -> None:
+def test_workspace_write_policy_allows_task_markdown(tmp_path, monkeypatch) -> None:
     fake_workspace = tmp_path / "ws"
     fake_workspace.mkdir()
 
@@ -75,10 +75,10 @@ def test_workspace_write_policy_allows_staged_markdown(tmp_path, monkeypatch) ->
 
     import crisai.servers.workspace_server as workspace_server
 
-    written = workspace_server.write_workspace_file("context_staging/patterns/a.md", "# A\n")
+    written = workspace_server.write_workspace_file("tasks/demo/artefacts/a.md", "# A\n")
 
-    assert written == "context_staging/patterns/a.md"
-    assert (fake_workspace / "context_staging/patterns/a.md").read_text(encoding="utf-8") == "# A\n"
+    assert written == "tasks/demo/artefacts/a.md"
+    assert (fake_workspace / "tasks/demo/artefacts/a.md").read_text(encoding="utf-8") == "# A\n"
 
 
 def test_workspace_write_policy_blocks_unapproved_subdir(tmp_path, monkeypatch) -> None:
@@ -93,7 +93,7 @@ def test_workspace_write_policy_blocks_unapproved_subdir(tmp_path, monkeypatch) 
     import crisai.servers.workspace_server as workspace_server
 
     with pytest.raises(ValueError, match="restricted to these subdirectories"):
-        workspace_server.write_workspace_file("context/canonical.md", "# No\n")
+        workspace_server.write_workspace_file("knowledge/canonical.md", "# No\n")
 
 
 def test_workspace_write_policy_blocks_unapproved_extension(tmp_path, monkeypatch) -> None:

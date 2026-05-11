@@ -1,6 +1,6 @@
 ---
 id: PATT-INT-005
-title: Consumer Pattern 4 - Enterprise API to System: Asynchronous
+title: "Consumer Pattern 4 - Enterprise API to System: Asynchronous"
 type: pattern
 status: reviewed
 owner: Architecture

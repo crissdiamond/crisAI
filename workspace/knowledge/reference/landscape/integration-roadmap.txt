@@ -8,7 +8,7 @@ last_reviewed: 2026-05-03
 applies_to: all
 tags: roadmap, timeline, transition
 related:
-  - context/reference/landscape/integration-operating-model.txt
+  - knowledge/reference/landscape/integration-operating-model.txt
 ---
 ## Implementation Phases
 Note: This document reflects the historical roadmap established in September 2021.

@@ -105,9 +105,17 @@ pre { background: #f6f1fb; border: 1px solid #d6c7e8; border-radius: var(--radiu
   background: #faf8fc;
 }
 .muted { color: #6a5a7e; font-size: 13px; }
+.workspace-grid { display: grid; grid-template-columns: minmax(240px, 0.8fr) minmax(320px, 1.2fr); gap: var(--space-3); margin-top: var(--space-3); }
+.workspace-files { border: 1px solid var(--color-border); border-radius: var(--radius-sm); max-height: 360px; overflow-y: auto; background: #fff; }
+.file-row { display: block; width: 100%; border: 0; border-bottom: 1px solid #eee6f5; border-radius: 0; background: #fff; color: var(--color-text); text-align: left; font-weight: 500; overflow-wrap: anywhere; }
+.file-row:hover, .file-row.active { background: var(--color-surface-pale); color: var(--color-primary-dark); }
+.workspace-editor { min-height: 360px; font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace; font-size: 13px; line-height: 1.45; }
+.editor-actions { margin-top: var(--space-2); max-width: 160px; }
 a { color: var(--color-primary-dark); text-decoration: underline; }
 *:focus-visible { outline: 3px solid var(--color-accent-blue); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
-
+@media (max-width: 760px) {
+  .workspace-grid { grid-template-columns: 1fr; }
+}

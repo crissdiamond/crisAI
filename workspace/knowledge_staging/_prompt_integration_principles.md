@@ -1,5 +1,5 @@
 ## Objective
-Build **draft** architecture-context artefacts for **integration principles only** from UCL IT Architecture **intranet Site Pages** (see `registry/intranet.yaml`). Stage files only under **`workspace/context_staging/principles/`** (`type: principle`), using the layout you intend after promotion to `workspace/context/principles/`.
+Build **draft** architecture-knowledge artefacts for **integration principles only** from UCL IT Architecture **intranet Site Pages** (see `registry/intranet.yaml`). Stage files only under **`workspace/knowledge_staging/principles/`** (`type: principle`), using the layout you intend after promotion to `workspace/knowledge/principles/`.
 
 Use **peer mode** for this run so author → challenger → refiner → judge → final orchestrator all execute.
 
@@ -36,9 +36,9 @@ After the judge accepts, the run applies **filesystem + artefact profile checks*
 Obey these rules so validation passes:
 
 1. **Default front matter (every authored `.md` in this exercise)**  
-   Include: `id`, `title`, `type`, `status` (`draft`), `owner` (`Architecture`), `related:` only paths that already exist under `workspace/context/` (otherwise `related: []`).
+   Include: `id`, `title`, `type`, `status` (`draft`), `owner` (`Architecture`), `related:` only paths that already exist under `workspace/knowledge/` (otherwise `related: []`).
 
-2. **`type: principle` files** under `workspace/context_staging/principles/*.md`  
+2. **`type: principle` files** under `workspace/knowledge_staging/principles/*.md`  
    Required level-2 headings **verbatim**:
    - `## Scope`
    - `## Statement`
@@ -49,16 +49,16 @@ Obey these rules so validation passes:
 
 4. **Final orchestrator close-out:** the last assistant message must list **every** `workspace/.../*.md` file created or updated by full repo-relative path (peer verifier).
 
-Optional pre-check: `crisai validate-artefacts -p workspace/context_staging/principles/<file>.md`
+Optional pre-check: `crisai validate-artefacts -p workspace/knowledge_staging/principles/<file>.md`
 
 ## Task 0 — Baseline reading
 Read:
 
-- `workspace/context/README.md` (folder intent and metadata field reference)
+- `workspace/knowledge/README.md` (folder intent and metadata field reference)
 - `prompts/_shared/context-staging.md` (catalogue vs leaf behaviour)
 - `registry/workspace_artifact_profiles.yaml` (required headings for `type: principle`)
 
-Do **not** recycle approved corpus text from `workspace/context/` as **source facts** for new claims (reading templates or README for shape is fine).
+Do **not** recycle approved corpus text from `workspace/knowledge/` as **source facts** for new claims (reading templates or README for shape is fine).
 
 ## Task 1 — Discover intranet pages (graph hints + principles + flows)
 1. **Use the injected graph hints** (`integration_principles_corpus` and neighbours) plus the user request to build **query tokens** for `intranet_search` and `intranet_list_all_pages` (include synonyms such as **integration principles**, **integration strategy**, **producer/consumer** phrasing as hints—not as proof until fetched).
@@ -79,7 +79,7 @@ For each principle file you plan to write:
 If an **integration principles** page or the **producer/consumer flows** page cannot be fetched after reasonable attempts, record the exact tool errors and attempts in **retrieval gaps** and do not fabricate content for that scope.
 
 ## Task 3 — Author files, naming, and dedup
-Write only with `write_workspace_file` under **`workspace/context_staging/principles/`**.
+Write only with `write_workspace_file` under **`workspace/knowledge_staging/principles/`**.
 
 - One main topic per file where possible.  
 - Filename convention: `integration-principle-<short-topic-slug>.md` (lowercase, hyphenated).  

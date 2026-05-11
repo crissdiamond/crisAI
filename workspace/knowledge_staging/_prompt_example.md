@@ -1,5 +1,5 @@
 ## Objective
-Build draft architecture-context artefacts from UCL IT Architecture intranet Site Pages only (see `registry/intranet.yaml`), and stage them only under `workspace/context_staging/` (normally `workspace/context_staging/patterns/`).
+Build draft architecture-knowledge artefacts from UCL IT Architecture intranet Site Pages only (see `registry/intranet.yaml`), and stage them only under `workspace/knowledge_staging/` (normally `workspace/knowledge_staging/patterns/`).
 
 Use **peer mode** for this run so author → challenger → refiner → judge → final orchestrator all execute.
 
@@ -17,7 +17,7 @@ After the judge accepts, the run applies **filesystem + artefact profile checks*
 
 Obey these **exact** rules so validation passes:
 
-1. **Integration pattern leaf files** (`workspace/context_staging/patterns/*.md` with `type: pattern`, excluding index/gaps/readme):
+1. **Integration pattern leaf files** (`workspace/knowledge_staging/patterns/*.md` with `type: pattern`, excluding index/gaps/readme):
    - Front matter must include: `id`, `title`, `type`, `status`, `owner` (use `Architecture` for this exercise).
    - Body must contain these level-2 headings **verbatim** (spelling and casing):
      - `## Design overview`
@@ -38,19 +38,19 @@ Obey these **exact** rules so validation passes:
 
 5. **Final orchestrator close-out:** the last assistant message must mention **every** `workspace/.../*.md` file created or updated in this run by full repo-relative path. Omitted changed files cause peer verifier failure.
 
-Optional local pre-check (from repo root): `crisai validate-artefacts -p workspace/context_staging/patterns/<file>.md`
+Optional local pre-check (from repo root): `crisai validate-artefacts -p workspace/knowledge_staging/patterns/<file>.md`
 
 ## Task 0 — Baseline format and metadata
 Read:
-- `workspace/context/README.md`
-- `workspace/context/_templates/integration-pattern-artefact-template.txt`
+- `workspace/knowledge/README.md`
+- `workspace/knowledge/_templates/integration-pattern-artefact-template.txt`
 
 Apply these front matter rules to every generated **pattern** file (index and leaf):
 - `status: draft`
 - `type: pattern`
 - `owner: Architecture` (fixed default for this exercise)
 - stable `id` values (for example `PATT-INT-001`, incremented without reusing ids across files)
-- `related:` includes only existing paths under `workspace/context/` (otherwise `related: []`)
+- `related:` includes only existing paths under `workspace/knowledge/` (otherwise `related: []`)
 
 **Leaf** detail files must satisfy the **Peer pipeline and artefact validator** heading list above (stricter than “omit section if empty” in the template — headings are always required for this run).
 
@@ -96,7 +96,7 @@ For each pattern selected for authoring, capture an evidence card before writing
 - 2–4 short verbatim excerpts from fetched body text that justify key sections (for example implementation, NFRs, security, physical implementation)
 
 ## Task 3 — Author files with canonical naming and dedup
-Write only with `write_workspace_file` under `workspace/context_staging/patterns/`.
+Write only with `write_workspace_file` under `workspace/knowledge_staging/patterns/`.
 
 Mandatory files:
 - one index file: `integration-patterns-index.md`

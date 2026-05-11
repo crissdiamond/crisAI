@@ -1,6 +1,6 @@
 ---
 id: PATT-INT-007
-title: Producer Pattern 2 - System to Enterprise Channel: Batch Synchronous
+title: "Producer Pattern 2 - System to Enterprise Channel: Batch Synchronous"
 type: pattern
 status: reviewed
 owner: Architecture

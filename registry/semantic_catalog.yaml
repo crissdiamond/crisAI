@@ -274,7 +274,7 @@ router:
 
 peer_verifier:
   pattern_gap_line: "^\\s*-\\s*(Consumer|Producer|Ingestion)\\s+Pattern\\s+(\\d+)\\s*:"
-  leaf_file_pattern: "workspace/context_staging/patterns/(consumer|producer|ingestion)-pattern-(\\d+)\\.md$"
+  leaf_file_pattern: "workspace/(?:(?:knowledge_staging|context_staging)/patterns|tasks/[^/]+/artefacts/patterns)/(consumer|producer|ingestion)-pattern-(\\d+)\\.md$"
   leaf_file_terms:
     - pattern
     - patterns
@@ -485,7 +485,8 @@ peer_contract:
     - save file
     - save files
     - under workspace/
-    - context_staging/
+    - knowledge_staging/
+    - tasks/
     - deliver files
     - artifact
     - artefact

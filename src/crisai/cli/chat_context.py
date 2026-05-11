@@ -13,6 +13,7 @@ from crisai.cli.session_store import (
     SessionMemory,
     load_session_memory,
     save_session_memory,
+    task_dir,
 )
 from crisai.cli.text_loader import render_cli_text
 from crisai.config import load_settings
@@ -176,6 +177,13 @@ def build_runtime_context_package(
     runtime_context = "\n\n".join(
         part
         for part in [
+            "Active task workspace:\n"
+            + f"- Task session: {session_name}\n"
+            + f"- Task root: workspace/tasks/{task_dir(session_name).name}\n"
+            + f"- Artefacts: workspace/tasks/{task_dir(session_name).name}/artefacts\n"
+            + f"- Inputs: workspace/tasks/{task_dir(session_name).name}/inputs"
+            if session_name
+            else "",
             "Compact session memory:\n" + memory_text if memory_text else "",
             "Relevant recent turns:\n" + transcript if transcript else "",
         ]

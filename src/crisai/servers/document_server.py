@@ -21,6 +21,7 @@ from pypdf import PdfReader
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
 from crisai.powerpoint import extract_powerpoint_from_path
+from crisai.workspace.spaces import load_workspace_spaces
 
 mcp = FastMCP("crisai-document-reader")
 
@@ -110,11 +111,16 @@ log_event(f"server_started root={ROOT}")
 
 def _safe_path(relative_path: str) -> Path:
     raw = (relative_path or ".").strip()
+    spaces = load_workspace_spaces()
 
     if raw.startswith("/"):
         raw = raw.lstrip("/")
     if raw.startswith("workspace/"):
         raw = raw[len("workspace/"):]
+    if (raw == "context" or raw.startswith("context/")) and not (ROOT / raw).exists():
+        raw = raw.replace("context", spaces.knowledge_root, 1)
+    if (raw == "context_staging" or raw.startswith("context_staging/")) and not (ROOT / raw).exists():
+        raw = raw.replace("context_staging", spaces.knowledge_staging_root, 1)
 
     candidate = (ROOT / raw).resolve()
     root = ROOT.resolve()
@@ -340,7 +346,7 @@ def _iter_supported_files(base: Path) -> list[Path]:
 
 
 def _build_context_chunks(
-    context_subdir: str = "context",
+    context_subdir: str = "knowledge",
     max_chars: int = 1200,
     overlap_chars: int = 200,
 ) -> list[dict[str, Any]]:
@@ -449,7 +455,7 @@ def list_supported_document_files(subdir: str = ".") -> list[str]:
 
 @mcp.tool()
 def build_context_index(
-    context_subdir: str = "context",
+    context_subdir: str = "knowledge",
     max_chars: int = 1200,
     overlap_chars: int = 200,
 ) -> dict[str, Any]:
@@ -499,7 +505,7 @@ def search_context_chunks(
     query: str,
     max_results: int = 8,
     rebuild: bool = False,
-    context_subdir: str = "context",
+    context_subdir: str = "knowledge",
 ) -> list[dict[str, Any]]:
     """Search indexed context chunks using local vector similarity.
 

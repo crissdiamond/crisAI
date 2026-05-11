@@ -8,10 +8,10 @@ last_reviewed: 2026-05-10
 applies_to: reporting, analytics, business-intelligence
 tags: hld, reporting, power-bi, data-platform, governance, lineage
 related:
-  - context/standards/reporting-standard.txt
-  - context/standards/governance-standard.txt
-  - context/standards/naming-and-lineage.txt
-  - context/patterns/reporting-patterns.txt
+  - knowledge/standards/reporting-standard.txt
+  - knowledge/standards/governance-standard.txt
+  - knowledge/standards/naming-and-lineage.txt
+  - knowledge/patterns/reporting-patterns.txt
 ---
 
 ## Purpose
@@ -320,11 +320,11 @@ Document:
 
 ## Source
 
-This template is based on local crisAI reporting, governance, and lineage standards under `workspace/context/standards/`, and reporting design precedent under `workspace/context/designs/`.
+This template is based on local crisAI reporting, governance, and lineage standards under `workspace/knowledge/standards/`, and reporting design precedent under `workspace/knowledge/designs/`.
 
 ## References
 
-- `context/standards/reporting-standard.txt`
-- `context/standards/governance-standard.txt`
-- `context/standards/naming-and-lineage.txt`
-- `context/patterns/reporting-patterns.txt`
+- `knowledge/standards/reporting-standard.txt`
+- `knowledge/standards/governance-standard.txt`
+- `knowledge/standards/naming-and-lineage.txt`
+- `knowledge/patterns/reporting-patterns.txt`

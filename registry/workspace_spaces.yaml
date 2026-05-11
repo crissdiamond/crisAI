@@ -1,0 +1,92 @@
+version: 1
+
+workspace_spaces:
+  knowledge_root: knowledge
+  knowledge_staging_root: knowledge_staging
+  tasks_root: tasks
+  legacy_knowledge_roots:
+    - context
+  legacy_knowledge_staging_roots:
+    - context_staging
+
+  task_subdirs:
+    artefacts: artefacts
+    inputs: inputs
+    scratch: scratch
+    exports: exports
+
+  writable_roots:
+    - outputs
+    - scratch
+    - knowledge_staging
+    - tasks
+
+  knowledge_categories:
+    - principles
+    - standards
+    - patterns
+    - platforms
+    - data-models
+    - organisation
+    - strategies
+    - programmes
+    - initiatives
+    - decisions
+    - templates
+    - reference
+
+  task_artefact_categories:
+    - designs
+    - hld
+    - lld
+    - options
+    - diagrams
+    - presentations
+    - communications
+    - mappings
+    - payloads
+    - notes
+    - evidence
+
+  promotion:
+    source_roots:
+      - tasks
+      - knowledge_staging
+    target_root: knowledge
+    requires_explicit_request: true
+    transform_for_machine_readability: true
+
+  enterprise_architecture_terms:
+    - high level design
+    - hld
+    - low level design
+    - lld
+    - solution design
+    - technical design
+    - options paper
+    - decision record
+    - adr
+    - architecture decision record
+    - architecture principle
+    - architecture standard
+    - reference architecture
+    - solution pattern
+    - integration pattern
+    - data model
+    - conceptual data model
+    - logical data model
+    - physical data model
+    - interface specification
+    - mapping document
+    - payload
+    - non functional requirements
+    - nfr
+    - operating model
+    - capability model
+    - platform capability
+    - system landscape
+    - roadmap
+    - strategy
+    - initiative
+    - programme
+    - design authority

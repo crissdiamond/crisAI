@@ -15,7 +15,8 @@ workflow_policy:
       - create file
       - create files
       - deliver files
-      - context_staging/
+      - knowledge_staging/
+      - tasks/
       - under workspace/
 
   # Hard gate mapping: activate runtime requirements when a capability is set.
@@ -26,4 +27,4 @@ workflow_policy:
       - produce_artifacts
 
   # Subtree monitored for file changes when workspace_write is required.
-  write_target_subdir: workspace/context_staging
+  write_target_subdir: workspace/tasks

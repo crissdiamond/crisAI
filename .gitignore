@@ -58,6 +58,14 @@ workspace/.cache/
 workspace/.cli_history
 workspace/chat_sessions/
 workspace/context_staging/
+workspace/knowledge_staging/**
+!workspace/knowledge_staging/
+!workspace/knowledge_staging/.gitkeep
+!workspace/knowledge_staging/README.md
+!workspace/knowledge_staging/_prompt*.md
+workspace/knowledge_staging/_prompt*.previous-*.md
+workspace/tasks/*/
+!workspace/tasks/README.md
 workspace/inputs/
 workspace/reference/
 workspace/scratch/

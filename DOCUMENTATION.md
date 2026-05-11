@@ -185,12 +185,12 @@ Outside interactive chat, you can reset a persisted session directly:
 crisai clear-session --session architecture
 ```
 
-Structural checks on staged or promoted corpus Markdown (`workspace/context/` and `workspace/context_staging/`) are driven by **`registry/workspace_artifact_profiles.yaml`**. The first matching profile (by declare order) supplies rules on top of `defaults`; front-matter **`type`** can be spelled with synonyms listed under `type_aliases` (for example **`HLD`** maps to **`high_level_design`**). Run validation manually:
+Structural checks on promoted knowledge, staged knowledge, and task Markdown (`workspace/knowledge/`, `workspace/knowledge_staging/`, and `workspace/tasks/`) are driven by **`registry/workspace_artifact_profiles.yaml`**. The first matching profile (by declare order) supplies rules on top of `defaults`; front-matter **`type`** can be spelled with synonyms listed under `type_aliases` (for example **`HLD`** maps to **`high_level_design`**). Run validation manually:
 
 ```bash
 crisai doctor
 crisai validate-artefacts
-crisai validate-artefacts -p workspace/context_staging/patterns/example.md
+crisai validate-artefacts -p workspace/knowledge_staging/patterns/example.md
 ```
 
 `crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, and tracked secret/cache hygiene. Use `crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
@@ -224,7 +224,7 @@ With **`/verbose off`** (the usual default for readable transcripts), pipeline a
 
 ### Session memory controls
 
-Each chat session stores raw history under `workspace/chat_sessions/` and a separate compact memory file beside it. Runtime prompts use the compact memory plus a small relevant recent tail instead of replaying the full session, which reduces repeated context and token waste during multi-step tasks.
+Each task session stores raw history, compact memory, and task metadata under `workspace/tasks/<task>/.crisai/`. Legacy `workspace/chat_sessions/` files are still read for compatibility. Runtime prompts use the compact memory plus a small relevant recent tail instead of replaying the full session, which reduces repeated context and token waste during multi-step tasks.
 
 Use one session per task when possible:
 
@@ -235,8 +235,8 @@ Use one session per task when possible:
 /context reset
 ```
 
-- `/session new <name>` starts a clean task session.
-- `/session <name>` switches to an existing session and loads its raw history.
+- `/session new <name>` starts a clean task session and creates `workspace/tasks/<name>/`.
+- `/session <name>` switches to an existing task session and loads its raw history.
 - `/session compact` rebuilds compact memory from the raw history.
 - `/context show` previews the compact memory and recent-turn budget that would be supplied to the next request.
 - `/context reset` clears compact memory while keeping raw history intact.
@@ -356,7 +356,7 @@ Notes:
 - `retrieval_planner` and `context_retrieval` can be skipped when retrieval is not needed for the peer task.
 - when retrieval is needed and the agent is configured, `context_synthesizer` runs after context retrieval to provide a stronger evidence basis for peer stages.
 - peer mode now compiles a run contract from the user request (expected output type, required side effects, grounding needs, acceptance dimensions) and injects it into peer role prompts.
-- contract inference prefers `artifact_package` for file-backed staging requests (for example `context_staging` deliverables) unless the request includes clear code targets (`src/`, `tests/`, language file extensions, or explicit code symbols).
+- contract inference prefers `artifact_package` for file-backed staging requests (for example `knowledge_staging` or task artefact deliverables) unless the request includes clear code targets (`src/`, `tests/`, language file extensions, or explicit code symbols).
 - judge output is now actionable: `Decision: revise` triggers bounded extra refiner/judge rounds (`CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`) before orchestration.
 - when revise loops remain unresolved, peer mode runs a bounded structural escalation (`design_author` + `design_challenger` + `design_refiner` + `judge`) driven by judge feedback (`CRISAI_PEER_MAX_ESCALATIONS`, default `1`).
 - accepted peer output still passes through a post-run verifier that checks file-backed claims against on-disk artefacts (for example referenced files exist, markdown shape is present, front-matter ids are unique, and claimed mismatch notes are actually written).
@@ -525,22 +525,32 @@ For architecture and documentation work, trustworthy retrieval matters more than
 
 ## 12. Workspace usage
 
-Recommended folders:
+crisAI separates team-owned knowledge from task-owned work:
 
 ```text
-workspace/inputs/
-workspace/reference/
-workspace/outputs/
-workspace/scratch/
-workspace/context_staging/
-workspace/chat_sessions/
+workspace/knowledge/                  approved, team-owned, machine-readable corpus
+workspace/knowledge_staging/          review area for knowledge promotion candidates
+workspace/tasks/<task>/.crisai/       task manifest, history, and compact memory
+workspace/tasks/<task>/artefacts/     Markdown/Mermaid source artefacts generated for the task
+workspace/tasks/<task>/inputs/        task-specific source files
+workspace/tasks/<task>/scratch/       temporary notes
+workspace/tasks/<task>/exports/       generated native exports from reviewed Markdown
+workspace/outputs/                    generic tool outputs
 ```
+
+`registry/workspace_spaces.yaml` owns the canonical root names, writable roots, task subdirectories, promotion roots, and enterprise-architecture vocabulary. Keep semantics there rather than hard-coding new workspace categories in Python.
+
+Agents may write task artefacts directly under the active task and may write knowledge promotion candidates under `knowledge_staging/`. Agents should not write directly to `knowledge/` unless a specific promotion workflow has been requested and validation passes.
+
+Markdown/Mermaid is the source of truth for generated architecture artefacts. Native Word, PowerPoint, Excel, email, JSON payload, mapping documents, and diagram exports should be generated as follow-on tasks from reviewed Markdown and organisation templates.
 
 ### Good path style
 
 ```text
 inputs/strategy.md
-reference/integration-guidelines.pdf
+tasks/reporting-hld/inputs/strategy.md
+tasks/reporting-hld/artefacts/reporting-hld.md
+knowledge/reference/template/hld_reporting.md
 ```
 
 ### Bad path style
@@ -550,6 +560,8 @@ workspace/inputs/strategy.md
 ```
 
 Agents should work with paths relative to the workspace root.
+
+The web app exposes `Knowledge`, `Tasks`, and `Staging` browser panes with read/edit support for text-based workspace files. It is intended for quick Markdown edits and review, not as a replacement for a governed document management system.
 
 ---
 

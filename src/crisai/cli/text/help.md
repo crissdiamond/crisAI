@@ -112,9 +112,9 @@ Then either let the router decide, or pin behaviour when you want tighter contro
 
 ## Non-interactive artefact validation
 
-Checks Markdown under `workspace/context/` and `workspace/context_staging/` against declarative profiles in `registry/workspace_artifact_profiles.yaml` (also applied automatically during peer filesystem verification for changed corpus files):
+Checks Markdown under `workspace/knowledge/`, `workspace/knowledge_staging/`, and `workspace/tasks/` against declarative profiles in `registry/workspace_artifact_profiles.yaml` (also applied automatically during peer filesystem verification for changed corpus files):
 
 ```bash
 crisai validate-artefacts
-crisai validate-artefacts -p workspace/context_staging/patterns/foo.md
+crisai validate-artefacts -p workspace/knowledge_staging/patterns/foo.md
 ```

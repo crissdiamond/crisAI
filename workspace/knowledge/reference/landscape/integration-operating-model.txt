@@ -8,7 +8,7 @@ last_reviewed: 2026-05-03
 applies_to: all
 tags: operating-model, roles, team-structure
 related:
-  - context/principles/integration-principles.txt
+  - knowledge/principles/integration-principles.txt
 ---
 ## Devolved Delivery Model
 The strategy shifts from a centralised bottleneck to a federated model of "Empowered Product Teams."

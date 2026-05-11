@@ -1,6 +1,6 @@
 ---
 id: PATT-INT-004
-title: Consumer Pattern 3 - Enterprise API to System: Synchronous
+title: "Consumer Pattern 3 - Enterprise API to System: Synchronous"
 type: pattern
 status: reviewed
 owner: Architecture

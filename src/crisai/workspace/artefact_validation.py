@@ -1,4 +1,4 @@
-"""Registry-driven Markdown validation under ``workspace/context*``.
+"""Registry-driven Markdown validation under configured workspace corpus roots.
 
 Profiles are declared in ``registry/workspace_artifact_profiles.yaml``. The verifier
 computes canonical ``type`` values from front matter plus optional aliases, resolves
@@ -30,8 +30,7 @@ def _norm_path_sep(rel: str) -> str:
 def _path_has_prefix(rel_posix: str, prefix: str) -> bool:
     """True when ``rel_posix`` is exactly the prefix path or a child of it.
 
-    Uses path segments so ``workspace/context`` does not match
-    ``workspace/context_staging``.
+    Uses path segments so sibling roots with common prefixes do not collide.
     """
     prefix_norm = _norm_path_sep(prefix.strip().strip("/"))
     path_norm = _norm_path_sep(rel_posix.strip().strip("/"))
@@ -280,7 +279,7 @@ def validate_workspace_artefact_paths(
 ) -> ArtefactValidationResult:
     """Validate markdown/text artefacts using registry profiles.
 
-    Only paths sharing a configured prefix under ``workspace/context`` roots are checked.
+    Only paths sharing a configured workspace artefact prefix are checked.
     Other paths are skipped without violation.
 
     Args:
@@ -305,7 +304,11 @@ def validate_workspace_artefact_paths(
         if p.lower().endswith(".md")
     ]
     in_scope = [p for p in markdown_paths if any(_path_has_prefix(p, root) for root in prefix_roots)]
-    builtin_scope = list(in_scope)
+    builtin_scope = [
+        p
+        for p in in_scope
+        if "/patterns/old" not in p and not PurePosixPath(p).name.startswith("_prompt")
+    ]
 
     slug_violations = _check_integration_pattern_slug_dedup(builtin_scope)
 

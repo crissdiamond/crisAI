@@ -85,9 +85,41 @@
       <div id="tabs" class="tabs"></div>
       <div id="tabContent" class="tab-content-panel flow-shade-5">No stage output yet.</div>
     </section>
+
+    <section class="section-card workspace-browser" aria-labelledby="workspace-browser-title">
+      <h2 id="workspace-browser-title">Workspace browser</h2>
+      <div class="row">
+        <div class="col">
+          <label for="workspaceRoot">Space</label>
+          <select id="workspaceRoot">
+            <option value="knowledge">Knowledge</option>
+            <option value="tasks">Tasks</option>
+            <option value="staging">Staging</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="workspaceFileFilter">Filter</label>
+          <input id="workspaceFileFilter" placeholder="Filter files..." />
+        </div>
+      </div>
+      <div class="workspace-grid">
+        <div>
+          <label for="workspaceFiles">Files</label>
+          <div id="workspaceFiles" class="workspace-files">No files loaded.</div>
+        </div>
+        <div>
+          <label for="workspaceEditor">Editor</label>
+          <p class="muted" id="workspacePath">No file selected.</p>
+          <textarea id="workspaceEditor" class="workspace-editor" spellcheck="false"></textarea>
+          <div class="editor-actions">
+            <button id="workspaceSaveBtn" type="button">Save</button>
+          </div>
+          <p class="muted" id="workspaceStatus">Workspace status: loading</p>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script src="/app.js?v=5"></script>
 </body>
 </html>
-

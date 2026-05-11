@@ -95,7 +95,8 @@ def _requires_workspace_writes(message: str) -> bool:
     text = (message or "").lower()
     markers = (
         "write_workspace_file",
-        "context_staging/",
+        "knowledge_staging/",
+        "tasks/",
         "create files",
         "deliver files",
         "under workspace/",
@@ -165,7 +166,7 @@ def build_retrieval_planner_prompt(
             "- Skip generic restatements of the user goal unless they add a retrieval "
             "signal the routing line did not cover.\n"
             "- When the user names explicit workspace-relative paths (for example "
-            "``context/patterns/foo.txt``), list them verbatim under **Paths to open** "
+            "``knowledge/patterns/foo.txt`` or ``tasks/<task>/artefacts/foo.md``), list them verbatim under **Paths to open** "
             "so the retrieval stage can call ``read_workspace_file`` immediately.\n"
             "- End with a **Retrieval handoff summary** using plain bullets for activated topics, query terms, and source priority.\n"
             "- Do not output JSON; machine-readable deterministic context is already supplied separately by the runtime.\n"
@@ -257,7 +258,7 @@ def build_context_retrieval_prompt(
         intranet_rules = (
             "Intranet-scoped hard rules:\n"
             "- This request is scoped to intranet pages. You MUST run intranet tools (`intranet_search_pages`, `intranet_list_pages`, `intranet_list_page_links_by_id`, `intranet_fetch_page`) in this stage.\n"
-            "- Do NOT treat existing workspace draft files under `context_staging/` as evidence for factual claims.\n"
+            "- Do NOT treat existing workspace draft files under `knowledge_staging/` or `tasks/*/artefacts/` as evidence for factual claims outside the active task.\n"
             "- If no successful intranet fetch happened in this turn, report retrieval failure clearly rather than producing a workspace-only evidence set.\n"
         )
     context = _resolve_deterministic_context(
@@ -294,9 +295,9 @@ def build_context_retrieval_prompt(
             "When a **Deterministic retrieval expansion** block appears above, treat it as optional query hints from `registry/semantic_graph.yaml`; still validate fit to the user request. "
             "Workspace semantics:\n"
             "- ``search_workspace_text`` matches a **literal substring on one line**; long sentences often return nothing. "
-            "Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``context`` / ``context/patterns`` etc., "
+            "Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``knowledge`` / ``knowledge/patterns`` / the active task path, "
             "or call ``read_workspace_file`` / ``read_document`` when the user request or handoff names a concrete relative path.\n"
-            "- When in doubt, ``list_workspace_files('context')`` (or a deeper subfolder) then open the best candidates.\n"
+            "- When in doubt, ``list_workspace_files('knowledge')`` (or a deeper subfolder) and the active task artefact folder, then open the best candidates.\n"
             + intranet_rules
             + "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
             "When source selection is needed, keep selection rationale short and make the read content prominent. "

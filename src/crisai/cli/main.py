@@ -28,9 +28,11 @@ from crisai.cli.session_store import (
     clear_cli_history,
     clear_history,
     cli_history_file,
+    list_task_names,
     load_history,
     save_history,
     session_dir,
+    tasks_dir,
 )
 from crisai.cli.status_views import (
     print_agents_table,
@@ -121,7 +123,8 @@ _PEER_RETRIEVAL_FORCE_PATTERNS: tuple[str, ...] = (
     r"\bwrite_workspace_file\b",
     r"\bcreate\s+files?\b",
     r"\bsave\s+files?\b",
-    r"\bcontext_staging\b",
+    r"\bknowledge_staging\b",
+    r"\btasks?\b",
     r"\bworkspace\/\b",
     r"\bartifacts?\b",
     r"\bartefacts?\b",
@@ -337,12 +340,18 @@ def _session_name_newest_by_mtime() -> str | None:
     best_any_mtime: int | None = None
     best_name: str | None = None
 
-    for file_path in session_dir().glob("*.json"):
+    candidates = list(session_dir().glob("*.json"))
+    for task_name in list_task_names():
+        candidates.append(tasks_dir() / task_name / ".crisai" / "history.json")
+
+    for file_path in candidates:
         try:
             mtime = file_path.stat().st_mtime_ns
         except OSError:
             continue
         stem = file_path.stem
+        if file_path.name == "history.json" and file_path.parent.name == ".crisai":
+            stem = file_path.parent.parent.name
 
         if best_any_mtime is None or mtime >= best_any_mtime:
             best_any_mtime = mtime
@@ -483,8 +492,8 @@ def validate_artefacts(
         None,
         "--path",
         "-p",
-        help="Repo-relative Markdown path(s). Omit to scan workspace/context "
-        "and workspace/context_staging recursively.",
+        help="Repo-relative Markdown path(s). Omit to scan workspace/knowledge, "
+        "workspace/knowledge_staging, and workspace/tasks recursively.",
     ),
 ) -> None:
     """Validate Markdown artefacts against ``registry/workspace_artifact_profiles.yaml``."""
@@ -497,8 +506,9 @@ def validate_artefacts(
     else:
         targets = []
         for base in (
-            settings.workspace_dir / "context",
-            settings.workspace_dir / "context_staging",
+            settings.workspace_dir / "knowledge",
+            settings.workspace_dir / "knowledge_staging",
+            settings.workspace_dir / "tasks",
         ):
             if not base.is_dir():
                 continue

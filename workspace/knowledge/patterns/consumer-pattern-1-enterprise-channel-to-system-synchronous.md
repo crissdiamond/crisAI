@@ -1,6 +1,6 @@
 ---
 id: PATT-INT-002
-title: Consumer Pattern 1 - Enterprise Channel to System: Synchronous
+title: "Consumer Pattern 1 - Enterprise Channel to System: Synchronous"
 type: pattern
 status: reviewed
 owner: Architecture

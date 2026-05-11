@@ -9,6 +9,13 @@ const currentSessionText = document.getElementById("currentSessionText");
 const sessionHistory = document.getElementById("sessionHistory");
 const messageInput = document.getElementById("message");
 const uiStatus = document.getElementById("uiStatus");
+const workspaceRootSelect = document.getElementById("workspaceRoot");
+const workspaceFileFilter = document.getElementById("workspaceFileFilter");
+const workspaceFiles = document.getElementById("workspaceFiles");
+const workspaceEditor = document.getElementById("workspaceEditor");
+const workspacePath = document.getElementById("workspacePath");
+const workspaceStatus = document.getElementById("workspaceStatus");
+const workspaceSaveBtn = document.getElementById("workspaceSaveBtn");
 
 let stageData = [];
 let sessions = [];
@@ -16,9 +23,15 @@ let currentSession = "default";
 let currentJobId = null;
 let pollingTimer = null;
 let activeFlowKey = null;
+let workspaceFileRecords = [];
+let selectedWorkspacePath = "";
 
 function setUiStatus(text) {
   if (uiStatus) uiStatus.textContent = `UI status: ${text}`;
+}
+
+function setWorkspaceStatus(text) {
+  if (workspaceStatus) workspaceStatus.textContent = `Workspace status: ${text}`;
 }
 
 function handleUiError(error) {
@@ -378,11 +391,79 @@ function initUiBindings() {
     const selected = event && event.target ? event.target.value : currentSession;
     switchSession(selected).catch(handleUiError);
   });
+  if (workspaceRootSelect) {
+    workspaceRootSelect.addEventListener("change", () => loadWorkspaceTree().catch(handleUiError));
+  }
+  if (workspaceFileFilter) {
+    workspaceFileFilter.addEventListener("input", renderWorkspaceFiles);
+  }
+  if (workspaceSaveBtn) {
+    workspaceSaveBtn.addEventListener("click", () => saveWorkspaceFile().catch(handleUiError));
+  }
   setUiStatus("ready");
+}
+
+function renderWorkspaceFiles() {
+  if (!workspaceFiles) return;
+  const filter = String(workspaceFileFilter ? workspaceFileFilter.value : "").toLowerCase().trim();
+  const records = workspaceFileRecords.filter((item) => !filter || item.path.toLowerCase().includes(filter));
+  if (!records.length) {
+    workspaceFiles.textContent = "No files found.";
+    return;
+  }
+  workspaceFiles.innerHTML = records
+    .map((item) => {
+      const active = item.path === selectedWorkspacePath ? " active" : "";
+      return `<button type="button" class="file-row${active}" data-path="${escapeHtml(item.path)}">${escapeHtml(item.path)}</button>`;
+    })
+    .join("");
+  Array.from(workspaceFiles.querySelectorAll("button[data-path]")).forEach((btn) => {
+    btn.addEventListener("click", () => openWorkspaceFile(btn.dataset.path).catch(handleUiError));
+  });
+}
+
+async function loadWorkspaceTree() {
+  if (!workspaceRootSelect) return;
+  setWorkspaceStatus("loading");
+  const root = workspaceRootSelect.value || "knowledge";
+  const response = await fetch(`/api/workspace/tree/${encodeURIComponent(root)}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail || "Workspace tree failed.");
+  workspaceFileRecords = data.files || [];
+  selectedWorkspacePath = "";
+  if (workspaceEditor) workspaceEditor.value = "";
+  if (workspacePath) workspacePath.textContent = "No file selected.";
+  renderWorkspaceFiles();
+  setWorkspaceStatus("ready");
+}
+
+async function openWorkspaceFile(path) {
+  const response = await fetch(`/api/workspace/file?path=${encodeURIComponent(path)}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail || "Workspace file read failed.");
+  selectedWorkspacePath = data.path;
+  if (workspacePath) workspacePath.textContent = data.path;
+  if (workspaceEditor) workspaceEditor.value = data.content || "";
+  renderWorkspaceFiles();
+  setWorkspaceStatus("file loaded");
+}
+
+async function saveWorkspaceFile() {
+  if (!selectedWorkspacePath) throw new Error("Select a workspace file first.");
+  const response = await fetch("/api/workspace/file", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: selectedWorkspacePath, content: workspaceEditor ? workspaceEditor.value : "" }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail || "Workspace file save failed.");
+  setWorkspaceStatus(`saved ${data.path}`);
+  await loadWorkspaceTree();
+  await openWorkspaceFile(data.path);
 }
 
 window.addEventListener("error", (event) => handleUiError(event.error || event.message || "Unknown UI error"));
 
 initUiBindings();
 if (tabContent) loadSessionMeta().catch(handleUiError);
-
+if (workspaceFiles) loadWorkspaceTree().catch(handleUiError);

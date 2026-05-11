@@ -1,6 +1,6 @@
 ---
 id: PATT-INT-008
-title: Producer Pattern 3 - System to Enterprise Channel: onChange Synchronous
+title: "Producer Pattern 3 - System to Enterprise Channel: onChange Synchronous"
 type: pattern
 status: reviewed
 owner: Architecture
