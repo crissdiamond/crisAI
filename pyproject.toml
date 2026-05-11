@@ -9,24 +9,24 @@ description = "Local AI tool platform for architecture and design work"
 requires-python = ">=3.10"
 
 dependencies = [
-  "openai-agents>=0.2.10",
-  "openai>=1.0.0",
-  "mcp>=1.10.0",
-  "python-dotenv>=1.0.1",
-  "PyYAML>=6.0.2",
+  "openai-agents>=0.2.10,<0.3",
+  "openai>=1.0.0,<2",
+  "mcp>=1.10.0,<2",
+  "python-dotenv>=1.0.1,<2",
+  "PyYAML>=6.0.2,<7",
   "fastapi>=0.115.0,<0.136.0",
   "traced",
-  "typer>=0.12.3",
-  "uvicorn>=0.30.0",
-  "rich>=13.7.1",
-  "prompt_toolkit>=3.0.0",
-  "python-docx>=1.1.0",
-  "pypdf>=4.0.0",
-  "python-pptx>=0.6.0",
-  "openpyxl>=3.1.0",
-  "chardet>=5.0.0",
-  "msal>=1.28.0",
-  "requests>=2.31.0"
+  "typer>=0.12.3,<1",
+  "uvicorn>=0.30.0,<1",
+  "rich>=13.7.1,<14",
+  "prompt_toolkit>=3.0.0,<4",
+  "python-docx>=1.1.0,<2",
+  "pypdf>=4.0.0,<5",
+  "python-pptx>=0.6.0,<2",
+  "openpyxl>=3.1.0,<4",
+  "chardet>=5.0.0,<6",
+  "msal>=1.28.0,<2",
+  "requests>=2.31.0,<3",
 ]
 
 [project.optional-dependencies]
