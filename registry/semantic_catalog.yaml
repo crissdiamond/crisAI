@@ -341,6 +341,24 @@ peer_verifier:
     - none were retrieved in this turn
     - no successful intranet fetches
     - no intranet retrieval tools were invoked successfully
+  agent_output_signatures:
+    retrieval_planner: '^The Retrieval planner:\s*'
+    context_retrieval: '^Context Retrieval:\s*'
+    context_synthesizer: '^Context Synthesizer:\s*'
+    summary: '^Summary:\s*'
+    review: '^The Review notes:\s*'
+    operations: '^Operations:\s*'
+    orchestrator: '^The Orchestrator:\s*'
+    design: '^The Author proposes\s+'
+    design_author: '^The Author proposes\s+'
+    design_refiner: '^The Refiner suggests\s+'
+    design_challenger: '^The Challenger highlights that\s+'
+    judge: '^The Judge concludes that\s+'
+  boilerplate_strip_patterns:
+    - '^peer conversation\s+'
+    - '^(author|challenger|refiner|judge|final recommendation)\s+'
+    - '^(peer mode conversation)\s+'
+    - '^(strengths|weaknesses|decision|reason)\s*[:\-]?\s+'
 
 lexicon:
   function_words:

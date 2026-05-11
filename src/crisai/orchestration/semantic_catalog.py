@@ -7,6 +7,7 @@ for router and peer subsystems that have not moved to graph-emitted facts yet.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -40,6 +41,8 @@ class PeerVerifierPatterns:
     data_architecture_terms: frozenset[str]
     intranet_evidence_positive_marker: str
     intranet_evidence_negative_markers: frozenset[str]
+    agent_output_signatures: dict[str, re.Pattern[str]]
+    boilerplate_strip_patterns: tuple[re.Pattern[str], ...]
 
 
 @dataclass(frozen=True)
@@ -221,6 +224,22 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
         )
     intranet_negatives_raw = verifier_block.get("intranet_evidence_negative_markers")
     intranet_negatives = _as_frozenset(intranet_negatives_raw)
+    raw_signatures = verifier_block.get("agent_output_signatures")
+    agent_signatures: dict[str, re.Pattern[str]] = {}
+    if isinstance(raw_signatures, dict):
+        for agent_id, pattern_str in raw_signatures.items():
+            if isinstance(pattern_str, str) and pattern_str.strip():
+                agent_signatures[str(agent_id)] = re.compile(pattern_str, re.IGNORECASE)
+    raw_boilerplate = verifier_block.get("boilerplate_strip_patterns")
+    boilerplate_patterns: tuple[re.Pattern[str], ...]
+    if isinstance(raw_boilerplate, list):
+        boilerplate_patterns = tuple(
+            re.compile(str(p), re.IGNORECASE)
+            for p in raw_boilerplate
+            if isinstance(p, str) and p.strip()
+        )
+    else:
+        boilerplate_patterns = ()
     function_words = _function_words(lexicon_block.get("function_words"))
     if not function_words:
         raise SemanticCatalogError(
@@ -269,6 +288,8 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             data_architecture_terms=_as_frozenset(data_terms),
             intranet_evidence_positive_marker=intranet_positive,
             intranet_evidence_negative_markers=intranet_negatives,
+            agent_output_signatures=agent_signatures,
+            boilerplate_strip_patterns=boilerplate_patterns,
         ),
         peer_contract=PeerContractMarkers(
             file_write_markers=_peer_contract_marker_field(data, "file_write_markers"),

@@ -310,3 +310,74 @@ def test_print_status_message_keeps_router_literal_text(monkeypatch) -> None:
     display.print_status_message("router:auto • pipeline • retrieval_planner", title="🧭 Routing decision")
 
     assert len(captured) == 1
+
+
+# ---------------------------------------------------------------------------
+# Catalog-backed display functions
+# ---------------------------------------------------------------------------
+
+
+def _make_fake_catalog(sc_mod, *, signatures=None, boilerplate=()):
+    """Build a fake SemanticCatalog with custom display patterns."""
+    import re
+
+    orig = sc_mod.load_semantic_catalog()
+    fake_verifier = sc_mod.PeerVerifierPatterns(
+        pattern_gap_line=orig.peer_verifier.pattern_gap_line,
+        leaf_file_pattern=orig.peer_verifier.leaf_file_pattern,
+        leaf_file_terms=orig.peer_verifier.leaf_file_terms,
+        data_architecture_terms=orig.peer_verifier.data_architecture_terms,
+        intranet_evidence_positive_marker=orig.peer_verifier.intranet_evidence_positive_marker,
+        intranet_evidence_negative_markers=orig.peer_verifier.intranet_evidence_negative_markers,
+        agent_output_signatures=signatures if signatures is not None else {},
+        boilerplate_strip_patterns=tuple(boilerplate),
+    )
+    return sc_mod.SemanticCatalog(
+        router=orig.router,
+        peer_verifier=fake_verifier,
+        peer_contract=orig.peer_contract,
+        lexicon=orig.lexicon,
+        retrieval_constraints=orig.retrieval_constraints,
+    )
+
+
+def test_strip_compact_agent_prefix_reads_signatures_from_catalog(monkeypatch):
+    """_strip_compact_agent_prefix uses agent_output_signatures from the catalog."""
+    import re
+    from crisai.orchestration import semantic_catalog as sc_mod
+    from crisai.cli.display import _strip_compact_agent_prefix
+
+    fake_catalog = _make_fake_catalog(
+        sc_mod,
+        signatures={"custom_agent": re.compile(r"^CUSTOM PREFIX:\s*", re.I)},
+    )
+    sc_mod.load_semantic_catalog.cache_clear()
+    monkeypatch.setattr(display, "load_semantic_catalog", lambda *a, **kw: fake_catalog)
+
+    result = _strip_compact_agent_prefix("custom_agent", "CUSTOM PREFIX: the actual content")
+    assert result == "the actual content"
+
+    # real catalog signatures no longer in effect
+    result2 = _strip_compact_agent_prefix("review", "The Review notes: something")
+    assert result2 == "The Review notes: something"
+
+
+def test_clean_agent_text_reads_boilerplate_from_catalog(monkeypatch):
+    """_clean_agent_text uses boilerplate_strip_patterns from the catalog."""
+    import re
+    from crisai.orchestration import semantic_catalog as sc_mod
+    from crisai.cli.display import _clean_agent_text
+
+    fake_catalog = _make_fake_catalog(
+        sc_mod,
+        boilerplate=[re.compile(r"^CUSTOM BOILERPLATE\s+", re.I)],
+    )
+    sc_mod.load_semantic_catalog.cache_clear()
+    monkeypatch.setattr(display, "load_semantic_catalog", lambda *a, **kw: fake_catalog)
+
+    result = _clean_agent_text("CUSTOM BOILERPLATE real content here")
+    assert result == "real content here"
+
+    # original boilerplate no longer stripped
+    result2 = _clean_agent_text("peer conversation should remain")
+    assert "peer conversation" in result2

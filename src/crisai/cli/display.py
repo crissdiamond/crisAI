@@ -10,6 +10,8 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
+from crisai.orchestration.semantic_catalog import load_semantic_catalog
+
 from .peer_transcript import PeerMessage
 
 console = Console()
@@ -215,17 +217,12 @@ def _find_json_object_end(text: str, start: int) -> int | None:
 def _clean_agent_text(text: str) -> str:
     clean = _strip_markdown(text)
 
-    boilerplate_patterns = [
-        r"^peer conversation\s+",
-        r"^(author|challenger|refiner|judge|final recommendation)\s+",
-        r"^(peer mode conversation)\s+",
-        r"^(strengths|weaknesses|decision|reason)\s*[:\-]?\s+",
-    ]
+    boilerplate_patterns = load_semantic_catalog().peer_verifier.boilerplate_strip_patterns
     changed = True
     while changed:
         changed = False
         for pattern in boilerplate_patterns:
-            new_clean = re.sub(pattern, "", clean, flags=re.IGNORECASE).strip()
+            new_clean = pattern.sub("", clean).strip()
             if new_clean != clean:
                 clean = new_clean
                 changed = True
@@ -290,24 +287,11 @@ def _strip_compact_agent_prefix(agent_id: str, summary: str) -> str:
     Returns:
         *summary* without a redundant "Agent: …" prefix when a pattern matches.
     """
-    patterns: tuple[tuple[str, re.Pattern[str]], ...] = (
-        ("retrieval_planner", re.compile(r"^The Retrieval planner:\s*", re.I)),
-        ("context_retrieval", re.compile(r"^Context Retrieval:\s*")),
-        ("context_synthesizer", re.compile(r"^Context Synthesizer:\s*")),
-        ("summary", re.compile(r"^Summary:\s*")),
-        ("review", re.compile(r"^The Review notes:\s*", re.I)),
-        ("operations", re.compile(r"^Operations:\s*")),
-        ("orchestrator", re.compile(r"^The Orchestrator:\s*")),
-        ("design", re.compile(r"^The Author proposes\s+", re.I)),
-        ("design_author", re.compile(r"^The Author proposes\s+", re.I)),
-        ("design_refiner", re.compile(r"^The Refiner suggests\s+", re.I)),
-        ("design_challenger", re.compile(r"^The Challenger highlights that\s+", re.I)),
-        ("judge", re.compile(r"^The Judge concludes that\s+", re.I)),
-    )
-    for aid, pattern in patterns:
-        if aid == agent_id:
-            stripped = pattern.sub("", summary, count=1).strip()
-            return stripped if stripped else summary
+    signatures = load_semantic_catalog().peer_verifier.agent_output_signatures
+    pattern = signatures.get(agent_id)
+    if pattern:
+        stripped = pattern.sub("", summary, count=1).strip()
+        return stripped if stripped else summary
     label = _label(agent_id)
     stripped = re.sub(rf"^{re.escape(label)}:\s*", "", summary, count=1, flags=re.I).strip()
     return stripped if stripped else summary
