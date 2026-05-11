@@ -58,6 +58,9 @@ The main product gaps are:
   extended architecture sessions;
 - the web app can browse and edit workspace files, but users cannot upload
   source documents directly into a task or intake space;
+- the web file editor is Markdown/text-oriented, which is too technical for
+  users who want structured editing of architecture artefacts without Markdown
+  knowledge;
 - web UX follows CLI concepts but does not yet provide full streaming,
   checkpoint, and peer transcript parity.
 
@@ -89,6 +92,7 @@ The main product gaps are:
 | TODO-022 | P2 | todo | Peer workflow partial recovery | If a challenger, refiner, or judge stage times out or fails mid-run, the whole peer workflow terminates hard with no output saved. Given the cost of peer runs, partial save and graceful degradation to the last completed stage are important. | When a non-retrieval peer stage fails, the workflow saves the last successfully completed stage output, traces the failure with stage identity, and surfaces a recoverable error to the user rather than discarding all upstream work. Behaviour is test-covered. |
 | TODO-023 | P2 | todo | Session memory tuning | The default global 2-turn / 3000-char compact memory can be aggressive for extended architecture sessions with retrieved source material, causing effective context collapse on long iterative runs. The current configuration is global plus env overrides, not workload-aware. | Session memory limits are configurable per task type, mode, or workload profile in `registry/session_memory.yaml`. Defaults are reviewed and set to reasonable values for the main architecture use cases. Configuration is documented and test-covered. |
 | TODO-024 | P1 | todo | Web document upload | Architects often start with local decks, PDFs, spreadsheets, and Word documents. The web app should let users upload those directly into the appropriate workspace task or intake area instead of manually copying files into the repository. | Web UI supports document upload with allowed suffix and size validation, safe path handling, duplicate-name strategy, target selection for current task inputs or `workspace/knowledge/intake/`, and immediate listing in the workspace browser. Uploaded files are readable by document MCP tools. Tests cover API validation, path safety, duplicate handling, and UI flow. |
+| TODO-025 | P1 | todo | Structured web artefact editor | The current web editor exposes raw Markdown, which is efficient for developers but not friendly for architects who want to review and refine HLDs, options papers, decisions, and data architecture artefacts without learning Markdown syntax. | Add a structured editor for supported artefact profiles with section navigation, form-like fields for metadata/front matter, rich text controls for paragraphs and lists, table editing, Mermaid preview/edit affordances, validation feedback, and Markdown round-trip persistence. Raw Markdown remains available as an advanced/source mode. |
 
 ## Recommended Sequencing
 
@@ -106,8 +110,9 @@ The main product gaps are:
    adapters proliferate.
 6. Implement `TODO-005` before major model-routing changes, so model choices can
    be assessed with actual cost and usage data.
-7. Implement `TODO-024` with the web UX track, ideally before the full web
-   rebuild, because upload is a contained high-value source ingestion feature.
+7. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
+   full web rebuild, because upload and structured editing are contained
+   high-value features for non-technical architecture users.
 8. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
    enterprise architecture quality track.
 9. Treat `TODO-019` as the final alignment step for CLI workflow changes that
