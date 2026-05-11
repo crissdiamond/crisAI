@@ -100,3 +100,32 @@ def test_build_semantic_catalog_from_dict_rejects_bad_peer_verifier():
         assert "pattern_gap_line" in str(exc)
     else:
         raise AssertionError("expected SemanticCatalogError")
+
+
+def test_peer_contract_document_export_markers_load_from_catalog():
+    """PeerContractMarkers exposes the document export marker lists from YAML."""
+    data = _load_base_catalog_dict()
+    catalog = build_semantic_catalog_from_dict(data)
+    assert ".docx" in catalog.peer_contract.document_export_native_markers
+    assert ".pptx" in catalog.peer_contract.document_export_native_markers
+    assert "artifact" in catalog.peer_contract.document_export_source_markers
+    assert ".md" in catalog.peer_contract.document_export_source_markers
+
+
+def test_is_native_document_export_reads_catalog(monkeypatch):
+    """_is_native_document_export derives matches from the catalog, not hardcoded sets."""
+    import crisai.orchestration.router as router_mod
+    from crisai.orchestration import semantic_catalog as sc_mod
+    from crisai.orchestration.router import _is_native_document_export
+
+    data = _load_base_catalog_dict()
+    data["peer_contract"]["document_export_native_markers"] = ["custom-format"]
+    data["peer_contract"]["document_export_source_markers"] = ["custom-source"]
+    custom_catalog = build_semantic_catalog_from_dict(data)
+
+    sc_mod.load_semantic_catalog.cache_clear()
+    monkeypatch.setattr(router_mod, "load_semantic_catalog", lambda *a, **kw: custom_catalog)
+
+    assert _is_native_document_export("convert custom-format from custom-source") is True
+    assert _is_native_document_export("convert custom-format from somewhere else") is False
+    assert _is_native_document_export("export .docx from artifact") is False

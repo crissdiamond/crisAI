@@ -67,25 +67,11 @@ def _deterministic_source_nudge(text: str, registry_dir: Path | None) -> bool:
 
 def _is_native_document_export(text: str) -> bool:
     """Return whether a request asks to export an existing artefact to a native file."""
-    native_markers = {
-        ".docx",
-        ".pptx",
-        "word document",
-        "powerpoint",
-        "slide deck",
-        "native document",
-        "export",
-    }
-    source_markers = {
-        "workspace/tasks/",
-        "artefact",
-        "artifact",
-        "generated markdown",
-        "markdown file",
-        ".md",
-        "template manifest",
-    }
-    return _contains_any(text, native_markers) and _contains_any(text, source_markers)
+    contract = load_semantic_catalog().peer_contract
+    return (
+        _contains_any(text, contract.document_export_native_markers)
+        and _contains_any(text, contract.document_export_source_markers)
+    )
 
 
 def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | None = None) -> RoutingDecision:

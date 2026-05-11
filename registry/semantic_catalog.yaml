@@ -533,3 +533,19 @@ peer_contract:
     - evaluate
     - compare
     - critique
+  document_export_native_markers:
+    - .docx
+    - .pptx
+    - word document
+    - powerpoint
+    - slide deck
+    - native document
+    - export
+  document_export_source_markers:
+    - workspace/tasks/
+    - artefact
+    - artifact
+    - generated markdown
+    - markdown file
+    - .md
+    - template manifest

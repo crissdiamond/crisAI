@@ -49,6 +49,8 @@ class PeerContractMarkers:
     code_target_markers: frozenset[str]
     grounding_markers: frozenset[str]
     assessment_markers: frozenset[str]
+    document_export_native_markers: frozenset[str]
+    document_export_source_markers: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -262,6 +264,8 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             code_target_markers=_peer_contract_marker_field(data, "code_target_markers"),
             grounding_markers=_peer_contract_marker_field(data, "grounding_markers"),
             assessment_markers=_peer_contract_marker_field(data, "assessment_markers"),
+            document_export_native_markers=_peer_contract_marker_field(data, "document_export_native_markers"),
+            document_export_source_markers=_peer_contract_marker_field(data, "document_export_source_markers"),
         ),
         lexicon=LexiconTerms(
             function_words=function_words,
