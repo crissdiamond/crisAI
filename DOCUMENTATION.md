@@ -33,7 +33,8 @@ That means:
 - you can assign different providers and models to different agents through configuration
 
 Product and engineering design decisions about crisAI itself are recorded under
-`reference/decisions/`. Keep customer/domain architecture knowledge in
+`reference/decisions/`. The maintainable improvement backlog is recorded in
+`reference/TODO.md`. Keep customer/domain architecture knowledge in
 `workspace/knowledge/` instead.
 
 ---
