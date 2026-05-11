@@ -43,6 +43,8 @@ The main product gaps are:
 - pipeline runs still proceed without a user checkpoint after retrieval;
 - long stages do not stream output, so users cannot judge progress early;
 - retrieval does not persist validated evidence across iterative runs;
+- the prototype name `crisAI` is not yet aligned with a professional product,
+  repository, package, and CLI identity for team adoption;
 - source coverage is still Microsoft-heavy and does not cover generic OAuth web
   apps, Confluence, or enterprise data catalogues;
 - architecture artefact production is not yet guided by a full template library
@@ -71,6 +73,7 @@ The main product gaps are:
 | TODO-001 | P0 | todo | Human checkpoint after retrieval | The most expensive failure mode is continuing into design with the wrong sources or an incomplete evidence set. A checkpoint lets the user confirm, redirect, or stop before downstream agents spend tokens. | CLI pipeline can pause after retrieval, render the evidence brief, accept confirm/redirect/stop, and trace the decision. Web has equivalent behaviour or a tracked follow-up. |
 | TODO-002 | P0 | todo | Streaming stage output | Streaming is the largest interactive UX improvement that does not require changing pipeline semantics. Users can see progress and abort earlier. | CLI streams per-stage output without exposing machine evidence JSON. Trace output remains complete. Web streaming is either implemented or tracked separately. |
 | TODO-003 | P0 | todo | Persistent retrieval cache | Repeated source reads during iterative tasks waste time and tokens. Evidence bundles can be reused when the query and source revision are unchanged. | Evidence bundles are cached by query fingerprint, source identity, and source revision/hash. Cache hits are visible in trace metadata. Stale entries are invalidated using provider revision metadata where available, such as ETag, source version, Graph `lastModifiedDateTime`, content hash, or configurable TTL expiry. |
+| TODO-026 | P0 | todo | Product and repository rename | `crisAI` was the prototype name. Before broader team adoption, the project should use a professional product, repository, package, CLI, docs, log, and MCP identity such as `Architecture Assistant`, `architecture-assistant`, `architecture_assistant`, and `arch-assistant`. Doing this early avoids team-facing churn later. | Rename the GitHub repository, Python package, CLI entry point, docs, UI labels, MCP server names, log labels, and setup instructions. Decide explicitly whether to keep a temporary `crisai` compatibility alias or remove it for a clean first team clone. Full test suite, doctor, packaging, and install-from-clone flow pass under the new name. |
 | TODO-004 | P1 | todo | Authenticated website retrieval MCP | Enterprise architecture work often depends on protected vendor portals, internal web apps, design standards sites, and architecture repositories that are not SharePoint pages. crisAI needs a read-only OAuth/OIDC website source connector with strict scope controls. | Add an `authenticated_web` MCP server with login/auth-status, allow-listed hosts, OAuth/OIDC auth-code or device flow, URL fetch, optional rendered-page fetch for JS-heavy pages, link extraction, content normalization, source references, and tests with mocked OAuth and HTTP responses. |
 | TODO-005 | P1 | todo | Token and cost tracking per stage | Cost needs to be visible for model pairing, pipeline tuning, and user trust. This should precede dynamic model selection so model decisions are based on measured usage. | Trace events include provider/model/token/cost metadata when available. CLI or doctor can summarise spend by run, stage, and agent. Missing provider usage data degrades gracefully. |
 | TODO-006 | P1 | todo | Architecture artefact template library | The tool is intended to support daily enterprise, solution, and data architecture work. It needs reusable structures beyond one-off generated Markdown. | Add governed templates for HLD, options paper, architecture decision record, data flow, data mapping, data lineage, NFR assessment, integration design, migration plan, and architecture review. Semantic graph has vertices for each template type so agents can discover them by topic during retrieval. Artefact validation has tests. |
@@ -98,24 +101,26 @@ The main product gaps are:
 
 1. Implement `TODO-001` first because it prevents the highest-cost wrong-source
    pipeline runs.
-2. Implement `TODO-002` next because it improves perceived performance and gives
+2. Implement `TODO-026` before broader team onboarding, because renaming after
+   users clone and configure the tool will create avoidable churn.
+3. Implement `TODO-002` next because it improves perceived performance and gives
    users earlier visibility into long-running stages.
-3. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
+4. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
    can participate in the same confirmation flow.
-4. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+5. Implement `TODO-017` (source connector capability contract) before `TODO-004`
    and `TODO-012`. Both new source adapters should be built against the contract
    from the start rather than retrofitted later.
-5. Implement `TODO-004` after the capability contract is in place. It creates
+6. Implement `TODO-004` after the capability contract is in place. It creates
    the secure generic pattern for OAuth-protected web sources before site-specific
    adapters proliferate.
-6. Implement `TODO-005` before major model-routing changes, so model choices can
+7. Implement `TODO-005` before major model-routing changes, so model choices can
    be assessed with actual cost and usage data.
-7. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
+8. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
    full web rebuild, because upload and structured editing are contained
    high-value features for non-technical architecture users.
-8. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+9. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
    enterprise architecture quality track.
-9. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+10. Treat `TODO-019` as the final alignment step for CLI workflow changes that
    affect user-visible execution semantics.
 
 ## Done
