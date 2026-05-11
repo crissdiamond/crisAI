@@ -24,7 +24,7 @@ MODE="${1:-cli}"
 
 case "$MODE" in
   cli)
-    exec python -m crisai.cli.main chat --verbose
+    exec python -m crisai.cli.main chat
     ;;
   web)
     exec crisai-web

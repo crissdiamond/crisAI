@@ -13,7 +13,7 @@ if [ ! -f .env ]; then
   cp .env.example .env
 fi
 
-mkdir -p workspace/inputs workspace/outputs workspace/reference workspace/scratch logs registry prompts runbooks
+mkdir -p workspace/knowledge workspace/knowledge_staging workspace/tasks workspace/outputs logs registry prompts runbooks
 
 echo "crisAI bootstrap complete."
 echo "Next:"

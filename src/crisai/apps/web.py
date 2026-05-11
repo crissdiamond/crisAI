@@ -540,7 +540,7 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
 
 
 @app.get("/api/run/status/{job_id}")
-def run_status(job_id: str) -> dict[str, Any]:
+async def run_status(job_id: str) -> dict[str, Any]:
     """Return progressive status and stage outputs for a run job."""
     job = _RUN_JOBS.get(job_id)
     if job is None:

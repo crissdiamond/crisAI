@@ -122,10 +122,12 @@ def test_infer_workflow_policy_requires_intranet_when_explicit_and_deterministic
 
 def test_has_intranet_fetch_evidence_reads_markers_from_catalog(monkeypatch):
     """has_intranet_fetch_evidence uses catalog markers, not hardcoded strings."""
+    from pathlib import Path
+
+    import yaml
+
     from crisai.orchestration import semantic_catalog as sc_mod
     from crisai.orchestration.semantic_catalog import build_semantic_catalog_from_dict
-    import yaml
-    from pathlib import Path
 
     base = yaml.safe_load(
         (Path(__file__).resolve().parents[2] / "registry" / "semantic_catalog.yaml").read_text(encoding="utf-8")

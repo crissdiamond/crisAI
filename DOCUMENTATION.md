@@ -111,9 +111,11 @@ First-time setup (full step-by-step, including `.env`, is in the repository **RE
 2. Install dependencies, for example:
    ```bash
    pip install --upgrade pip
-   pip install -e .
+   pip install -e ".[litellm]"
    ```
-   or `pip install -r requirements.txt` (same default install). Optional LiteLLM: `pip install -r requirements-litellm.txt`.
+   or `pip install -r requirements.txt` (same default multi-provider install).
+   Use `pip install -e .` only when you have changed `registry/agents.yaml` to an
+   OpenAI-only configuration.
 
 On **Debian / Ubuntu**, if `python3 -m venv` fails with a message about **`ensurepip`** or **`python3.x-venv` missing**, install the OS **`venv`** package for your Python version (e.g. `sudo apt install python3-venv` or `python3.12-venv`).
 
@@ -808,6 +810,17 @@ crisAI now supports provider-aware model assignment.
 - the runtime resolves the provider-specific model when building the agent
 - `registry/examples/agents.openai.yaml`, `agents.deepseek.yaml`, `agents.gemini.yaml`, and `agents.anthropic.yaml` provide complete mono-provider assignment examples
 
+The default `registry/agents.yaml` is intentionally multi-provider: OpenAI for
+fast orchestration/design roles, DeepSeek for summary/context/refinement roles,
+and Gemini for review/judge roles. A first run with the default registry
+therefore needs LiteLLM support plus `OPENAI_API_KEY`, `GEMINI_API_KEY`, and
+`DEEPSEEK_API_KEY`. For a one-provider setup, copy the matching example over the
+live registry file before running `crisai doctor --models`:
+
+```bash
+cp registry/examples/agents.openai.yaml registry/agents.yaml
+```
+
 ### Example
 
 ```yaml
@@ -840,7 +853,7 @@ The current design is built to support:
 - Anthropic
 - DeepSeek
 
-OpenAI uses the native SDK path. Gemini, Anthropic, and DeepSeek are resolved through LiteLLM-backed integration when selected. LiteLLM is an optional dependency: `pip install -e ".[litellm]"`.
+OpenAI uses the native SDK path. Gemini, Anthropic, and DeepSeek are resolved through LiteLLM-backed integration when selected. LiteLLM is required for the default registry and is installed by `pip install -e ".[litellm]"`, `pip install -e ".[dev]"`, and `pip install -r requirements.txt`.
 
 ### Available DeepSeek model refs
 

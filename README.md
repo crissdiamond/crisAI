@@ -102,8 +102,8 @@ runbooks/     Operational setup, security, registry, policy, and observability n
 
 - Python 3.10+
 - Linux, macOS, or WSL on Windows
-- `OPENAI_API_KEY` for OpenAI-backed agents
-- Optional: Gemini, Anthropic, or DeepSeek keys when selected in `registry/models.yaml`
+- `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `DEEPSEEK_API_KEY` for the default multi-provider agent registry
+- Optional: Anthropic key when selected in `registry/models.yaml` or a mono-provider example
 - Optional: Microsoft Entra app registration for SharePoint document retrieval and SharePoint-backed intranet retrieval
 
 ## Quick Install
@@ -114,19 +114,29 @@ cd crisAI
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -e .
+pip install -e ".[litellm]"
 cp .env.example .env
 ```
 
-Set at least:
+Set the keys used by the default `registry/agents.yaml`:
 
 ```dotenv
 OPENAI_API_KEY=your_openai_api_key
+GEMINI_API_KEY=your_gemini_api_key
+DEEPSEEK_API_KEY=your_deepseek_api_key
 CRISAI_DEFAULT_MODEL=gpt-5.4-mini
 CRISAI_WORKSPACE_DIR=./workspace
 CRISAI_LOG_DIR=./logs
 CRISAI_REGISTRY_DIR=./registry
 CRISAI_VISION_MODEL=gpt-4o-mini   # vision MCP server model; defaults to gpt-4o-mini if unset
+```
+
+The default registry intentionally mixes OpenAI, Gemini, and DeepSeek. To run
+with one provider, copy one of the mono-provider examples over
+`registry/agents.yaml`, then set only that provider's key:
+
+```bash
+cp registry/examples/agents.openai.yaml registry/agents.yaml
 ```
 
 For local development, tests, linting, and type checks:
@@ -135,11 +145,8 @@ For local development, tests, linting, and type checks:
 pip install -e ".[dev]"
 ```
 
-For Gemini or Anthropic through LiteLLM-backed integration:
-
-```bash
-pip install -e ".[litellm]"
-```
+The `dev` extra includes LiteLLM support because the default registry uses
+LiteLLM-backed Gemini and DeepSeek models.
 
 ## Start
 

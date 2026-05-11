@@ -6,12 +6,13 @@ endpoints. Agent execution is stubbed so no real LLM calls are made.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
-from starlette.testclient import TestClient
 
 from crisai.apps.web import RunRequest, app
 
@@ -37,8 +38,8 @@ def _clear_jobs():
 
 
 @pytest.fixture()
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    """Return a TestClient with I/O side-effects suppressed."""
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _ASGITestClient:
+    """Return an ASGI test client with I/O side-effects suppressed."""
     monkeypatch.setattr("crisai.apps.web.load_history", lambda _: [])
     monkeypatch.setattr("crisai.apps.web.save_history", lambda *a: None)
     monkeypatch.setattr("crisai.apps.web.update_session_memory", lambda *a: None)
@@ -47,7 +48,27 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setattr("crisai.apps.web._session_name_newest_by_mtime", lambda: None)
     monkeypatch.setattr("crisai.apps.web.configure_logging", lambda *a, **kw: None)
     monkeypatch.setattr("crisai.apps.web.load_settings", lambda: _make_settings(tmp_path))
-    return TestClient(app, raise_server_exceptions=True)
+    return _ASGITestClient()
+
+
+class _ASGITestClient:
+    """Small sync wrapper around httpx ASGITransport.
+
+    Starlette's TestClient can hang with the current FastAPI/Starlette/AnyIO
+    combination in this environment. This keeps the tests HTTP-level without
+    relying on TestClient's blocking portal.
+    """
+
+    def get(self, url: str) -> httpx.Response:
+        return asyncio.run(self._request("GET", url))
+
+    def post(self, url: str, *, json: dict[str, Any]) -> httpx.Response:
+        return asyncio.run(self._request("POST", url, json=json))
+
+    async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=True)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as async_client:
+            return await async_client.request(method, url, **kwargs)
 
 
 def _make_settings(tmp_path: Path):
@@ -64,7 +85,7 @@ def _make_settings(tmp_path: Path):
 
 
 def test_sync_run_endpoint_returns_decision_and_output(
-    client: TestClient,
+    client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /api/run executes the workflow and returns decision + final_output."""
@@ -86,7 +107,7 @@ def test_sync_run_endpoint_returns_decision_and_output(
 
 
 def test_sync_run_endpoint_maps_runtime_error_to_500(
-    client: TestClient,
+    client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /api/run returns 500 when pipeline execution fails."""
@@ -109,7 +130,7 @@ def test_sync_run_endpoint_maps_runtime_error_to_500(
 
 
 def test_run_start_returns_job_id_and_decision(
-    client: TestClient,
+    client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /api/run/start responds immediately with a job id."""
@@ -133,7 +154,7 @@ def test_run_start_returns_job_id_and_decision(
 
 
 def test_run_start_rejects_concurrent_run(
-    client: TestClient,
+    client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /api/run/start returns 409 when another job is already running."""
@@ -152,7 +173,7 @@ def test_run_start_rejects_concurrent_run(
 
 
 def test_run_status_returns_running_while_job_in_progress(
-    client: TestClient,
+    client: _ASGITestClient,
 ) -> None:
     """GET /api/run/status returns 'running' before the background task finishes."""
     from crisai.apps import web as web_mod
@@ -179,7 +200,7 @@ def test_run_status_returns_running_while_job_in_progress(
 
 
 def test_run_status_returns_completed_after_job_finishes(
-    client: TestClient,
+    client: _ASGITestClient,
 ) -> None:
     """GET /api/run/status returns 'completed' once the job is done."""
     from crisai.apps import web as web_mod
@@ -208,7 +229,7 @@ def test_run_status_returns_completed_after_job_finishes(
 
 
 def test_run_status_returns_failed_on_pipeline_error(
-    client: TestClient,
+    client: _ASGITestClient,
 ) -> None:
     """GET /api/run/status returns 'failed' with an error message."""
     from crisai.apps import web as web_mod
@@ -235,7 +256,7 @@ def test_run_status_returns_failed_on_pipeline_error(
     assert "pipeline crashed" in body["error"]
 
 
-def test_run_status_404_for_unknown_job(client: TestClient) -> None:
+def test_run_status_404_for_unknown_job(client: _ASGITestClient) -> None:
     """GET /api/run/status returns 404 for an unknown job id."""
     resp = client.get("/api/run/status/no-such-job")
     assert resp.status_code == 404
@@ -247,7 +268,7 @@ def test_run_status_404_for_unknown_job(client: TestClient) -> None:
 
 
 def test_eviction_preserves_running_job_after_start(
-    client: TestClient,
+    client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Starting a 21st job evicts old completed jobs but keeps the new running one."""

@@ -7,8 +7,6 @@ from pathlib import Path
 import yaml
 
 from crisai.orchestration.semantic_catalog import (
-    InteractionPatterns,
-    SemanticCatalog,
     build_semantic_catalog_from_dict,
     load_semantic_catalog,
 )

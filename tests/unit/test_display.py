@@ -319,8 +319,6 @@ def test_print_status_message_keeps_router_literal_text(monkeypatch) -> None:
 
 def _make_fake_catalog(sc_mod, *, signatures=None, boilerplate=()):
     """Build a fake SemanticCatalog with custom display patterns."""
-    import re
-
     orig = sc_mod.load_semantic_catalog()
     fake_verifier = sc_mod.PeerVerifierPatterns(
         pattern_gap_line=orig.peer_verifier.pattern_gap_line,
@@ -345,8 +343,9 @@ def _make_fake_catalog(sc_mod, *, signatures=None, boilerplate=()):
 def test_strip_compact_agent_prefix_reads_signatures_from_catalog(monkeypatch):
     """_strip_compact_agent_prefix uses agent_output_signatures from the catalog."""
     import re
-    from crisai.orchestration import semantic_catalog as sc_mod
+
     from crisai.cli.display import _strip_compact_agent_prefix
+    from crisai.orchestration import semantic_catalog as sc_mod
 
     fake_catalog = _make_fake_catalog(
         sc_mod,
@@ -366,8 +365,9 @@ def test_strip_compact_agent_prefix_reads_signatures_from_catalog(monkeypatch):
 def test_clean_agent_text_reads_boilerplate_from_catalog(monkeypatch):
     """_clean_agent_text uses boilerplate_strip_patterns from the catalog."""
     import re
-    from crisai.orchestration import semantic_catalog as sc_mod
+
     from crisai.cli.display import _clean_agent_text
+    from crisai.orchestration import semantic_catalog as sc_mod
 
     fake_catalog = _make_fake_catalog(
         sc_mod,
