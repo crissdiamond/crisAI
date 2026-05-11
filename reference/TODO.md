@@ -56,6 +56,8 @@ The main product gaps are:
 - session memory is configurable globally, but not yet by task type, mode, or
   architecture workload profile, which can cause aggressive context collapse on
   extended architecture sessions;
+- the web app can browse and edit workspace files, but users cannot upload
+  source documents directly into a task or intake space;
 - web UX follows CLI concepts but does not yet provide full streaming,
   checkpoint, and peer transcript parity.
 
@@ -86,6 +88,7 @@ The main product gaps are:
 | TODO-021 | P1 | todo | Document export fidelity | `render_docx_from_markdown` does line-by-line paragraph output. Markdown tables are not rendered as DOCX tables, and non-linear template section mapping (where DOCX heading order differs from Markdown heading order) is not supported. Business-ready documents require both. | Export server maps Markdown tables to native DOCX table objects. Template manifests can declare a section-to-content mapping so source sections fill named template headings in non-document order. Tests cover table round-trip and non-linear mapping. Diagram embedding is tracked separately in TODO-010. |
 | TODO-022 | P2 | todo | Peer workflow partial recovery | If a challenger, refiner, or judge stage times out or fails mid-run, the whole peer workflow terminates hard with no output saved. Given the cost of peer runs, partial save and graceful degradation to the last completed stage are important. | When a non-retrieval peer stage fails, the workflow saves the last successfully completed stage output, traces the failure with stage identity, and surfaces a recoverable error to the user rather than discarding all upstream work. Behaviour is test-covered. |
 | TODO-023 | P2 | todo | Session memory tuning | The default global 2-turn / 3000-char compact memory can be aggressive for extended architecture sessions with retrieved source material, causing effective context collapse on long iterative runs. The current configuration is global plus env overrides, not workload-aware. | Session memory limits are configurable per task type, mode, or workload profile in `registry/session_memory.yaml`. Defaults are reviewed and set to reasonable values for the main architecture use cases. Configuration is documented and test-covered. |
+| TODO-024 | P1 | todo | Web document upload | Architects often start with local decks, PDFs, spreadsheets, and Word documents. The web app should let users upload those directly into the appropriate workspace task or intake area instead of manually copying files into the repository. | Web UI supports document upload with allowed suffix and size validation, safe path handling, duplicate-name strategy, target selection for current task inputs or `workspace/knowledge/intake/`, and immediate listing in the workspace browser. Uploaded files are readable by document MCP tools. Tests cover API validation, path safety, duplicate handling, and UI flow. |
 
 ## Recommended Sequencing
 
@@ -103,9 +106,11 @@ The main product gaps are:
    adapters proliferate.
 6. Implement `TODO-005` before major model-routing changes, so model choices can
    be assessed with actual cost and usage data.
-7. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+7. Implement `TODO-024` with the web UX track, ideally before the full web
+   rebuild, because upload is a contained high-value source ingestion feature.
+8. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
    enterprise architecture quality track.
-8. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+9. Treat `TODO-019` as the final alignment step for CLI workflow changes that
    affect user-visible execution semantics.
 
 ## Done
