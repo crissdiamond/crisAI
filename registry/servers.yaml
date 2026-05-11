@@ -79,6 +79,31 @@ servers:
       mode: none
     risk_level: low
 
+  - id: document_export
+    name: Document Export Server
+    description: Render reviewed Markdown artefacts into native DOCX/PPTX files using template manifests.
+    enabled: true
+    transport: stdio
+    command: python
+    args:
+      - src/crisai/servers/document_export_server.py
+      - ./workspace
+    working_directory: .
+    tags: [local, documents, export, docx, pptx, templates]
+    auth:
+      type: none
+    tools:
+      allow:
+        - inspect_document_template_manifest
+        - render_docx_from_markdown
+        - render_pptx_from_markdown
+    approval:
+      required_for:
+        - render_docx_from_markdown
+        - render_pptx_from_markdown
+      mode: auto_approve_local
+    risk_level: low
+
   - id: vision
     name: Vision Server
     description: Describe standalone image files and images embedded in PowerPoint slides.

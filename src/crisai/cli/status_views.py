@@ -49,6 +49,8 @@ def agent_icon(agent_id: str) -> str:
         return "⚖"
     if "operations" in aid:
         return "🔧"
+    if "document_formatter" in aid:
+        return "🧾"
     if "publisher" in aid:
         return "📦"
     return "🧠"

@@ -23,3 +23,15 @@ def test_route_publisher_for_slide_request_in_italian():
     assert decision.mode == "single"
     assert decision.agent == "publisher"
     assert decision.intent == "publication"
+
+
+def test_route_document_formatter_for_native_export_from_task_artifact():
+    decision = decide_route(
+        "Export workspace/tasks/reporting/artefacts/reporting-hld.md to .docx using the UCL HLD template manifest.",
+        review_enabled=False,
+    )
+
+    assert decision.agent == "document_formatter"
+    assert decision.intent == "document_export"
+    assert decision.mode == "single"
+    assert decision.needs_retrieval is True

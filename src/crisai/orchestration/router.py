@@ -65,6 +65,29 @@ def _deterministic_source_nudge(text: str, registry_dir: Path | None) -> bool:
     return bool({"intranet", "sharepoint_docs", "workspace"} & set(context.suggested_sources))
 
 
+def _is_native_document_export(text: str) -> bool:
+    """Return whether a request asks to export an existing artefact to a native file."""
+    native_markers = {
+        ".docx",
+        ".pptx",
+        "word document",
+        "powerpoint",
+        "slide deck",
+        "native document",
+        "export",
+    }
+    source_markers = {
+        "workspace/tasks/",
+        "artefact",
+        "artifact",
+        "generated markdown",
+        "markdown file",
+        ".md",
+        "template manifest",
+    }
+    return _contains_any(text, native_markers) and _contains_any(text, source_markers)
+
+
 def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | None = None) -> RoutingDecision:
     terms = load_semantic_catalog().router
     task_contract = infer_task_contract(text, registry_dir=registry_dir)
@@ -117,6 +140,17 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             needs_review=False,
             confidence=0.90,
             reason="Prompt looks like debugging or platform troubleshooting.",
+        )
+
+    if has_publication_signal and _is_native_document_export(text):
+        return RoutingDecision(
+            intent="document_export",
+            mode="single",
+            agent="document_formatter",
+            needs_retrieval=True,
+            needs_review=False,
+            confidence=0.94,
+            reason="Prompt asks to export an existing artefact into a native document format using a template.",
         )
 
     if has_publication_signal:
@@ -273,7 +307,7 @@ def _apply_explicit_overrides(
             intent="explicit",
             mode="single",
             agent=selected_agent,
-            needs_retrieval=selected_agent in {"retrieval_planner", "publisher"},
+            needs_retrieval=selected_agent in {"retrieval_planner", "publisher", "document_formatter"},
             needs_review=selected_agent == "review",
             confidence=1.0,
             reason="Agent explicitly selected by user.",
@@ -308,7 +342,7 @@ def _apply_explicit_overrides(
         intent="explicit",
         mode="single",
         agent=base.agent,
-        needs_retrieval=base.agent in {"retrieval_planner", "publisher"},
+        needs_retrieval=base.agent in {"retrieval_planner", "publisher", "document_formatter"},
         needs_review=base.agent == "review",
         confidence=1.0,
         reason="Mode explicitly set to single by user.",

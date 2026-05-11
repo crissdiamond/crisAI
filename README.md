@@ -11,6 +11,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - CLI and web app surfaces for the same routed workflows.
 - Specialist agents with separate responsibilities and configurable model assignment.
 - Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
+- Native DOCX/PPTX export from reviewed Markdown task artefacts via template manifests.
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
 - Compact task memory for sessions, so long tasks keep useful context without replaying the full transcript every turn.
@@ -223,6 +224,13 @@ crisAI separates team-owned knowledge from task work:
 - `workspace/knowledge_staging/` is the review area for content promoted from task artefacts or generated from source documentation.
 
 Markdown is the authoritative generated artefact format. Native Word, PowerPoint, Excel, email, JSON, and diagram exports should be generated later from reviewed Markdown and organisation templates.
+
+For DOCX/PPTX output, the `document_formatter` agent uses `document_export`
+tools to inspect a template manifest and render from an existing Markdown task
+artefact into `workspace/tasks/<task>/exports/` or `workspace/outputs/`.
+Starter UCL manifests live under `workspace/knowledge/templates/ucl/`; add
+official binary `.docx` or `.pptx` templates beside those manifests when
+available.
 
 SharePoint documents and SharePoint-backed intranet pages use separate MCP servers and separate token caches. Full Graph setup, auth behavior, and prompting guidance are in [DOCUMENTATION.md](DOCUMENTATION.md).
 

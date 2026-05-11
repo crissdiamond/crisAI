@@ -93,6 +93,15 @@ agents:
       - diagrams
       - intranet
 
+  - id: document_formatter
+    name: Document Formatter
+    model_ref: openai_fast
+    prompt_file: prompts/document_formatter.md
+    allowed_servers:
+      - workspace
+      - documents
+      - document_export
+
   - id: design_author
     name: Design Author
     model_ref: openai_fast

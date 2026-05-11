@@ -55,6 +55,7 @@ Specialist reasoning roles such as:
 - `summary`
 - `review`
 - `operations`
+- `document_formatter`
 - `orchestrator`
 - peer-only roles such as `design_author`, `design_challenger`, `design_refiner`, and `judge`
 
@@ -66,6 +67,7 @@ Typical examples:
 - document reader server
 - diagram server
 - vision server for standalone images and embedded PowerPoint pictures
+- document export server for DOCX/PPTX rendering from reviewed Markdown
 - SharePoint / OneDrive documents server
 - intranet **site pages** server (scoped to `registry/intranet.yaml`; **independent** Graph auth token cache from the SharePoint docs server)
 
@@ -420,6 +422,9 @@ The peer-mode arbitration specialist. Evaluates the full author â†’ challenger â
 ### `publisher`
 The packaging specialist for turning approved outputs or user requests into more formal artefacts when supported by the available tools.
 
+### `document_formatter`
+The narrow export specialist for transforming an existing reviewed Markdown task artefact into a native DOCX or PPTX file using a template manifest. It preserves source content, reports missing required sections, and writes only to `tasks/<task>/exports/` or `outputs/`.
+
 ---
 
 ## 9. Heuristic router
@@ -547,6 +552,26 @@ workspace/outputs/                    generic tool outputs
 Agents may write task artefacts directly under the active task and may write knowledge promotion candidates under `knowledge_staging/`. Agents should not write directly to `knowledge/` unless a specific promotion workflow has been requested and validation passes.
 
 Markdown/Mermaid is the source of truth for generated architecture artefacts. Native Word, PowerPoint, Excel, email, JSON payload, mapping documents, and diagram exports should be generated as follow-on tasks from reviewed Markdown and organisation templates.
+
+DOCX/PPTX exports are handled by the `document_formatter` agent and the
+`document_export` MCP server. The expected flow is:
+
+1. Generate or review the source Markdown under `workspace/tasks/<task>/artefacts/`.
+2. Select a template manifest under `workspace/knowledge/templates/` or another approved workspace path.
+3. Render the native file into `workspace/tasks/<task>/exports/` or `workspace/outputs/`.
+4. Treat the returned export report as validation metadata, not user-facing prose unless troubleshooting.
+
+Starter UCL template manifests are available at:
+
+```text
+knowledge/templates/ucl/hld/ucl-hld-docx.template.yaml
+knowledge/templates/ucl/presentation/ucl-architecture-pptx.template.yaml
+```
+
+If an official binary `.docx` or `.pptx` template is available, place it beside
+the manifest and reference it with `template_file`. Without a binary template,
+the exporter still creates a valid native file from the manifest structure but
+cannot apply organisation-specific branding or slide masters.
 
 ### Good path style
 

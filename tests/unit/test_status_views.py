@@ -78,6 +78,7 @@ def test_agent_icon_covers_known_types():
     assert status_views.agent_icon("review") == "🛡"
     assert status_views.agent_icon("judge") == "⚖"
     assert status_views.agent_icon("operations") == "🔧"
+    assert status_views.agent_icon("document_formatter") == "🧾"
     assert status_views.agent_icon("publisher") == "📦"
     assert status_views.agent_icon("something_else") == "🧠"
 

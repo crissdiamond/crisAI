@@ -35,6 +35,7 @@ _ICONS = {
     "memory_summarizer": "🧠",
     # Package: templates and formal artefacts.
     "publisher": "📦",
+    "document_formatter": "🧾",
 }
 
 _LABELS = {
@@ -52,6 +53,7 @@ _LABELS = {
     "operations": "Operations",
     "memory_summarizer": "Memory Summarizer",
     "publisher": "Publisher",
+    "document_formatter": "Document Formatter",
 }
 
 _STYLES = {
@@ -69,6 +71,7 @@ _STYLES = {
     "operations": "blue",
     "memory_summarizer": "cyan",
     "publisher": "magenta",
+    "document_formatter": "magenta",
 }
 
 _RENDER_TITLES = {
