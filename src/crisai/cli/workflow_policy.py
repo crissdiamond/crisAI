@@ -36,24 +36,8 @@ class WorkflowPolicyViolation(RuntimeError):
     """Raised when a hard workflow policy gate is violated."""
 
 
-_DEFAULT_CONFIG: dict[str, Any] = {
-    "capability_markers": {
-        "intranet_grounded": [
-            "intranet",
-            "site pages",
-            "sitepages",
-            "intranet_fetch_page",
-        ],
-        "produce_artifacts": [
-            "write_workspace_file",
-            "create file",
-            "create files",
-            "deliver files",
-            "knowledge_staging/",
-            "tasks/",
-            "under workspace/",
-        ],
-    },
+_STRUCTURAL_DEFAULTS: dict[str, Any] = {
+    "capability_markers": {},
     "requirements": {
         "intranet_fetch_for_capabilities": ["intranet_grounded"],
         "workspace_write_for_capabilities": ["produce_artifacts"],
@@ -62,25 +46,34 @@ _DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 
+def _resolve_registry_dir(registry_dir: Path | None) -> Path:
+    if registry_dir is not None:
+        return registry_dir
+    try:
+        from crisai.config import load_settings
+        return Path(load_settings().registry_dir)
+    except Exception:  # noqa: BLE001
+        return Path("registry")
+
+
 def _load_policy_config(registry_dir: Path | None) -> dict[str, Any]:
-    """Load policy config from registry/workflow_policy.yaml, with defaults."""
-    if registry_dir is None:
-        return dict(_DEFAULT_CONFIG)
-    path = registry_dir / "workflow_policy.yaml"
+    """Load policy config from registry/workflow_policy.yaml, with structural defaults."""
+    resolved = _resolve_registry_dir(registry_dir)
+    path = resolved / "workflow_policy.yaml"
     if not path.exists():
-        return dict(_DEFAULT_CONFIG)
+        return dict(_STRUCTURAL_DEFAULTS)
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except Exception:
-        return dict(_DEFAULT_CONFIG)
+        return dict(_STRUCTURAL_DEFAULTS)
     block = data.get("workflow_policy") or {}
-    merged = dict(_DEFAULT_CONFIG)
+    merged = dict(_STRUCTURAL_DEFAULTS)
     merged.update({k: v for k, v in block.items() if v is not None})
     # Deep-merge nested blocks used by this module.
-    merged_markers = dict(_DEFAULT_CONFIG.get("capability_markers", {}))
+    merged_markers = dict(_STRUCTURAL_DEFAULTS.get("capability_markers", {}))
     merged_markers.update(block.get("capability_markers") or {})
     merged["capability_markers"] = merged_markers
-    merged_requirements = dict(_DEFAULT_CONFIG.get("requirements", {}))
+    merged_requirements = dict(_STRUCTURAL_DEFAULTS.get("requirements", {}))
     merged_requirements.update(block.get("requirements") or {})
     merged["requirements"] = merged_requirements
     return merged
