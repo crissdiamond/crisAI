@@ -38,6 +38,8 @@ class PeerVerifierPatterns:
     leaf_file_pattern: str
     leaf_file_terms: frozenset[str]
     data_architecture_terms: frozenset[str]
+    intranet_evidence_positive_marker: str
+    intranet_evidence_negative_markers: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -211,6 +213,14 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             "registry/semantic_catalog.yaml: peer_verifier.data_architecture_terms must be "
             "a non-empty list."
         )
+    intranet_positive = str(verifier_block.get("intranet_evidence_positive_marker") or "").strip()
+    if not intranet_positive:
+        raise SemanticCatalogError(
+            "registry/semantic_catalog.yaml: peer_verifier.intranet_evidence_positive_marker "
+            "must be a non-empty string."
+        )
+    intranet_negatives_raw = verifier_block.get("intranet_evidence_negative_markers")
+    intranet_negatives = _as_frozenset(intranet_negatives_raw)
     function_words = _function_words(lexicon_block.get("function_words"))
     if not function_words:
         raise SemanticCatalogError(
@@ -257,6 +267,8 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             leaf_file_pattern=leaf_file_pattern,
             leaf_file_terms=_as_frozenset(leaf_terms),
             data_architecture_terms=_as_frozenset(data_terms),
+            intranet_evidence_positive_marker=intranet_positive,
+            intranet_evidence_negative_markers=intranet_negatives,
         ),
         peer_contract=PeerContractMarkers(
             file_write_markers=_peer_contract_marker_field(data, "file_write_markers"),

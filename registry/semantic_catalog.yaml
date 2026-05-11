@@ -336,6 +336,11 @@ peer_verifier:
     - normalization
     - denormalization
     - metadata
+  intranet_evidence_positive_marker: "intranet sources"
+  intranet_evidence_negative_markers:
+    - none were retrieved in this turn
+    - no successful intranet fetches
+    - no intranet retrieval tools were invoked successfully
 
 lexicon:
   function_words:

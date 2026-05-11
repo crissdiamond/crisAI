@@ -118,3 +118,28 @@ def test_infer_workflow_policy_requires_intranet_when_explicit_and_deterministic
         deterministic_context=context,
     )
     assert policy.require_intranet_fetch is True
+
+
+def test_has_intranet_fetch_evidence_reads_markers_from_catalog(monkeypatch):
+    """has_intranet_fetch_evidence uses catalog markers, not hardcoded strings."""
+    from crisai.orchestration import semantic_catalog as sc_mod
+    from crisai.orchestration.semantic_catalog import build_semantic_catalog_from_dict
+    import yaml
+    from pathlib import Path
+
+    base = yaml.safe_load(
+        (Path(__file__).resolve().parents[2] / "registry" / "semantic_catalog.yaml").read_text(encoding="utf-8")
+    )
+    base["peer_verifier"]["intranet_evidence_positive_marker"] = "custom marker present"
+    base["peer_verifier"]["intranet_evidence_negative_markers"] = ["custom negative"]
+    custom_catalog = build_semantic_catalog_from_dict(base)
+
+    sc_mod.load_semantic_catalog.cache_clear()
+    monkeypatch.setattr(sc_mod, "load_semantic_catalog", lambda *a, **kw: custom_catalog)
+
+    # positive marker present, no negative → evidence found
+    assert has_intranet_fetch_evidence("custom marker present and data") is True
+    # positive + negative → no evidence
+    assert has_intranet_fetch_evidence("custom marker present custom negative") is False
+    # original hardcoded string no longer works
+    assert has_intranet_fetch_evidence("intranet sources fetched") is False

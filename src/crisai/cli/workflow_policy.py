@@ -180,15 +180,13 @@ def changed_paths(
 
 def has_intranet_fetch_evidence(context_retrieval_text: str) -> bool:
     """Best-effort check that retrieval output contains successful intranet fetches."""
+    from crisai.orchestration.semantic_catalog import load_semantic_catalog
+
+    verifier = load_semantic_catalog().peer_verifier
     text = (context_retrieval_text or "").lower()
-    if "intranet sources" not in text:
+    if verifier.intranet_evidence_positive_marker not in text:
         return False
-    negative_markers = (
-        "none were retrieved in this turn",
-        "no successful intranet fetches",
-        "no intranet retrieval tools were invoked successfully",
-    )
-    return not any(marker in text for marker in negative_markers)
+    return not any(m in text for m in verifier.intranet_evidence_negative_markers)
 
 
 def enforce_intranet_fetch_policy(policy: WorkflowPolicy, context_retrieval_text: str) -> None:
