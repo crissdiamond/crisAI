@@ -44,6 +44,7 @@ from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
 from crisai.orchestration.exceptions import WorkflowValidationError
 from crisai.orchestration.router import RoutingDecision, decide_route
+from crisai.orchestration.semantic_catalog import load_semantic_catalog
 from crisai.registry import Registry
 from crisai.registry_validation import run_doctor
 from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
@@ -65,70 +66,8 @@ def _cli_bootstrap(ctx: typer.Context) -> None:
     configure_logging(load_settings())
 _EXPECTED_RUNTIME_ERRORS = (typer.BadParameter, WorkflowValidationError, ValueError, RuntimeError, FileNotFoundError)
 
-_EXPLICIT_MODE_PATTERNS: dict[str, tuple[str, ...]] = {
-    "peer": (
-        r"\buse\s+peer\s+mode\b",
-        r"\brun\s+in\s+peer\s+mode\b",
-        r"\bshow\s+the\s+peer\s+conversation\b",
-        r"\bpeer\s+conversation\b",
-        r"\bauthor\b.*\bchallenger\b.*\brefiner\b.*\bjudge\b",
-    ),
-    "pipeline": (
-        r"\buse\s+pipeline\s+mode\b",
-        r"\brun\s+the\s+pipeline\b",
-        r"\bdiscovery\b.*\bdesign\b.*\breview\b.*\borchestrator\b",
-        r"\bretrieval\s+planner\b.*\bdesign\b.*\breview\b.*\borchestrator\b",
-    ),
-    "single": (
-        r"\buse\s+single\s+mode\b",
-        r"\brun\s+a\s+single\s+agent\b",
-    ),
-}
-
-_GENERATIVE_PEER_PATTERNS: tuple[str, ...] = (
-    r"\bpropose\b",
-    r"\bdesign\b",
-    r"\bdraft\b",
-    r"\bcreate\b",
-    r"\bwrite\b",
-    r"\bimprov(?:e|ing|ement)\b",
-    r"\brefactor\b",
-    r"\bsimple\s+design\b",
-)
-
-_RETRIEVAL_REQUIRED_PATTERNS: tuple[str, ...] = (
-    r"\bbased\s+on\b",
-    r"\bfrom\s+the\s+workspace\b",
-    r"\bfrom\s+existing\b",
-    r"\buse\s+the\s+existing\b",
-    r"\buse\s+the\s+document\b",
-    r"\breview\s+the\s+document\b",
-    r"\bretrieve\b",
-    r"\blook\s+up\b",
-    r"\bfind\b",
-    r"\bsearch\b",
-    r"\bsource\b",
-    r"\bcitation\b",
-    r"\bcontext\s+from\b",
-)
-
-_PEER_RETRIEVAL_FORCE_PATTERNS: tuple[str, ...] = (
-    # Intranet/source-grounded requests should keep retrieval on in peer mode.
-    r"\bintranet\b",
-    r"\bsharepoint\b",
-    r"\bsitepages?\b",
-    r"\bsite\s+pages?\b",
-    r"\bintegration-patterns?\.aspx\b",
-    # File-backed deliverables should not skip retrieval evidence.
-    r"\bwrite_workspace_file\b",
-    r"\bcreate\s+files?\b",
-    r"\bsave\s+files?\b",
-    r"\bknowledge_staging\b",
-    r"\btasks?\b",
-    r"\bworkspace\/\b",
-    r"\bartifacts?\b",
-    r"\bartefacts?\b",
-)
+def _interaction_patterns():
+    return load_semantic_catalog().interaction
 
 
 def _load_registry():
@@ -170,9 +109,9 @@ def _detect_explicit_mode(user_input: str) -> str | None:
         present.
     """
     normalized = " ".join(user_input.lower().split())
-    for mode, patterns in _EXPLICIT_MODE_PATTERNS.items():
+    for mode, patterns in _interaction_patterns().explicit_mode_patterns.items():
         for pattern in patterns:
-            if re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL):
+            if pattern.search(normalized):
                 return mode
     return None
 
@@ -202,23 +141,21 @@ def _should_disable_peer_retrieval(user_input: str, explicit_mode: str | None, d
 
     normalized = " ".join(user_input.lower().split())
 
+    interaction = _interaction_patterns()
     # Hard keep-on: for intranet-grounded or file-backed peer requests,
     # retrieval should remain enabled even in explicit generative peer mode.
-    for pattern in _PEER_RETRIEVAL_FORCE_PATTERNS:
-        if re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL):
+    for pattern in interaction.peer_retrieval_force_patterns:
+        if pattern.search(normalized):
             return False
 
-    for pattern in _RETRIEVAL_REQUIRED_PATTERNS:
-        if re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL):
+    for pattern in interaction.retrieval_required_patterns:
+        if pattern.search(normalized):
             return False
 
     if re.search(r"\bauthor\b.*\bchallenger\b.*\brefiner\b.*\bjudge\b", normalized, flags=re.IGNORECASE | re.DOTALL):
         return True
 
-    return any(
-        re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL)
-        for pattern in _GENERATIVE_PEER_PATTERNS
-    )
+    return any(pattern.search(normalized) for pattern in interaction.generative_peer_patterns)
 
 
 def _should_force_peer_retrieval(user_input: str, decision: RoutingDecision) -> bool:
@@ -230,10 +167,7 @@ def _should_force_peer_retrieval(user_input: str, decision: RoutingDecision) -> 
     if getattr(decision, "mode", None) != "peer":
         return False
     normalized = " ".join(user_input.lower().split())
-    return any(
-        re.search(pattern, normalized, flags=re.IGNORECASE | re.DOTALL)
-        for pattern in _PEER_RETRIEVAL_FORCE_PATTERNS
-    )
+    return any(pattern.search(normalized) for pattern in _interaction_patterns().peer_retrieval_force_patterns)
 
 
 

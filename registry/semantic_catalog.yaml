@@ -572,3 +572,59 @@ peer_contract:
     - markdown file
     - .md
     - template manifest
+
+# Interaction patterns: explicit mode detection and peer retrieval overrides.
+# These patterns are compiled with IGNORECASE | DOTALL flags.
+interaction:
+  explicit_mode_patterns:
+    peer:
+      - '\buse\s+peer\s+mode\b'
+      - '\brun\s+in\s+peer\s+mode\b'
+      - '\bshow\s+the\s+peer\s+conversation\b'
+      - '\bpeer\s+conversation\b'
+      - '\bauthor\b.*\bchallenger\b.*\brefiner\b.*\bjudge\b'
+    pipeline:
+      - '\buse\s+pipeline\s+mode\b'
+      - '\brun\s+the\s+pipeline\b'
+      - '\bdiscovery\b.*\bdesign\b.*\breview\b.*\borchestrator\b'
+      - '\bretrieval\s+planner\b.*\bdesign\b.*\breview\b.*\borchestrator\b'
+    single:
+      - '\buse\s+single\s+mode\b'
+      - '\brun\s+a\s+single\s+agent\b'
+  generative_peer_patterns:
+    - '\bpropose\b'
+    - '\bdesign\b'
+    - '\bdraft\b'
+    - '\bcreate\b'
+    - '\bwrite\b'
+    - '\bimprov(?:e|ing|ement)\b'
+    - '\brefactor\b'
+    - '\bsimple\s+design\b'
+  retrieval_required_patterns:
+    - '\bbased\s+on\b'
+    - '\bfrom\s+the\s+workspace\b'
+    - '\bfrom\s+existing\b'
+    - '\buse\s+the\s+existing\b'
+    - '\buse\s+the\s+document\b'
+    - '\breview\s+the\s+document\b'
+    - '\bretrieve\b'
+    - '\blook\s+up\b'
+    - '\bfind\b'
+    - '\bsearch\b'
+    - '\bsource\b'
+    - '\bcitation\b'
+    - '\bcontext\s+from\b'
+  peer_retrieval_force_patterns:
+    - '\bintranet\b'
+    - '\bsharepoint\b'
+    - '\bsitepages?\b'
+    - '\bsite\s+pages?\b'
+    - '\bintegration-patterns?\.aspx\b'
+    - '\bwrite_workspace_file\b'
+    - '\bcreate\s+files?\b'
+    - '\bsave\s+files?\b'
+    - '\bknowledge_staging\b'
+    - '\btasks?\b'
+    - '\bworkspace\/\b'
+    - '\bartifacts?\b'
+    - '\bartefacts?\b'

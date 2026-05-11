@@ -338,6 +338,7 @@ def _make_fake_catalog(sc_mod, *, signatures=None, boilerplate=()):
         peer_contract=orig.peer_contract,
         lexicon=orig.lexicon,
         retrieval_constraints=orig.retrieval_constraints,
+        interaction=orig.interaction,
     )
 
 

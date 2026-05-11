@@ -84,12 +84,23 @@ class LexiconTerms:
 
 
 @dataclass(frozen=True)
+class InteractionPatterns:
+    """Regex patterns for explicit mode detection and peer retrieval overrides."""
+
+    explicit_mode_patterns: dict[str, tuple[re.Pattern[str], ...]]
+    generative_peer_patterns: tuple[re.Pattern[str], ...]
+    retrieval_required_patterns: tuple[re.Pattern[str], ...]
+    peer_retrieval_force_patterns: tuple[re.Pattern[str], ...]
+
+
+@dataclass(frozen=True)
 class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
     peer_contract: PeerContractMarkers
     lexicon: LexiconTerms
     retrieval_constraints: RetrievalConstraintTerms
+    interaction: InteractionPatterns
 
 
 class SemanticCatalogError(ValueError):
@@ -267,6 +278,24 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             "must contain at least one non-empty scope."
         )
 
+    _compile = re.IGNORECASE | re.DOTALL
+    interaction_block = data.get("interaction")
+    interaction_block = interaction_block if isinstance(interaction_block, dict) else {}
+    raw_explicit_modes = interaction_block.get("explicit_mode_patterns")
+    explicit_mode_patterns: dict[str, tuple[re.Pattern[str], ...]] = {}
+    if isinstance(raw_explicit_modes, dict):
+        for mode, pats in raw_explicit_modes.items():
+            if isinstance(pats, list):
+                explicit_mode_patterns[str(mode)] = tuple(
+                    re.compile(str(p), _compile) for p in pats if isinstance(p, str) and p.strip()
+                )
+
+    def _compile_list(key: str) -> tuple[re.Pattern[str], ...]:
+        raw = interaction_block.get(key)
+        if not isinstance(raw, list):
+            return ()
+        return tuple(re.compile(str(p), _compile) for p in raw if isinstance(p, str) and p.strip())
+
     return SemanticCatalog(
         router=RouterTerms(
             discovery_terms=_as_frozenset(router_block.get("discovery_terms")),
@@ -308,6 +337,12 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
         retrieval_constraints=RetrievalConstraintTerms(
             object_type_terms=_as_frozenset(retrieval_block.get("object_type_terms")),
             source_scope_markers=scope_markers,
+        ),
+        interaction=InteractionPatterns(
+            explicit_mode_patterns=explicit_mode_patterns,
+            generative_peer_patterns=_compile_list("generative_peer_patterns"),
+            retrieval_required_patterns=_compile_list("retrieval_required_patterns"),
+            peer_retrieval_force_patterns=_compile_list("peer_retrieval_force_patterns"),
         ),
     )
 
