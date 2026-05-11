@@ -32,10 +32,10 @@ That means:
 - you can see when routing is automatic versus pinned
 - you can assign different providers and models to different agents through configuration
 
-Product and engineering design decisions about crisAI itself are recorded under
-`reference/decisions/`. The maintainable improvement backlog is recorded in
-`reference/TODO.md`. Keep customer/domain architecture knowledge in
-`workspace/knowledge/` instead.
+The product vision is recorded in `reference/VISION.md`. Product and engineering
+design decisions about crisAI itself are recorded under `reference/decisions/`.
+The maintainable improvement backlog is recorded in `reference/TODO.md`. Keep
+customer/domain architecture knowledge in `workspace/knowledge/` instead.
 
 ---
 

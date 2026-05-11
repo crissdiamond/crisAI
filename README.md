@@ -282,6 +282,7 @@ such as validated evidence bundles, under structured event metadata.
 - [DOCUMENTATION.md](DOCUMENTATION.md): full operator manual.
 - [DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md](DOCUMENTATION_DETERMINISTIC_RETRIEVAL.md): deterministic retrieval architecture.
 - [TESTING.md](TESTING.md): test suite and development checks.
+- [reference/VISION.md](reference/VISION.md): product vision and guiding principles.
 - [reference/TODO.md](reference/TODO.md): maintainable backlog of future improvements.
 - [reference/decisions/](reference/decisions/): crisAI product and engineering design decisions.
 - [runbooks/](runbooks): setup, registry, policies, observability, and security.

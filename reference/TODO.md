@@ -6,6 +6,9 @@ Use this file for maintainable work items, not detailed design decisions. When a
 item becomes architecture-shaping, add or update an ADR in
 `reference/decisions/` and link it from the item.
 
+The product direction and guiding principles are recorded in
+[`VISION.md`](VISION.md).
+
 ## How To Maintain
 
 - `Status`: todo, planned, in-progress, blocked, done, or dropped.
