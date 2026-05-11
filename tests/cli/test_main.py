@@ -189,6 +189,76 @@ def test_close_chat_session_persists_history_and_shows_exit_notice(monkeypatch):
     assert notices[-1] == ("👋 Session closed", "Exiting.")
 
 
+def test_chat_loop_runs_one_request_then_persists_history(monkeypatch):
+    prompts = iter(["hello", EOFError()])
+    saved = {}
+    memory_updates = []
+    final_outputs = []
+
+    def fake_prompt(*args, **kwargs):
+        del args, kwargs
+        value = next(prompts)
+        if isinstance(value, BaseException):
+            raise value
+        return value
+
+    async def fake_run_with_routing(*args, **kwargs):
+        del args, kwargs
+        return "assistant answer"
+
+    monkeypatch.setattr(main, "prompt", fake_prompt)
+    monkeypatch.setattr(main, "_resolve_initial_chat_session", lambda session: session)
+    monkeypatch.setattr(main, "load_history", lambda session: [])
+    monkeypatch.setattr(main, "print_chat_state", lambda **kwargs: None)
+    monkeypatch.setattr(main, "handle_chat_command", lambda user_input, state: False)
+    monkeypatch.setattr(
+        main,
+        "build_runtime_context_package",
+        lambda user_input, history, session_name: SimpleNamespace(prompt=user_input, drift_nudge=None),
+    )
+    monkeypatch.setattr(main, "_detect_explicit_mode", lambda user_input: None)
+    monkeypatch.setattr(
+        main,
+        "_resolve_route",
+        lambda *args, **kwargs: SimpleNamespace(
+            intent="design",
+            mode="single",
+            agent="design",
+            needs_retrieval=False,
+            needs_review=False,
+            reason="test route",
+        ),
+    )
+    monkeypatch.setattr(main, "_apply_decision_overrides", lambda user_input, explicit_mode, decision: decision)
+    monkeypatch.setattr(main, "route_display", lambda decision: "route")
+    monkeypatch.setattr(main, "print_status_message", lambda *args, **kwargs: None)
+    monkeypatch.setattr(main, "_run_with_routing", fake_run_with_routing)
+    monkeypatch.setattr(main, "_render_final_output", lambda decision, text: final_outputs.append(text))
+    monkeypatch.setattr(main, "sanitize_user_visible_text", lambda text: text)
+    monkeypatch.setattr(
+        main,
+        "save_history",
+        lambda session, history: saved.update({"session": session, "history": list(history)}),
+    )
+    monkeypatch.setattr(main, "update_session_memory", lambda session, history: memory_updates.append((session, list(history))))
+
+    main.chat(
+        agent_id="orchestrator",
+        session="default",
+        pipeline=False,
+        peer=False,
+        review=False,
+        verbose=False,
+    )
+
+    assert final_outputs == ["assistant answer"]
+    assert saved == {
+        "session": "default",
+        "history": [("user", "hello"), ("assistant", "assistant answer")],
+    }
+    assert memory_updates == [("default", [("user", "hello"), ("assistant", "assistant answer")])]
+
+
 def test_run_async_cancels_pending_background_tasks():
     observed: dict[str, bool] = {"cancelled": False}
 

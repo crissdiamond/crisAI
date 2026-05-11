@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from crisai.cli import pipelines
+from crisai.cli import pipeline_display, pipelines
 from crisai.orchestration import peer_judge
 from crisai.orchestration.exceptions import WorkflowValidationError
 
@@ -68,17 +68,17 @@ class FakeWorkflowEngine:
 
 def test_resolve_agent_max_turns_defaults_to_safe_value(monkeypatch):
     monkeypatch.delenv("CRISAI_AGENT_MAX_TURNS", raising=False)
-    assert pipelines._resolve_agent_max_turns() == 30
+    assert pipeline_display._resolve_agent_max_turns() == 30
 
 
 def test_resolve_agent_max_turns_handles_invalid_env_value(monkeypatch):
     monkeypatch.setenv("CRISAI_AGENT_MAX_TURNS", "invalid")
-    assert pipelines._resolve_agent_max_turns() == 30
+    assert pipeline_display._resolve_agent_max_turns() == 30
 
 
 def test_resolve_agent_max_turns_respects_positive_env_value(monkeypatch):
     monkeypatch.setenv("CRISAI_AGENT_MAX_TURNS", "42")
-    assert pipelines._resolve_agent_max_turns() == 42
+    assert pipeline_display._resolve_agent_max_turns() == 42
 
 
 def test_validated_evidence_text_fails_closed_for_document_summary_without_bundle():
@@ -451,7 +451,7 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -548,7 +548,7 @@ Retrieved and read the deck.
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -594,7 +594,7 @@ async def test_run_peer_pipeline_skips_retrieval_planner_when_retrieval_not_need
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -666,7 +666,7 @@ async def test_run_peer_pipeline_revises_once_when_judge_requests_revision(monke
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -743,7 +743,7 @@ async def test_run_peer_pipeline_quality_gate_forces_revision_after_initial_acce
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -827,7 +827,7 @@ async def test_run_peer_pipeline_escalates_to_author_and_challenger_after_unreso
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -885,7 +885,7 @@ async def test_run_peer_pipeline_uses_user_intent_message_for_contract_inference
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -954,7 +954,7 @@ async def test_run_peer_pipeline_stops_before_orchestrator_when_judge_not_accept
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -1004,7 +1004,7 @@ async def test_run_single_retrieval_planner_uses_retrieval_execution_prompt(monk
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(
+        lambda settings, **kwargs: SimpleNamespace(
             trace_file=tmp_path / "trace.log",
             runtime=SimpleNamespace(
                 build_server=lambda server_spec: server_spec
@@ -1045,7 +1045,7 @@ async def test_run_single_emits_fail_open_deterministic_trace_when_graph_missing
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(
+        lambda settings, **kwargs: SimpleNamespace(
             trace_file=tmp_path / "trace.log",
             runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
             factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
@@ -1065,7 +1065,7 @@ async def test_run_single_emits_fail_open_deterministic_trace_when_graph_missing
     monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
     monkeypatch.setattr(
         pipelines,
-        "_append_trace_entry_compat",
+        "append_trace_entry",
         lambda environment, stage, content, **kwargs: captured_events.append((stage, content, kwargs.get("metadata"))),
     )
 
@@ -1093,7 +1093,7 @@ async def test_run_pipeline_enforces_intranet_fetch_policy(monkeypatch, tmp_path
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -1130,7 +1130,7 @@ async def test_run_peer_pipeline_passes_deterministic_context_to_peer_builders(m
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -1187,7 +1187,7 @@ async def test_run_peer_pipeline_enforces_workspace_write_policy(monkeypatch, tm
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,
@@ -1241,7 +1241,7 @@ async def test_run_peer_pipeline_repairs_final_output_for_repairable_verifier_mi
     monkeypatch.setattr(
         pipelines,
         "create_workflow_environment",
-        lambda settings: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
     )
     monkeypatch.setattr(
         pipelines,

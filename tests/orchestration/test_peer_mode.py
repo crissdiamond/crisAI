@@ -23,7 +23,8 @@ class DummyAsyncContext:
 
 
 class FakeFactory:
-    def __init__(self, root_dir: Path) -> None:
+    def __init__(self, root_dir: Path, model_specs=None, settings=None) -> None:
+        del model_specs, settings
         self.root_dir = root_dir
 
     def build_agent(self, spec, active_servers):

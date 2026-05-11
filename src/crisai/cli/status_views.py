@@ -56,11 +56,6 @@ def agent_icon(agent_id: str) -> str:
     return "🧠"
 
 
-# Backward-compatible aliases used by the existing tests and CLI modules.
-_server_icon = server_icon
-_agent_icon = agent_icon
-
-
 def _agent_model_label(spec: object) -> str:
     """Return the best available label for an agent model assignment."""
     for attr in ("display_model", "model_ref", "model"):
@@ -117,11 +112,6 @@ def print_agents_table() -> None:
     console.print(table)
 
 
-# Backward-compatible aliases.
-_print_servers_table = print_servers_table
-_print_agents_table = print_agents_table
-
-
 def route_display(decision: RoutingDecision) -> str:
     """Format a routing decision for user display."""
     agent = decision.agent or "-"
@@ -131,9 +121,6 @@ def route_display(decision: RoutingDecision) -> str:
     return f"router:{label} • {decision.mode} • {agent} • {review_label} • {retrieval_label} • {decision.reason}"
 
 
-_route_display = route_display
-
-
 def mode_status(current_mode: str, mode_pinned: bool) -> str:
     """Return the display value for the current routing mode."""
     if not mode_pinned:
@@ -141,17 +128,11 @@ def mode_status(current_mode: str, mode_pinned: bool) -> str:
     return f"pinned:{current_mode}"
 
 
-_mode_status = mode_status
-
-
 def agent_status(current_agent: str, agent_pinned: bool) -> str:
     """Return the display value for the current agent selection."""
     if not agent_pinned:
         return "auto"
     return f"pinned:{current_agent}"
-
-
-_agent_status = agent_status
 
 
 def print_chat_state(
@@ -180,9 +161,6 @@ def print_chat_state(
     print_status_message("\n".join(lines), title="💬 Chat state")
 
 
-_print_chat_state = print_chat_state
-
-
 def print_session_history(history: Iterable[HistoryEntry]) -> None:
     """Render the last session history entries."""
     history = list(history)
@@ -195,6 +173,3 @@ def print_session_history(history: Iterable[HistoryEntry]) -> None:
         label = "User" if role == "user" else "Assistant"
         lines.append(f"{idx}. {label}: {content[:500]}")
     print_status_message("\n".join(lines), title="📜 Session history")
-
-
-_print_session_history = print_session_history

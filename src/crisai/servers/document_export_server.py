@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml
 from docx import Document
+from docx.document import Document as DocxDocument
 from mcp.server.fastmcp import FastMCP
 from pptx import Presentation
 
@@ -141,7 +142,7 @@ def _content_lines(section: dict[str, Any]) -> list[str]:
     return [line.rstrip() for line in section.get("lines", [])]
 
 
-def _add_markdown_lines_to_docx(doc: Document, lines: list[str]) -> None:
+def _add_markdown_lines_to_docx(doc: DocxDocument, lines: list[str]) -> None:
     for line in lines:
         stripped = line.strip()
         if not stripped:

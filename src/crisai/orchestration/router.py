@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Set
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,11 +39,11 @@ def _normalise(text: str) -> str:
     return " ".join(text.lower().strip().split())
 
 
-def _contains_any(text: str, phrases: set[str]) -> bool:
+def _contains_any(text: str, phrases: Set[str]) -> bool:
     return any(p in text for p in phrases)
 
 
-def _score_terms(text: str, terms: set[str]) -> int:
+def _score_terms(text: str, terms: Set[str]) -> int:
     return sum(1 for term in terms if term in text)
 
 

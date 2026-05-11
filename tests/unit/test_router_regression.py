@@ -206,3 +206,17 @@ def test_deterministic_nudge_sets_needs_retrieval(monkeypatch: pytest.MonkeyPatc
         registry_dir=None,
     )
     assert decision.needs_retrieval is True
+
+
+def test_explicit_pipeline_mode_overrides_single_agent_publication_route() -> None:
+    """Pinned pipeline mode keeps the route in pipeline even for single-agent intents."""
+    decision = decide_route(
+        "Package this final recommendation into a .docx document.",
+        review_enabled=False,
+        current_mode="pipeline",
+    )
+
+    assert decision.intent == "explicit"
+    assert decision.mode == "pipeline"
+    assert decision.agent == "design"
+    assert decision.needs_retrieval is True

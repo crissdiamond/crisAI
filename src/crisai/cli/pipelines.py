@@ -4,7 +4,6 @@ from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_p
 
 apply_openai_agents_trace_export_patch()
 
-import inspect
 import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -26,7 +25,7 @@ from crisai.orchestration.peer_contract import (
     render_peer_run_contract,
 )
 from crisai.orchestration.peer_evidence import (
-    _build_peer_filesystem_evidence,  # noqa: F401 – kept for test monkeypatch compat
+    _build_peer_filesystem_evidence,
     _build_peer_final_repair_prompt,
     _format_runtime_changed_files_manifest,
     _is_repairable_peer_verifier_failure,
@@ -35,7 +34,6 @@ from crisai.orchestration.peer_judge import (
     _build_prompt_with_contract,
     _extract_final_recommendation,
     _judge_reason_excerpt,
-    _parse_judge_decision,  # noqa: F401 – kept for test monkeypatch compat
     _resolve_peer_max_escalations,
     _resolve_peer_max_refinement_rounds,
     _run_judge_with_acceptance_audit,
@@ -80,9 +78,8 @@ from crisai.tracing import TRACE_FILE_NAME, append_trace
 
 from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_display import (
-    _resolve_agent_max_turns,  # noqa: F401 - re-exported for test monkeypatch seam
-    _run_agent_silently,  # re-exported for test monkeypatch seam
-    _run_agent_with_transient_box,  # re-exported for test monkeypatch seam
+    _run_agent_silently,
+    _run_agent_with_transient_box,
     print_agent_output,
     sanitize_user_visible_text,
 )
@@ -276,8 +273,8 @@ def _validated_evidence_transport(message: str, retrieval_text: str) -> Validate
     """Parse evidence once and keep machine transport separate from prose.
 
     For document-summary/source-read requests, the bundle is mandatory and must
-    contain at least one content_read item. For other requests, older markdown
-    retrieval output remains compatible.
+    contain at least one content_read item. For other requests, plain markdown
+    retrieval output is accepted.
     """
     prose = sanitize_user_visible_text(retrieval_text)
     must_read = request_requires_content_read(message)
@@ -301,57 +298,19 @@ def _validated_evidence_transport(message: str, retrieval_text: str) -> Validate
 def _validated_evidence_text(message: str, retrieval_text: str) -> str:
     """Return readable retrieval context after evidence validation.
 
-    Kept for compatibility with tests and older call sites. Machine evidence is
-    exposed through ``_validated_evidence_transport`` instead of embedded JSON.
+    Machine evidence is exposed through ``_validated_evidence_transport`` instead
+    of embedded JSON.
     """
     return _validated_evidence_transport(message, retrieval_text).prompt_text
 
 
-def _append_trace_entry_compat(
-    environment: WorkflowEnvironment,
-    stage: str,
-    content: str,
-    *,
-    event_type: str = "workflow_event",
-    agent_id: str | None = None,
-    metadata: dict | None = None,
-) -> None:
-    """Call append_trace_entry with backward-compatible fallback.
-
-    Some existing tests monkeypatch append_trace_entry with the historical
-    three-argument signature. This helper allows the richer structured call in
-    production while preserving those tests.
-    """
-    try:
-        append_trace_entry(
-            environment,
-            stage,
-            content,
-            event_type=event_type,
-            agent_id=agent_id,
-            metadata=metadata,
-        )
-    except TypeError:
-        append_trace_entry(environment, stage, content)
-
-
 def _build_agent_factory(root_dir: Path, settings, model_specs=None):
-    """Build an agent factory with compatibility for lightweight test doubles."""
-    kwargs: dict[str, Any] = {}
-    signature = inspect.signature(AgentFactory)
-    if model_specs is not None and "model_specs" in signature.parameters:
-        kwargs["model_specs"] = model_specs
-    if "settings" in signature.parameters:
-        kwargs["settings"] = settings
-    return AgentFactory(root_dir, **kwargs)
+    """Build a provider-aware agent factory."""
+    return AgentFactory(root_dir, model_specs=model_specs, settings=settings)
 
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
-    """Create workflow runtime objects using local module dependencies.
-
-    This wrapper intentionally lives in pipelines.py so existing tests that
-    monkeypatch RuntimeManager or AgentFactory on this module continue to work.
-    """
+    """Create workflow runtime objects using local module dependencies."""
     root_dir = Path.cwd()
     return WorkflowEnvironment(
         root_dir=root_dir,
@@ -400,25 +359,12 @@ def append_trace_entry(
     )
 
 
-def _create_environment(settings, model_specs=None) -> WorkflowEnvironment:
-    """Create a workflow environment while preserving older monkeypatch seams."""
-    signature = inspect.signature(create_workflow_environment)
-    if model_specs is not None and "model_specs" in signature.parameters:
-        return create_workflow_environment(settings, model_specs=model_specs)
-    return create_workflow_environment(settings)
-
-
 def _create_workflow_engine(environment: WorkflowEnvironment, server_specs) -> WorkflowEngine:
-    """Create a workflow engine wired to the local compatibility helpers.
-
-    Keeping this wiring in ``pipelines.py`` preserves existing monkeypatch
-    seams for tests that patch runtime, tracing, or agent execution helpers on
-    this module.
-    """
+    """Create a workflow engine wired to the local runtime helpers."""
 
     def trace_writer(stage: str, content: str, **kwargs: Any) -> None:
-        """Forward structured workflow events through the compatibility layer."""
-        _append_trace_entry_compat(environment, stage, content, **kwargs)
+        """Forward structured workflow events through the local trace wrapper."""
+        append_trace_entry(environment, stage, content, **kwargs)
 
     return WorkflowEngine(
         environment=environment,
@@ -437,7 +383,7 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
     if agent_id not in agent_specs:
         raise WorkflowValidationError(f"Unknown agent_id: {agent_id}")
 
-    environment = _create_environment(settings, model_specs=model_specs)
+    environment = create_workflow_environment(settings, model_specs=model_specs)
     agent_spec = agent_specs[agent_id]
 
     logger.info("Running single agent request.", extra={"agent_id": agent_id, "run_id": _get_run_id(environment)})
@@ -449,14 +395,14 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
         deterministic_context, graph_loaded = deterministic_context_from_registry(message, Path(registry_dir))
 
     async with workflow_server_context(environment, [agent_spec], server_specs) as active_servers:
-        _append_trace_entry_compat(
+        append_trace_entry(
             environment,
             "USER_INPUT",
             message,
             event_type="workflow_input",
             metadata={"mode": "single", "agent_id": agent_id},
         )
-        _append_trace_entry_compat(
+        append_trace_entry(
             environment,
             "DETERMINISTIC_RETRIEVAL_CONTEXT",
             (
@@ -505,7 +451,7 @@ async def run_pipeline(
 ) -> str:
     """Run the standard retrieval/context pipeline with summary or design drafting."""
     ensure_openai_api_key(settings)
-    environment = _create_environment(settings, model_specs=model_specs)
+    environment = create_workflow_environment(settings, model_specs=model_specs)
     intent_message = user_intent_message or message
     registry_dir = getattr(settings, "registry_dir", None)
     deterministic_context = _empty_deterministic_context()
@@ -790,7 +736,7 @@ async def run_peer_pipeline(
     """Run the peer workflow with optional retrieval and final recommendation."""
     del review  # Unused in peer mode today; kept for API compatibility.
     ensure_openai_api_key(settings)
-    environment = _create_environment(settings, model_specs=model_specs)
+    environment = create_workflow_environment(settings, model_specs=model_specs)
     intent_message = user_intent_message or message
     registry_dir = getattr(settings, "registry_dir", None)
     deterministic_context = _empty_deterministic_context()

@@ -242,24 +242,6 @@ def who_am_i() -> dict[str, Any]:
     return _graph_get("/me")
 
 
-#@mcp.tool()
-#def list_sites(query: str = "*", max_hits: int = 10) -> list[dict[str, Any]]:
-#    """Search SharePoint sites visible to the signed-in user."""
-#    log_event(f"list_sites query={query!r} max_hits={max_hits}")
-#    data = _graph_get("/sites", params={"search": query})
-#    values = data.get("value", [])[:max_hits]
-#    return [
-#        {
-#            "id": site.get("id"),
-#            "name": site.get("name"),
-#            "displayName": site.get("displayName"),
-#            "webUrl": site.get("webUrl"),
-#            "description": site.get("description"),
-#            "hostname": (site.get("siteCollection") or {}).get("hostname"),
-#        }
-#        for site in values
-#    ]
-
 @mcp.tool()
 def list_sites(query: str = "*", max_hits: int = 10) -> list[dict[str, Any]]:
     log_event(f"list_sites query={query!r} max_hits={max_hits}")
@@ -329,15 +311,6 @@ def list_drive_items(drive_id: str, item_id: str = "root", max_items: int = 50) 
     return [_normalise_item(item) for item in values]
 
 
-#@mcp.tool()
-#def search_drive_documents(drive_id: str, query: str, max_hits: int = 20) -> list[dict[str, Any]]:
-#    """Search for documents within a drive."""
-#    log_event(f"search_drive_documents drive_id={drive_id} query={query!r} max_hits={max_hits}")
-#    encoded = quote(query, safe="")
-#    data = _graph_get(f"/drives/{drive_id}/root/search(q='{encoded}')")
-#    values = data.get("value", [])[:max_hits]
-#    return [_normalise_item(item) for item in values]
-
 @mcp.tool()
 def search_drive_documents(drive_id: str, query: str, max_hits: int = 20) -> list[dict[str, Any]]:
     log_event(f"search_drive_documents drive_id={drive_id} query={query!r} max_hits={max_hits}")
@@ -345,15 +318,6 @@ def search_drive_documents(drive_id: str, query: str, max_hits: int = 20) -> lis
     data = _graph_get(f"/drives/{drive_id}/root/search(q='{encoded}')", timeout=90)
     values = data.get("value", [])[:max_hits]
     return [_normalise_item(item) for item in values]
-
-#@mcp.tool()
-#def search_site_drive_documents(site_id: str, query: str, max_hits: int = 20) -> list[dict[str, Any]]:
-#    """Search for documents in the default document library of a SharePoint site."""
-#    log_event(f"search_site_drive_documents site_id={site_id} query={query!r} max_hits={max_hits}")
-#    encoded = quote(query, safe="")
-#    data = _graph_get(f"/sites/{site_id}/drive/root/search(q='{encoded}')")
-#    values = data.get("value", [])[:max_hits]
-#    return [_normalise_item(item) for item in values]
 
 @mcp.tool()
 def search_site_drive_documents(site_id: str, query: str, max_hits: int = 20) -> list[dict[str, Any]]:

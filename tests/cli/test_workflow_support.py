@@ -21,8 +21,10 @@ class DummyRuntimeManager:
 
 
 class DummyAgentFactory:
-    def __init__(self, root_dir):
+    def __init__(self, root_dir, model_specs=None, settings=None):
         self.root_dir = root_dir
+        self.model_specs = model_specs
+        self.settings = settings
 
 
 def test_ensure_openai_api_key_raises_when_missing():
@@ -63,6 +65,8 @@ def test_create_workflow_environment_uses_cwd(monkeypatch, tmp_path):
     assert environment.root_dir == tmp_path
     assert isinstance(environment.runtime, DummyRuntimeManager)
     assert isinstance(environment.factory, DummyAgentFactory)
+    assert environment.factory.model_specs is None
+    assert environment.factory.settings is settings
     assert environment.trace_file == tmp_path / "logs" / "agent_trace.jsonl"
 
 
@@ -78,8 +82,8 @@ async def test_run_traced_stage_builds_runs_traces_and_prints(monkeypatch, tmp_p
         assert prompt == "hello"
         return "result"
 
-    def fake_append_trace(path, stage, content):
-        traces.append((path, stage, content))
+    def fake_append_trace(path, stage, content, **kwargs):
+        traces.append((path, stage, content, kwargs))
 
     def fake_print_agent_output(agent_id, body, *, verbose):
         printed.append((agent_id, body, verbose))
@@ -113,19 +117,33 @@ async def test_run_traced_stage_builds_runs_traces_and_prints(monkeypatch, tmp_p
 
     assert result == "result"
     assert built == [(spec, active_servers)]
-    assert traces == [(tmp_path / "trace.log", "DESIGN OUTPUT", "result")]
+    assert traces == [
+        (
+            tmp_path / "trace.log",
+            "DESIGN OUTPUT",
+            "result",
+            {"run_id": None, "agent_id": "design", "event_type": "stage_output"},
+        )
+    ]
     assert printed == [("design", "result", True)]
 
 
 def test_append_trace_entry_delegates(monkeypatch, tmp_path):
     calls = []
 
-    def fake_append_trace(path, stage, content):
-        calls.append((path, stage, content))
+    def fake_append_trace(path, stage, content, **kwargs):
+        calls.append((path, stage, content, kwargs))
 
     monkeypatch.setattr("crisai.cli.workflow_support.append_trace", fake_append_trace)
     environment = SimpleNamespace(trace_file=tmp_path / "trace.log")
 
     append_trace_entry(environment, "USER INPUT", "hello")
 
-    assert calls == [(tmp_path / "trace.log", "USER INPUT", "hello")]
+    assert calls == [
+        (
+            tmp_path / "trace.log",
+            "USER INPUT",
+            "hello",
+            {"run_id": None, "event_type": "workflow_event", "agent_id": None, "metadata": None},
+        )
+    ]

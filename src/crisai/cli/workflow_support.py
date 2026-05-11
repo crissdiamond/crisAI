@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import inspect
 from collections.abc import Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 from uuid import uuid4
 
 import typer
@@ -37,37 +35,8 @@ class WorkflowEnvironment:
 
 
 def _get_run_id(environment: WorkflowEnvironment | object) -> str | None:
-    """Return the workflow run id when available.
-
-    This keeps tracing helpers compatible with older tests that provide
-    lightweight SimpleNamespace environments without the newer run_id field.
-
-    Args:
-        environment: Workflow environment or test double.
-
-    Returns:
-        The workflow run identifier, or None when not available.
-    """
+    """Return the workflow run id when available."""
     return getattr(environment, "run_id", None)
-
-
-def _append_trace_compat(path: Path, stage: str, content: str, **kwargs: Any) -> None:
-    """Call append_trace with backward-compatible fallback.
-
-    Some existing tests monkeypatch append_trace with the historical
-    three-argument signature. Production code uses structured keyword
-    arguments. This helper preserves both call styles.
-
-    Args:
-        path: Trace file path.
-        stage: Logical stage name.
-        content: Trace body content.
-        **kwargs: Structured tracing fields for the real implementation.
-    """
-    try:
-        append_trace(path, stage, content, **kwargs)
-    except TypeError:
-        append_trace(path, stage, content)
 
 
 def ensure_openai_api_key(settings) -> None:
@@ -77,14 +46,8 @@ def ensure_openai_api_key(settings) -> None:
 
 
 def _build_agent_factory(root_dir: Path, settings, model_specs=None):
-    """Build an agent factory with compatibility for lightweight test doubles."""
-    kwargs: dict[str, Any] = {}
-    signature = inspect.signature(AgentFactory)
-    if model_specs is not None and "model_specs" in signature.parameters:
-        kwargs["model_specs"] = model_specs
-    if "settings" in signature.parameters:
-        kwargs["settings"] = settings
-    return AgentFactory(root_dir, **kwargs)
+    """Build a provider-aware agent factory."""
+    return AgentFactory(root_dir, model_specs=model_specs, settings=settings)
 
 
 def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironment:
@@ -162,7 +125,7 @@ async def run_traced_stage(
     """Run a workflow stage, trace it, and optionally print its output."""
     agent = environment.factory.build_agent(spec, active_servers)
     result = await runner(ui_agent_id, agent, prompt)
-    _append_trace_compat(
+    append_trace(
         environment.trace_file,
         trace_label,
         result,
@@ -185,7 +148,7 @@ def append_trace_entry(
     metadata: dict | None = None,
 ) -> None:
     """Append a structured trace event using the workflow environment trace file."""
-    _append_trace_compat(
+    append_trace(
         environment.trace_file,
         stage,
         content,
