@@ -78,8 +78,9 @@ flowchart LR
     PeerRetrieval --> Author[Design Author]
     Author --> Challenger[Design Challenger]
     Challenger --> Refiner[Design Refiner]
-    Refiner --> Judge[Judge]
+    Refiner --> Judge{Judge Decision}
     Judge -->|revise| Refiner
+    Judge -->|rework| Author
     Judge -->|accept| PeerFinal[Orchestrator + Verifier]
 
     SingleAgent --> Final[Final Output]

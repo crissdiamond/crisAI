@@ -361,6 +361,30 @@ Collaborative critique flow:
 optional retrieval_planner -> optional context_retrieval -> optional context_synthesizer -> design_author -> design_challenger -> design_refiner -> judge -> [refiner <-> judge iterative loop when decision=revise] -> [author -> challenger -> refiner escalation when decision=rework] -> orchestrator -> peer_verifier
 ```
 
+```mermaid
+flowchart LR
+    Start[Task Contract] --> NeedRetrieval{Retrieval needed?}
+    NeedRetrieval -->|yes| RetrievalPlanner[Retrieval Planner]
+    RetrievalPlanner --> ContextRetrieval[Context Retrieval]
+    ContextRetrieval --> ContextSynth[Context Synthesizer]
+    ContextSynth --> Author[Design Author]
+    NeedRetrieval -->|no| Author
+
+    Author --> Challenger[Design Challenger]
+    Challenger --> Refiner[Design Refiner]
+    Refiner --> Judge{Judge Decision}
+
+    Judge -->|revise| Refiner
+    Judge -->|rework| Author
+    Judge -->|accept| Orchestrator[Orchestrator]
+
+    Orchestrator --> Verifier[Peer Verifier]
+    Verifier -->|pass| Final[Final Output]
+    Verifier -->|repairable drift| Repair[Final Repair Pass]
+    Repair --> Verifier
+    Verifier -->|fail| HardFail[Workflow Error]
+```
+
 Notes:
 - `retrieval_planner` and `context_retrieval` can be skipped when retrieval is not needed for the peer task.
 - when retrieval is needed and the agent is configured, `context_synthesizer` runs after context retrieval to provide a stronger evidence basis for peer stages.
