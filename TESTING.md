@@ -2,7 +2,7 @@
 
 > **Guide to the current test suite, how to run it, and what it protects.**
 
-The crisAI test suite now covers more than the initial orchestration starter pack. It includes unit tests for the split CLI modules, workflow helpers, prompt builders, provider-aware model resolution, routing logic, and orchestration sequencing.
+The crisAI test suite covers the CLI, web app, orchestration flows, registry loading, semantic catalogues, MCP server adapters, workflow policy gates, and document handling helpers. The default `pytest` command also enforces project coverage through `pytest-cov`.
 
 ---
 
@@ -13,16 +13,18 @@ The suite provides confidence around:
 - agent factory behaviour
 - provider-aware model resolution
 - registry loading for agents and models
+- registry examples and validation
 - heuristic routing
+- task-contract and source-constraint inference
 - pipeline mode sequencing
 - peer mode sequencing and transcript handling
-- peer judge decision parsing and peer filesystem evidence collection
+- peer judge decision parsing, peer filesystem evidence collection, and peer verifier behaviour
 - command parsing and chat controller behaviour
 - CLI state rendering helpers
 - session persistence
 - prompt builder assembly
-- web app job lifecycle and bounded eviction
-- PowerPoint image extraction and vision MCP path safety/tool behaviour
+- web app job lifecycle, integration path, and bounded eviction
+- document export, workspace search, SharePoint helper behaviour, intranet MCP behaviour, diagram MCP behaviour, PowerPoint extraction, and vision MCP path safety/tool behaviour
 - import smoke tests for main orchestration modules
 
 ---
@@ -39,10 +41,18 @@ tests/
     test_pipelines.py
     test_workflow_support.py
 
+  integration/
+    test_peer_pipeline.py
+    test_pipeline_execution.py
+    test_web_integration.py
+
   orchestration/
     test_graph_login.py          (manual smoke test; skipped by pytest)
-    test_pipeline_mode.py
     test_peer_mode.py
+    test_pipeline_mode.py
+
+  smoke/
+    test_smoke.py                (opt-in provider smoke tests)
 
   unit/
     test_agent_display_icons.py
@@ -52,13 +62,18 @@ tests/
     test_chat_context.py
     test_chat_controller.py
     test_chat_pin_state.py
+    test_chat_session.py
     test_cli_commands.py
     test_config.py
+    test_diagram_server.py
     test_display.py
     test_document_context_retrieval.py
+    test_document_export_server.py
+    test_evidence_contract.py
+    test_image_server.py
+    test_interaction_patterns.py
     test_intranet_provider.py
     test_intranet_server.py
-    test_image_server.py
     test_logging_utils.py
     test_main_review_routing.py
     test_model_resolver.py
@@ -74,18 +89,24 @@ tests/
     test_powerpoint.py
     test_prompt_scaffolding.py
     test_registry_defaults.py
+    test_registry_examples.py
     test_registry_models.py
     test_registry_validation.py
     test_retrieval_association_graph.py
     test_router.py
     test_router_publisher.py
+    test_router_regression.py
+    test_runtime.py
     test_runtime_mcp_timeout.py
+    test_schema_resources.py
     test_semantic_catalog.py
     test_session_store.py
     test_sharepoint_browser_open.py
     test_sharepoint_item_normalise.py
     test_sharepoint_site_filter.py
+    test_source_constraints.py
     test_status_views.py
+    test_task_contract.py
     test_web_app.py
     test_workflow_policy.py
     test_workspace_server_search.py
@@ -102,6 +123,7 @@ tests/
   - OpenAI
   - Gemini
   - Anthropic
+  - DeepSeek through LiteLLM-compatible configuration
 - legacy raw `model` fallback still behaves as expected
 - model registry entries load correctly from `registry/models.yaml`
 
@@ -121,18 +143,22 @@ tests/
 - review prompts still route to review
 - operations/debug prompts still route to operations
 - publisher-oriented requests still route appropriately
+- task-contract facts preserve summary, design, source-resolution, and evidence-level intent
+- source constraints protect explicit title and source-scope matching
 
 ### Workflow execution layer
 - `run_single(...)` continues to honour the selected agent
 - `run_pipeline(...)` keeps the expected stage order
 - `run_peer_pipeline(...)` keeps the expected stage order
 - workflow helper functions keep shared runtime behaviour stable
+- integration tests cover pipeline, peer pipeline, and web execution paths with fakes
 
 ### Peer judge and evidence layer
-- judge decision parsing correctly classifies `accept`, `revise`, and `unknown` outcomes
+- judge decision parsing correctly classifies `accept`, `revise`, `rework`, and `unknown` outcomes
 - judge reason excerpt extraction prefers `Reason:` field, falls back to first non-decision line
 - filesystem evidence builder reports changed markdown files with front-matter, source, and excerpt metadata
 - filesystem evidence builder prioritises index-section content for index files
+- peer verifier checks file-backed claims, staged artefact shape, and repairable final-text drift
 
 ### Web app layer
 - `/api/run/start` returns correct job id and decision metadata
@@ -146,10 +172,14 @@ tests/
 - prompt-builder drift is reduced by keeping role policy in markdown prompts
 
 ### Document and vision layer
+- document export server tests cover Markdown-to-native document tool behaviour
+- diagram server tests cover Mermaid diagram tool behaviour
 - PowerPoint extraction exposes slide text, tables, notes, and extraction limitations
 - PowerPoint image extraction returns picture blobs in slide order
 - vision server tools enforce workspace-bounded paths and supported image types
 - vision server tests monkeypatch provider calls, so the suite remains network-free
+- SharePoint helper tests cover item normalisation, browser opening, site filtering, and mocked server behaviour
+- intranet tests cover provider-neutral behaviour and server tool handling
 
 ### Transcript and display layer
 - peer transcript assembly keeps the expected speaker sequence
@@ -167,7 +197,7 @@ pytest
 ```
 
 That is the preferred command for checking the full current project state.
-CI runs the same suite with `pytest-timeout` enabled so hung async or web tests fail within the configured per-test timeout.
+The default pytest configuration includes `--cov=crisai --cov-report=term-missing` and requires total coverage of at least 70%. CI runs the same suite with `pytest-timeout` enabled so hung async or web tests fail within the configured per-test timeout.
 
 For a clean-install smoke check, also verify both launch modes:
 
@@ -198,6 +228,22 @@ pytest tests/cli
 pytest tests/orchestration
 ```
 
+### Integration tests
+
+```bash
+pytest tests/integration
+```
+
+### Smoke tests
+
+Smoke tests are opt-in because they can call real provider APIs. Set
+`CRISAI_RUN_SMOKE_TESTS=1` and configure the required provider keys before
+running them:
+
+```bash
+pytest tests/smoke
+```
+
 ### Selected files
 
 ```bash
@@ -212,7 +258,7 @@ pytest tests/orchestration/test_peer_mode.py
 ## 6. Notes on test design
 
 - The suite is intentionally network-free.
-- It does not call real OpenAI, Gemini, Anthropic, or real MCP servers.
+- It does not call real OpenAI, Gemini, Anthropic, DeepSeek, or real MCP servers.
 - It relies on monkeypatching and lightweight fakes so orchestration and configuration behaviour can be checked deterministically.
 - Optional provider integrations should not break test collection when those runtime extras are not installed.
 - `tests/conftest.py` helps ensure `src/` is importable during local test runs.
@@ -246,7 +292,7 @@ WSL note:
 - if no browser opens, install `wslu` (`wslview`) or verify Windows browser integration
 
 ### Optional provider support
-If you want to exercise Gemini or Anthropic in real runtime flows, you need the relevant optional runtime dependencies and environment variables configured in `.env`.
+If you want to exercise OpenAI, Gemini, Anthropic, or DeepSeek in real runtime flows, you need the relevant optional runtime dependencies and environment variables configured in `.env`.
 
 ### Good practice
 Run the suite after each improvement:
@@ -265,19 +311,7 @@ This is especially important after changes to:
 
 ---
 
-## 8. Suggested next additions
-
-Useful future additions would be:
-
-- a small integration test for loading `registry/models.yaml` through the full CLI runtime path
-- tests for `/list agents` showing `model_ref` or model display labels clearly
-- SharePoint auth status tests with a mocked MSAL layer
-- tests for `.env.example` coverage and configuration completeness
-- optional smoke tests for provider selection when Gemini or Anthropic are configured
-
----
-
-## 9. Troubleshooting failures
+## 8. Troubleshooting failures
 
 ### If model-related tests fail
 Check:
