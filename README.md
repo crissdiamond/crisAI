@@ -191,6 +191,14 @@ python -m crisai.cli.main ask -m "Find the most relevant document for integratio
 
 Use `/mode auto` to let the router decide, or pin a mode with `/mode single`, `/mode pipeline`, or `/mode peer`.
 
+For Solution Architects, Data Architects, and Enterprise Architects, use
+`pipeline` for source-grounded drafting and summarisation, and use `peer` when
+the output needs challenged judgement: options papers, HLDs, ADRs, target-state
+recommendations, roadmap trade-offs, governance models, and architecture review
+findings. crisAI is a support tool for producing high-quality, UCL-customised
+drafts from local templates and approved context; architects remain accountable
+for final decisions, stakeholder alignment, and publication.
+
 ## Configuration
 
 The registry is the main control plane:

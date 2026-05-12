@@ -407,6 +407,51 @@ Best for:
 - more rigorous challenge and refinement
 - higher-effort architecture shaping
 
+### 7.4 Choosing the right mode for architecture work
+
+crisAI is a support tool for Solution Architects, Data Architects, and
+Enterprise Architects. Its role is to accelerate daily architecture work by
+turning approved context, retrieved evidence, and UCL templates into
+high-quality customised drafts. It should improve first drafts, expose gaps,
+and prepare material for review; it does not replace architect accountability
+for final decisions, stakeholder alignment, or publication.
+
+Use this rule of thumb:
+
+| Task shape | Preferred mode | Why |
+|---|---|---|
+| Find documents, list sources, inspect a known artefact, or answer a bounded factual question | `single` or `pipeline` | The task is mainly retrieval or direct execution; peer challenge adds cost without much value. |
+| Summarise a document, deck, intranet page, or evidence set | `pipeline` | The main risk is source selection and content-read evidence, so the linear retrieval-to-summary path is more efficient. |
+| Create a UCL-customised first draft from known context, such as a meeting note, HLD skeleton, design note, or briefing | `pipeline` | The output depends on grounding and template alignment more than adversarial reasoning. |
+| Produce an options paper, ADR, target-state recommendation, roadmap, or operating-model proposal | `peer` | The output depends on judgement under ambiguity; author/challenger/refiner/judge separation should improve trade-offs and defensibility. |
+| Review a solution, data design, integration approach, migration plan, or governance model where weak assumptions could be expensive | `peer` | Independent challenge is useful for surfacing hidden coupling, missing NFRs, ownership gaps, risks, and weak evidence. |
+| Convert or format a generated Markdown artefact into a UCL Word or PowerPoint template | `single` with `document_formatter`, or `pipeline` when source retrieval is also needed | The task is formatting and template alignment, not architecture debate. |
+
+Use `pipeline` when the work is mostly **source-to-draft**:
+
+- summarise the latest architecture deck
+- produce a UCL-style HLD skeleton from retrieved notes
+- draft a design section from approved workspace knowledge
+- prepare a concise architecture briefing from intranet guidance
+- extract requirements, constraints, or risks from documents
+
+Use `peer` when the work is **judgement under ambiguity**:
+
+- choose between integration patterns, data platform options, or reporting architectures
+- write or challenge an ADR for a contentious design choice
+- assess a target-state architecture against enterprise principles
+- review data governance, MDM, data quality, lineage, or security models
+- test migration sequencing, transition states, operating model, or ownership assumptions
+
+The expected output difference is practical:
+
+- `pipeline` should be faster, cheaper, and better for faithful source-grounded drafts.
+- `peer` should produce stronger rationale, clearer rejected alternatives, better risk and assumption coverage, and more defensible recommendations.
+
+Do not use `peer` just because a task is important. Use it when the important
+part is the quality of the architectural judgement, not merely accurate
+retrieval, summarisation, or formatting.
+
 ---
 
 ## 8. Agents
