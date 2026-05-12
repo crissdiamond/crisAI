@@ -65,6 +65,10 @@ The main product gaps are:
   knowledge;
 - web UX follows CLI concepts but does not yet provide full streaming,
   checkpoint, and peer transcript parity.
+- local security controls need hardening before team/shared-machine use:
+  agents should not be able to read auth caches or secret folders, Microsoft
+  token caches need restrictive permissions, trace/log redaction needs to be
+  enforced, and remote/custom MCP configuration needs stronger validation.
 
 ## Backlog
 
@@ -74,8 +78,12 @@ The main product gaps are:
 | TODO-002 | P0 | todo | Streaming stage output | Streaming is the largest interactive UX improvement that does not require changing pipeline semantics. Users can see progress and abort earlier. | CLI streams per-stage output without exposing machine evidence JSON. Trace output remains complete. Web streaming is either implemented or tracked separately. |
 | TODO-003 | P0 | todo | Persistent retrieval cache | Repeated source reads during iterative tasks waste time and tokens. Evidence bundles can be reused when the query and source revision are unchanged. | Evidence bundles are cached by query fingerprint, source identity, and source revision/hash. Cache hits are visible in trace metadata. Stale entries are invalidated using provider revision metadata where available, such as ETag, source version, Graph `lastModifiedDateTime`, content hash, or configurable TTL expiry. |
 | TODO-026 | P0 | todo | Product and repository rename | `crisAI` was the prototype name. Before broader team adoption, the project should use a professional product, repository, package, CLI, docs, log, and MCP identity such as `Architecture Assistant`, `architecture-assistant`, `architecture_assistant`, and `arch-assistant`. Doing this early avoids team-facing churn later. | Rename the GitHub repository, Python package, CLI entry point, docs, UI labels, MCP server names, log labels, and setup instructions. Decide explicitly whether to keep a temporary `crisai` compatibility alias or remove it for a clean first team clone. Full test suite, doctor, packaging, and install-from-clone flow pass under the new name. |
+| TODO-028 | P0 | todo | Block agent access to local auth and secret folders | MCP agents can read workspace files, while Microsoft Graph token caches and other sensitive runtime files live under local workspace/auth paths. Before team/shared-machine use, auth caches and secrets must be outside the readable agent surface. | Workspace, document, vision, export, and web file APIs deny read/list/search/edit access to `.auth`, `.tokens`, `.secrets`, logs, hidden runtime folders, and configured secret/cache paths. Tests cover traversal, direct reads, listing, search, and symlink-like edge cases where applicable. Doctor reports unsafe configured token/cache paths. |
+| TODO-029 | P0 | todo | Restrictive permissions for token caches | Microsoft delegated auth caches and token-info files are written with normal process umask. On shared machines, token files should be owner-only by default. | Token/auth directories are created with `0700`; token cache and token info files are written with `0600` on POSIX systems. Existing files with broader permissions are warned by doctor or corrected safely. Tests cover permission behaviour where the platform supports it and skip gracefully otherwise. |
 | TODO-004 | P1 | todo | Authenticated website retrieval MCP | Enterprise architecture work often depends on protected vendor portals, internal web apps, design standards sites, and architecture repositories that are not SharePoint pages. crisAI needs a read-only OAuth/OIDC website source connector with strict scope controls. | Add an `authenticated_web` MCP server with login/auth-status, allow-listed hosts, OAuth/OIDC auth-code or device flow, URL fetch, optional rendered-page fetch for JS-heavy pages, link extraction, content normalization, source references, and tests with mocked OAuth and HTTP responses. |
 | TODO-005 | P1 | todo | Token and cost tracking per stage | Cost needs to be visible for model pairing, pipeline tuning, and user trust. This should precede dynamic model selection so model decisions are based on measured usage. | Trace events include provider/model/token/cost metadata when available. CLI or doctor can summarise spend by run, stage, and agent. Missing provider usage data degrades gracefully. |
+| TODO-030 | P1 | todo | Trace and log secret redaction and retention controls | Traces and logs intentionally contain agent stage content and source excerpts. They are ignored by git, but the configured `redact_secrets` policy is not yet enforced as a general write-time redaction layer. | All trace/log writers pass through a shared redaction function for API keys, bearer tokens, Microsoft auth payloads, client secrets, and configured secret patterns. Redaction is tested. Optional retention controls can cap age/size of local trace and MCP log files. Documentation states that traces may still contain sensitive business content. |
+| TODO-031 | P1 | todo | Harden remote and custom MCP registry validation | Remote MCP servers and custom intranet providers are a trusted-code boundary. Before broader use, enabled remote/custom connectors should be explicit, least-privilege, and visibly risky in doctor output. | Doctor fails or warns on enabled remote MCPs with empty tool allowlists, literal `Authorization` headers, non-HTTPS URLs outside localhost, missing `auth` metadata, or high-risk custom provider paths. Documentation marks registry/custom providers as trusted admin configuration. Tests cover the validation cases. |
 | TODO-006 | P1 | todo | Architecture artefact template library | The tool is intended to support daily enterprise, solution, and data architecture work. It needs reusable structures beyond one-off generated Markdown. | Add governed templates for HLD, options paper, architecture decision record, data flow, data mapping, data lineage, NFR assessment, integration design, migration plan, and architecture review. Semantic graph has vertices for each template type so agents can discover them by topic during retrieval. Artefact validation has tests. |
 | TODO-007 | P1 | todo | Knowledge promotion tooling | Curated knowledge needs a deliberate promotion path from task artefacts into `workspace/knowledge/`. | Add `/promote` workflow or command, provenance fields, staged/approved status, and validation of required YAML front matter. |
 | TODO-008 | P1 | todo | Task lifecycle commands | Sessions and task workspaces need first-class lifecycle controls to reduce clutter and accidental context reuse. | Add `/tasks list`, `/tasks close <id>`, and `/tasks archive <id>` with tests and docs. Commands operate on `workspace/tasks/` without deleting user artefacts unexpectedly. |
@@ -97,31 +105,36 @@ The main product gaps are:
 | TODO-024 | P1 | todo | Web document upload | Architects often start with local decks, PDFs, spreadsheets, and Word documents. The web app should let users upload those directly into the appropriate workspace task or intake area instead of manually copying files into the repository. | Web UI supports document upload with allowed suffix and size validation, safe path handling, duplicate-name strategy, target selection for current task inputs or `workspace/knowledge/intake/`, and immediate listing in the workspace browser. Uploaded files are readable by document MCP tools. Tests cover API validation, path safety, duplicate handling, and UI flow. |
 | TODO-025 | P1 | todo | Structured web artefact editor | The current web editor exposes raw Markdown, which is efficient for developers but not friendly for architects who want to review and refine HLDs, options papers, decisions, and data architecture artefacts without learning Markdown syntax. | Add a structured editor for supported artefact profiles with section navigation, form-like fields for metadata/front matter, rich text controls for paragraphs and lists, table editing, Mermaid preview/edit affordances, validation feedback, and Markdown round-trip persistence. Raw Markdown remains available as an advanced/source mode. |
 | TODO-027 | P2 | todo | Testing coverage hardening | TESTING.md should describe the current suite, while future test ideas belong in this backlog. A few useful coverage extensions remain for configuration, model display, SharePoint auth, and provider smoke confidence. | Add tests for loading `registry/models.yaml` through the full CLI runtime path, `/list agents` model labels, mocked SharePoint auth status with MSAL, `.env.example` coverage/completeness, and optional provider-selection smoke tests for configured OpenAI, Gemini, Anthropic, and DeepSeek providers. |
+| TODO-032 | P2 | todo | Clarify or enforce MCP approval policy | `registry/servers.yaml` and `registry/policies.yaml` describe approval requirements, but effective protection currently comes mainly from server-side path/write restrictions. The configuration should not imply a stronger central approval gate than exists. | Either implement a central approval gate for tools marked under `approval.required_for`, or rename/document approval metadata as advisory/local policy. Tests prove write tools cannot bypass the intended control path. README/DOCUMENTATION explain the actual trust model. |
 
 ## Recommended Sequencing
 
 1. Implement `TODO-001` first because it prevents the highest-cost wrong-source
    pipeline runs.
-2. Implement `TODO-026` before broader team onboarding, because renaming after
+2. Implement `TODO-028` and `TODO-029` before team/shared-machine use, because
+   auth caches and secrets must not be readable by agents or other local users.
+3. Implement `TODO-026` before broader team onboarding, because renaming after
    users clone and configure the tool will create avoidable churn.
-3. Implement `TODO-002` next because it improves perceived performance and gives
+4. Implement `TODO-030` and `TODO-031` before adding more protected source
+   connectors or enabling remote/custom MCPs for other users.
+5. Implement `TODO-002` next because it improves perceived performance and gives
    users earlier visibility into long-running stages.
-4. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
+6. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
    can participate in the same confirmation flow.
-5. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+7. Implement `TODO-017` (source connector capability contract) before `TODO-004`
    and `TODO-012`. Both new source adapters should be built against the contract
    from the start rather than retrofitted later.
-6. Implement `TODO-004` after the capability contract is in place. It creates
+8. Implement `TODO-004` after the capability contract is in place. It creates
    the secure generic pattern for OAuth-protected web sources before site-specific
    adapters proliferate.
-7. Implement `TODO-005` before major model-routing changes, so model choices can
+9. Implement `TODO-005` before major model-routing changes, so model choices can
    be assessed with actual cost and usage data.
-8. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
+10. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
    full web rebuild, because upload and structured editing are contained
    high-value features for non-technical architecture users.
-9. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+11. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
    enterprise architecture quality track.
-10. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+12. Treat `TODO-019` as the final alignment step for CLI workflow changes that
    affect user-visible execution semantics.
 
 ## Done
