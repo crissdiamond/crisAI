@@ -573,6 +573,11 @@ def build_judge_prompt(
             "- Do not output a peer transcript or final recommendation.\n"
             "- Output only the judgement, reasons, and any remaining issues.\n"
             "- Judge against run-contract dimensions first; reject outputs that are coherent but fail expected deliverable type.",
+            "Decision contract:\n"
+            "- First line must be exactly `Decision: accept`, `Decision: revise`, or `Decision: rework`.\n"
+            "- Use `accept` when the refined draft is ready to ship.\n"
+            "- Use `revise` when the same core proposal needs correction, strengthening, or clearer evidence handling.\n"
+            "- Use `rework` when the core proposal, assumptions, option choice, structure, or evidence use is fundamentally wrong and needs a fresh author pass.",
         ]
     )
 
@@ -616,11 +621,12 @@ def build_judge_quality_gate_prompt(
             "- If material evidence present in discovery/challenge is omitted, weakened, or replaced with generic wording, return `Decision: revise`.\n"
             "- If critical constraints, implementation details, assumptions, risks, or retrieval gaps are missing despite being available in evidence, return `Decision: revise`.\n"
             "- If unsupported claims appear, return `Decision: revise`.\n"
+            "- If the core proposal, assumptions, option choice, structure, or evidence use is fundamentally wrong, return `Decision: rework`.\n"
             "- If run contract expects concrete deliverables (files/code/final answer), do not accept outputs that are mainly process critique, uncertainty narration, or 'needs verification' checklists.\n"
             "- Return `Decision: accept` only when the refined draft preserves material evidence and is ready to ship.\n"
             "Output contract:\n"
-            "- First line must be exactly `Decision: accept` or `Decision: revise`.\n"
-            "- Then provide concise `Reason:` and, when revising, a `Missing or weak items:` bullet list.",
+            "- First line must be exactly `Decision: accept`, `Decision: revise`, or `Decision: rework`.\n"
+            "- Then provide concise `Reason:` and, when revising or reworking, a `Missing or weak items:` bullet list.",
         ]
     )
 

@@ -4,6 +4,9 @@ from crisai.orchestration.peer_judge import _judge_reason_excerpt, _parse_judge_
 def test_parse_judge_decision_handles_accept_revise_unknown():
     assert _parse_judge_decision("Decision: accept") == "accept"
     assert _parse_judge_decision("Decision - revise") == "revise"
+    assert _parse_judge_decision("Decision: refine") == "revise"
+    assert _parse_judge_decision("Decision: rework") == "rework"
+    assert _parse_judge_decision("Decision: revise, but this needs a fresh author pass") == "rework"
     assert _parse_judge_decision("Decision: not acceptable") == "revise"
     assert _parse_judge_decision("Decision: acceptable but missing details") == "accept"
     assert _parse_judge_decision("Decision: reject and revise") == "revise"

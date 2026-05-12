@@ -789,6 +789,250 @@ async def test_run_peer_pipeline_quality_gate_forces_revision_after_initial_acce
 
 
 @pytest.mark.anyio
+async def test_run_peer_pipeline_rework_escalates_directly_to_author(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+
+    class ReworkSession(FakeWorkflowSession):
+        def __init__(self):
+            super().__init__(trace_calls, stage_calls, "Final recommendation\nShip this.")
+            self.normal_judge_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            del kwargs
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "judge":
+                if prompt.startswith("JUDGE_QUALITY_GATE::"):
+                    return "Decision: accept\nReason: quality gate passed."
+                self.normal_judge_calls += 1
+                return (
+                    "Decision: rework\nReason: foundational option choice is wrong."
+                    if self.normal_judge_calls == 1
+                    else "Decision: accept\nReason: escalation resolved."
+                )
+            if ui_agent_id == "orchestrator":
+                return self._final_output
+            return f"{ui_agent_id}-output"
+
+    session = ReworkSession()
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(
+        peer_judge,
+        "build_judge_quality_gate_prompt",
+        lambda message, discovery, challenge, refiner, judge: (
+            "JUDGE_QUALITY_GATE::" + message + "::" + refiner
+        ),
+    )
+    monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "2")
+    monkeypatch.setenv("CRISAI_PEER_MAX_ESCALATIONS", "1")
+
+    result = await pipelines.run_peer_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+    )
+
+    assert result == "Final recommendation\nShip this."
+    assert [name for name, _ in stage_calls] == [
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "judge",
+        "orchestrator",
+    ]
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_quality_gate_rework_escalates_to_author(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+
+    class QualityGateReworkSession(FakeWorkflowSession):
+        def __init__(self):
+            super().__init__(trace_calls, stage_calls, "Final recommendation\nShip this.")
+            self.quality_gate_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            del kwargs
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "judge":
+                if prompt.startswith("JUDGE_QUALITY_GATE::"):
+                    self.quality_gate_calls += 1
+                    return (
+                        "Decision: rework\nReason: foundational evidence use is wrong."
+                        if self.quality_gate_calls == 1
+                        else "Decision: accept\nReason: quality gate passed."
+                    )
+                return "Decision: accept\nReason: Looks good."
+            if ui_agent_id == "orchestrator":
+                return self._final_output
+            return f"{ui_agent_id}-output"
+
+    session = QualityGateReworkSession()
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(
+        peer_judge,
+        "build_judge_quality_gate_prompt",
+        lambda message, discovery, challenge, refiner, judge: (
+            "JUDGE_QUALITY_GATE::" + message + "::" + refiner
+        ),
+    )
+    monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "2")
+    monkeypatch.setenv("CRISAI_PEER_MAX_ESCALATIONS", "1")
+
+    result = await pipelines.run_peer_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+    )
+
+    assert result == "Final recommendation\nShip this."
+    assert [name for name, _ in stage_calls] == [
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "judge",
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "judge",
+        "orchestrator",
+    ]
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_revise_then_rework_exits_refiner_loop_for_author(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+
+    class ReviseThenReworkSession(FakeWorkflowSession):
+        def __init__(self):
+            super().__init__(trace_calls, stage_calls, "Final recommendation\nShip this.")
+            self.normal_judge_calls = 0
+            self.refiner_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            del kwargs
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "judge":
+                if prompt.startswith("JUDGE_QUALITY_GATE::"):
+                    return "Decision: accept\nReason: quality gate passed."
+                self.normal_judge_calls += 1
+                if self.normal_judge_calls == 1:
+                    return "Decision: revise\nReason: tighten evidence."
+                if self.normal_judge_calls == 2:
+                    return "Decision: rework\nReason: still structurally wrong."
+                return "Decision: accept\nReason: escalation resolved."
+            if ui_agent_id == "orchestrator":
+                return self._final_output
+            if ui_agent_id == "design_refiner":
+                self.refiner_calls += 1
+                return f"refined-draft-{self.refiner_calls}"
+            return f"{ui_agent_id}-output"
+
+    session = ReviseThenReworkSession()
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(
+        peer_judge,
+        "build_judge_quality_gate_prompt",
+        lambda message, discovery, challenge, refiner, judge: (
+            "JUDGE_QUALITY_GATE::" + message + "::" + refiner
+        ),
+    )
+    monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "2")
+    monkeypatch.setenv("CRISAI_PEER_MAX_ESCALATIONS", "1")
+
+    result = await pipelines.run_peer_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=False,
+    )
+
+    assert result == "Final recommendation\nShip this."
+    assert [name for name, _ in stage_calls] == [
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "design_refiner",
+        "judge",
+        "design_author",
+        "design_challenger",
+        "design_refiner",
+        "judge",
+        "judge",
+        "orchestrator",
+    ]
+
+
+@pytest.mark.anyio
 async def test_run_peer_pipeline_escalates_to_author_and_challenger_after_unresolved_refine_loop(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
     stage_calls: list[tuple[str, str]] = []

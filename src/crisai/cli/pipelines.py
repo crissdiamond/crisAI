@@ -1017,6 +1017,7 @@ async def run_peer_pipeline(
 
         # Judge-gated refinement loop. If the judge says "revise", feed the
         # judge feedback back into the refiner and ask for another judgement.
+        # "rework" skips this loop and enters the structural escalation path.
         for round_index in range(1, max_refinement_rounds + 1):
             if judge_decision != "revise":
                 break
@@ -1095,8 +1096,9 @@ async def run_peer_pipeline(
                 deterministic_advisory_enabled=deterministic_advisory_enabled,
             )
 
-        # Escalation path: if revise loop cannot reach accept, rerun
-        # author/challenger/refiner with explicit judge feedback.
+        # Escalation path: if the judge requests structural rework, or if the
+        # revise loop cannot reach accept, rerun author/challenger/refiner with
+        # explicit judge feedback.
         for escalation_index in range(1, max_escalations + 1):
             if judge_decision == "accept":
                 break
@@ -1190,11 +1192,14 @@ async def run_peer_pipeline(
             )
 
         if rounds_executed > 0 and judge_decision != "accept":
-            unresolved_reason = (
-                "Peer refinement reached convergence with no material changes."
-                if stagnation_detected
-                else f"Peer refinement reached max rounds ({max_refinement_rounds}) without an explicit accept decision."
-            )
+            if judge_decision == "rework":
+                unresolved_reason = "Judge requested structural rework after refinement."
+            elif stagnation_detected:
+                unresolved_reason = "Peer refinement reached convergence with no material changes."
+            else:
+                unresolved_reason = (
+                    f"Peer refinement reached max rounds ({max_refinement_rounds}) without an explicit accept decision."
+                )
             if escalations_executed > 0:
                 unresolved_reason += (
                     f" Escalation attempts exhausted ({escalations_executed}/{max_escalations})"

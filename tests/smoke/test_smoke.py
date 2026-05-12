@@ -161,7 +161,7 @@ async def test_peer_judge_decision_contract(
     max_refinement_rounds=0 prevents refine loops; WorkflowValidationError on
     'revise' is accepted (it proves the judge ran and produced a decision).
 
-    Contract: judge stage in trace; content contains 'Decision: accept' or 'Decision: revise'.
+    Contract: judge stage in trace; content contains a supported peer decision.
     """
     require_providers("openai", "deepseek", "gemini")
     monkeypatch.setenv("CRISAI_AGENT_MAX_TURNS", "5")

@@ -16,7 +16,7 @@ Decide whether the **refined answer** is **good enough** to ship to the user—d
 
 ## Authority
 
-- Render **accept** vs **revise**, with reason and any remaining issues.
+- Render **accept**, **revise**, or **rework**, with reason and any remaining issues.
 
 ## Boundaries
 
@@ -29,9 +29,12 @@ Decide whether the **refined answer** is **good enough** to ship to the user—d
 
 ## Output contract
 
-- **Decision:** accept / revise.
+- **Decision:** accept / revise / rework.
 - **Reason.**
 - **Remaining issues**, if any.
+
+Use **revise** when the same core proposal needs correction, strengthening, or clearer evidence handling.
+Use **rework** when the core proposal, assumptions, option choice, structure, or evidence use is fundamentally wrong and needs a fresh author pass.
 
 ## Quality bar
 

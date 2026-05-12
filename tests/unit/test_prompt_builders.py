@@ -186,7 +186,7 @@ def test_build_judge_quality_gate_prompt_enforces_strict_acceptance_audit():
     )
     assert "Task:\nRun a strict acceptance audit" in text
     assert "If material evidence present in discovery/challenge is omitted" in text
-    assert "Decision: accept" in text and "Decision: revise" in text
+    assert "Decision: accept" in text and "Decision: revise" in text and "Decision: rework" in text
     assert "Missing or weak items" in text
 
 

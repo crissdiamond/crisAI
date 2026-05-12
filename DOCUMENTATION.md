@@ -358,7 +358,7 @@ Best for:
 Collaborative critique flow:
 
 ```text
-optional retrieval_planner -> optional context_retrieval -> optional context_synthesizer -> design_author -> design_challenger -> design_refiner -> judge -> [refiner <-> judge iterative loop when decision=revise] -> orchestrator -> peer_verifier
+optional retrieval_planner -> optional context_retrieval -> optional context_synthesizer -> design_author -> design_challenger -> design_refiner -> judge -> [refiner <-> judge iterative loop when decision=revise] -> [author -> challenger -> refiner escalation when decision=rework] -> orchestrator -> peer_verifier
 ```
 
 Notes:
@@ -366,8 +366,9 @@ Notes:
 - when retrieval is needed and the agent is configured, `context_synthesizer` runs after context retrieval to provide a stronger evidence basis for peer stages.
 - peer mode now compiles a run contract from the user request (expected output type, required side effects, grounding needs, acceptance dimensions) and injects it into peer role prompts.
 - contract inference prefers `artifact_package` for file-backed staging requests (for example `knowledge_staging` or task artefact deliverables) unless the request includes clear code targets (`src/`, `tests/`, language file extensions, or explicit code symbols).
-- judge output is now actionable: `Decision: revise` triggers bounded extra refiner/judge rounds (`CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`) before orchestration.
-- when revise loops remain unresolved, peer mode runs a bounded structural escalation (`design_author` + `design_challenger` + `design_refiner` + `judge`) driven by judge feedback (`CRISAI_PEER_MAX_ESCALATIONS`, default `1`).
+- judge output is actionable: `Decision: revise` triggers bounded extra refiner/judge rounds (`CRISAI_PEER_MAX_REFINEMENT_ROUNDS`, default `2`) before orchestration.
+- `Decision: rework` means the issue is structural; peer mode runs a bounded author/challenger/refiner escalation driven by judge feedback (`CRISAI_PEER_MAX_ESCALATIONS`, default `1`).
+- when revise loops remain unresolved, peer mode also runs the bounded structural escalation (`design_author` + `design_challenger` + `design_refiner` + `judge`).
 - accepted peer output still passes through a post-run verifier that checks file-backed claims against on-disk artefacts (for example referenced files exist, markdown shape is present, front-matter ids are unique, and claimed mismatch notes are actually written).
 - peer finalization is hard-gated: if judge does not return `accept` after the allowed loop, the run fails before orchestrator final recommendation.
 - peer final prompts include a runtime changed-file manifest and require verbatim path reuse in close-out sections.

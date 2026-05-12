@@ -334,6 +334,7 @@ def _make_fake_catalog(sc_mod, *, signatures=None, boilerplate=()):
         router=orig.router,
         peer_verifier=fake_verifier,
         peer_contract=orig.peer_contract,
+        peer_judge=orig.peer_judge,
         lexicon=orig.lexicon,
         retrieval_constraints=orig.retrieval_constraints,
         interaction=orig.interaction,

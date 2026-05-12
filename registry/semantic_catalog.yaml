@@ -573,6 +573,33 @@ peer_contract:
     - .md
     - template manifest
 
+# Peer judge decision parsing markers. Canonical decisions are accept, revise,
+# and rework; additional markers cover common model wording around those states.
+peer_judge:
+  accept_markers:
+    - accept
+    - approved
+    - ship
+  revise_markers:
+    - improve
+    - refine
+    - refinement
+    - reject
+    - rejected
+    - revise
+    - revision
+    - not acceptable
+    - not approved
+  rework_markers:
+    - author pass
+    - foundational issue
+    - foundational problem
+    - new proposal
+    - re-author
+    - rework
+    - restart
+    - structural rework
+
 # Interaction patterns: explicit mode detection and peer retrieval overrides.
 # These patterns are compiled with IGNORECASE | DOTALL flags.
 interaction:

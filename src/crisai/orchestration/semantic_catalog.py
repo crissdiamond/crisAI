@@ -59,6 +59,15 @@ class PeerContractMarkers:
 
 
 @dataclass(frozen=True)
+class PeerJudgeDecisionMarkers:
+    """Substring markers for parsing peer judge decisions."""
+
+    accept_markers: frozenset[str]
+    revise_markers: frozenset[str]
+    rework_markers: frozenset[str]
+
+
+@dataclass(frozen=True)
 class RetrievalConstraintTerms:
     """Terms used to infer generic source-fit constraints from user requests."""
 
@@ -98,6 +107,7 @@ class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
     peer_contract: PeerContractMarkers
+    peer_judge: PeerJudgeDecisionMarkers
     lexicon: LexiconTerms
     retrieval_constraints: RetrievalConstraintTerms
     interaction: InteractionPatterns
@@ -179,7 +189,14 @@ def merge_semantic_catalog_dicts(base: dict[str, Any], overlay: dict[str, Any]) 
 
 
 def _validate_top_level(data: dict[str, Any]) -> None:
-    for key in ("router", "peer_verifier", "peer_contract", "lexicon", "retrieval_constraints"):
+    for key in (
+        "router",
+        "peer_verifier",
+        "peer_contract",
+        "peer_judge",
+        "lexicon",
+        "retrieval_constraints",
+    ):
         if key not in data or not isinstance(data[key], dict):
             raise SemanticCatalogError(
                 f"registry/semantic_catalog.yaml must contain a top-level '{key}' mapping."
@@ -202,11 +219,23 @@ def _validate_peer_contract_lists(peer_block: dict[str, Any]) -> None:
             )
 
 
+def _validate_peer_judge_lists(peer_block: dict[str, Any]) -> None:
+    required = ("accept_markers", "revise_markers", "rework_markers")
+    for field in required:
+        values = peer_block.get(field)
+        if not isinstance(values, list) or not values:
+            raise SemanticCatalogError(
+                f"registry/semantic_catalog.yaml: peer_judge.{field} must be a non-empty list."
+            )
+
+
 def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     _validate_top_level(data)
     _validate_peer_contract_lists(data["peer_contract"])
+    _validate_peer_judge_lists(data["peer_judge"])
     router_block = data["router"]
     verifier_block = data["peer_verifier"]
+    peer_judge_block = data["peer_judge"]
     lexicon_block = data["lexicon"]
     retrieval_block = data["retrieval_constraints"]
     pattern_gap_line = str(verifier_block.get("pattern_gap_line") or "").strip()
@@ -328,6 +357,11 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             assessment_markers=_peer_contract_marker_field(data, "assessment_markers"),
             document_export_native_markers=_peer_contract_marker_field(data, "document_export_native_markers"),
             document_export_source_markers=_peer_contract_marker_field(data, "document_export_source_markers"),
+        ),
+        peer_judge=PeerJudgeDecisionMarkers(
+            accept_markers=_as_frozenset(peer_judge_block.get("accept_markers")),
+            revise_markers=_as_frozenset(peer_judge_block.get("revise_markers")),
+            rework_markers=_as_frozenset(peer_judge_block.get("rework_markers")),
         ),
         lexicon=LexiconTerms(
             function_words=function_words,

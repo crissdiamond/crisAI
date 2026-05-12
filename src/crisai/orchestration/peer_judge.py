@@ -13,6 +13,7 @@ from crisai.orchestration.prompt_generation import (
 from crisai.orchestration.retrieval_association_graph import (
     DeterministicRetrievalContext,
 )
+from crisai.orchestration.semantic_catalog import load_semantic_catalog
 
 _FINAL_RECOMMENDATION_PATTERNS = [
     r"(?:^|\n)(#+\s*Final recommendation\s*\n+.*)$",
@@ -20,8 +21,6 @@ _FINAL_RECOMMENDATION_PATTERNS = [
     r"(?:^|\n)(Final recommendation\s*\n+.*)$",
 ]
 
-_PEER_ACCEPT_MARKERS = {"accept", "approved", "ship"}
-_PEER_REVISE_MARKERS = {"revise", "revision", "reject", "rejected", "not acceptable", "not approved"}
 _DEFAULT_PEER_MAX_REFINEMENT_ROUNDS = 2
 _DEFAULT_PEER_MAX_ESCALATIONS = 1
 
@@ -38,30 +37,39 @@ def _extract_final_recommendation(text: str) -> str:
 
 
 def _parse_judge_decision(text: str) -> str:
-    """Parse judge output into ``accept``/``revise``/``unknown``."""
+    """Parse judge output into ``accept``/``revise``/``rework``/``unknown``."""
     raw = (text or "").strip()
     if not raw:
         return "unknown"
     clean = raw.lower()
+    markers = load_semantic_catalog().peer_judge
 
     # Strict contract-first parse:
-    # first non-empty line should be "Decision: accept|revise".
+    # first non-empty line should be "Decision: accept|revise|rework".
     first_line = next((line.strip() for line in raw.splitlines() if line.strip()), "")
-    strict = re.match(r"^decision\s*[:\-]\s*(accept|revise)\b", first_line, flags=re.IGNORECASE)
+    strict = re.match(r"^decision\s*[:\-]\s*(accept|revise|rework|refine)\b", first_line, flags=re.IGNORECASE)
     if strict:
-        return strict.group(1).lower()
+        decision = strict.group(1).lower()
+        if decision in {"revise", "refine"} and any(marker in first_line.lower() for marker in markers.rework_markers):
+            return "rework"
+        return "revise" if decision == "refine" else decision
 
     decision_match = re.search(r"\bdecision\s*[:\-]?\s*([a-z ]{3,80})\b", clean)
     if decision_match:
         decision_blob = decision_match.group(1).strip()
+        # Structural rework must win over revise/accept in ambiguous phrases.
+        if any(marker in decision_blob for marker in markers.rework_markers):
+            return "rework"
         # Revise/reject semantics must win over accept in ambiguous phrases.
-        if any(marker in decision_blob for marker in _PEER_REVISE_MARKERS):
+        if any(marker in decision_blob for marker in markers.revise_markers):
             return "revise"
-        if any(marker in decision_blob for marker in _PEER_ACCEPT_MARKERS):
+        if any(marker in decision_blob for marker in markers.accept_markers):
             return "accept"
-    if any(marker in clean for marker in _PEER_REVISE_MARKERS):
+    if any(marker in clean for marker in markers.rework_markers):
+        return "rework"
+    if any(marker in clean for marker in markers.revise_markers):
         return "revise"
-    if any(marker in clean for marker in _PEER_ACCEPT_MARKERS):
+    if any(marker in clean for marker in markers.accept_markers):
         return "accept"
     return "unknown"
 
@@ -104,7 +112,7 @@ def _resolve_peer_max_refinement_rounds() -> int:
 
 
 def _resolve_peer_max_escalations() -> int:
-    """Return max author/challenger escalation attempts after revise loops."""
+    """Return max author/challenger escalation attempts after rework/revise loops."""
     raw = os.getenv(
         "CRISAI_PEER_MAX_ESCALATIONS",
         str(_DEFAULT_PEER_MAX_ESCALATIONS),
@@ -230,11 +238,11 @@ async def _run_judge_with_acceptance_audit(
             "reason_excerpt": _judge_reason_excerpt(quality_gate_text),
         },
     )
-    if quality_decision == "revise":
+    if quality_decision in {"revise", "rework"}:
         combined = (
             judge_text.strip()
             + "\n\nQuality gate override:\n"
             + quality_gate_text.strip()
         )
-        return combined, "revise"
+        return combined, quality_decision
     return judge_text, "accept"

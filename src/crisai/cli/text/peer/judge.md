@@ -11,7 +11,7 @@ Refined draft:
 {refiner_text}
 
 Task:
-Decide whether the refined answer is good enough.
+Decide whether the refined answer is good enough, needs refinement, or needs structural rework.
 
 Rules:
 - Work only from the user request, optional discovery findings, critique, and refined answer.
@@ -25,6 +25,6 @@ Check:
 - whether the answer is clear, useful, and internally consistent
 
 Output:
-- decision: accept / revise
+- decision: accept / revise / rework
 - reason
 - remaining issues, if any

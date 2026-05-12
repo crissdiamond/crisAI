@@ -112,6 +112,15 @@ def test_peer_contract_document_export_markers_load_from_catalog():
     assert ".md" in catalog.peer_contract.document_export_source_markers
 
 
+def test_peer_judge_decision_markers_load_from_catalog():
+    """Peer judge decision parsing markers are maintained in YAML."""
+    data = _load_base_catalog_dict()
+    catalog = build_semantic_catalog_from_dict(data)
+    assert "accept" in catalog.peer_judge.accept_markers
+    assert "refine" in catalog.peer_judge.revise_markers
+    assert "structural rework" in catalog.peer_judge.rework_markers
+
+
 def test_is_native_document_export_reads_catalog(monkeypatch):
     """_is_native_document_export derives matches from the catalog, not hardcoded sets."""
     import crisai.orchestration.router as router_mod
