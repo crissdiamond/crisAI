@@ -69,6 +69,11 @@ The main product gaps are:
   agents should not be able to read auth caches or secret folders, Microsoft
   token caches need restrictive permissions, trace/log redaction needs to be
   enforced, and remote/custom MCP configuration needs stronger validation.
+- crisAI does not yet have a structured architecture roles and people directory,
+  so agents cannot reliably identify who owns, reviews, assures, or signs off
+  architecture artefacts.
+- crisAI does not yet support a governed asynchronous human assurance and
+  sign-off process for generated architecture artefacts.
 
 ## Backlog
 
@@ -91,6 +96,9 @@ The main product gaps are:
 | TODO-010 | P1 | todo | Mermaid image embedding in exports | DOCX/PPTX exports should contain rendered diagrams, not raw Mermaid blocks, for business-ready architecture documents. | Export server renders Mermaid to SVG or PNG and embeds images in DOCX/PPTX. Source Markdown/Mermaid remains the canonical source. Broader export fidelity (tables, non-linear template section mapping) is tracked separately in TODO-021. |
 | TODO-011 | P1 | todo | Second intranet adapter: Confluence | The intranet provider interface is ready; Confluence support would validate provider neutrality and broaden adoption in enterprise architecture teams. | Add a Confluence provider implementing search, fetch, link listing, auth/status where applicable, config docs, and tests with mocked API responses. |
 | TODO-012 | P1 | todo | Enterprise data catalogue MCP | Data architecture work needs direct access to glossary terms, data products, schemas, lineage, owners, classifications, and quality metadata. SharePoint documents are not enough. | Add a provider-shaped MCP for at least one catalogue family, preferably Microsoft Purview first, with search/fetch tools, lineage/owner metadata, registry config, evidence source references, and mocked tests. Keep Collibra/Atlan as future adapters. |
+| TODO-033 | P1 | todo | Architecture roles and people directory design | Agents need a reliable, governed source of truth for architecture stakeholders before they can route review, assurance, or sign-off tasks. This should describe roles, functions, scope, architecture area, and contact channels without hardcoding people in prompts. | Design a `reference/`-based people/roles structure with fields for role, function, scope, domain/area, authority level, contact details, preferred channel, escalation path, and ownership boundaries. Include privacy/security guidance, sample entries, validation expectations, and how agents may use the directory. |
+| TODO-034 | P1 | todo | Human assurance and sign-off operating model design | Architecture artefacts such as HLDs, option papers, ADRs, and technical designs need accountable human review and sign-off. The workflow must be designed before adding agents or tools, because it affects governance, document state, auditability, and exception handling. | Produce an ADR/design note defining review states, responsibilities, review gates, artefact types, sign-off criteria, exception paths, audit trail requirements, ownership handoffs, and the difference between AI critique, human assurance, and formal approval. |
+| TODO-035 | P1 | todo | Assurance agents and asynchronous review tooling design | A new agent or set of agents may support review-pack preparation, reviewer routing, submission tracking, reminders, and approval-state updates, but those roles must be narrowly scoped and tied to human accountability. | Design the agent roles, allowed tools, MCP/server needs, state model, document submission flow, shared-location strategy, and failure handling for asynchronous review. Cover SharePoint/Teams first, with provider-neutral extension points for other document stores or workflow systems. No implementation until TODO-033 and TODO-034 are complete. |
 | TODO-013 | P2 | todo | Dynamic model selection | Routing and task criticality should influence model tier instead of using only static agent assignments. | Model policy remains in registry/config. Router/task contract can select a model tier for supported agents. Decisions are traced and test-covered. |
 | TODO-014 | P2 | todo | Incremental workspace semantic index | `document_server` has a local context index, but it is rebuilt manually/on demand and is not a persistent, incremental workspace knowledge service. | Add an incremental index updated on writes or explicit rebuild. Retrieval uses the index when fresh and falls back safely when stale/missing. Include freshness metadata and tests. |
 | TODO-015 | P2 | todo | Cross-task memory summary | Useful decisions and artefacts can span tasks, but full history replay is too expensive. | Maintain a compact workspace-level summary of decisions, artefacts, and open questions. Include it only when relevant and trace when used. |
@@ -134,7 +142,11 @@ The main product gaps are:
    high-value features for non-technical architecture users.
 11. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
    enterprise architecture quality track.
-12. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+12. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
+   assurance automation. The roles directory and assurance operating model
+   define who can review, who can approve, which artefacts require sign-off,
+   and how asynchronous document movement should be audited.
+13. Treat `TODO-019` as the final alignment step for CLI workflow changes that
    affect user-visible execution semantics.
 
 ## Done
