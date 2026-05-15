@@ -9,6 +9,14 @@ architecture assistant that can retrieve trusted source material, reason over it
 through narrowly scoped specialist agents, produce useful artefacts, challenge
 its own outputs, and keep the user in control.
 
+As crisAI matures, its scope should extend beyond design assistance into the
+enterprise architecture process space. The workstation should help architects
+prepare, route, review, assure, sign off, and publish architecture artefacts
+through governed workflows. That process support must remain human-accountable:
+crisAI can prepare evidence, coordinate review packs, track states, and surface
+decisions, but it should not replace the people or governance bodies responsible
+for formal architecture assurance.
+
 ## Product Vision
 
 crisAI should become the workstation architects use to move from scattered
@@ -24,6 +32,8 @@ It should help with tasks such as:
   explicit;
 - reusing curated organisation knowledge without replaying noisy chat history;
 - turning reviewed Markdown and diagrams into standard business documents;
+- preparing architecture artefacts for review, assurance, sign-off, and
+  publication through controlled workflows;
 - keeping enough evidence and trace metadata to explain where an answer came
   from.
 
@@ -120,6 +130,9 @@ crisAI should evolve around these stable building blocks:
   decisions for each piece of work.
 - **Governed knowledge spaces** where curated patterns, standards, decisions,
   and templates can be promoted deliberately.
+- **Architecture process spaces** that model roles, responsibilities, review
+  states, sign-off expectations, and accountable human handoffs for architecture
+  governance.
 - **CLI and web surfaces** that expose the same routing, stage, checkpoint, and
   trace semantics.
 
@@ -146,6 +159,8 @@ support:
 - data catalogue MCP, with Microsoft Purview as a strong first candidate;
 - Confluence intranet adapter;
 - governed knowledge promotion;
+- architecture roles, people, assurance, and sign-off designs before any
+  automation of formal review workflows;
 - architecture quality gates for assumptions, NFRs, data ownership, lineage,
   security, privacy, risks, decisions, and open questions.
 
@@ -157,6 +172,8 @@ crisAI should not become:
 - a replacement for source systems of record;
 - a hidden autonomous actor that writes or promotes knowledge without user
   confirmation;
+- a replacement for architecture governance, review boards, accountable owners,
+  or formal human sign-off;
 - a single giant prompt with every responsibility mixed together;
 - a document management system;
 - a tool that hides evidence, costs, or model choices from the user.
