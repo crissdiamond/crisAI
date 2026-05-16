@@ -138,9 +138,34 @@ class AgentDisplayManager:
         update_terminal_title("ready")
 
 
-def get_bottom_toolbar(session: str, mode: str, model: str) -> str:
-    """Return a formatted toolbar for prompt_toolkit."""
-    return f" ⬡ {session} | 🧭 {mode} | 🤖 {model} "
+def get_bottom_toolbar(
+    *,
+    session: str,
+    mode: str,
+    agent: str,
+    model: str,
+    verbose: bool,
+    review: bool,
+    retrieval_checkpoint: bool,
+    mode_pinned: bool,
+    agent_pinned: bool,
+) -> str:
+    """Return the compact prompt-toolkit status bar for interactive chat."""
+    mode_label = f"{mode}{'*' if mode_pinned else ''}"
+    agent_label = agent if agent_pinned else "auto"
+    return (
+        f" ⬡ {session}"
+        f" | mode:{mode_label}"
+        f" | agent:{agent_label}"
+        f" | model:{model}"
+        f" | verbose:{_on_off(verbose)}"
+        f" | review:{_on_off(review)}"
+        f" | checkpoint:{_on_off(retrieval_checkpoint)} "
+    )
+
+
+def _on_off(value: bool) -> str:
+    return "on" if value else "off"
 
 
 _FENCED_CODE_BLOCK_RE = re.compile(r"```[^\n`]*\n.*?```", re.DOTALL)

@@ -4,7 +4,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 from crisai.cli import display
-from crisai.cli.display import render_peer_message
+from crisai.cli.display import get_bottom_toolbar, render_peer_message
 from crisai.cli.peer_transcript import make_peer_message
 
 
@@ -12,6 +12,28 @@ def test_render_peer_message_returns_panel() -> None:
     msg = make_peer_message("design_challenger", "I disagree with this assumption.")
     panel = render_peer_message(msg)
     assert isinstance(panel, Panel)
+
+
+def test_get_bottom_toolbar_includes_runtime_state() -> None:
+    toolbar = get_bottom_toolbar(
+        session="PowerBI-4",
+        mode="pipeline",
+        agent="orchestrator",
+        model="gpt-test",
+        verbose=True,
+        review=False,
+        retrieval_checkpoint=True,
+        mode_pinned=True,
+        agent_pinned=False,
+    )
+
+    assert "PowerBI-4" in toolbar
+    assert "mode:pipeline*" in toolbar
+    assert "agent:auto" in toolbar
+    assert "model:gpt-test" in toolbar
+    assert "verbose:on" in toolbar
+    assert "review:off" in toolbar
+    assert "checkpoint:on" in toolbar
 
 
 def test_print_agent_output_non_verbose_uses_markdown_panel(monkeypatch) -> None:

@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import typer
-from prompt_toolkit import PromptSession, prompt
+from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
 
@@ -750,18 +750,30 @@ def chat(
         history_count=len(state.history),
     )
     last_route_line: str | None = None
+    prompt_session: PromptSession[str] | None = None
+    prompt_session_name: str | None = None
 
     while True:
         try:
             update_terminal_title("input")
-            user_input = prompt(
+            if prompt_session is None or prompt_session_name != state.current_session:
+                prompt_session = PromptSession(
+                    history=FileHistory(str(cli_history_file(state.current_session))),
+                    auto_suggest=AutoSuggestFromHistory(),
+                )
+                prompt_session_name = state.current_session
+            user_input = prompt_session.prompt(
                 "> ",
-                history=FileHistory(str(cli_history_file(state.current_session))),
-                auto_suggest=AutoSuggestFromHistory(),
                 bottom_toolbar=lambda: get_bottom_toolbar(
-                    state.current_session,
-                    state.current_mode,
-                    state.settings.model.default_model
+                    session=state.current_session,
+                    mode=state.current_mode,
+                    agent=state.current_agent,
+                    model=state.settings.model.default_model,
+                    verbose=state.current_verbose,
+                    review=state.current_review,
+                    retrieval_checkpoint=state.current_retrieval_checkpoint,
+                    mode_pinned=state.mode_pinned,
+                    agent_pinned=state.agent_pinned,
                 ),
             ).strip()
             update_terminal_title("working")

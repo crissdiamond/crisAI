@@ -197,18 +197,22 @@ def test_chat_loop_runs_one_request_then_persists_history(monkeypatch):
     memory_updates = []
     final_outputs = []
 
-    def fake_prompt(*args, **kwargs):
-        del args, kwargs
-        value = next(prompts)
-        if isinstance(value, BaseException):
-            raise value
-        return value
+    class FakePromptSession:
+        def __init__(self, *args, **kwargs):
+            del args, kwargs
+
+        def prompt(self, *args, **kwargs):
+            del args, kwargs
+            value = next(prompts)
+            if isinstance(value, BaseException):
+                raise value
+            return value
 
     async def fake_run_with_routing(*args, **kwargs):
         del args, kwargs
         return "assistant answer"
 
-    monkeypatch.setattr(main, "prompt", fake_prompt)
+    monkeypatch.setattr(main, "PromptSession", FakePromptSession)
     monkeypatch.setattr(main, "_resolve_initial_chat_session", lambda session: session)
     monkeypatch.setattr(main, "load_history", lambda session: [])
     monkeypatch.setattr(main, "print_chat_state", lambda **kwargs: None)
