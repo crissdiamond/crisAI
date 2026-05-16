@@ -103,51 +103,68 @@ The main product gaps are:
 | TODO-033 | P1 | todo | Architecture roles and people directory design | Agents need a reliable, governed source of truth for architecture stakeholders before they can route review, assurance, or sign-off tasks. This should describe roles, functions, scope, architecture area, and contact channels without hardcoding people in prompts. | Design a `reference/`-based people/roles structure with fields for role, function, scope, domain/area, authority level, contact details, preferred channel, escalation path, and ownership boundaries. Include privacy/security guidance, sample entries, validation expectations, and how agents may use the directory. |
 | TODO-034 | P1 | todo | Human assurance and sign-off operating model design | Architecture artefacts such as HLDs, option papers, ADRs, and technical designs need accountable human review and sign-off. The workflow must be designed before adding agents or tools, because it affects governance, document state, auditability, and exception handling. | Produce an ADR/design note defining review states, responsibilities, review gates, artefact types, sign-off criteria, exception paths, audit trail requirements, ownership handoffs, and the difference between AI critique, human assurance, and formal approval. |
 | TODO-035 | P1 | todo | Assurance agents and asynchronous review tooling design | A new agent or set of agents may support review-pack preparation, reviewer routing, submission tracking, reminders, and approval-state updates, but those roles must be narrowly scoped and tied to human accountability. | Design the agent roles, allowed tools, MCP/server needs, state model, document submission flow, shared-location strategy, and failure handling for asynchronous review. Cover SharePoint/Teams first, with provider-neutral extension points for other document stores or workflow systems. No implementation until TODO-033 and TODO-034 are complete. |
+| TODO-036 | P1 | todo | Routing decision transparency | VISION Principle 7 states routing decisions should be visible. Users currently have no confirmation of what task intent, deliverable type, and evidence level the router inferred before a pipeline runs. A misread intent is only discovered after tokens are spent. | At the start of any pipeline or peer run, the inferred task contract (primary intent, deliverable type, evidence level, selected mode) is shown to the user as a one-line summary or brief structured block before the first agent stage executes. The display uses the same registry vocabulary as the semantic graph. CLI and web surfaces both expose this. Tests cover the display path. |
+| TODO-037 | P1 | todo | First-run and team onboarding experience | TODO-026 covers the rename, but there is no item for the practical onboarding path a new team member follows after cloning. Without a clear setup guide and first-run validation, team adoption remains friction-heavy regardless of the product name. | Add a team onboarding guide (README section or separate doc) covering environment prerequisites, `.env` setup, API key configuration, first-run `doctor` output, model provider smoke tests, and a short example run. `doctor` validates all required env variables at startup and emits actionable messages for common setup errors. Tests cover `.env.example` completeness and doctor env-var checks. |
+| TODO-022 | P1 | todo | Peer workflow partial recovery | If a challenger, refiner, or judge stage times out or fails mid-run, the whole peer workflow terminates hard with no output saved. Given the cost of peer runs, partial save and graceful degradation to the last completed stage are important. VISION Principle 3 (user control at costly decisions) applies directly: peer runs are the highest-cost execution path. | When a non-retrieval peer stage fails, the workflow saves the last successfully completed stage output, traces the failure with stage identity, and surfaces a recoverable error to the user rather than discarding all upstream work. Behaviour is test-covered. |
 | TODO-013 | P2 | todo | Dynamic model selection | Routing and task criticality should influence model tier instead of using only static agent assignments. | Model policy remains in registry/config. Router/task contract can select a model tier for supported agents. Decisions are traced and test-covered. |
 | TODO-014 | P2 | todo | Incremental workspace semantic index | `document_server` has a local context index, but it is rebuilt manually/on demand and is not a persistent, incremental workspace knowledge service. | Add an incremental index updated on writes or explicit rebuild. Retrieval uses the index when fresh and falls back safely when stale/missing. Include freshness metadata and tests. |
 | TODO-015 | P2 | todo | Cross-task memory summary | Useful decisions and artefacts can span tasks, but full history replay is too expensive. | Maintain a compact workspace-level summary of decisions, artefacts, and open questions. Include it only when relevant and trace when used. |
 | TODO-016 | P2 | todo | Routing feedback capture | User mode overrides are valuable correction signals for improving routing behaviour. | Record explicit overrides as structured events. Provide an analytics view or export that can inform catalog/graph tuning without silently changing behaviour. |
 | TODO-018 | P2 | todo | Architecture quality gates | Review and judge agents exist, but artefact quality expectations for enterprise and data architecture are not yet enforced systematically. | Add profile-driven checks for assumptions, NFRs, data ownership, lineage, security/privacy, integration pattern fit, risks, decisions, and open questions. Gates are configurable and test-covered. |
-| TODO-022 | P2 | todo | Peer workflow partial recovery | If a challenger, refiner, or judge stage times out or fails mid-run, the whole peer workflow terminates hard with no output saved. Given the cost of peer runs, partial save and graceful degradation to the last completed stage are important. | When a non-retrieval peer stage fails, the workflow saves the last successfully completed stage output, traces the failure with stage identity, and surfaces a recoverable error to the user rather than discarding all upstream work. Behaviour is test-covered. |
 | TODO-023 | P2 | todo | Session memory tuning | The default global 2-turn / 3000-char compact memory can be aggressive for extended architecture sessions with retrieved source material, causing effective context collapse on long iterative runs. The current configuration is global plus env overrides, not workload-aware. | Session memory limits are configurable per task type, mode, or workload profile in `registry/session_memory.yaml`. Defaults are reviewed and set to reasonable values for the main architecture use cases. Configuration is documented and test-covered. |
 | TODO-027 | P2 | todo | Testing coverage hardening | TESTING.md should describe the current suite, while future test ideas belong in this backlog. A few useful coverage extensions remain for configuration, model display, SharePoint auth, and provider smoke confidence. | Add tests for loading `registry/models.yaml` through the full CLI runtime path, `/list agents` model labels, mocked SharePoint auth status with MSAL, `.env.example` coverage/completeness, and optional provider-selection smoke tests for configured OpenAI, Gemini, Anthropic, and DeepSeek providers. |
 | TODO-032 | P2 | todo | Clarify or enforce MCP approval policy | `registry/servers.yaml` and `registry/policies.yaml` describe approval requirements, but effective protection currently comes mainly from server-side path/write restrictions. The configuration should not imply a stronger central approval gate than exists. | Either implement a central approval gate for tools marked under `approval.required_for`, or rename/document approval metadata as advisory/local policy. Tests prove write tools cannot bypass the intended control path. README/DOCUMENTATION explain the actual trust model. |
+| TODO-038 | P2 | todo | Agent model API resilience | Each agent is wired to a single `model_ref` with no fallback. A provider API failure causes the entire run to fail with no user guidance on which agent failed or whether retrying is appropriate. VISION Principle 7 (observable cost and quality) requires that failures are visible and understandable. | Registry supports an optional `fallback_model_ref` per agent. If the primary model call fails with a retriable error (rate limit, timeout), the agent retries once with the fallback before surfacing a structured error. Failures are traced with provider, model, stage, and error type. Behaviour is test-covered. |
 | TODO-019 | P3 | todo | Web UI rebuild | The web UI should become a first-class execution surface matching CLI semantics. | Web shows routing, per-stage streaming, retrieval checkpoint, workspace browser, and peer transcript with role-labelled cards. Behaviour remains aligned with CLI. |
 | TODO-020 | P3 | todo | Multi-workspace support | Users may need clean isolation across projects, clients, or architecture domains. | Add `/workspace switch <path>` and related status/doctor support. Registry and task state isolation are explicit and tested. |
 
 ## Recommended Sequencing
 
-1. Implement `TODO-001` first because it prevents the highest-cost wrong-source
-   pipeline runs.
+1. Implement `TODO-001` and `TODO-036` together because they are the same user
+   control surface: routing transparency lets users see the inferred task contract
+   before the pipeline runs; the retrieval checkpoint lets them confirm or stop
+   before design agents spend tokens.
 2. Implement `TODO-028` and `TODO-029` before team/shared-machine use, because
    auth caches and secrets must not be readable by agents or other local users.
 3. Implement `TODO-026` before broader team onboarding, because renaming after
    users clone and configure the tool will create avoidable churn.
-4. Implement `TODO-030` and `TODO-031` before adding more protected source
+4. Implement `TODO-037` alongside or immediately after `TODO-026`. A renamed
+   product needs a clear setup path or team adoption remains friction-heavy
+   regardless of the product name.
+5. Implement `TODO-030` and `TODO-031` before adding more protected source
    connectors or enabling remote/custom MCPs for other users.
-5. Implement `TODO-002` next because it improves perceived performance and gives
+6. Implement `TODO-005` next, before the source connector engineering track.
+   VISION near-term direction places cost tracking at #4, before authenticated
+   website MCP. Measuring cost early lets model pairing and pipeline decisions
+   be informed by real usage data.
+7. Implement `TODO-002` next because it improves perceived performance and gives
    users earlier visibility into long-running stages.
-6. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
+8. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
    can participate in the same confirmation flow.
-7. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+9. Implement `TODO-017` (source connector capability contract) before `TODO-004`
    and `TODO-012`. Both new source adapters should be built against the contract
    from the start rather than retrofitted later.
-8. Implement `TODO-004` after the capability contract is in place. It creates
-   the secure generic pattern for OAuth-protected web sources before site-specific
-   adapters proliferate.
-9. Implement `TODO-005` before major model-routing changes, so model choices can
-   be assessed with actual cost and usage data.
-10. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
-   full web rebuild, because upload and structured editing are contained
-   high-value features for non-technical architecture users.
-11. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
-   enterprise architecture quality track.
-12. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
-   assurance automation. The roles directory and assurance operating model
-   define who can review, who can approve, which artefacts require sign-off,
-   and how asynchronous document movement should be audited.
-13. Treat `TODO-019` as the final alignment step for CLI workflow changes that
-   affect user-visible execution semantics.
+10. Implement `TODO-004` after the capability contract is in place. It creates
+    the secure generic pattern for OAuth-protected web sources before site-specific
+    adapters proliferate.
+11. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
+    full web rebuild, because upload and structured editing are contained
+    high-value features for non-technical architecture users.
+    **Note:** design `TODO-024` and `TODO-025` with the future web architecture
+    (`TODO-019`) in mind. If the scope cannot be carried forward with minimal rework
+    when the rebuild happens, consider advancing `TODO-019` to a design phase first
+    to avoid duplicating effort.
+12. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+    enterprise architecture quality track.
+13. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
+    assurance automation. The roles directory and assurance operating model
+    define who can review, who can approve, which artefacts require sign-off,
+    and how asynchronous document movement should be audited.
+14. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
+    Dynamic model selection and API fallback should be built together so model
+    choices and failure behaviour are governed by the same registry policy.
+15. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+    affect user-visible execution semantics.
 
 ## Done
 
