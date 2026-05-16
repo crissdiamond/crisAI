@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Set
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
+from .request_contract import RequestContract, infer_request_contract
 from .retrieval_association_graph import deterministic_context_from_registry
 from .semantic_catalog import load_semantic_catalog
-from .task_contract import infer_task_contract
 
 
 @dataclass
@@ -39,25 +38,21 @@ def _normalise(text: str) -> str:
     return " ".join(text.lower().strip().split())
 
 
-def _contains_any(text: str, phrases: Set[str]) -> bool:
-    return any(p in text for p in phrases)
+def _contains_any(text: str, phrases: frozenset[str]) -> bool:
+    return any(phrase in text for phrase in phrases)
 
 
-def _score_terms(text: str, terms: Set[str]) -> int:
-    return sum(1 for term in terms if term in text)
-
-
-def _has_source_signal(text: str, discovery_score: int, source_markers: frozenset[str]) -> bool:
-    if discovery_score >= 2:
-        return True
-    return any(marker in text for marker in source_markers)
-
-
-def _is_architecture_location_phrase(text: str, architecture_location_markers: frozenset[str]) -> bool:
-    return any(marker in text for marker in architecture_location_markers)
+def _is_native_document_export(text: str) -> bool:
+    """Return whether a request asks to export an existing artefact to a native file."""
+    markers = load_semantic_catalog().peer_contract
+    return (
+        _contains_any(text, markers.document_export_native_markers)
+        and _contains_any(text, markers.document_export_source_markers)
+    )
 
 
 def _deterministic_source_nudge(text: str, registry_dir: Path | None) -> bool:
+    """Return whether deterministic graph expansion points to a retrieval source."""
     if registry_dir is None:
         return False
     context, graph_loaded = deterministic_context_from_registry(text, registry_dir)
@@ -66,19 +61,8 @@ def _deterministic_source_nudge(text: str, registry_dir: Path | None) -> bool:
     return bool({"intranet", "sharepoint_docs", "workspace"} & set(context.suggested_sources))
 
 
-def _is_native_document_export(text: str) -> bool:
-    """Return whether a request asks to export an existing artefact to a native file."""
-    contract = load_semantic_catalog().peer_contract
-    return (
-        _contains_any(text, contract.document_export_native_markers)
-        and _contains_any(text, contract.document_export_source_markers)
-    )
-
-
-def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | None = None) -> RoutingDecision:
-    terms = load_semantic_catalog().router
-    task_contract = infer_task_contract(text, registry_dir=registry_dir)
-    if _contains_any(text, set(terms.explicit_discovery_patterns)):
+def _route_from_contract(contract: RequestContract, review_enabled: bool) -> RoutingDecision:
+    if contract.has_hint("retrieval_only"):
         return RoutingDecision(
             intent="discovery",
             mode="single",
@@ -89,41 +73,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt explicitly requests retrieval-only behaviour.",
         )
 
-    discovery_score = _score_terms(text, set(terms.discovery_terms))
-    design_score = _score_terms(text, set(terms.design_terms))
-    review_score = _score_terms(text, set(terms.review_terms))
-    operations_score = _score_terms(text, set(terms.operations_terms))
-    peer_score = _score_terms(text, set(terms.peer_terms))
-    publication_score = _score_terms(text, set(terms.publication_terms))
-    criticality_score = _score_terms(text, set(terms.criticality_terms))
-
-    has_source_signal = _has_source_signal(text, discovery_score, terms.source_markers)
-    deterministic_retrieval_nudge = _deterministic_source_nudge(text, registry_dir)
-    if deterministic_retrieval_nudge:
-        has_source_signal = True
-    has_design_signal = design_score >= 2
-    has_summary_signal = task_contract.is_summary
-    architecture_used_as_location = _is_architecture_location_phrase(
-        text,
-        terms.architecture_location_markers,
-    )
-    if architecture_used_as_location and design_score > 0:
-        # "Architecture site(s)" is usually a SharePoint location label, not a drafting ask.
-        design_score -= 1
-        has_design_signal = design_score >= 2
-    has_review_signal = review_score >= 2
-    has_peer_signal = _contains_any(text, set(terms.explicit_peer_patterns)) or (
-        peer_score >= 2 and (design_score >= 1 or review_score >= 1)
-    )
-    has_publication_signal = publication_score >= 1
-    has_criticality_signal = criticality_score >= 1
-    source_backed_publication = has_publication_signal and (
-        deterministic_retrieval_nudge
-        or discovery_score >= 2
-        or task_contract.source_resolution not in {"", "none", "as_needed"}
-    )
-
-    if operations_score >= 2:
+    if contract.has_hint("operations"):
         return RoutingDecision(
             intent="operations",
             mode="single",
@@ -134,7 +84,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt looks like debugging or platform troubleshooting.",
         )
 
-    if has_publication_signal and _is_native_document_export(text):
+    if contract.has_hint("native_document_export"):
         return RoutingDecision(
             intent="document_export",
             mode="single",
@@ -145,7 +95,41 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt asks to export an existing artefact into a native document format using a template.",
         )
 
-    if source_backed_publication:
+    if contract.workflow_preference == "pipeline":
+        return RoutingDecision(
+            intent="source_backed_publication" if contract.has_hint("publication") and contract.source_required else "pipeline",
+            mode="pipeline",
+            agent="retrieval_planner" if contract.source_required else "design",
+            needs_retrieval=contract.source_required,
+            needs_review=review_enabled or contract.has_hint("review"),
+            confidence=1.0,
+            reason="Mode explicitly set to pipeline by user.",
+        )
+
+    if contract.workflow_preference == "peer":
+        return RoutingDecision(
+            intent="peer_review",
+            mode="peer",
+            agent="design_author",
+            needs_retrieval=contract.source_required,
+            needs_review=True,
+            confidence=1.0,
+            reason="Mode explicitly set to peer by user.",
+        )
+
+    if contract.workflow_preference == "single":
+        agent = _single_agent_for_contract(contract)
+        return RoutingDecision(
+            intent=agent or "single",
+            mode="single",
+            agent=agent,
+            needs_retrieval=agent in {"retrieval_planner", "publisher", "document_formatter"},
+            needs_review=agent == "review",
+            confidence=1.0,
+            reason="Mode explicitly set to single by user.",
+        )
+
+    if contract.has_hint("publication") and contract.source_required:
         return RoutingDecision(
             intent="source_backed_publication",
             mode="pipeline",
@@ -156,7 +140,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt asks to retrieve source material and generate or save a publication artefact; pipeline is required.",
         )
 
-    if has_publication_signal:
+    if contract.has_hint("publication"):
         return RoutingDecision(
             intent="publication",
             mode="single",
@@ -167,8 +151,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt asks to package output into a formal artefact using templates or a requested document format.",
         )
 
-    summary_needs_source_resolution = task_contract.source_resolution not in {"", "none", "as_needed"}
-    if has_summary_signal and (has_source_signal or summary_needs_source_resolution):
+    if contract.is_summary and contract.source_required:
         return RoutingDecision(
             intent="summary",
             mode="pipeline",
@@ -179,33 +162,33 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt asks for a summary of source material; pipeline runs retrieval and summary drafting.",
         )
 
-    if has_criticality_signal and (
-        has_design_signal
-        or has_review_signal
-        or (has_source_signal and design_score >= 1)
+    if contract.has_hint("criticality") and (
+        contract.has_hint("design")
+        or contract.has_hint("review")
+        or (contract.source_required and contract.has_hint("design"))
     ):
         return RoutingDecision(
             intent="critical_peer_review",
             mode="peer",
             agent="design_author",
-            needs_retrieval=has_source_signal,
+            needs_retrieval=contract.source_required,
             needs_review=True,
             confidence=0.93,
             reason="Prompt signals high-criticality/high-accuracy design work; peer challenge and judgement are preferred over pipeline.",
         )
 
-    if has_peer_signal:
+    if contract.has_hint("peer"):
         return RoutingDecision(
             intent="peer_review",
             mode="peer",
             agent="design_author",
-            needs_retrieval=has_source_signal,
+            needs_retrieval=contract.source_required,
             needs_review=True,
-            confidence=0.96 if _contains_any(text, set(terms.explicit_peer_patterns)) else 0.92,
+            confidence=0.92,
             reason="Prompt requests peer-style proposal, challenge, refinement, and judgement.",
         )
 
-    if has_source_signal and (has_design_signal or design_score >= 1):
+    if contract.source_required and contract.has_hint("design"):
         return RoutingDecision(
             intent="discovery_design",
             mode="pipeline",
@@ -216,7 +199,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt combines source lookup with drafting or synthesis; pipeline runs with review for quality control on complex multi-stage work.",
         )
 
-    if has_design_signal and has_review_signal:
+    if contract.has_hint("design") and contract.has_hint("review"):
         return RoutingDecision(
             intent="design_review",
             mode="pipeline",
@@ -227,7 +210,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt asks for both proposal and critique, so a pipeline is more suitable than design-only or review-only.",
         )
 
-    if has_review_signal and not has_design_signal and not has_source_signal:
+    if contract.has_hint("review") and not contract.has_hint("design") and not contract.source_required:
         return RoutingDecision(
             intent="review",
             mode="single",
@@ -238,7 +221,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt primarily focuses on critique or evaluation.",
         )
 
-    if has_summary_signal:
+    if contract.is_summary:
         return RoutingDecision(
             intent="summary",
             mode="single",
@@ -249,7 +232,18 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt primarily asks for a summary without a clear retrieval source.",
         )
 
-    if has_design_signal:
+    if contract.has_hint("mixed_complexity"):
+        return RoutingDecision(
+            intent="mixed_complexity",
+            mode="pipeline",
+            agent="design",
+            needs_retrieval=False,
+            needs_review=True,
+            confidence=0.78,
+            reason="Prompt contains mixed design/review/retrieval signals; pipeline with review is safer than single-agent fallback.",
+        )
+
+    if contract.has_hint("design"):
         return RoutingDecision(
             intent="design",
             mode="single",
@@ -260,31 +254,15 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             reason="Prompt primarily asks for drafting or architecture output.",
         )
 
-    if has_source_signal:
+    if contract.source_required or contract.has_hint("source_lookup"):
         return RoutingDecision(
             intent="discovery",
             mode="single",
             agent="retrieval_planner",
             needs_retrieval=True,
             needs_review=False,
-            confidence=0.85 if deterministic_retrieval_nudge else 0.82,
-            reason=(
-                "Prompt primarily asks for finding or inspecting sources."
-                if not deterministic_retrieval_nudge
-                else "Prompt asks for source lookup and deterministic graph expansion confirms retrieval-relevant topics."
-            ),
-        )
-
-    mixed_complexity_score = discovery_score + design_score + review_score + peer_score
-    if mixed_complexity_score >= 3:
-        return RoutingDecision(
-            intent="mixed_complexity",
-            mode="pipeline",
-            agent="design",
-            needs_retrieval=False,
-            needs_review=True,
-            confidence=0.78,
-            reason="Prompt contains mixed design/review/retrieval signals; pipeline with review is safer than single-agent fallback.",
+            confidence=0.85,
+            reason="Prompt primarily asks for finding or inspecting sources.",
         )
 
     return RoutingDecision(
@@ -296,6 +274,50 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
         confidence=0.50,
         reason="No strong routing signal detected; using orchestrator fallback.",
     )
+
+
+def _single_agent_for_contract(contract: RequestContract) -> str:
+    if contract.has_hint("native_document_export"):
+        return "document_formatter"
+    if contract.source_required or contract.has_hint("source_lookup"):
+        return "retrieval_planner"
+    if contract.has_hint("publication"):
+        return "publisher"
+    if contract.has_hint("review"):
+        return "review"
+    if contract.is_summary:
+        return "summary"
+    if contract.has_hint("design"):
+        return "design"
+    if contract.has_hint("operations"):
+        return "operations"
+    return "orchestrator"
+
+
+def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | None = None) -> RoutingDecision:
+    try:
+        catalog = load_semantic_catalog(str(registry_dir)) if registry_dir is not None else load_semantic_catalog()
+    except TypeError:
+        catalog = load_semantic_catalog()
+    deterministic_context = None
+    if registry_dir is not None:
+        context, graph_loaded = deterministic_context_from_registry(text, registry_dir)
+        deterministic_context = context if graph_loaded else None
+    deterministic_nudge = _deterministic_source_nudge(text, registry_dir)
+    contract = infer_request_contract(
+        text,
+        registry_dir=registry_dir,
+        catalog=catalog,
+        deterministic_context=deterministic_context,
+    )
+    if deterministic_nudge and not contract.source_required:
+        contract = replace(
+            contract,
+            source_required=True,
+            source_families=tuple(dict.fromkeys((*contract.source_families, "deterministic"))),
+            route_hints=tuple(dict.fromkeys((*contract.route_hints, "source_required", "source_lookup"))),
+        )
+    return _route_from_contract(contract, review_enabled=review_enabled)
 
 
 def _apply_explicit_overrides(

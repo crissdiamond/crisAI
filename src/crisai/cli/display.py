@@ -90,7 +90,7 @@ _RENDER_STYLES = {
 
 _FENCED_CODE_BLOCK_RE = re.compile(r"```[^\n`]*\n.*?```", re.DOTALL)
 _MACHINE_SCHEMA_RE = re.compile(
-    r'"schema_version"\s*:\s*"(?:evidence_bundle_v1|task_contract_v1)"',
+    r'"schema_version"\s*:\s*"(?:evidence_bundle_v1|task_contract_v1|request_contract_v1)"',
     re.IGNORECASE,
 )
 _MACHINE_JSON_KEY_RE = re.compile(

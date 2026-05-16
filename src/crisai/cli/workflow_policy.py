@@ -84,6 +84,7 @@ def infer_workflow_policy(
     registry_dir: Path | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
     advisory_deterministic_context: DeterministicRetrievalContext | None = None,
+    explicit_write_target_subdir: str | None = None,
 ) -> WorkflowPolicy:
     """Infer policy capabilities from a user request.
 
@@ -116,8 +117,11 @@ def infer_workflow_policy(
         capability in capabilities
         for capability in (requirements.get("workspace_write_for_capabilities") or [])
     )
+    if explicit_write_target_subdir:
+        capabilities.add("produce_artifacts")
+        require_workspace_write = True
     write_target_subdir = (
-        str(config.get("write_target_subdir") or "workspace/tasks")
+        explicit_write_target_subdir or str(config.get("write_target_subdir") or "workspace/tasks")
         if require_workspace_write
         else None
     )

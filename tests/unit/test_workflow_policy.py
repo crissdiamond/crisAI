@@ -56,6 +56,17 @@ def test_infer_workflow_policy_uses_registry_configuration(tmp_path: Path):
     assert policy.write_target_subdir == "workspace/custom_staging"
 
 
+def test_infer_workflow_policy_uses_explicit_write_target_override():
+    policy = infer_workflow_policy(
+        "Create the requested artefact.",
+        explicit_write_target_subdir="workspace/knowledge/reference/template",
+    )
+
+    assert policy.require_workspace_write is True
+    assert policy.write_target_subdir == "workspace/knowledge/reference/template"
+    assert "produce_artifacts" in policy.capabilities
+
+
 def test_has_intranet_fetch_evidence_detects_negative_marker():
     text = "Intranet sources\n- None were retrieved in this turn."
     assert has_intranet_fetch_evidence(text) is False

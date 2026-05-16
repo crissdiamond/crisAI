@@ -58,6 +58,11 @@ from crisai.orchestration.prompt_generation import (
     build_single_retrieval_planner_prompt,
     build_summary_prompt,
 )
+from crisai.orchestration.request_contract import (
+    RequestContract,
+    infer_request_contract,
+    render_request_contract_block,
+)
 from crisai.orchestration.retrieval_association_graph import (
     DeterministicRetrievalContext,
     deterministic_context_from_registry,
@@ -117,6 +122,32 @@ def _empty_deterministic_context() -> DeterministicRetrievalContext:
         graph_loaded=False,
         graph_version="unavailable",
     )
+
+
+def _infer_runtime_request_contract(
+    intent_message: str,
+    *,
+    registry_dir: Path | None,
+    deterministic_context: DeterministicRetrievalContext,
+    current_mode: str | None = None,
+) -> RequestContract:
+    """Infer request contract with the configured registry as fallback."""
+    try:
+        return infer_request_contract(
+            intent_message,
+            current_mode=current_mode,
+            registry_dir=registry_dir,
+            deterministic_context=deterministic_context,
+        )
+    except FileNotFoundError:
+        if registry_dir is None:
+            raise
+        return infer_request_contract(
+            intent_message,
+            current_mode=current_mode,
+            registry_dir=None,
+            deterministic_context=deterministic_context,
+        )
 
 
 def _deterministic_advisory_enabled() -> bool:
@@ -502,10 +533,16 @@ async def run_pipeline(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
     )
+    request_contract = _infer_runtime_request_contract(
+        intent_message,
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+        deterministic_context=deterministic_context,
+    )
     policy = infer_workflow_policy(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
+        explicit_write_target_subdir=request_contract.output_target_subdir,
     )
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
@@ -542,6 +579,13 @@ async def run_pipeline(
             render_task_contract_block(task_contract),
             event_type="policy_signal",
             metadata=task_contract.to_dict(),
+        )
+        _trace_workflow_policy_event(
+            workflow,
+            "REQUEST_CONTRACT",
+            render_request_contract_block(request_contract),
+            event_type="policy_signal",
+            metadata=request_contract.to_dict(),
         )
         _trace_workflow_policy_event(
             workflow,
@@ -868,10 +912,17 @@ async def run_peer_pipeline(
     if registry_dir is not None:
         deterministic_context, graph_loaded = deterministic_context_from_registry(intent_message, Path(registry_dir))
     deterministic_advisory_enabled = _deterministic_advisory_enabled()
+    request_contract = _infer_runtime_request_contract(
+        intent_message,
+        current_mode="peer",
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+        deterministic_context=deterministic_context,
+    )
     policy = infer_workflow_policy(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
+        explicit_write_target_subdir=request_contract.output_target_subdir,
     )
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
@@ -927,6 +978,13 @@ async def run_peer_pipeline(
             run_contract_text,
             event_type="policy_signal",
             metadata={"expected_output_type": run_contract.expected_output_type},
+        )
+        _trace_workflow_policy_event(
+            workflow,
+            "REQUEST_CONTRACT",
+            render_request_contract_block(request_contract),
+            event_type="policy_signal",
+            metadata=request_contract.to_dict(),
         )
         _trace_workflow_policy_event(
             workflow,

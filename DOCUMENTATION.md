@@ -80,10 +80,10 @@ The router distinguishes between:
 - **pinned mode**
 - **pinned agent**
 
-### 2.5 Task contract
-After routing, crisAI infers a small runtime **Task Contract** that preserves the user’s main ask across agent handoffs.
+### 2.5 Request and task contracts
+Before routing, crisAI infers a small runtime **Request Contract** that combines the user’s workflow preference, source obligations, named sources, output path, required actions, and quality gates.
 
-The router decides the workflow shape. The Task Contract defines the expected deliverable. For example, a request to summarise the latest matching deck is treated as a summary deliverable with a supporting source-resolution step, not as a candidate-ranking task.
+The Request Contract wraps the existing **Task Contract**, which preserves the user’s main ask across agent handoffs. The router chooses the workflow from the contract rather than from isolated keyword scores. For example, a request to summarise the latest matching deck is treated as a summary deliverable with a supporting source-resolution step, not as a candidate-ranking task. A request to create an artefact from a SharePoint page is treated as source-backed generation, while a request to format an existing Markdown artefact with a workspace template remains a formatting task.
 
 ### 2.6 Model registry
 Agents do not need to hard-code provider model names anymore.
@@ -535,10 +535,13 @@ Its purpose is simple:
 
 ### 9.1 Runtime workflow policy gates
 
+Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, and workspace output paths. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations.
+
 After routing selects a mode/agent path, crisAI applies a generic runtime policy layer from `registry/workflow_policy.yaml`:
 
 - infer capabilities from request text (for example `intranet_grounded`, `produce_artifacts`)
 - map capabilities to hard requirements (for example intranet fetch evidence, workspace file writes)
+- use explicit workspace output paths from the Request Contract as the write target when present
 - fail the run with a clear error when required outcomes are missing
 
 This keeps behaviour generic and guardrail-driven, instead of relying only on prompt compliance.
@@ -565,6 +568,7 @@ The legacy router, peer-contract, and verifier semantics remain configurable fro
 - source and architecture-location marker lists
 - shared prompt lexicon (`lexicon`) for language-level function words, prompt-noise words, and title-relation words used by deterministic parsers
 - retrieval source-fit constraint vocabulary (`retrieval_constraints`) for retrieval-specific object type terms and source-scope markers
+- Request Contract source-family and source-scope inference through `retrieval_constraints.source_scope_markers`
 - peer-verifier regex patterns (for example gap-line and leaf-file matching)
 - peer-verifier semantic leaf-file terminology (`leaf_file_terms`) to classify architecture-oriented deliverables by filename terms (for example `patterns`, `template`, `hld`, `guides`, `standards`, `principles`, `toolkit`)
 - **peer_contract** marker phrase lists (`file_write_markers`, `code_change_markers`, `code_target_markers`, `grounding_markers`, `assessment_markers`) used by `infer_peer_run_contract` (substring match on lowercased user text; inference logic stays in code)
@@ -582,6 +586,8 @@ This keeps semantic/heuristic tuning maintainable outside code, similar to `regi
 | Find documents only | `single` + `retrieval_planner` |
 | Summarise a matching document/deck | `pipeline` + `summary` |
 | Find documents and draft a note | `pipeline` + review |
+| Create an artefact from a SharePoint/intranet source | `pipeline` + `retrieval_planner` |
+| Format an existing Markdown artefact with a workspace template | `single` + `document_formatter` or `publisher` |
 | Propose and critique a design | `pipeline` with review |
 | Review this draft | `single` + `review` |
 | Why is SharePoint login popping up? | `single` + `operations` |
@@ -730,9 +736,12 @@ constraints before downstream summary/design stages can use it. Semantic
 expansion terms remain optional search hints and cannot override explicit source
 fit.
 
-For summary requests, the pipeline also carries a `task_contract_v1` machine
-payload. This tells downstream agents that the main deliverable is the summary
-and that any “latest/best candidate” work is only a source-resolution subtask.
+For summary and source-backed generation requests, the pipeline carries both a
+`request_contract_v1` machine payload and the nested `task_contract_v1` payload.
+The Request Contract tells the runtime which source/read/write gates apply; the
+Task Contract tells downstream agents that the main deliverable is the user’s
+requested summary, design, template, assessment, or recommendation, and that any
+“latest/best candidate” work is only a source-resolution subtask.
 Once retrieval has validated `content_read` evidence, source summaries use a
 fast path that passes the validated evidence summary directly to the `summary`
 agent and returns that output without a separate context synthesis or final

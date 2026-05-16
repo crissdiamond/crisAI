@@ -14,6 +14,10 @@ as the task, rather than support for the task.
 Use task contracts to preserve the user's primary ask across routing,
 retrieval, synthesis, summary, design, review, and final orchestration.
 
+Use a request contract as the execution wrapper around the task contract. The
+request contract records workflow preference, source obligations, named sources,
+output paths, actions, and quality gates before the router chooses a workflow.
+
 Summary requests should route to summary-specific behaviour after retrieval,
 including a fast path when validated evidence is already available.
 
@@ -25,9 +29,13 @@ including a fast path when validated evidence is already available.
   deliverable.
 - Summary requests should avoid unnecessary design/review debate unless the
   contract requires it.
+- Routing should be contract-driven, not a prompt-specific keyword patch.
+- Workspace write gates can follow explicit output paths instead of assuming a
+  fixed task directory.
 
 ## Related
 
 - `src/crisai/orchestration/task_contract.py`
+- `src/crisai/orchestration/request_contract.py`
 - `src/crisai/cli/pipelines.py`
 - `registry/semantic_graph.yaml`

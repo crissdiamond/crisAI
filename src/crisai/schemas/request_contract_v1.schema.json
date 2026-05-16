@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/request_contract_v1.schema.json",
+  "title": "Request Contract",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "workflow_preference",
+    "task_contract",
+    "source_required",
+    "source_families",
+    "named_sources",
+    "required_evidence_level",
+    "output_path",
+    "output_target_subdir",
+    "actions",
+    "quality_gates",
+    "route_hints"
+  ],
+  "properties": {
+    "schema_version": { "const": "request_contract_v1" },
+    "workflow_preference": {
+      "type": "string",
+      "enum": ["auto", "single", "pipeline", "peer"]
+    },
+    "task_contract": { "$ref": "task_contract_v1.schema.json" },
+    "source_required": { "type": "boolean" },
+    "source_families": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "named_sources": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "required_evidence_level": { "type": "string", "minLength": 1 },
+    "output_path": {
+      "anyOf": [
+        { "type": "string", "pattern": "^workspace/" },
+        { "type": "null" }
+      ]
+    },
+    "output_target_subdir": {
+      "anyOf": [
+        { "type": "string", "pattern": "^workspace/" },
+        { "type": "null" }
+      ]
+    },
+    "actions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "quality_gates": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "route_hints": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "additionalProperties": false
+}

@@ -59,12 +59,13 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    Request[User Request] --> Route[Route Decision]
+    Request[User Request] --> RequestContract[Request Contract]
+    RequestContract --> Route[Route Decision]
 
-    Route --> Contract[Task Contract]
+    RequestContract --> Contract[Task Contract]
 
-    Contract -->|single| SingleAgent[Selected Agent]
-    Contract -->|pipeline| RetrievalPlanner[Retrieval Planner]
+    Route -->|single| SingleAgent[Selected Agent]
+    Route -->|pipeline| RetrievalPlanner[Retrieval Planner]
     RetrievalPlanner --> ContextRetrieval[Context Retrieval]
     ContextRetrieval --> ContextSynth[Context Synthesizer]
     ContextSynth --> DraftChoice{Deliverable}
@@ -74,7 +75,7 @@ flowchart LR
     Design --> Review
     Review --> Orchestrator[Orchestrator]
 
-    Contract -->|peer| PeerRetrieval[Optional Retrieval]
+    Route -->|peer| PeerRetrieval[Optional Retrieval]
     PeerRetrieval --> Author[Design Author]
     Author --> Challenger[Design Challenger]
     Challenger --> Refiner[Design Refiner]
