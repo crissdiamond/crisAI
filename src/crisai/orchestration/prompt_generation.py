@@ -300,6 +300,7 @@ def build_context_retrieval_prompt(
             "- When in doubt, ``list_workspace_files('knowledge')`` (or a deeper subfolder) and the active task artefact folder, then open the best candidates.\n"
             + intranet_rules
             + "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
+            "Do not create, update, or append workspace artefacts during retrieval; never call write-capable workspace tools from this stage. "
             "When source selection is needed, keep selection rationale short and make the read content prominent. "
             "Enforce Source Fit Constraints before reading: title phrases and user-scoped sources are hard filters, while deterministic expansion terms are optional hints. "
             "For SharePoint (not OneDrive-only) use `search_sharepoint_site_documents` or site-scoped search after `list_sites`. "

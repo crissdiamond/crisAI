@@ -16,7 +16,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/retrieval_planner_agent.md
     allowed_servers:
-      - workspace
+      - workspace_read
       - documents
       - sharepoint_docs
       - intranet
@@ -27,7 +27,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/context_retrieval_agent.md
     allowed_servers:
-      - workspace
+      - workspace_read
       - documents
       - sharepoint_docs
       - intranet
@@ -38,7 +38,7 @@ agents:
     model_ref: deepseek_reasoner
     prompt_file: prompts/context_synthesizer_agent.md
     allowed_servers:
-      - workspace
+      - workspace_read
       - documents
       - intranet
 
@@ -55,7 +55,7 @@ agents:
     model_ref: deepseek_reasoner
     prompt_file: prompts/summary_agent.md
     allowed_servers:
-      - workspace
+      - workspace_read
       - documents
       - sharepoint_docs
       - intranet
@@ -66,7 +66,7 @@ agents:
     model_ref: gemini_strong
     prompt_file: prompts/review_agent.md
     allowed_servers:
-      - workspace
+      - workspace_read
       - documents
       - intranet
 
@@ -75,7 +75,7 @@ agents:
     model_ref: openai_nano
     prompt_file: prompts/operations_agent.md
     allowed_servers:
-      - workspace
+      - workspace_read
 
   - id: memory_summarizer
     name: Memory Summarizer
@@ -115,7 +115,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/design_challenger.md
     allowed_servers:
-      - workspace
+      - workspace_read
 
   - id: design_refiner
     name: Design Refiner
@@ -130,4 +130,4 @@ agents:
     model_ref: gemini_strong
     prompt_file: prompts/judge.md
     allowed_servers:
-      - workspace
+      - workspace_read

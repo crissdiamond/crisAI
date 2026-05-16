@@ -11,19 +11,19 @@ agents:
     name: Retrieval Planner
     model_ref: gemini_fast
     prompt_file: prompts/retrieval_planner_agent.md
-    allowed_servers: [workspace, documents, sharepoint_docs, intranet, vision]
+    allowed_servers: [workspace_read, documents, sharepoint_docs, intranet, vision]
 
   - id: context_retrieval
     name: Context Retrieval Agent
     model_ref: gemini_fast
     prompt_file: prompts/context_retrieval_agent.md
-    allowed_servers: [workspace, documents, sharepoint_docs, intranet, vision]
+    allowed_servers: [workspace_read, documents, sharepoint_docs, intranet, vision]
 
   - id: context_synthesizer
     name: Context Synthesizer Agent
     model_ref: gemini_fast
     prompt_file: prompts/context_synthesizer_agent.md
-    allowed_servers: [workspace, documents, intranet]
+    allowed_servers: [workspace_read, documents, intranet]
 
   - id: design
     name: Design Agent
@@ -35,19 +35,19 @@ agents:
     name: Summary Agent
     model_ref: gemini_fast
     prompt_file: prompts/summary_agent.md
-    allowed_servers: [workspace, documents, sharepoint_docs, intranet, vision]
+    allowed_servers: [workspace_read, documents, sharepoint_docs, intranet, vision]
 
   - id: review
     name: Review Agent
     model_ref: gemini_strong
     prompt_file: prompts/review_agent.md
-    allowed_servers: [workspace, documents, intranet]
+    allowed_servers: [workspace_read, documents, intranet]
 
   - id: operations
     name: Operations Agent
     model_ref: gemini_fast
     prompt_file: prompts/operations_agent.md
-    allowed_servers: [workspace]
+    allowed_servers: [workspace_read]
 
   - id: memory_summarizer
     name: Memory Summarizer
@@ -77,7 +77,7 @@ agents:
     name: Design Challenger
     model_ref: gemini_strong
     prompt_file: prompts/design_challenger.md
-    allowed_servers: [workspace]
+    allowed_servers: [workspace_read]
 
   - id: design_refiner
     name: Design Refiner
@@ -89,4 +89,4 @@ agents:
     name: Judge
     model_ref: gemini_strong
     prompt_file: prompts/judge.md
-    allowed_servers: [workspace]
+    allowed_servers: [workspace_read]

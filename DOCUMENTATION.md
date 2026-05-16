@@ -486,10 +486,10 @@ retrieval, summarisation, or formatting.
 General coordinator and safe fallback.
 
 ### `retrieval_planner`
-Plans a compact retrieval handoff (search angles, paths, constraints) before **Context Retrieval** fetches sources. Does not retrieve documents itself.
+Plans a compact retrieval handoff (search angles, paths, constraints) before **Context Retrieval** fetches sources. Does not retrieve documents itself. In pipeline and peer workflows it should be configured with read-only workspace access such as `workspace_read`, not write-capable workspace tools.
 
 ### `context_retrieval`
-The evidence retrieval specialist for local context chunks and source-grounded extracts.
+The evidence retrieval specialist for local context chunks and source-grounded extracts. It should return evidence, source paths, relevant extracts, and retrieval limitations only. It should not create or update artefact files; use read-only workspace access unless intentionally running it as a terminal retrieval-only agent.
 
 ### `context_synthesizer`
 The context structuring specialist that turns retrieved evidence into a grounded brief for the next deliverable agent.
@@ -912,6 +912,7 @@ crisAI now supports provider-aware model assignment.
 ### How it works
 
 - `registry/agents.yaml` assigns a `model_ref` to each agent
+- `registry/agents.yaml` also assigns each agent to MCP server ids; workflow runtime passes each stage only its configured servers, not the union of all pipeline servers
 - `registry/models.yaml` defines the actual provider and model name
 - the runtime resolves the provider-specific model when building the agent
 - `registry/examples/agents.openai.yaml`, `agents.deepseek.yaml`, `agents.gemini.yaml`, and `agents.anthropic.yaml` provide complete mono-provider assignment examples

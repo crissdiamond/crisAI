@@ -120,6 +120,32 @@ async def test_workflow_engine_opens_and_closes_shared_server_context(engine_fix
 
 
 @pytest.mark.anyio
+async def test_workflow_session_filters_servers_per_agent(engine_fixture):
+    fixture = engine_fixture
+    active_servers = {
+        "document": "server:document",
+        "workspace": "server:workspace",
+    }
+
+    def server_context_factory(environment_arg, agent_specs_arg, server_specs_arg):
+        fixture.context_calls.append((environment_arg, list(agent_specs_arg), server_specs_arg))
+        return DummyServerContext(active_servers, fixture.lifecycle_events)
+
+    fixture.engine._server_context_factory = server_context_factory
+
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+        await workflow.run_stage(
+            spec=fixture.retrieval_planner_spec,
+            ui_agent_id="retrieval_planner",
+            prompt="find context",
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
+            verbose=False,
+        )
+
+    assert fixture.build_calls == [("retrieval_planner", ["server:document"])]
+
+
+@pytest.mark.anyio
 async def test_workflow_session_traces_timeout(monkeypatch, engine_fixture):
     fixture = engine_fixture
     monkeypatch.setenv("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", "0.01")

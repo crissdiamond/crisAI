@@ -107,7 +107,10 @@ async def workflow_server_context(environment: WorkflowEnvironment, agent_specs:
         if server_id in server_specs
     ]
     async with MultiServerContext(servers) as active_servers:
-        yield active_servers
+        yield {
+            server_id: server
+            for server_id, server in zip((server_id for server_id in server_ids if server_id in server_specs), active_servers, strict=False)
+        }
 
 
 async def run_traced_stage(
@@ -123,7 +126,12 @@ async def run_traced_stage(
     print_output: bool = True,
 ) -> str:
     """Run a workflow stage, trace it, and optionally print its output."""
-    agent = environment.factory.build_agent(spec, active_servers)
+    agent_servers = (
+        [active_servers[server_id] for server_id in getattr(spec, "allowed_servers", []) if server_id in active_servers]
+        if isinstance(active_servers, dict)
+        else active_servers
+    )
+    agent = environment.factory.build_agent(spec, agent_servers)
     result = await runner(ui_agent_id, agent, prompt)
     append_trace(
         environment.trace_file,

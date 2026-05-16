@@ -397,7 +397,10 @@ async def workflow_server_context(environment: WorkflowEnvironment, agent_specs,
         if server_id in server_specs
     ]
     async with MultiServerContext(servers) as active_servers:
-        yield active_servers
+        yield {
+            server_id: server
+            for server_id, server in zip((server_id for server_id in server_ids if server_id in server_specs), active_servers, strict=False)
+        }
 
 
 def append_trace_entry(
@@ -482,7 +485,12 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
                 "mode": "single",
             },
         )
-        agent = environment.factory.build_agent(agent_spec, active_servers)
+        active_agent_servers = (
+            [active_servers[server_id] for server_id in agent_spec.allowed_servers if server_id in active_servers]
+            if isinstance(active_servers, dict)
+            else active_servers
+        )
+        agent = environment.factory.build_agent(agent_spec, active_agent_servers)
         prompt = (
             build_single_retrieval_planner_prompt(
                 message,

@@ -12,6 +12,10 @@ def test_mono_provider_agent_examples_match_live_agent_ids_and_model_refs() -> N
     registry_dir = REPO_ROOT / "registry"
     live_agents = yaml.safe_load((registry_dir / "agents.yaml").read_text(encoding="utf-8"))["agents"]
     live_agent_ids = {agent["id"] for agent in live_agents}
+    live_allowed_servers = {
+        agent["id"]: agent.get("allowed_servers", [])
+        for agent in live_agents
+    }
     model_ids = {
         model["id"]
         for model in yaml.safe_load((registry_dir / "models.yaml").read_text(encoding="utf-8"))["models"]
@@ -22,6 +26,10 @@ def test_mono_provider_agent_examples_match_live_agent_ids_and_model_refs() -> N
         agents = payload["agents"]
         assert {agent["id"] for agent in agents} == live_agent_ids, path
         assert all(agent["model_ref"] in model_ids for agent in agents), path
+        assert {
+            agent["id"]: agent.get("allowed_servers", [])
+            for agent in agents
+        } == live_allowed_servers, path
 
 
 def test_mono_provider_agent_examples_use_expected_provider_families() -> None:

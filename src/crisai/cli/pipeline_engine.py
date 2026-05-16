@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -40,7 +40,7 @@ class WorkflowSession:
         self,
         *,
         environment: WorkflowEnvironment,
-        active_servers: list,
+        active_servers: list | Mapping[str, object],
         stage_runner: StageRunner,
         trace_writer: TraceWriter,
         output_printer: OutputPrinter,
@@ -142,7 +142,7 @@ class WorkflowSession:
         Returns:
             The final text emitted by the agent.
         """
-        agent = self._environment.factory.build_agent(spec, self._active_servers)
+        agent = self._environment.factory.build_agent(spec, self._servers_for_spec(spec))
         self.trace_event(
             f"{trace_label}_START",
             f"Starting stage for {ui_agent_id}.",
@@ -211,6 +211,13 @@ class WorkflowSession:
         if print_output:
             self._output_printer(ui_agent_id, trace_content, verbose=verbose)
         return result
+
+    def _servers_for_spec(self, spec: Any) -> list:
+        """Return only the active MCP servers configured for this agent."""
+        if not isinstance(self._active_servers, Mapping):
+            return list(self._active_servers)
+        allowed = list(getattr(spec, "allowed_servers", []) or [])
+        return [self._active_servers[server_id] for server_id in allowed if server_id in self._active_servers]
 
 
 class WorkflowEngine:

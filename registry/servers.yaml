@@ -31,6 +31,31 @@ servers:
       mode: auto_approve_local
     risk_level: low
 
+  - id: workspace_read
+    name: Workspace Read Server
+    description: Read and search notes and artefacts inside the local crisAI workspace.
+    enabled: true
+    transport: stdio
+    command: python
+    args:
+      - src/crisai/servers/workspace_server.py
+      - ./workspace
+    working_directory: .
+    tags: [local, workspace, documents, read_only]
+    auth:
+      type: none
+    tools:
+      allow:
+        - list_workspace_files
+        - read_workspace_file
+        - search_workspace_text
+        - workspace_file_link
+        - expand_associations
+    approval:
+      required_for: []
+      mode: none
+    risk_level: low
+
   - id: diagrams
     name: Diagram Server
     description: Generate and validate Mermaid diagrams for architecture artefacts.
