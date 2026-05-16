@@ -67,6 +67,23 @@ class FakeWorkflowEngine:
         return self._session
 
 
+class FallbackWorkflowSession(FakeWorkflowSession):
+    """Workflow double that simulates an empty retrieval-planner response."""
+
+    def trace_event(self, stage: str, content: str, **kwargs) -> None:
+        del kwargs
+        self._trace_calls.append((stage, content))
+
+    async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+        if ui_agent_id == "retrieval_planner":
+            self._stage_calls.append((ui_agent_id, prompt))
+            raise RuntimeError(
+                "Stage retrieval_planner returned empty output. "
+                "This stage is required to produce a handoff or answer."
+            )
+        return await super().run_stage(ui_agent_id=ui_agent_id, prompt=prompt, **kwargs)
+
+
 def test_resolve_agent_max_turns_defaults_to_safe_value(monkeypatch):
     monkeypatch.delenv("CRISAI_AGENT_MAX_TURNS", raising=False)
     assert pipeline_display._resolve_agent_max_turns() == 30
@@ -487,6 +504,52 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
         ("REVIEW OUTPUT", "Review stage skipped because review is disabled."),
         ("WORKFLOW_END", "Pipeline workflow completed."),
     ]
+
+
+@pytest.mark.anyio
+async def test_run_pipeline_falls_back_when_retrieval_planner_is_empty(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FallbackWorkflowSession(trace_calls, stage_calls, "orchestrator-output")
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    result = await pipelines.run_pipeline(
+        "Search workspace/context before answering.",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+    )
+
+    assert result == "orchestrator-output"
+    assert [name for name, _ in stage_calls] == [
+        "retrieval_planner",
+        "context_retrieval",
+        "context_synthesizer",
+        "design",
+        "orchestrator",
+    ]
+    fallback = next(content for stage, content in trace_calls if stage == "RETRIEVAL_PLANNER FALLBACK")
+    assert "deterministic fallback handoff" in fallback
+    context_prompt = next(prompt for name, prompt in stage_calls if name == "context_retrieval")
+    assert "deterministic fallback handoff" in context_prompt
 
 
 @pytest.mark.anyio

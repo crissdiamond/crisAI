@@ -74,6 +74,7 @@ from crisai.orchestration.source_constraints import (
 )
 from crisai.orchestration.source_resolution import latest_source_conflict_message
 from crisai.orchestration.task_contract import (
+    TaskContract,
     infer_task_contract,
     render_task_contract_block,
 )
@@ -120,6 +121,36 @@ def _empty_deterministic_context() -> DeterministicRetrievalContext:
 
 def _deterministic_advisory_enabled() -> bool:
     return os.getenv("CRISAI_DETERMINISTIC_MCP_ADVISORY", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_empty_stage_output_error(exc: Exception, *, agent_id: str) -> bool:
+    """Return whether an exception is the workflow engine's empty-output failure."""
+    return f"Stage {agent_id} returned empty output" in str(exc)
+
+
+def _build_retrieval_planner_fallback(
+    message: str,
+    *,
+    deterministic_context: DeterministicRetrievalContext,
+    task_contract: TaskContract,
+) -> str:
+    """Build a deterministic retrieval handoff when the planner emits no text."""
+    del message
+    terms = ", ".join(sorted(deterministic_context.suggested_terms)[:24]) or "(none)"
+    sources = ", ".join(sorted(deterministic_context.suggested_sources)) or "(none)"
+    topics = ", ".join(sorted(deterministic_context.activated_topic_ids)) or "(none)"
+    return (
+        "Retrieval planner returned empty output; continuing with deterministic fallback handoff.\n"
+        "- Retrieval focus: use the user request as the authoritative retrieval brief and search/read local workspace "
+        "context when the request asks for local documents or workspace context.\n"
+        f"- Deliverable to support: {task_contract.deliverable_type}; primary intent: {task_contract.primary_intent}.\n"
+        "- Open explicit workspace-relative paths first when present; otherwise list/search likely workspace knowledge, "
+        "standards, patterns, notes, templates, and prior designs relevant to the request.\n"
+        f"- Activated topics: {topics}.\n"
+        f"- Query terms: {terms}.\n"
+        f"- Source priority: {sources}.\n"
+        "- Retrieval gaps to resolve: identify missing local evidence, unreadable files, or unavailable expected sources."
+    )
 
 
 def _trace_workflow_policy_event(
@@ -536,18 +567,34 @@ async def run_pipeline(
         validated_context_retrieval_text = ""
 
         while True:
-            retrieval_plan_text = await workflow.run_stage(
-                spec=specs["retrieval_planner"],
-                ui_agent_id="retrieval_planner",
-                prompt=build_retrieval_planner_prompt(
+            try:
+                retrieval_plan_text = await workflow.run_stage(
+                    spec=specs["retrieval_planner"],
+                    ui_agent_id="retrieval_planner",
+                    prompt=build_retrieval_planner_prompt(
+                        retrieval_message,
+                        deterministic_context=deterministic_context,
+                        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                        task_contract=task_contract,
+                    ),
+                    trace_label="RETRIEVAL_PLANNER OUTPUT",
+                    verbose=verbose,
+                )
+            except RuntimeError as exc:
+                if not _is_empty_stage_output_error(exc, agent_id="retrieval_planner"):
+                    raise
+                retrieval_plan_text = _build_retrieval_planner_fallback(
                     retrieval_message,
                     deterministic_context=deterministic_context,
-                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
                     task_contract=task_contract,
-                ),
-                trace_label="RETRIEVAL_PLANNER OUTPUT",
-                verbose=verbose,
-            )
+                )
+                workflow.trace_event(
+                    "RETRIEVAL_PLANNER FALLBACK",
+                    retrieval_plan_text,
+                    event_type="stage_output",
+                    agent_id="retrieval_planner",
+                    metadata={"fallback_reason": "empty_output"},
+                )
 
             evidence_capture = EvidenceValidationCapture(retrieval_intent_message)
 
