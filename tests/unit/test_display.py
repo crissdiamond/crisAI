@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
@@ -80,6 +81,21 @@ def test_terminal_title_updates_are_opt_in(monkeypatch, capsys) -> None:
     display.update_terminal_title("working")
 
     assert "]0;✦ crisAI" in capsys.readouterr().out
+
+
+def test_agent_progress_panel_includes_runtime_footer() -> None:
+    token = display.set_active_runtime_footer(" ⬡ PowerBI-4 | mode:pipeline | working ")
+    try:
+        manager = display.AgentDisplayManager("context_retrieval")
+        panel = manager._render()
+    finally:
+        display.reset_active_runtime_footer(token)
+
+    console = Console(record=True, width=120)
+    console.print(panel)
+    rendered = console.export_text()
+    assert "PowerBI-4" in rendered
+    assert "mode:pipeline" in rendered
 
 
 def test_print_agent_output_non_verbose_uses_markdown_panel(monkeypatch) -> None:

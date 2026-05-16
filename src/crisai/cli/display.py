@@ -6,7 +6,7 @@ import re
 import textwrap
 from typing import Literal
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -19,6 +19,10 @@ from .peer_transcript import PeerMessage
 console = Console()
 _ACTIVE_DISPLAY_SINK: contextvars.ContextVar[object | None] = contextvars.ContextVar(
     "crisai_active_display_sink",
+    default=None,
+)
+_ACTIVE_RUNTIME_FOOTER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "crisai_active_runtime_footer",
     default=None,
 )
 
@@ -123,12 +127,17 @@ class AgentDisplayManager:
 
     def _render(self) -> Panel:
         title = Text(f"{self.icon} {self.label}", style=f"bold {self.style}")
-        body = Text.assemble(
-            ("✦ ", f"bold {self.style}"),
-            (self.current_topic, "italic dim")
-        )
+        body_lines = [
+            Text.assemble(
+                ("✦ ", f"bold {self.style}"),
+                (self.current_topic, "italic dim"),
+            )
+        ]
+        footer = _ACTIVE_RUNTIME_FOOTER.get()
+        if footer:
+            body_lines.extend([Text(""), Text(footer, style="reverse")])
         return Panel(
-            body,
+            Group(*body_lines),
             title=title,
             border_style=self.style,
             padding=(0, 1),
@@ -167,6 +176,16 @@ def set_active_display_sink(sink: object | None) -> contextvars.Token:
 def reset_active_display_sink(token: contextvars.Token) -> None:
     """Restore the previous display sink."""
     _ACTIVE_DISPLAY_SINK.reset(token)
+
+
+def set_active_runtime_footer(footer: str | None) -> contextvars.Token:
+    """Set the runtime footer shown inside classic agent progress panels."""
+    return _ACTIVE_RUNTIME_FOOTER.set(footer)
+
+
+def reset_active_runtime_footer(token: contextvars.Token) -> None:
+    """Restore the previous runtime footer."""
+    _ACTIVE_RUNTIME_FOOTER.reset(token)
 
 
 def get_bottom_toolbar(

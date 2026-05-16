@@ -30,8 +30,10 @@ from crisai.cli.display import (
     print_final_recommendation,
     print_status_message,
     reset_active_display_sink,
+    reset_active_runtime_footer,
     sanitize_user_visible_text,
     set_active_display_sink,
+    set_active_runtime_footer,
     update_terminal_title,
 )
 from crisai.cli.gemini_chat import GeminiChatDisplay, GeminiChatStatus
@@ -395,6 +397,24 @@ def _gemini_status_from_state(state: ChatRuntimeState, *, activity: str = "idle"
         agent_pinned=state.agent_pinned,
         activity=activity,
         current_stage=stage,
+    )
+
+
+def _runtime_footer_from_state(state: ChatRuntimeState, *, activity: str = "working") -> str:
+    """Return the status footer shown during classic long-running stages."""
+    return (
+        get_bottom_toolbar(
+            session=state.current_session,
+            mode=state.current_mode,
+            agent=state.current_agent,
+            model=state.settings.model.default_model,
+            verbose=state.current_verbose,
+            review=state.current_review,
+            retrieval_checkpoint=state.current_retrieval_checkpoint,
+            mode_pinned=state.mode_pinned,
+            agent_pinned=state.agent_pinned,
+        )
+        + f"| {activity} "
     )
 
 
@@ -862,8 +882,12 @@ def chat(
 
         try:
             if gemini_display is None:
-                with _suppress_console_info_logs():
-                    text = _run_async(_run())
+                footer_token = set_active_runtime_footer(_runtime_footer_from_state(state))
+                try:
+                    with _suppress_console_info_logs():
+                        text = _run_async(_run())
+                finally:
+                    reset_active_runtime_footer(footer_token)
             else:
                 token = set_active_display_sink(gemini_display)
                 try:
