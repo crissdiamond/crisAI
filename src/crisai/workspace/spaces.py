@@ -73,7 +73,7 @@ class WorkspaceSpaces:
 
     def all_read_roots(self) -> tuple[str, ...]:
         """Return configured roots that may contain retrievable text."""
-        roots = (
+        roots: tuple[str, ...] = (
             self.knowledge_root,
             self.knowledge_staging_root,
             self.tasks_root,

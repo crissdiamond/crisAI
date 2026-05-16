@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_patch
 
@@ -164,7 +164,10 @@ def _thinking_enabled(value: Any) -> bool:
     return str(value or "").strip().lower() in {"enabled", "true", "on", "1"}
 
 
-def _normalize_reasoning_effort(value: Any) -> str | None:
+ReasoningEffort = Literal["minimal", "low", "medium", "high"]
+
+
+def _normalize_reasoning_effort(value: Any) -> ReasoningEffort | None:
     """Map registry reasoning labels to the Agents SDK supported values."""
     if value is None:
         return None
@@ -172,6 +175,6 @@ def _normalize_reasoning_effort(value: Any) -> str | None:
     if normalized == "max":
         return "high"
     if normalized in {"minimal", "low", "medium", "high"}:
-        return normalized
+        return cast(ReasoningEffort, normalized)
     logger.debug("Ignoring unsupported reasoning_effort registry option: %s", value)
     return None
