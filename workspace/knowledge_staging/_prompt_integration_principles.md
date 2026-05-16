@@ -55,7 +55,7 @@ Optional pre-check: `crisai validate-artefacts -p workspace/knowledge_staging/pr
 Read:
 
 - `workspace/knowledge/README.md` (folder intent and metadata field reference)
-- `prompts/_shared/context-staging.md` (catalogue vs leaf behaviour)
+- `prompts/_shared/knowledge-staging.md` (catalogue vs leaf behaviour)
 - `registry/workspace_artifact_profiles.yaml` (required headings for `type: principle`)
 
 Do **not** recycle approved corpus text from `workspace/knowledge/` as **source facts** for new claims (reading templates or README for shape is fine).

@@ -7,7 +7,7 @@ Curated knowledge for **Higher Education (HE)** architecture work: colleges, uni
 
 ## Knowledge staging (drafts)
 
-**Agent-generated** knowledge files (e.g. from intranet extraction or Copilot drafts awaiting review) belong under **`workspace/knowledge_staging/`**, mirroring the folder layout you intend in `knowledge/`. Humans **promote** approved files into **`workspace/knowledge/`**; the approved tree is what retrieval searches by default. Rules: **`prompts/_shared/context-staging.md`** and **`workspace/knowledge_staging/README.md`**.
+**Agent-generated** knowledge files (e.g. from intranet extraction or Copilot drafts awaiting review) belong under **`workspace/knowledge_staging/`**, mirroring the folder layout you intend in `knowledge/`. Humans **promote** approved files into **`workspace/knowledge/`**; the approved tree is what retrieval searches by default. Rules: **`prompts/_shared/knowledge-staging.md`** and **`workspace/knowledge_staging/README.md`**.
 
 ---
 

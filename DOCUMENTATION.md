@@ -258,7 +258,7 @@ Each task session stores raw history, compact memory, and task metadata under `w
 
 Routing and workflow policy are inferred from the **latest user message**, not from the full history wrapper. Session memory and task workspace paths are supporting context only; they must not turn a follow-up such as “generate an option paper” into a file-write request just because the prompt wrapper mentions `workspace/tasks/<task>/artefacts`. Failed chat turns are still persisted with the error status so task history reflects what happened.
 
-Known source paths in compact memory are normalised to current workspace roots. Legacy `workspace/context/...` or `context/...` references are carried forward as `knowledge/...` where possible, which avoids stale source paths in follow-up drafts.
+Known source paths in compact memory are normalised to current workspace roots, which avoids stale source paths in follow-up drafts.
 
 Use one session per task when possible:
 
@@ -662,9 +662,9 @@ Knowledge corpora are declared with an id, label, root, role, access mode,
 aliases, retrieval priority, validation profile, and optional staging or
 promotion target. The defaults are `approved_knowledge` at
 `workspace/knowledge/` and `staged_knowledge` at
-`workspace/knowledge_staging/`. Legacy `context` and `context_staging` roots
-are aliases for migration only; prompts and new artefacts should use the
-configured knowledge roots.
+`workspace/knowledge_staging/`. Prompts and new artefacts should use the
+configured knowledge roots. Additional aliases can be declared explicitly under
+`knowledge_corpora.aliases` when an organisation needs them.
 
 Agents may write task artefacts directly under the active task and may write knowledge promotion candidates under `knowledge_staging/`. Agents do not write directly to `knowledge/` by default. When the user explicitly requests an exact `workspace/knowledge/...` output path, that path is authorized for the current run only; the policy gate then requires that exact path to change and rejects substitution to `knowledge_staging/`. Changed Markdown under `workspace/knowledge/` is validated against the workspace artefact profiles before the run can report success.
 

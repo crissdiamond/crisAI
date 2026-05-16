@@ -252,9 +252,8 @@ The physical names are configurable in `registry/workspace_spaces.yaml`.
 Knowledge is declared as named corpora with roots, access mode, aliases,
 retrieval priority, and promotion targets. The default corpora are
 `approved_knowledge` (`workspace/knowledge/`) and `staged_knowledge`
-(`workspace/knowledge_staging/`). Legacy `context` and `context_staging` paths
-are migration aliases only; prompts and new task output should use the
-configured knowledge roots.
+(`workspace/knowledge_staging/`). Prompts and task output use the configured
+knowledge roots.
 
 Agents do not write to `workspace/knowledge/` by default. If the user explicitly requests an exact `workspace/knowledge/...` output path, that path is authorized for that run only and must be the path that changes; writing a substitute under `knowledge_staging/` fails policy validation.
 

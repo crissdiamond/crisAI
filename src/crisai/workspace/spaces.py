@@ -39,8 +39,6 @@ class WorkspaceSpaces:
     knowledge_root: str = "knowledge"
     knowledge_staging_root: str = "knowledge_staging"
     tasks_root: str = "tasks"
-    legacy_knowledge_roots: tuple[str, ...] = ("context",)
-    legacy_knowledge_staging_roots: tuple[str, ...] = ("context_staging",)
     task_subdirs: dict[str, str] = field(
         default_factory=lambda: {
             "artefacts": "artefacts",
@@ -74,13 +72,11 @@ class WorkspaceSpaces:
         return f"{self.task_root(task_slug)}/{subdir}"
 
     def all_read_roots(self) -> tuple[str, ...]:
-        """Return canonical and legacy roots that may contain retrievable text."""
+        """Return configured roots that may contain retrievable text."""
         roots = (
             self.knowledge_root,
             self.knowledge_staging_root,
             self.tasks_root,
-            *self.legacy_knowledge_roots,
-            *self.legacy_knowledge_staging_roots,
         )
         for corpus in self.effective_knowledge_corpora():
             roots = (*roots, corpus.root, *corpus.aliases)
@@ -97,7 +93,6 @@ class WorkspaceSpaces:
                 root=self.knowledge_root,
                 role="approved",
                 access="read",
-                aliases=self.legacy_knowledge_roots,
                 staging_root=self.knowledge_staging_root,
                 retrieval_priority=10,
             ),
@@ -107,24 +102,19 @@ class WorkspaceSpaces:
                 root=self.knowledge_staging_root,
                 role="staging",
                 access="read_write",
-                aliases=self.legacy_knowledge_staging_roots,
                 promotion_target=self.knowledge_root,
                 retrieval_priority=50,
             ),
         )
 
     def canonical_root_for(self, root: str) -> str:
-        """Return the current root for a root or legacy alias."""
+        """Return the current root for a root or configured alias."""
         clean = str(root or "").strip().strip("/")
         if not clean:
             return clean
         for corpus in self.effective_knowledge_corpora():
             if clean == corpus.root or clean in corpus.aliases:
                 return corpus.root
-        if clean == self.knowledge_root or clean in self.legacy_knowledge_roots:
-            return self.knowledge_root
-        if clean == self.knowledge_staging_root or clean in self.legacy_knowledge_staging_roots:
-            return self.knowledge_staging_root
         return clean
 
     def canonicalize_workspace_path(self, path: str) -> str:
@@ -226,9 +216,6 @@ def load_workspace_spaces(registry_dir: Path | None = None) -> WorkspaceSpaces:
         knowledge_root=knowledge_root,
         knowledge_staging_root=knowledge_staging_root,
         tasks_root=tasks_root,
-        legacy_knowledge_roots=_strings(block.get("legacy_knowledge_roots")) or defaults.legacy_knowledge_roots,
-        legacy_knowledge_staging_roots=_strings(block.get("legacy_knowledge_staging_roots"))
-        or defaults.legacy_knowledge_staging_roots,
         task_subdirs=task_subdirs,
         writable_roots=writable,
         knowledge_categories=_strings(block.get("knowledge_categories")),

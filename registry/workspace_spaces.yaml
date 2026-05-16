@@ -4,10 +4,6 @@ workspace_spaces:
   knowledge_root: knowledge
   knowledge_staging_root: knowledge_staging
   tasks_root: tasks
-  legacy_knowledge_roots:
-    - context
-  legacy_knowledge_staging_roots:
-    - context_staging
 
   knowledge_corpora:
     - id: approved_knowledge
@@ -15,8 +11,6 @@ workspace_spaces:
       root: knowledge
       role: approved
       access: read
-      aliases:
-        - context
       staging_root: knowledge_staging
       retrieval_priority: 10
       validation_profile: default
@@ -25,8 +19,6 @@ workspace_spaces:
       root: knowledge_staging
       role: staging
       access: read_write
-      aliases:
-        - context_staging
       promotion_target: knowledge
       retrieval_priority: 50
       validation_profile: default

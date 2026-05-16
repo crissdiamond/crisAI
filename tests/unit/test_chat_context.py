@@ -55,7 +55,7 @@ def test_build_chat_input_wraps_compact_memory_and_relevant_tail(monkeypatch):
 
     history = [
         ("user", "Summarise the Integration Strategy deck."),
-        ("assistant", "Use `workspace/context/integration-strategy.md` as the source."),
+        ("assistant", "Use `workspace/knowledge/integration-strategy.md` as the source."),
         ("user", "Now continue with Integration Strategy details."),
         ("assistant", "Recommended approach should use compact session memory."),
     ]
@@ -73,10 +73,10 @@ def test_build_chat_input_wraps_compact_memory_and_relevant_tail(monkeypatch):
     assert "User: Now continue with Integration Strategy details." in transcript
 
 
-def test_compact_memory_canonicalizes_legacy_context_sources():
+def test_compact_memory_canonicalizes_workspace_prefix_sources():
     history = [
         ("user", "Use the local source."),
-        ("assistant", "Read [reporting-standard.txt](file:///workspace/context/standards/reporting-standard.txt)."),
+        ("assistant", "Read [reporting-standard.txt](file:///workspace/knowledge/standards/reporting-standard.txt)."),
         ("assistant", "Also used `knowledge/patterns/reporting-patterns.txt`."),
     ]
 
