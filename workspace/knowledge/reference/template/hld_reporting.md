@@ -12,6 +12,9 @@ related:
   - knowledge/standards/governance-standard.txt
   - knowledge/standards/naming-and-lineage.txt
   - knowledge/patterns/reporting-patterns.txt
+template_conformance:
+  require_mermaid: true
+  placeholder_policy: error
 ---
 
 ## Purpose

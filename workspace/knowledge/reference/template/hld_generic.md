@@ -10,6 +10,9 @@ tags: hld, template, architecture, design, reusable
 related:
   - knowledge/standards/architecture-standard.txt
   - knowledge/standards/governance-standard.txt
+template_conformance:
+  require_mermaid: true
+  placeholder_policy: error
 ---
 
 ## Purpose

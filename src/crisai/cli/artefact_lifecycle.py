@@ -76,21 +76,9 @@ def validate_task_artefacts_for_request(
 
 
 def _deliverable_filename(user_input: str, contract: TaskContract, *, registry_dir: Path | None = None) -> str:
-    if _is_hld_request(user_input, contract, registry_dir=registry_dir):
-        return "hld.md"
+    del user_input
     try:
         catalog = load_semantic_catalog(str(registry_dir) if registry_dir is not None else None)
     except Exception:  # noqa: BLE001 - lifecycle persistence must fail open.
         return ""
     return catalog.artifact_lifecycle.persisted_deliverable_filenames.get(contract.deliverable_type, "")
-
-
-def _is_hld_request(user_input: str, contract: TaskContract, *, registry_dir: Path | None = None) -> bool:
-    try:
-        catalog = load_semantic_catalog(str(registry_dir) if registry_dir is not None else None)
-    except Exception:  # noqa: BLE001 - conformance checks must not block registry loading failures.
-        return False
-    text = (user_input or "").lower()
-    return contract.deliverable_type == "architecture_design" and any(
-        marker in text for marker in catalog.artifact_lifecycle.hld_markers
-    )

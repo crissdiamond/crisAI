@@ -108,7 +108,6 @@ class ArtifactLifecycleTerms:
     """Terms and mappings used by generated artefact lifecycle helpers."""
 
     persisted_deliverable_filenames: dict[str, str] = dataclass_field(default_factory=dict)
-    hld_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
 
 
 @dataclass(frozen=True)
@@ -407,7 +406,6 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             persisted_deliverable_filenames=_string_mapping(
                 lifecycle_block.get("persisted_deliverable_filenames")
             ),
-            hld_markers=_as_frozenset(lifecycle_block.get("hld_markers")),
         ),
     )
 

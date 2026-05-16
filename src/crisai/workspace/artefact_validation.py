@@ -216,6 +216,13 @@ def _match_clause(
         )
         if canonical_type != want:
             return False
+    if "front_matter_has" in clause:
+        required_keys = _string_list(clause["front_matter_has"])
+        if not required_keys:
+            return False
+        for key in required_keys:
+            if key not in meta or not _non_empty_scalar(meta.get(key)):
+                return False
     if "all_of" in clause:
         parts = clause["all_of"]
         if not isinstance(parts, list):
@@ -288,27 +295,45 @@ def _safe_workspace_template_path(root_dir: Path, template_path: str) -> Path | 
     return candidate
 
 
-def _template_required_sections(root_dir: Path, template_path: str) -> tuple[list[str], str]:
-    """Read required H2 sections from a Markdown template or YAML manifest."""
+def _template_required_sections_and_rules(
+    root_dir: Path,
+    template_path: str,
+) -> tuple[list[str], dict[str, Any], str]:
+    """Read required H2 sections and optional conformance rules from a template."""
     resolved = _safe_workspace_template_path(root_dir, template_path)
     if resolved is None:
-        return [], "template path is not workspace-relative"
+        return [], {}, "template path is not workspace-relative"
     if not resolved.is_file():
-        return [], "template file does not exist"
+        return [], {}, "template file does not exist"
     try:
         raw = resolved.read_text(encoding="utf-8")
     except OSError as exc:
-        return [], f"template file could not be read ({exc})"
+        return [], {}, f"template file could not be read ({exc})"
     if resolved.suffix.lower() in {".yaml", ".yml"}:
         try:
             payload = yaml.safe_load(raw) or {}
         except yaml.YAMLError as exc:
-            return [], f"template manifest is invalid YAML ({exc})"
+            return [], {}, f"template manifest is invalid YAML ({exc})"
         if not isinstance(payload, dict):
-            return [], "template manifest must be a mapping"
-        return _string_list(payload.get("required_sections")), ""
-    _meta, body = _parse_front_matter(raw)
-    return _h2_titles(body), ""
+            return [], {}, "template manifest must be a mapping"
+        return _string_list(payload.get("required_sections")), _template_rule_overrides(payload), ""
+    meta, body = _parse_front_matter(raw)
+    return _h2_titles(body), _template_rule_overrides(meta), ""
+
+
+def _template_rule_overrides(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return deterministic validation options declared by a template."""
+    raw = payload.get("template_conformance") or payload.get("conformance") or payload.get("validation")
+    if not isinstance(raw, Mapping):
+        return {}
+    allowed = {
+        "placeholder_policy",
+        "recommended_h2_sections",
+        "require_mermaid",
+        "require_source_section",
+        "required_h2_sections",
+    }
+    return {key: value for key, value in raw.items() if str(key) in allowed}
 
 
 def _contains_mermaid(body: str) -> bool:
@@ -439,6 +464,7 @@ def validate_workspace_artefact_paths(
             )
 
         sections = rules.get("required_h2_sections")
+        template_rule_overrides: dict[str, Any] = {}
         if sections == "from_template":
             template_path = _template_path_from_rules(meta, rules)
             if not template_path:
@@ -448,12 +474,17 @@ def validate_workspace_artefact_paths(
                 )
                 sections = []
             else:
-                sections, template_error = _template_required_sections(root_dir, template_path)
+                sections, template_rule_overrides, template_error = _template_required_sections_and_rules(
+                    root_dir,
+                    template_path,
+                )
                 if template_error:
                     result.violations.append(
                         f"{rel}: template conformance could not load '{template_path}' "
                         f"({template_error}) (profile={profile_id or 'defaults'})."
                     )
+                if template_rule_overrides:
+                    rules = {**rules, **template_rule_overrides}
         if isinstance(sections, list):
             for heading in sections:
                 h = str(heading).strip()

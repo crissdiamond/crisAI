@@ -261,7 +261,7 @@ Markdown is the authoritative generated artefact format. Native Word, PowerPoint
 
 Reusable task deliverables such as options papers, architecture recommendations, assessments, and HLDs are persisted under the active task's `artefacts/` folder when they would otherwise only exist in chat. The task manifest tracks generated artefacts automatically. Retrieval is scoped to approved knowledge plus the active task by default; sibling task sessions are only used when the user names them explicitly.
 
-Generated templated Markdown is checked deterministically against `registry/workspace_artifact_profiles.yaml` before it is registered. For generated HLDs, crisAI loads the declared `template_path` (or the configured default HLD template), checks required sections, requires a Mermaid diagram, and rejects unresolved template placeholders.
+Generated templated Markdown is checked deterministically against `registry/workspace_artifact_profiles.yaml` before it is registered. When an artefact declares `template_path`, crisAI loads that template, checks the generated document has the template sections, and applies any template-declared conformance rules such as required diagrams or placeholder handling.
 
 For DOCX/PPTX output, the `document_formatter` agent uses `document_export`
 tools to inspect a template manifest and render from an existing Markdown task

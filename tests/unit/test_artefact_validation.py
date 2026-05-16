@@ -146,6 +146,55 @@ def test_generated_hld_conforms_to_declared_template(registry_dir: Path, tmp_pat
     assert result.ok
 
 
+def test_generated_task_artefact_conforms_to_arbitrary_markdown_template(
+    registry_dir: Path,
+    tmp_path: Path,
+):
+    root = tmp_path
+    template_rel = "workspace/knowledge/reference/template/options-paper.md"
+    _write(
+        root / template_rel,
+        (
+            "---\n"
+            "id: REF-TPL-OPTIONS-001\n"
+            "title: Options paper template\n"
+            "type: option_paper\n"
+            "status: approved\n"
+            "template_conformance:\n"
+            "  placeholder_policy: error\n"
+            "---\n\n"
+            "## Problem\nDescribe the problem.\n\n"
+            "## Options\nCompare options.\n\n"
+            "## Recommendation\nRecommend one option.\n"
+        ),
+    )
+    rel = "workspace/tasks/options/artefacts/options-paper.md"
+    _write(
+        root / rel,
+        (
+            "---\n"
+            "id: OPT-1\n"
+            "title: Options Paper\n"
+            "type: option_paper\n"
+            "status: draft\n"
+            "template_id: REF-TPL-OPTIONS-001\n"
+            f"template_path: {template_rel}\n"
+            "---\n\n"
+            "## Problem\nContent.\n\n"
+            "## Options\nContent.\n\n"
+            "## Recommendation\nContent.\n"
+        ),
+    )
+
+    result = validate_workspace_artefact_paths(
+        root_dir=root,
+        relative_paths=[rel],
+        registry_dir=registry_dir,
+    )
+
+    assert result.ok
+
+
 def test_generated_hld_fails_template_conformance(registry_dir: Path, tmp_path: Path):
     root = tmp_path
     template_rel = "workspace/knowledge/reference/template/hld_generic.md"

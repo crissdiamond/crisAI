@@ -50,32 +50,46 @@ def test_validate_task_artefacts_reports_template_conformance_failures(
 ) -> None:
     settings = _settings(tmp_path)
     monkeypatch.setattr(artefact_lifecycle, "load_settings", lambda: settings)
-    template_src = REPO_ROOT / "workspace/knowledge/reference/template/hld_generic.md"
-    template = tmp_path / "workspace/knowledge/reference/template/hld_generic.md"
+    template = tmp_path / "workspace/knowledge/reference/template/options-paper.md"
     template.parent.mkdir(parents=True)
-    template.write_text(template_src.read_text(encoding="utf-8"), encoding="utf-8")
-    path = tmp_path / "workspace/tasks/demo/artefacts/hld.md"
+    template.write_text(
+        (
+            "---\n"
+            "id: REF-TPL-OPTIONS-001\n"
+            "title: Options paper template\n"
+            "type: option_paper\n"
+            "status: approved\n"
+            "template_conformance:\n"
+            "  placeholder_policy: error\n"
+            "---\n\n"
+            "## Problem\nContent.\n\n"
+            "## Options\nContent.\n\n"
+            "## Recommendation\nContent.\n"
+        ),
+        encoding="utf-8",
+    )
+    path = tmp_path / "workspace/tasks/demo/artefacts/options-paper.md"
     path.parent.mkdir(parents=True)
     path.write_text(
         (
             "---\n"
-            "id: HLD-1\n"
-            "title: Demo HLD\n"
-            "type: high_level_design\n"
+            "id: OPT-1\n"
+            "title: Demo Options Paper\n"
+            "type: option_paper\n"
             "status: draft\n"
-            "template_id: REF-TPL-HLD-GENERIC-001\n"
-            "template_path: workspace/knowledge/reference/template/hld_generic.md\n"
+            "template_id: REF-TPL-OPTIONS-001\n"
+            "template_path: workspace/knowledge/reference/template/options-paper.md\n"
             "---\n\n"
-            "## Context\n\nOnly context.\n"
+            "## Problem\n\n[option] placeholder remains.\n"
         ),
         encoding="utf-8",
     )
 
     warnings = artefact_lifecycle.validate_task_artefacts_for_request(
-        user_input="Create a full HLD for Power BI reporting.",
-        paths=["workspace/tasks/demo/artefacts/hld.md"],
+        user_input="Create an options paper.",
+        paths=["workspace/tasks/demo/artefacts/options-paper.md"],
         root_dir=tmp_path,
     )
 
-    assert any("Purpose" in warning for warning in warnings)
-    assert any("Mermaid" in warning for warning in warnings)
+    assert any("Options" in warning for warning in warnings)
+    assert any("placeholder" in warning for warning in warnings)

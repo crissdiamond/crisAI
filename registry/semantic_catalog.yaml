@@ -501,13 +501,9 @@ retrieval_constraints:
 artifact_lifecycle:
   persisted_deliverable_filenames:
     architecture_recommendation: architecture-recommendation.md
+    architecture_design: architecture-design.md
     options_paper: option-paper.md
     assessment: assessment.md
-  hld_markers:
-    - hld
-    - high level design
-    - high-level design
-    - high-level-design
 
 # Peer run-contract: substring markers (matched against lowercased user text).
 # Phrases with significant trailing spaces must be YAML-quoted (e.g. "function ").

@@ -208,7 +208,7 @@ The same validator runs automatically as part of the **peer post-run verifier** 
 
 Generated task artefacts are also registered automatically in the active task manifest when agents write Markdown under `workspace/tasks/<task>/artefacts/`. Reusable chat-only deliverables such as options papers, architecture recommendations, assessments, and HLDs are saved to that folder so later turns can use the concrete artefact rather than relying on transcript memory.
 
-Template conformance is deterministic. Generated templated Markdown should declare `template_id` and `template_path` in front matter. The artefact profile can then load either a Markdown template and derive required `##` sections from it, or a `.template.yaml` manifest and use its `required_sections`. Blocking checks cover required front matter, required sections, required `## Source`, Mermaid diagrams, and unresolved placeholders when configured. The active task manifest is updated only after conformance passes.
+Template conformance is deterministic. Generated templated Markdown should declare `template_id` and `template_path` in front matter. The artefact profile can then load either a Markdown template and derive required `##` sections from it, or a `.template.yaml` manifest and use its `required_sections`. Blocking checks cover required front matter, required sections, and any template-declared rules such as required source sections, Mermaid diagrams, or unresolved placeholder handling. The active task manifest is updated only after conformance passes.
 
 ### Mode controls
 
