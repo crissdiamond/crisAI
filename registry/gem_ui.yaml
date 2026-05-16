@@ -50,6 +50,12 @@ theme:
         padding: 1 2;
     }
 
+    #transcript-content {
+        background: $transcript_background;
+        color: $text;
+        padding: 0 1;
+    }
+
     #composer {
         height: 3;
         border-top: solid $accent_bright;

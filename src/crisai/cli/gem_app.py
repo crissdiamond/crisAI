@@ -22,8 +22,8 @@ def run_gem_app() -> int:
     """
     try:
         from textual.app import App, ComposeResult
-        from textual.containers import Horizontal, Vertical
-        from textual.widgets import Footer, Header, Input, Label, Log, Static
+        from textual.containers import Horizontal, Vertical, VerticalScroll
+        from textual.widgets import Footer, Header, Input, Label, Static
     except ModuleNotFoundError:
         return 1
 
@@ -34,6 +34,7 @@ def run_gem_app() -> int:
         BINDINGS = [
             ("ctrl+c", "quit", "Quit"),
             ("ctrl+q", "quit", "Quit"),
+            ("ctrl+p", "palette_notice", "Theme"),
         ]
 
         def __init__(self) -> None:
@@ -52,7 +53,8 @@ def run_gem_app() -> int:
                     yield Label("○ Draft", classes="stage-pending")
                     yield Label("○ Review", classes="stage-pending")
                     yield Label("○ Final", classes="stage-pending")
-                yield Log(id="transcript", highlight=True)
+                with VerticalScroll(id="transcript"):
+                    yield Static("", id="transcript-content")
             yield Input(placeholder="Type a prompt or slash command...", id="composer")
             yield Footer(id="footer")
 
@@ -72,8 +74,15 @@ def run_gem_app() -> int:
 
         def _append_event(self, event: GemEvent) -> None:
             self.state = apply_gem_event(self.state, event)
-            transcript = self.query_one("#transcript", Log)
-            transcript.write_line(f"{event.title}: {event.body}".strip())
+            transcript = self.query_one("#transcript-content", Static)
+            lines = [f"{item.title}: {item.body}".strip() for item in self.state.transcript]
+            transcript.update("\n\n".join(lines))
+
+        def action_palette_notice(self) -> None:
+            self.notify(
+                "Gem themes are loaded from registry/gem_ui.yaml. Built-in Textual palette switching is disabled for now.",
+                title="Gem theme",
+            )
 
     CrisaiGemApp().run()
     return 0

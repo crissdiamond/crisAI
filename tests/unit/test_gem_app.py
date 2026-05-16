@@ -23,6 +23,7 @@ def test_gem_css_uses_ucl_palette() -> None:
     assert "#eedeff" in GEM_CSS
     assert "#30d6ff" in GEM_CSS
     assert "border: solid #993bff" in GEM_CSS
+    assert "#transcript-content" in GEM_CSS
 
 
 def test_render_gem_css_from_yaml_config(tmp_path) -> None:
