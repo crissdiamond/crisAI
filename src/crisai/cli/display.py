@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import re
 import textwrap
 from typing import Literal
@@ -15,6 +16,10 @@ from crisai.orchestration.semantic_catalog import load_semantic_catalog
 from .peer_transcript import PeerMessage
 
 console = Console()
+_ACTIVE_DISPLAY_SINK: contextvars.ContextVar[object | None] = contextvars.ContextVar(
+    "crisai_active_display_sink",
+    default=None,
+)
 
 RenderKind = Literal["status", "stage", "final"]
 
@@ -99,16 +104,19 @@ class AgentDisplayManager:
     def __init__(self, agent_id: str, console: Console = console):
         self.agent_id = agent_id
         self.console = console
+        self.sink = _ACTIVE_DISPLAY_SINK.get()
         self.icon = _ICONS.get(agent_id, "🤖")
         self.label = _LABELS.get(agent_id, agent_id.capitalize())
         self.style = _STYLES.get(agent_id, "white")
         self.current_topic = "Initializing..."
-        self.live = Live(
-            self._render(),
-            console=self.console,
-            refresh_per_second=4,
-            transient=True,
-        )
+        self.live = None
+        if self.sink is None:
+            self.live = Live(
+                self._render(),
+                console=self.console,
+                refresh_per_second=4,
+                transient=True,
+            )
 
     def _render(self) -> Panel:
         title = Text(f"{self.icon} {self.label}", style=f"bold {self.style}")
@@ -126,16 +134,36 @@ class AgentDisplayManager:
 
     def update(self, topic: str):
         self.current_topic = topic
-        self.live.update(self._render())
+        if self.sink is not None and hasattr(self.sink, "agent_progress"):
+            self.sink.agent_progress(self.agent_id, topic)
+            return
+        if self.live is not None:
+            self.live.update(self._render())
 
     def __enter__(self):
-        self.live.start()
+        if self.sink is not None and hasattr(self.sink, "agent_started"):
+            self.sink.agent_started(self.agent_id, self.current_topic)
+        elif self.live is not None:
+            self.live.start()
         update_terminal_title("working")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.live.stop()
+        if self.sink is not None and hasattr(self.sink, "agent_finished"):
+            self.sink.agent_finished(self.agent_id)
+        elif self.live is not None:
+            self.live.stop()
         update_terminal_title("ready")
+
+
+def set_active_display_sink(sink: object | None) -> contextvars.Token:
+    """Set the current display sink for context-scoped CLI rendering."""
+    return _ACTIVE_DISPLAY_SINK.set(sink)
+
+
+def reset_active_display_sink(token: contextvars.Token) -> None:
+    """Restore the previous display sink."""
+    _ACTIVE_DISPLAY_SINK.reset(token)
 
 
 def get_bottom_toolbar(
@@ -777,6 +805,10 @@ def create_agent_live(agent_id: str) -> Live:
 
 
 def print_status_message(body: str, *, title: str | None = None) -> None:
+    sink = _ACTIVE_DISPLAY_SINK.get()
+    if sink is not None and hasattr(sink, "status"):
+        sink.status(body, title=title)
+        return
     panel_title = Text(title or _RENDER_TITLES["status"], style=f"bold {_RENDER_STYLES['status']}")
     console.print(
         Panel(
@@ -801,11 +833,16 @@ def print_agent_output(agent_id: str, body: str, *, verbose: bool) -> None:
         body: Stage text (Markdown-friendly) from the model.
         verbose: When True, print the full ``body``; when False, print a generated summary.
     """
+    rendered_text = render_stage_output_text(agent_id, body, verbose=verbose)
+    sink = _ACTIVE_DISPLAY_SINK.get()
+    if sink is not None and hasattr(sink, "stage_output"):
+        sink.stage_output(agent_id, rendered_text, verbose=verbose)
+        return
     icon = _icon(agent_id)
     label = _label(agent_id)
     style = _style(agent_id)
     title = Text(f"{icon} {label}", style=f"bold {style}")
-    rendered_body = Markdown(render_stage_output_text(agent_id, body, verbose=verbose))
+    rendered_body = Markdown(rendered_text)
     console.print(
         Panel(
             rendered_body,
@@ -852,6 +889,10 @@ def render_peer_message(message: PeerMessage) -> Panel:
 
 
 def print_final_answer(body: str, *, title: str | None = None) -> None:
+    sink = _ACTIVE_DISPLAY_SINK.get()
+    if sink is not None and hasattr(sink, "final"):
+        sink.final(body, title=title)
+        return
     panel_title = Text(title or _RENDER_TITLES["final"], style=f"bold {_RENDER_STYLES['final']}")
     display_body = _hide_machine_evidence_blocks(body)
     console.print(

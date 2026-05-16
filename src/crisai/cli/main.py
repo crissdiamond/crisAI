@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 import ssl
+import sys
 from collections.abc import Awaitable
 from contextlib import contextmanager
 from dataclasses import is_dataclass, replace
@@ -28,9 +29,12 @@ from crisai.cli.display import (
     print_final_answer,
     print_final_recommendation,
     print_status_message,
+    reset_active_display_sink,
     sanitize_user_visible_text,
+    set_active_display_sink,
     update_terminal_title,
 )
+from crisai.cli.gemini_chat import GeminiChatDisplay, GeminiChatStatus
 from crisai.cli.session_store import (
     clear_cli_history,
     clear_history,
@@ -365,6 +369,33 @@ def _close_chat_session(state: ChatRuntimeState) -> None:
     """Persist current session state and render a consistent exit notice."""
     save_history(state.current_session, state.history)
     print_status_message("Exiting.", title="👋 Session closed")
+
+
+def _chat_uses_fullscreen_experience(state: ChatRuntimeState) -> bool:
+    """Return whether interactive chat should use the persistent live layout."""
+    configured = str(getattr(state.settings.ui, "cli_experience", "fullscreen") or "fullscreen").strip().lower()
+    if configured in {"classic", "rich", "legacy"}:
+        return False
+    if configured not in {"fullscreen", "gemini", "live"}:
+        return False
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _gemini_status_from_state(state: ChatRuntimeState, *, activity: str = "idle", stage: str | None = None) -> GeminiChatStatus:
+    """Build the footer state used by the Gemini-style chat display."""
+    return GeminiChatStatus(
+        session=state.current_session,
+        mode=state.current_mode,
+        agent=state.current_agent if state.agent_pinned else "auto",
+        model=state.settings.model.default_model,
+        verbose=state.current_verbose,
+        review=state.current_review,
+        retrieval_checkpoint=state.current_retrieval_checkpoint,
+        mode_pinned=state.mode_pinned,
+        agent_pinned=state.agent_pinned,
+        activity=activity,
+        current_stage=stage,
+    )
 
 
 def _is_benign_ssl_shutdown_context(context: dict[str, Any]) -> bool:
@@ -740,10 +771,13 @@ def chat(
     last_route_line: str | None = None
     prompt_session: PromptSession[str] | None = None
     prompt_session_name: str | None = None
+    gemini_display = GeminiChatDisplay() if _chat_uses_fullscreen_experience(state) else None
 
     while True:
         try:
             update_terminal_title("input")
+            if gemini_display is not None:
+                gemini_display.update_status(_gemini_status_from_state(state, activity="input"))
             if prompt_session is None or prompt_session_name != state.current_session:
                 prompt_session = PromptSession(
                     history=FileHistory(str(cli_history_file(state.current_session))),
@@ -772,8 +806,19 @@ def chat(
         if not user_input:
             continue
 
+        if gemini_display is not None:
+            gemini_display.update_status(_gemini_status_from_state(state, activity="command"))
         try:
-            handled = handle_chat_command(user_input, state)
+            if gemini_display is None:
+                handled = handle_chat_command(user_input, state)
+            else:
+                token = set_active_display_sink(gemini_display)
+                try:
+                    with gemini_display.live():
+                        handled = handle_chat_command(user_input, state)
+                        gemini_display.update_status(_gemini_status_from_state(state, activity="idle"))
+                finally:
+                    reset_active_display_sink(token)
         except EOFError:
             _close_chat_session(state)
             break
@@ -799,7 +844,7 @@ def chat(
         decision = _apply_decision_overrides(runtime_user_input, explicit_mode, decision)
 
         current_route_line = route_display(decision)
-        if current_route_line != last_route_line:
+        if current_route_line != last_route_line and gemini_display is None:
             print_status_message(current_route_line, title="🧭 Routing decision")
             last_route_line = current_route_line
 
@@ -816,10 +861,33 @@ def chat(
             )
 
         try:
-            with _suppress_console_info_logs():
-                text = _run_async(_run())
+            if gemini_display is None:
+                with _suppress_console_info_logs():
+                    text = _run_async(_run())
+            else:
+                token = set_active_display_sink(gemini_display)
+                try:
+                    with gemini_display.live():
+                        gemini_display.update_status(_gemini_status_from_state(state, activity="routing"))
+                        if current_route_line != last_route_line:
+                            print_status_message(current_route_line, title="🧭 Routing decision")
+                            last_route_line = current_route_line
+                        gemini_display.update_status(_gemini_status_from_state(state, activity="working"))
+                        with _suppress_console_info_logs():
+                            text = _run_async(_run())
+                finally:
+                    reset_active_display_sink(token)
         except Exception as exc:  # noqa: BLE001
-            _render_runtime_error(exc)
+            if gemini_display is None:
+                _render_runtime_error(exc)
+            else:
+                token = set_active_display_sink(gemini_display)
+                try:
+                    with gemini_display.live():
+                        gemini_display.update_status(_gemini_status_from_state(state, activity="error"))
+                        _render_runtime_error(exc)
+                finally:
+                    reset_active_display_sink(token)
             _persist_failed_chat_turn(state, user_input, exc)
             continue
 
@@ -829,13 +897,24 @@ def chat(
             final_output=text,
             registry_dir=load_settings().registry_dir,
         )
-        _render_final_output(decision, text)
+        if gemini_display is None:
+            _render_final_output(decision, text)
+        else:
+            token = set_active_display_sink(gemini_display)
+            try:
+                with gemini_display.live():
+                    gemini_display.update_status(_gemini_status_from_state(state, activity="final"))
+                    _render_final_output(decision, text)
+            finally:
+                reset_active_display_sink(token)
 
         state.history.append(("user", user_input))
         state.history.append(("assistant", sanitize_user_visible_text(text)))
         save_history(state.current_session, state.history)
         update_session_memory(state.current_session, state.history)
         update_terminal_title("ready")
+        if gemini_display is not None:
+            gemini_display.update_status(_gemini_status_from_state(state, activity="idle"))
 
 
 if __name__ == "__main__":

@@ -191,6 +191,28 @@ def test_close_chat_session_persists_history_and_shows_exit_notice(monkeypatch):
     assert notices[-1] == ("👋 Session closed", "Exiting.")
 
 
+def test_chat_uses_fullscreen_only_for_interactive_terminal(monkeypatch):
+    state = main.ChatRuntimeState(
+        current_session="test-9",
+        history=[],
+        current_mode="single",
+        current_agent="orchestrator",
+        current_review=False,
+        current_verbose=False,
+        current_retrieval_checkpoint=True,
+        mode_pinned=False,
+        agent_pinned=False,
+    )
+    state.settings.ui.cli_experience = "fullscreen"
+    monkeypatch.setattr(main.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(main.sys.stdout, "isatty", lambda: True)
+
+    assert main._chat_uses_fullscreen_experience(state) is True
+
+    state.settings.ui.cli_experience = "classic"
+    assert main._chat_uses_fullscreen_experience(state) is False
+
+
 def test_chat_loop_runs_one_request_then_persists_history(monkeypatch):
     prompts = iter(["hello", EOFError()])
     saved = {}

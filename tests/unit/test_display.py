@@ -36,6 +36,36 @@ def test_get_bottom_toolbar_includes_runtime_state() -> None:
     assert "checkpoint:on" in toolbar
 
 
+def test_display_sink_intercepts_status_stage_and_final() -> None:
+    class Sink:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def status(self, body, *, title=None):
+            self.calls.append(("status", title, body))
+
+        def stage_output(self, agent_id, body, *, verbose):
+            self.calls.append(("stage", agent_id, body, verbose))
+
+        def final(self, body, *, title=None):
+            self.calls.append(("final", title, body))
+
+    sink = Sink()
+    token = display.set_active_display_sink(sink)
+    try:
+        display.print_status_message("route", title="Routing")
+        display.print_agent_output("design", "Draft body", verbose=False)
+        display.print_final_answer("Final body", title="Done")
+    finally:
+        display.reset_active_display_sink(token)
+
+    assert sink.calls[0] == ("status", "Routing", "route")
+    assert sink.calls[1][0] == "stage"
+    assert sink.calls[1][1] == "design"
+    assert "Summary:" in sink.calls[1][2]
+    assert sink.calls[2] == ("final", "Done", "Final body")
+
+
 def test_print_agent_output_non_verbose_uses_markdown_panel(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))

@@ -25,6 +25,7 @@ class UISettings:
     verbose: bool = False
     retrieval_checkpoint_enabled: bool = True
     theme: str = "default"
+    cli_experience: str = "fullscreen"
 
 
 @dataclass(slots=True)
@@ -153,6 +154,7 @@ def load_settings() -> Settings:
             "verbose": False,
             "retrieval_checkpoint_enabled": True,
             "theme": "default",
+            "cli_experience": "fullscreen",
         },
         "model": {
             "openai_api_key": "",
@@ -183,6 +185,7 @@ def load_settings() -> Settings:
         "CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS": ("workflow", "retrieval_checkpoint_max_redirects"),
         "CRISAI_VERBOSE": ("ui", "verbose"),
         "CRISAI_THEME": ("ui", "theme"),
+        "CRISAI_CLI_EXPERIENCE": ("ui", "cli_experience"),
     }
 
     for env_var, (section, key) in env_map.items():
@@ -216,6 +219,7 @@ def load_settings() -> Settings:
             verbose=data["ui"]["verbose"],
             retrieval_checkpoint_enabled=data["ui"]["retrieval_checkpoint_enabled"],
             theme=data["ui"]["theme"],
+            cli_experience=data["ui"].get("cli_experience", "fullscreen"),
         ),
         model=ModelSettings(
             openai_api_key=data["model"]["openai_api_key"],

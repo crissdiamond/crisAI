@@ -211,6 +211,12 @@ per run with `--no-retrieval-checkpoint`, in chat with
 `/retrieval-checkpoint off`, or by setting
 `CRISAI_RETRIEVAL_CHECKPOINT_ENABLED=false`.
 
+Interactive `crisai chat` defaults to the Gemini-style CLI experience: agent
+output is captured into a live transcript and the footer remains visible during
+long-running stages with the active session, mode, agent, model, verbose,
+review, checkpoint, and current-stage state. Set
+`CRISAI_CLI_EXPERIENCE=classic` to fall back to the legacy Rich panel flow.
+
 ## Configuration
 
 The registry is the main control plane:
