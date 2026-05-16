@@ -40,6 +40,35 @@ def test_route_pipeline_for_source_based_design():
     assert decision.needs_review is True
 
 
+def test_route_pipeline_for_source_backed_template_generation():
+    decision = decide_route(
+        "Use the pipeline. Search SharePoint/intranet context first. Find and read HLD%20Template.aspx. "
+        "Using that page as the source of truth, create a generic HLD template and save it as "
+        "`workspace/knowledge/reference/template/hld_generic.md`.",
+        review_enabled=False,
+        current_mode="pipeline",
+    )
+
+    assert decision.mode == "pipeline"
+    assert decision.agent == "retrieval_planner"
+    assert decision.intent == "explicit"
+    assert decision.needs_retrieval is True
+
+
+def test_route_pipeline_for_source_backed_publication_without_explicit_mode():
+    decision = decide_route(
+        "Search SharePoint/intranet context first. Find and read HLD%20Template.aspx. "
+        "Using that page as the source of truth, create a generic HLD template and save it as "
+        "`workspace/knowledge/reference/template/hld_generic.md`.",
+        review_enabled=False,
+    )
+
+    assert decision.mode == "pipeline"
+    assert decision.agent == "retrieval_planner"
+    assert decision.intent == "source_backed_publication"
+    assert decision.needs_retrieval is True
+
+
 def test_route_pipeline_for_source_summary():
     decision = decide_route(
         "Summarise the latest Integration Strategy document from OneDrive.",

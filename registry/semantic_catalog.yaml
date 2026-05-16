@@ -612,6 +612,7 @@ interaction:
       - '\bauthor\b.*\bchallenger\b.*\brefiner\b.*\bjudge\b'
     pipeline:
       - '\buse\s+pipeline\s+mode\b'
+      - '\buse\s+the\s+pipeline\b'
       - '\brun\s+the\s+pipeline\b'
       - '\bdiscovery\b.*\bdesign\b.*\breview\b.*\borchestrator\b'
       - '\bretrieval\s+planner\b.*\bdesign\b.*\breview\b.*\borchestrator\b'

@@ -117,6 +117,11 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
     )
     has_publication_signal = publication_score >= 1
     has_criticality_signal = criticality_score >= 1
+    source_backed_publication = has_publication_signal and (
+        deterministic_retrieval_nudge
+        or discovery_score >= 2
+        or task_contract.source_resolution not in {"", "none", "as_needed"}
+    )
 
     if operations_score >= 2:
         return RoutingDecision(
@@ -138,6 +143,17 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
             needs_review=False,
             confidence=0.94,
             reason="Prompt asks to export an existing artefact into a native document format using a template.",
+        )
+
+    if source_backed_publication:
+        return RoutingDecision(
+            intent="source_backed_publication",
+            mode="pipeline",
+            agent="retrieval_planner",
+            needs_retrieval=True,
+            needs_review=review_enabled,
+            confidence=0.91,
+            reason="Prompt asks to retrieve source material and generate or save a publication artefact; pipeline is required.",
         )
 
     if has_publication_signal:
