@@ -135,7 +135,7 @@ def _collect_stage_outputs(entries: list[dict[str, Any]], *, verbose: bool = Fal
     stage_records: list[dict[str, str]] = []
     for entry in entries:
         event_type = str(entry.get("event_type", ""))
-        if event_type not in {"stage_output", "stage_skipped", "stage_error"}:
+        if event_type not in {"stage_start", "stage_output", "stage_skipped", "stage_error"}:
             continue
         agent_id = str(entry.get("agent_id") or "system")
         stage_records.append(
@@ -404,14 +404,14 @@ def _extract_stage_key(entry: dict[str, str]) -> str:
 def _trace_line_to_stage_output(entry: dict[str, Any], *, verbose: bool = False) -> dict[str, Any] | None:
     """Map one JSONL trace line to a UI stage_output row, or None if not renderable.
 
-    Pipeline and peer runs emit ``stage_output`` / ``stage_skipped`` /
-    ``stage_error`` events.
+    Pipeline and peer runs emit ``stage_start`` / ``stage_output`` /
+    ``stage_skipped`` / ``stage_error`` events.
     Single-agent runs log the assistant result as ``workflow_output`` with
     ``stage`` ``FINAL_OUTPUT`` and ``agent_id`` set; the web UI expects a
     stage-shaped row so flow tabs can replace placeholders.
     """
     event_type = str(entry.get("event_type", ""))
-    if event_type in {"stage_output", "stage_skipped", "stage_error"}:
+    if event_type in {"stage_start", "stage_output", "stage_skipped", "stage_error"}:
         render_event = event_type
     elif event_type == "workflow_output":
         stage_upper = str(entry.get("stage", "")).strip().upper()

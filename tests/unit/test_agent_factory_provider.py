@@ -83,9 +83,7 @@ def test_build_litellm_model_ignores_unsupported_registry_extras(tmp_path: Path,
     assert model.model == 'deepseek/deepseek-v4-flash'
     assert model.api_key == 'x'
     assert model.should_replay_reasoning_content == 'always'
-    assert captured['model_settings'].extra_body == {
-        'thinking': {'type': 'enabled'},
-        'reasoning_effort': 'max',
-    }
+    assert captured['model_settings'].extra_body == {'thinking': {'type': 'enabled'}}
+    assert captured['model_settings'].reasoning.effort == 'high'
     assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
     assert "Ignoring unsupported LiteLLM model registry option(s)" not in caplog.text

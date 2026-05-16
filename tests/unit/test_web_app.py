@@ -96,6 +96,24 @@ def test_trace_line_maps_stage_error_to_agent_tab():
     assert out["content"] == "Stage retrieval_planner returned empty output."
 
 
+def test_trace_line_maps_stage_start_to_agent_tab():
+    entry = {
+        "event_type": "stage_start",
+        "stage": "CONTEXT OUTPUT_START",
+        "agent_id": "context_synthesizer",
+        "content": "Starting stage for context_synthesizer.",
+        "run_id": "run-x",
+    }
+
+    out = _trace_line_to_stage_output(entry, verbose=True)
+
+    assert out is not None
+    assert out["key"] == "context_synthesizer"
+    assert out["agent_id"] == "context_synthesizer"
+    assert out["event_type"] == "stage_start"
+    assert out["content"] == "Starting stage for context_synthesizer."
+
+
 def test_trace_line_ignores_unrelated_workflow_output():
     entry = {"event_type": "workflow_output", "stage": "OTHER", "agent_id": "retrieval_planner", "content": "x"}
     assert _trace_line_to_stage_output(entry) is None
@@ -104,6 +122,7 @@ def test_trace_line_ignores_unrelated_workflow_output():
 def test_collect_stage_outputs_keeps_only_renderable_stage_events():
     entries = [
         {"event_type": "workflow_event", "stage": "WORKFLOW_START", "content": "start"},
+        {"event_type": "stage_start", "stage": "CONTEXT OUTPUT_START", "content": "starting", "agent_id": "context_synthesizer"},
         {"event_type": "stage_output", "stage": "RETRIEVAL_PLANNER OUTPUT", "content": "plan", "agent_id": "retrieval_planner"},
         {"event_type": "stage_skipped", "stage": "REVIEW_OUTPUT", "content": "skipped", "agent_id": "review"},
         {"event_type": "stage_error", "stage": "SUMMARY OUTPUT_ERROR", "content": "empty", "agent_id": "summary"},
@@ -112,6 +131,12 @@ def test_collect_stage_outputs_keeps_only_renderable_stage_events():
     result = _collect_stage_outputs(entries, verbose=True)
 
     assert result == [
+        {
+            "agent_id": "context_synthesizer",
+            "stage": "CONTEXT OUTPUT_START",
+            "event_type": "stage_start",
+            "content": "starting",
+        },
         {
             "agent_id": "retrieval_planner",
             "stage": "RETRIEVAL_PLANNER OUTPUT",

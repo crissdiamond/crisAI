@@ -10,7 +10,7 @@ from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_p
 apply_openai_agents_trace_export_patch()
 
 from agents import Agent
-from agents.model_settings import ModelSettings
+from agents.model_settings import ModelSettings, Reasoning
 
 from crisai.model_resolver import ModelResolver, ResolvedModel
 from crisai.registry import AgentSpec, ModelSpec
@@ -104,8 +104,20 @@ def _build_model_settings(resolved_model: ResolvedModel) -> ModelSettings:
     thinking = resolved_model.extra.get("thinking")
     if thinking is not None:
         extra_body["thinking"] = thinking
-    reasoning_effort = resolved_model.extra.get("reasoning_effort")
-    if reasoning_effort is not None:
-        extra_body["reasoning_effort"] = reasoning_effort
 
-    return ModelSettings(extra_body=extra_body or None)
+    reasoning_effort = _normalize_reasoning_effort(resolved_model.extra.get("reasoning_effort"))
+    reasoning = Reasoning(effort=reasoning_effort) if reasoning_effort is not None else None
+    return ModelSettings(extra_body=extra_body or None, reasoning=reasoning)
+
+
+def _normalize_reasoning_effort(value: Any) -> str | None:
+    """Map registry reasoning labels to the Agents SDK supported values."""
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    if normalized == "max":
+        return "high"
+    if normalized in {"minimal", "low", "medium", "high"}:
+        return normalized
+    logger.debug("Ignoring unsupported reasoning_effort registry option: %s", value)
+    return None
