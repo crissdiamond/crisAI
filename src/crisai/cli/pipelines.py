@@ -98,9 +98,12 @@ from .workflow_policy import (
     WorkflowPolicyViolation,
     changed_paths,
     enforce_intranet_fetch_policy,
+    enforce_workspace_authorized_write_validation,
     enforce_workspace_write_policy,
     infer_workflow_policy,
     snapshot_tree,
+    workspace_write_authorization_env,
+    workspace_write_authorization_from_contract,
 )
 from .workflow_support import (
     WorkflowEnvironment,
@@ -196,6 +199,35 @@ def _trace_workflow_policy_event(
     tracer = getattr(workflow, "trace_event", None)
     if callable(tracer):
         tracer(stage, content, event_type=event_type, metadata=metadata)
+
+
+def _enforce_workspace_write_and_validation(
+    policy,
+    authorization,
+    root_dir: Path,
+    write_before,
+    registry_dir: Path | None,
+) -> list[str]:
+    """Enforce workspace side effects and validate explicit knowledge writes."""
+    changed = enforce_workspace_write_policy(policy, root_dir, write_before)
+    enforce_workspace_authorized_write_validation(
+        authorization,
+        root_dir=root_dir,
+        changed=changed,
+        registry_dir=registry_dir,
+    )
+    return changed
+
+
+def _apply_mcp_env_overrides(environment: Any, overrides: dict[str, str]) -> None:
+    """Attach MCP subprocess environment overrides to the workflow environment."""
+    if not overrides:
+        return
+    current = getattr(environment, "mcp_env_overrides", None)
+    if current is None:
+        setattr(environment, "mcp_env_overrides", dict(overrides))
+        return
+    current.update(overrides)
 
 
 @dataclass(frozen=True, slots=True)
@@ -391,8 +423,11 @@ def create_workflow_environment(settings, model_specs=None) -> WorkflowEnvironme
 async def workflow_server_context(environment: WorkflowEnvironment, agent_specs, server_specs):
     """Build and open the required MCP server context for a workflow."""
     server_ids = collect_server_ids(agent_specs)
+    env_overrides = getattr(environment, "mcp_env_overrides", {}) or {}
     servers = [
-        environment.runtime.build_server(server_specs[server_id])
+        environment.runtime.build_server(server_specs[server_id], env_overrides=env_overrides)
+        if env_overrides
+        else environment.runtime.build_server(server_specs[server_id])
         for server_id in server_ids
         if server_id in server_specs
     ]
@@ -462,54 +497,111 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
     graph_loaded = False
     if registry_dir is not None:
         deterministic_context, graph_loaded = deterministic_context_from_registry(message, Path(registry_dir))
+    request_contract = _infer_runtime_request_contract(
+        message,
+        current_mode="single",
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+        deterministic_context=deterministic_context,
+    )
+    policy = infer_workflow_policy(
+        message,
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+        deterministic_context=deterministic_context,
+        explicit_write_target_subdir=request_contract.output_target_subdir,
+    )
+    authorization = workspace_write_authorization_from_contract(
+        request_contract,
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+    )
+    root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
+    write_before = snapshot_tree(root_dir, policy.write_target_subdir)
 
-    async with workflow_server_context(environment, [agent_spec], server_specs) as active_servers:
-        append_trace_entry(
-            environment,
-            "USER_INPUT",
-            message,
-            event_type="workflow_input",
-            metadata={"mode": "single", "agent_id": agent_id},
-        )
-        append_trace_entry(
-            environment,
-            "DETERMINISTIC_RETRIEVAL_CONTEXT",
-            (
-                "Deterministic retrieval context computed from registry graph."
-                if graph_loaded
-                else "Deterministic retrieval graph unavailable; continuing in fail-open mode."
-            ),
-            event_type="policy_signal",
-            metadata={
-                **deterministic_context_trace_metadata(deterministic_context),
-                "mode": "single",
-            },
-        )
-        active_agent_servers = (
-            [active_servers[server_id] for server_id in agent_spec.allowed_servers if server_id in active_servers]
-            if isinstance(active_servers, dict)
-            else active_servers
-        )
-        agent = environment.factory.build_agent(agent_spec, active_agent_servers)
-        prompt = (
-            build_single_retrieval_planner_prompt(
+    with workspace_write_authorization_env(authorization):
+        async with workflow_server_context(environment, [agent_spec], server_specs) as active_servers:
+            append_trace_entry(
+                environment,
+                "USER_INPUT",
                 message,
-                deterministic_context=deterministic_context,
-                registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                event_type="workflow_input",
+                metadata={"mode": "single", "agent_id": agent_id},
             )
-            if agent_id == "retrieval_planner"
-            else message
-        )
-        result = await _run_agent_silently(agent, prompt)
-        append_trace(
-            environment.trace_file,
-            "FINAL_OUTPUT",
-            result,
-            run_id=_get_run_id(environment),
-            event_type="workflow_output",
-            agent_id=agent_id,
-        )
-        return result
+            append_trace_entry(
+                environment,
+                "REQUEST_CONTRACT",
+                render_request_contract_block(request_contract),
+                event_type="policy_signal",
+                metadata=request_contract.to_dict(),
+            )
+            append_trace_entry(
+                environment,
+                "WORKSPACE_WRITE_AUTHORIZATION",
+                "Per-run workspace write authorization resolved.",
+                event_type="policy_signal",
+                metadata=authorization.to_dict(),
+            )
+            append_trace_entry(
+                environment,
+                "DETERMINISTIC_RETRIEVAL_CONTEXT",
+                (
+                    "Deterministic retrieval context computed from registry graph."
+                    if graph_loaded
+                    else "Deterministic retrieval graph unavailable; continuing in fail-open mode."
+                ),
+                event_type="policy_signal",
+                metadata={
+                    **deterministic_context_trace_metadata(deterministic_context),
+                    "mode": "single",
+                },
+            )
+            active_agent_servers = (
+                [active_servers[server_id] for server_id in agent_spec.allowed_servers if server_id in active_servers]
+                if isinstance(active_servers, dict)
+                else active_servers
+            )
+            agent = environment.factory.build_agent(agent_spec, active_agent_servers)
+            prompt = (
+                build_single_retrieval_planner_prompt(
+                    message,
+                    deterministic_context=deterministic_context,
+                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                )
+                if agent_id == "retrieval_planner"
+                else message
+            )
+            result = await _run_agent_silently(agent, prompt)
+            append_trace(
+                environment.trace_file,
+                "FINAL_OUTPUT",
+                result,
+                run_id=_get_run_id(environment),
+                event_type="workflow_output",
+                agent_id=agent_id,
+            )
+            try:
+                changed = _enforce_workspace_write_and_validation(
+                    policy,
+                    authorization,
+                    root_dir,
+                    write_before,
+                    Path(registry_dir) if registry_dir is not None else None,
+                )
+                if changed:
+                    append_trace_entry(
+                        environment,
+                        "POLICY_WRITE_CHANGES",
+                        "\n".join(changed),
+                        event_type="policy_signal",
+                        metadata={"changed_count": len(changed)},
+                    )
+            except WorkflowPolicyViolation as exc:
+                append_trace_entry(
+                    environment,
+                    "POLICY_VIOLATION",
+                    str(exc),
+                    event_type="policy_violation",
+                )
+                raise WorkflowValidationError(str(exc)) from exc
+            return result
 
 
 async def run_pipeline(
@@ -552,6 +644,11 @@ async def run_pipeline(
         deterministic_context=deterministic_context,
         explicit_write_target_subdir=request_contract.output_target_subdir,
     )
+    authorization = workspace_write_authorization_from_contract(
+        request_contract,
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+    )
+    _apply_mcp_env_overrides(environment, authorization.to_env())
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
 
@@ -594,6 +691,13 @@ async def run_pipeline(
             render_request_contract_block(request_contract),
             event_type="policy_signal",
             metadata=request_contract.to_dict(),
+        )
+        _trace_workflow_policy_event(
+            workflow,
+            "WORKSPACE_WRITE_AUTHORIZATION",
+            "Per-run workspace write authorization resolved.",
+            event_type="policy_signal",
+            metadata=authorization.to_dict(),
         )
         _trace_workflow_policy_event(
             workflow,
@@ -792,10 +896,12 @@ async def run_pipeline(
                 agent_id="orchestrator",
             )
             try:
-                changed = enforce_workspace_write_policy(
+                changed = _enforce_workspace_write_and_validation(
                     policy,
+                    authorization,
                     root_dir,
                     write_before,
+                    Path(registry_dir) if registry_dir is not None else None,
                 )
                 if changed:
                     _trace_workflow_policy_event(
@@ -872,10 +978,12 @@ async def run_pipeline(
             print_output=False,
         )
         try:
-            changed = enforce_workspace_write_policy(
+            changed = _enforce_workspace_write_and_validation(
                 policy,
+                authorization,
                 root_dir,
                 write_before,
+                Path(registry_dir) if registry_dir is not None else None,
             )
             if changed:
                 _trace_workflow_policy_event(
@@ -932,6 +1040,11 @@ async def run_peer_pipeline(
         deterministic_context=deterministic_context,
         explicit_write_target_subdir=request_contract.output_target_subdir,
     )
+    authorization = workspace_write_authorization_from_contract(
+        request_contract,
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+    )
+    _apply_mcp_env_overrides(environment, authorization.to_env())
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
     max_refinement_rounds = _resolve_peer_max_refinement_rounds()
@@ -993,6 +1106,13 @@ async def run_peer_pipeline(
             render_request_contract_block(request_contract),
             event_type="policy_signal",
             metadata=request_contract.to_dict(),
+        )
+        _trace_workflow_policy_event(
+            workflow,
+            "WORKSPACE_WRITE_AUTHORIZATION",
+            "Per-run workspace write authorization resolved.",
+            event_type="policy_signal",
+            metadata=authorization.to_dict(),
         )
         _trace_workflow_policy_event(
             workflow,
@@ -1466,10 +1586,12 @@ async def run_peer_pipeline(
             print_output=False,
         )
         try:
-            changed = enforce_workspace_write_policy(
+            changed = _enforce_workspace_write_and_validation(
                 policy,
+                authorization,
                 root_dir,
                 write_before,
+                Path(registry_dir) if registry_dir is not None else None,
             )
             if changed:
                 _trace_workflow_policy_event(

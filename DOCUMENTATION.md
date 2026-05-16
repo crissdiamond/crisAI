@@ -654,7 +654,7 @@ workspace/outputs/                    generic tool outputs
 
 `registry/workspace_spaces.yaml` owns the canonical root names, writable roots, task subdirectories, promotion roots, and enterprise-architecture vocabulary. Keep semantics there rather than hard-coding new workspace categories in Python.
 
-Agents may write task artefacts directly under the active task and may write knowledge promotion candidates under `knowledge_staging/`. Agents should not write directly to `knowledge/` unless a specific promotion workflow has been requested and validation passes.
+Agents may write task artefacts directly under the active task and may write knowledge promotion candidates under `knowledge_staging/`. Agents do not write directly to `knowledge/` by default. When the user explicitly requests an exact `workspace/knowledge/...` output path, that path is authorized for the current run only; the policy gate then requires that exact path to change and rejects substitution to `knowledge_staging/`. Changed Markdown under `workspace/knowledge/` is validated against the workspace artefact profiles before the run can report success.
 
 Markdown/Mermaid is the source of truth for generated architecture artefacts. Native Word, PowerPoint, Excel, email, JSON payload, mapping documents, and diagram exports should be generated as follow-on tasks from reviewed Markdown and organisation templates.
 

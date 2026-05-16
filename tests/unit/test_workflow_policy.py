@@ -9,11 +9,14 @@ from crisai.cli.workflow_policy import (
     WorkflowPolicyViolation,
     changed_paths,
     enforce_intranet_fetch_policy,
+    enforce_workspace_authorized_write_validation,
     enforce_workspace_write_policy,
     has_intranet_fetch_evidence,
     infer_workflow_policy,
     snapshot_tree,
+    workspace_write_authorization_from_contract,
 )
+from crisai.orchestration.request_contract import infer_request_contract
 from crisai.orchestration.retrieval_association_graph import (
     DeterministicRetrievalContext,
 )
@@ -65,6 +68,45 @@ def test_infer_workflow_policy_uses_explicit_write_target_override():
     assert policy.require_workspace_write is True
     assert policy.write_target_subdir == "workspace/knowledge/reference/template"
     assert "produce_artifacts" in policy.capabilities
+
+
+def test_workspace_write_authorization_allows_explicit_knowledge_target():
+    contract = infer_request_contract(
+        "Create the file at `workspace/knowledge/reference/template/hld_generic.md`."
+    )
+
+    authorization = workspace_write_authorization_from_contract(contract)
+
+    assert authorization.authorized_paths == ("knowledge/reference/template/hld_generic.md",)
+    assert authorization.validation_required is True
+    assert authorization.to_env()["CRISAI_WORKSPACE_AUTHORIZED_WRITE_PATHS"] == (
+        "knowledge/reference/template/hld_generic.md"
+    )
+
+
+def test_workspace_write_authorization_ignores_staging_target():
+    contract = infer_request_contract(
+        "Create the file at `workspace/knowledge_staging/reference/template/hld_generic.md`."
+    )
+
+    authorization = workspace_write_authorization_from_contract(contract)
+
+    assert authorization.authorized_paths == ()
+    assert authorization.validation_required is False
+
+
+def test_authorized_knowledge_write_validation_rejects_staging_substitution(tmp_path: Path):
+    contract = infer_request_contract(
+        "Create the file at `workspace/knowledge/reference/template/hld_generic.md`."
+    )
+    authorization = workspace_write_authorization_from_contract(contract)
+
+    with pytest.raises(WorkflowPolicyViolation, match="requested path was not changed"):
+        enforce_workspace_authorized_write_validation(
+            authorization,
+            root_dir=tmp_path,
+            changed=["workspace/knowledge_staging/reference/template/hld_generic.md"],
+        )
 
 
 def test_has_intranet_fetch_evidence_detects_negative_marker():

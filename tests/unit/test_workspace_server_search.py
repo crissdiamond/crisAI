@@ -96,6 +96,49 @@ def test_workspace_write_policy_blocks_unapproved_subdir(tmp_path, monkeypatch) 
         workspace_server.write_workspace_file("knowledge/canonical.md", "# No\n")
 
 
+def test_workspace_write_policy_allows_exact_authorized_knowledge_path(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    fake_workspace.mkdir()
+    monkeypatch.setenv(
+        "CRISAI_WORKSPACE_AUTHORIZED_WRITE_PATHS",
+        "knowledge/reference/template/hld_generic.md",
+    )
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    written = workspace_server.write_workspace_file(
+        "workspace/knowledge/reference/template/hld_generic.md",
+        "# HLD\n",
+    )
+
+    assert written == "knowledge/reference/template/hld_generic.md"
+    assert (fake_workspace / "knowledge/reference/template/hld_generic.md").read_text(encoding="utf-8") == "# HLD\n"
+
+
+def test_workspace_write_policy_blocks_neighboring_knowledge_path(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    fake_workspace.mkdir()
+    monkeypatch.setenv(
+        "CRISAI_WORKSPACE_AUTHORIZED_WRITE_PATHS",
+        "knowledge/reference/template/hld_generic.md",
+    )
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    with pytest.raises(ValueError, match="restricted to these subdirectories"):
+        workspace_server.write_workspace_file("knowledge/reference/template/other.md", "# No\n")
+
+
 def test_workspace_write_policy_blocks_unapproved_extension(tmp_path, monkeypatch) -> None:
     fake_workspace = tmp_path / "ws"
     fake_workspace.mkdir()

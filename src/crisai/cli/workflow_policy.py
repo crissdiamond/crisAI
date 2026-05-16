@@ -1,6 +1,9 @@
 """Generic workflow policy layer for runtime capability gates."""
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from hashlib import sha1
 from pathlib import Path
@@ -8,9 +11,14 @@ from typing import Any
 
 import yaml
 
+from crisai.orchestration.request_contract import RequestContract
 from crisai.orchestration.retrieval_association_graph import (
     DeterministicRetrievalContext,
 )
+from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
+from crisai.workspace.spaces import load_workspace_spaces
+
+AUTHORIZED_WRITE_PATHS_ENV = "CRISAI_WORKSPACE_AUTHORIZED_WRITE_PATHS"
 
 
 @dataclass(frozen=True)
@@ -36,6 +44,32 @@ class WorkflowPolicyViolation(RuntimeError):
     """Raised when a hard workflow policy gate is violated."""
 
 
+@dataclass(frozen=True)
+class WorkspaceWriteAuthorization:
+    """Per-run authorization for exact workspace write targets."""
+
+    authorized_paths: tuple[str, ...] = ()
+    validation_required: bool = False
+
+    @property
+    def is_active(self) -> bool:
+        """Return whether any exact paths are authorized for this run."""
+        return bool(self.authorized_paths)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable trace representation."""
+        return {
+            "authorized_paths": list(self.authorized_paths),
+            "validation_required": self.validation_required,
+        }
+
+    def to_env(self) -> dict[str, str]:
+        """Return environment overrides for MCP subprocesses."""
+        if not self.authorized_paths:
+            return {}
+        return {AUTHORIZED_WRITE_PATHS_ENV: ",".join(self.authorized_paths)}
+
+
 _STRUCTURAL_DEFAULTS: dict[str, Any] = {
     "capability_markers": {},
     "requirements": {
@@ -44,6 +78,61 @@ _STRUCTURAL_DEFAULTS: dict[str, Any] = {
     },
     "write_target_subdir": "workspace/tasks",
 }
+
+
+def _workspace_relative(path: str | None) -> str | None:
+    raw = (path or "").strip().strip("`").strip("/")
+    if not raw:
+        return None
+    if raw.startswith("workspace/"):
+        raw = raw[len("workspace/") :]
+    return raw or None
+
+
+def workspace_write_authorization_from_contract(
+    contract: RequestContract | None,
+    *,
+    registry_dir: Path | None = None,
+) -> WorkspaceWriteAuthorization:
+    """Authorize exact knowledge writes explicitly requested by the user.
+
+    Default workspace writes stay governed by configured writable roots. This
+    grants a narrow exception only for an exact output path under the configured
+    knowledge root when the workspace space registry requires explicit
+    promotion requests.
+    """
+    if contract is None or not contract.output_path:
+        return WorkspaceWriteAuthorization()
+    rel = _workspace_relative(contract.output_path)
+    if rel is None:
+        return WorkspaceWriteAuthorization()
+    spaces = load_workspace_spaces(registry_dir)
+    knowledge_prefix = f"{spaces.knowledge_root}/"
+    if rel == spaces.knowledge_root or rel.startswith(knowledge_prefix):
+        return WorkspaceWriteAuthorization(
+            authorized_paths=(rel,),
+            validation_required=True,
+        )
+    return WorkspaceWriteAuthorization()
+
+
+@contextmanager
+def workspace_write_authorization_env(
+    authorization: WorkspaceWriteAuthorization,
+) -> Iterator[None]:
+    """Expose per-run write authorization to MCP subprocesses via env."""
+    previous = os.environ.get(AUTHORIZED_WRITE_PATHS_ENV)
+    if authorization.authorized_paths:
+        os.environ[AUTHORIZED_WRITE_PATHS_ENV] = ",".join(authorization.authorized_paths)
+    else:
+        os.environ.pop(AUTHORIZED_WRITE_PATHS_ENV, None)
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(AUTHORIZED_WRITE_PATHS_ENV, None)
+        else:
+            os.environ[AUTHORIZED_WRITE_PATHS_ENV] = previous
 
 
 def _resolve_registry_dir(registry_dir: Path | None) -> Path:
@@ -214,4 +303,35 @@ def enforce_workspace_write_policy(
     raise WorkflowPolicyViolation(
         "Policy gate failed: this request requires artefact creation/update, "
         f"but no file changes were detected under '{target}' during this run."
+    )
+
+
+def enforce_workspace_authorized_write_validation(
+    authorization: WorkspaceWriteAuthorization,
+    *,
+    root_dir: Path,
+    changed: list[str],
+    registry_dir: Path | None = None,
+) -> None:
+    """Validate changed files written through explicit knowledge authorization."""
+    if not authorization.validation_required:
+        return
+    authorized_repo_paths = {f"workspace/{path}" for path in authorization.authorized_paths}
+    changed_authorized = [path for path in changed if path in authorized_repo_paths]
+    if not changed_authorized:
+        requested = ", ".join(sorted(authorized_repo_paths)) or "workspace/knowledge"
+        raise WorkflowPolicyViolation(
+            "Policy gate failed: this request authorized an exact knowledge write, "
+            f"but the requested path was not changed: {requested}"
+        )
+    result = validate_workspace_artefact_paths(
+        root_dir=root_dir,
+        relative_paths=changed_authorized,
+        registry_dir=registry_dir,
+    )
+    if result.ok:
+        return
+    raise WorkflowPolicyViolation(
+        "Policy gate failed: promoted knowledge artefact validation failed. "
+        + " ".join(result.violations)
     )

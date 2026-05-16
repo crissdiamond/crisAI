@@ -247,6 +247,8 @@ crisAI separates team-owned knowledge from task work:
 - `workspace/tasks/<task>/` is the working space for one task session. Agents write Markdown/Mermaid source artefacts under `artefacts/` and can reuse them as context later in the same task.
 - `workspace/knowledge_staging/` is the review area for content promoted from task artefacts or generated from source documentation.
 
+Agents do not write to `workspace/knowledge/` by default. If the user explicitly requests an exact `workspace/knowledge/...` output path, that path is authorized for that run only and must be the path that changes; writing a substitute under `knowledge_staging/` fails policy validation.
+
 Markdown is the authoritative generated artefact format. Native Word, PowerPoint, Excel, email, JSON, and diagram exports should be generated later from reviewed Markdown and organisation templates.
 
 For DOCX/PPTX output, the `document_formatter` agent uses `document_export`

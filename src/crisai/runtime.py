@@ -70,7 +70,7 @@ class RuntimeManager:
     def __init__(self, root_dir: Path) -> None:
         self.root_dir = root_dir
 
-    def build_server(self, spec: ServerSpec):
+    def build_server(self, spec: ServerSpec, env_overrides: dict[str, str] | None = None):
         allowed_tools = spec.raw.get("tools", {}).get("allow", [])
         timeout = _resolve_client_session_timeout_seconds(spec.raw)
         tool_filter = create_static_tool_filter(allowed_tool_names=allowed_tools)
@@ -82,6 +82,7 @@ class RuntimeManager:
                     "command": spec.raw["command"],
                     "args": spec.raw.get("args", []),
                     "cwd": str(self.root_dir),
+                    "env": {**os.environ, **(env_overrides or {})},
                 },
                 client_session_timeout_seconds=timeout,
                 tool_filter=tool_filter,

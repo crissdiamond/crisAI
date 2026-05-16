@@ -20,6 +20,7 @@ ROOT.mkdir(parents=True, exist_ok=True)
 DEFAULT_WRITE_SUBDIRS = ("outputs", "scratch", "knowledge_staging", "tasks")
 DEFAULT_WRITE_EXTENSIONS = (".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".mmd")
 DEFAULT_MAX_WRITE_BYTES = 1_000_000
+AUTHORIZED_WRITE_PATHS_ENV = "CRISAI_WORKSPACE_AUTHORIZED_WRITE_PATHS"
 
 
 def _log_file() -> Path:
@@ -71,6 +72,11 @@ def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return values or default
 
 
+def _authorized_write_paths() -> tuple[str, ...]:
+    """Return exact workspace-relative paths authorized for this process."""
+    return _csv_env(AUTHORIZED_WRITE_PATHS_ENV, ())
+
+
 def _default_write_subdirs() -> tuple[str, ...]:
     spaces = load_workspace_spaces()
     return spaces.writable_roots or DEFAULT_WRITE_SUBDIRS
@@ -92,7 +98,8 @@ def _enforce_write_policy(relative_path: str, content: str) -> Path:
 
     rel = file_path.relative_to(ROOT).as_posix()
     allowed_subdirs = _csv_env("CRISAI_WORKSPACE_WRITE_SUBDIRS", _default_write_subdirs())
-    if not any(rel == subdir or rel.startswith(f"{subdir}/") for subdir in allowed_subdirs):
+    exact_authorized = rel in _authorized_write_paths()
+    if not exact_authorized and not any(rel == subdir or rel.startswith(f"{subdir}/") for subdir in allowed_subdirs):
         allowed = ", ".join(allowed_subdirs)
         raise ValueError(f"Workspace writes are restricted to these subdirectories: {allowed}")
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
@@ -25,6 +25,7 @@ class WorkflowEnvironment:
         factory: Builds agent instances from agent specs.
         trace_file: Destination file for workflow stage traces.
         run_id: Correlation id shared across all workflow events.
+        mcp_env_overrides: Environment values passed to stdio MCP servers.
     """
 
     root_dir: Path
@@ -32,6 +33,7 @@ class WorkflowEnvironment:
     factory: AgentFactory
     trace_file: Path
     run_id: str
+    mcp_env_overrides: dict[str, str] = field(default_factory=dict)
 
 
 def _get_run_id(environment: WorkflowEnvironment | object) -> str | None:
@@ -101,8 +103,11 @@ def collect_server_ids(agent_specs: Sequence[object]) -> list[str]:
 async def workflow_server_context(environment: WorkflowEnvironment, agent_specs: Sequence[object], server_specs):
     """Build and open the MCP servers required by the provided agent specs."""
     server_ids = collect_server_ids(agent_specs)
+    env_overrides = getattr(environment, "mcp_env_overrides", {}) or {}
     servers = [
-        environment.runtime.build_server(server_specs[server_id])
+        environment.runtime.build_server(server_specs[server_id], env_overrides=env_overrides)
+        if env_overrides
+        else environment.runtime.build_server(server_specs[server_id])
         for server_id in server_ids
         if server_id in server_specs
     ]
