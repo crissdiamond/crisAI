@@ -373,7 +373,7 @@ def _close_chat_session(state: ChatRuntimeState) -> None:
 
 def _chat_uses_fullscreen_experience(state: ChatRuntimeState) -> bool:
     """Return whether interactive chat should use the persistent live layout."""
-    configured = str(getattr(state.settings.ui, "cli_experience", "fullscreen") or "fullscreen").strip().lower()
+    configured = str(getattr(state.settings.ui, "cli_experience", "classic") or "classic").strip().lower()
     if configured in {"classic", "rich", "legacy"}:
         return False
     if configured not in {"fullscreen", "gemini", "live"}:

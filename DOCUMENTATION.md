@@ -313,8 +313,9 @@ The default strategy is deterministic, with bounded memory and recent-turn budge
 - `/mode auto` clears the mode pin and returns control to the router
 - `/agent ...` pins the agent
 - `/agent auto` clears the agent pin and returns agent choice to the router
-- interactive `crisai chat` defaults to the Gemini-style experience, where a
-  live transcript scrolls above a persistent footer during agent execution
+- interactive `crisai chat` defaults to the stable classic Rich panel flow;
+  the Gemini-style transcript/footer renderer is available as an experimental
+  opt-in with `CRISAI_CLI_EXPERIENCE=fullscreen`
 - `/status` prints the current chat state, including:
   - session
   - routing mode state

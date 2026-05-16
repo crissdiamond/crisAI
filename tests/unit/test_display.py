@@ -66,6 +66,22 @@ def test_display_sink_intercepts_status_stage_and_final() -> None:
     assert sink.calls[2] == ("final", "Done", "Final body")
 
 
+def test_terminal_title_updates_are_disabled_by_default(monkeypatch, capsys) -> None:
+    monkeypatch.delenv("CRISAI_TERMINAL_TITLE_ENABLED", raising=False)
+
+    display.update_terminal_title("working")
+
+    assert capsys.readouterr().out == ""
+
+
+def test_terminal_title_updates_are_opt_in(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("CRISAI_TERMINAL_TITLE_ENABLED", "true")
+
+    display.update_terminal_title("working")
+
+    assert "]0;✦ crisAI" in capsys.readouterr().out
+
+
 def test_print_agent_output_non_verbose_uses_markdown_panel(monkeypatch) -> None:
     captured = []
     monkeypatch.setattr(display.console, "print", lambda value: captured.append(value))

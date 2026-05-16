@@ -25,7 +25,8 @@ class UISettings:
     verbose: bool = False
     retrieval_checkpoint_enabled: bool = True
     theme: str = "default"
-    cli_experience: str = "fullscreen"
+    cli_experience: str = "classic"
+    terminal_title_enabled: bool = False
 
 
 @dataclass(slots=True)
@@ -154,7 +155,8 @@ def load_settings() -> Settings:
             "verbose": False,
             "retrieval_checkpoint_enabled": True,
             "theme": "default",
-            "cli_experience": "fullscreen",
+            "cli_experience": "classic",
+            "terminal_title_enabled": False,
         },
         "model": {
             "openai_api_key": "",
@@ -186,6 +188,7 @@ def load_settings() -> Settings:
         "CRISAI_VERBOSE": ("ui", "verbose"),
         "CRISAI_THEME": ("ui", "theme"),
         "CRISAI_CLI_EXPERIENCE": ("ui", "cli_experience"),
+        "CRISAI_TERMINAL_TITLE_ENABLED": ("ui", "terminal_title_enabled"),
     }
 
     for env_var, (section, key) in env_map.items():
@@ -219,7 +222,8 @@ def load_settings() -> Settings:
             verbose=data["ui"]["verbose"],
             retrieval_checkpoint_enabled=data["ui"]["retrieval_checkpoint_enabled"],
             theme=data["ui"]["theme"],
-            cli_experience=data["ui"].get("cli_experience", "fullscreen"),
+            cli_experience=data["ui"].get("cli_experience", "classic"),
+            terminal_title_enabled=data["ui"].get("terminal_title_enabled", False),
         ),
         model=ModelSettings(
             openai_api_key=data["model"]["openai_api_key"],

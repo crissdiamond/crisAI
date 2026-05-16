@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextvars
+import os
 import re
 import textwrap
 from typing import Literal
@@ -92,6 +93,8 @@ _RENDER_STYLES = {
 
 def update_terminal_title(status: Literal["ready", "working", "input"]):
     """Update the terminal window title with status icons."""
+    if os.getenv("CRISAI_TERMINAL_TITLE_ENABLED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return
     icons = {"ready": "◇", "working": "✦", "input": "✋"}
     icon = icons.get(status, "◇")
     # OSC 0; title BEL

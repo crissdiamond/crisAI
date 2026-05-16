@@ -15,11 +15,12 @@ in progress.
 
 ## Decision
 
-`crisai chat` uses a Gemini-style display layer that captures routing, status,
-stage, checkpoint, final, and error output into a live transcript with a
-persistent footer during interactive execution. The existing Rich/classic
-rendering remains available for non-interactive commands and as a fallback via
-`CRISAI_CLI_EXPERIENCE=classic`.
+`crisai chat` keeps the classic Rich panel flow as the stable default. A
+Gemini-style display layer is available behind
+`CRISAI_CLI_EXPERIENCE=fullscreen`; it captures routing, status, stage,
+checkpoint, final, and error output into a live transcript with a footer during
+interactive execution, but remains experimental until the chat loop is moved to
+a true full-screen prompt-toolkit application.
 
 The display layer is intentionally a UI boundary, not a workflow controller.
 Routing, agents, retrieval, policy checks, and prompt semantics remain owned by
@@ -27,7 +28,10 @@ their existing modules.
 
 ## Consequences
 
-- Interactive chat has a visible status/footer during long agent runs.
+- Stable interactive chat avoids leaking live-render frames into normal
+  scrollback.
+- The experimental display path can continue to evolve without disrupting daily
+  CLI use.
 - `crisai ask`, `doctor`, list commands, and classic chat keep the existing Rich
   output path.
 - Stage output and final output continue to use the same sanitisation rules that

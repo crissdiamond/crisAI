@@ -211,11 +211,12 @@ per run with `--no-retrieval-checkpoint`, in chat with
 `/retrieval-checkpoint off`, or by setting
 `CRISAI_RETRIEVAL_CHECKPOINT_ENABLED=false`.
 
-Interactive `crisai chat` defaults to the Gemini-style CLI experience: agent
-output is captured into a live transcript and the footer remains visible during
-long-running stages with the active session, mode, agent, model, verbose,
-review, checkpoint, and current-stage state. Set
-`CRISAI_CLI_EXPERIENCE=classic` to fall back to the legacy Rich panel flow.
+Interactive `crisai chat` defaults to the stable classic Rich panel flow. The
+experimental Gemini-style transcript/footer renderer can be enabled with
+`CRISAI_CLI_EXPERIENCE=fullscreen`, but it remains opt-in until the chat loop is
+moved to a true full-screen terminal application. Terminal-title updates are
+disabled by default; enable them with `CRISAI_TERMINAL_TITLE_ENABLED=true` only
+if your terminal handles OSC title sequences cleanly.
 
 ## Configuration
 
