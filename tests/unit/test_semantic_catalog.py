@@ -39,7 +39,7 @@ def test_load_semantic_catalog_reads_registry_overrides(tmp_path: Path):
             },
             "peer_verifier": {
                 "pattern_gap_line": r"^\s*-\s*(Pattern)\s+(\d+)\s*:",
-                "leaf_file_pattern": r"workspace/context_staging/patterns/custom-(\d+)\.md$",
+                "leaf_file_pattern": r"workspace/knowledge_staging/patterns/custom-(\d+)\.md$",
                 "leaf_file_terms": ["high level design", "playbook"],
                 "data_architecture_terms": ["data mesh"],
             },

@@ -198,7 +198,7 @@ For Solution Architects, Data Architects, and Enterprise Architects, use
 the output needs challenged judgement: options papers, HLDs, ADRs, target-state
 recommendations, roadmap trade-offs, governance models, and architecture review
 findings. crisAI is a support tool for producing high-quality, UCL-customised
-drafts from local templates and approved context; architects remain accountable
+drafts from local templates and approved knowledge; architects remain accountable
 for final decisions, stakeholder alignment, and publication.
 
 Pipeline retrieval checkpoints are enabled by default. After retrieval, the CLI
@@ -217,7 +217,7 @@ The registry is the main control plane:
 - `registry/models.yaml`: provider-specific model names and API key env vars.
 - `registry/servers.yaml`: MCP server definitions and allowed tools.
 - `registry/workflow_policy.yaml`: runtime hard gates.
-- `registry/workspace_spaces.yaml`: workspace roots, task artefact folders, promotion roots, and architecture vocabulary.
+- `registry/workspace_spaces.yaml`: workspace roots, named knowledge corpora, task artefact folders, promotion roots, and architecture vocabulary.
 - `registry/session_memory.yaml`: compact session memory defaults, with `.env` overrides via `CRISAI_SESSION_MEMORY_*`.
 - `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, and retrieval source-fit constraints.
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
@@ -247,6 +247,14 @@ crisAI separates team-owned knowledge from task work:
 - `workspace/knowledge/` is the curated, approved, machine-readable knowledge base used for retrieval.
 - `workspace/tasks/<task>/` is the working space for one task session. Agents write Markdown/Mermaid source artefacts under `artefacts/` and can reuse them as context later in the same task.
 - `workspace/knowledge_staging/` is the review area for content promoted from task artefacts or generated from source documentation.
+
+The physical names are configurable in `registry/workspace_spaces.yaml`.
+Knowledge is declared as named corpora with roots, access mode, aliases,
+retrieval priority, and promotion targets. The default corpora are
+`approved_knowledge` (`workspace/knowledge/`) and `staged_knowledge`
+(`workspace/knowledge_staging/`). Legacy `context` and `context_staging` paths
+are migration aliases only; prompts and new task output should use the
+configured knowledge roots.
 
 Agents do not write to `workspace/knowledge/` by default. If the user explicitly requests an exact `workspace/knowledge/...` output path, that path is authorized for that run only and must be the path that changes; writing a substitute under `knowledge_staging/` fails policy validation.
 

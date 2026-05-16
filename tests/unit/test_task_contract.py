@@ -31,7 +31,7 @@ def test_infer_general_contract_for_find_only_request() -> None:
 def test_infer_sourced_recommendation_contract_for_architecture_advice() -> None:
     contract = infer_task_contract(
         (
-            "Search workspace/context before answering. I need a concise recommendation "
+            "Search workspace/knowledge before answering. I need a concise recommendation "
             "for a recurring monthly Power BI dashboard built from manually maintained Excel files."
         ),
         registry_dir=REGISTRY_DIR,

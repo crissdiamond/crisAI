@@ -86,7 +86,7 @@ def test_registry_agent_prompts_canonical_sections_in_order(rel: str) -> None:
 
 
 _SHARED_SNIPPET_NAMES: tuple[str, ...] = (
-    "context-staging.md",
+    "knowledge-staging.md",
     "link-formatting.md",
     "locale-tone.md",
     "sharepoint-vs-onedrive.md",

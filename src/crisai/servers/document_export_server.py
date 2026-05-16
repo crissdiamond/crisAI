@@ -47,12 +47,7 @@ def _safe_path(relative_path: str) -> Path:
     spaces = load_workspace_spaces()
     if raw.startswith("/"):
         raw = raw.lstrip("/")
-    if raw.startswith("workspace/"):
-        raw = raw[len("workspace/") :]
-    if (raw == "context" or raw.startswith("context/")) and not (ROOT / raw).exists():
-        raw = raw.replace("context", spaces.knowledge_root, 1)
-    if (raw == "context_staging" or raw.startswith("context_staging/")) and not (ROOT / raw).exists():
-        raw = raw.replace("context_staging", spaces.knowledge_staging_root, 1)
+    raw = spaces.canonicalize_workspace_path(raw)
 
     candidate = (ROOT / raw).resolve()
     root = ROOT.resolve()

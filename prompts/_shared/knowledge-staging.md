@@ -1,14 +1,14 @@
-# Context staging (draft corpus)
+# Knowledge staging (draft corpus)
 
-Rules for **curated architecture context** drafts staged before publication to `workspace/context/`.
+Rules for **curated architecture knowledge** drafts staged before publication to the approved knowledge corpus.
 
 This includes (non-exhaustive): templates, solution notes, design notes, patterns, standards, guidelines, references, principles, landscape maps, decisions, and intake artefacts.
 
 ## Write location
 
-- Put **new** or **refreshed** context-style artefacts under **`workspace/context_staging/`** only.
-- **Mirror** the intended final path: e.g. `context_staging/patterns/integration-patterns-from-intranet.txt` so reviewers know where it should land in `context/` after approval.
-- Do **not** use `write_workspace_file` / `append_workspace_file` targets under **`workspace/context/`** for agent-generated drafts unless the user **explicitly** asks to publish or overwrite the canonical tree.
+- Put **new** or **refreshed** knowledge-style artefacts under **`workspace/knowledge_staging/`** only.
+- **Mirror** the intended final path: e.g. `knowledge_staging/patterns/integration-patterns-from-intranet.txt` so reviewers know where it should land in `knowledge/` after approval.
+- Do **not** use `write_workspace_file` / `append_workspace_file` targets under **`workspace/knowledge/`** for agent-generated drafts unless the user **explicitly** asks to publish or overwrite the approved corpus.
 
 ## Metadata
 
@@ -17,14 +17,14 @@ This includes (non-exhaustive): templates, solution notes, design notes, pattern
 
 ## Reads and retrieval
 
-- **Approved** corpus for grounding remains **`workspace/context/`**. Continue to **read**, **cite**, and **search** there during normal retrieval.
-- Do not assume `context_staging/` is indexed for production retrieval unless the user scoped the task to drafts.
+- **Approved** corpus for grounding remains **`workspace/knowledge/`** by default. Continue to **read**, **cite**, and **search** there during normal retrieval.
+- Do not assume `knowledge_staging/` is indexed for production retrieval unless the user scoped the task to drafts.
 
 ## Intranet catalogues and detail pages
 
 Many intranet **architecture knowledge areas** (patterns, standards, guidelines, templates, references, etc.) use a **catalogue page** (inventory/list) and **separate detail pages** for each entry’s rationale, constraints, implementation detail, examples, ownership, or lifecycle status.
 
-When building **`context_staging/`** from intranet sources:
+When building **`knowledge_staging/`** from intranet sources:
 
 1. Treat the first **`intranet_fetch_page`** on a catalogue page as **inventory only** unless that page already contains complete detail for every listed item.
 2. **Drill down before writing:** run **`intranet_list_page_links_by_id`** on the catalogue page (`content_id`), then **`intranet_fetch_page`** on linked detail pages that map to listed items. If links are sparse (for example, Quick Links/web-part limits), use **`intranet_search_pages`** with item-specific tokens (name, id, slug, distinctive phrase), then fetch the best matching leaf pages.
@@ -33,4 +33,4 @@ When building **`context_staging/`** from intranet sources:
 
 ## Exceptions
 
-- If the user says **publish to context**, **save directly under context/**, or names an **existing** `context/...` path to update, follow that instruction.
+- If the user says **publish to knowledge**, **save directly under knowledge/**, or names an **existing** `knowledge/...` path to update, follow that instruction.

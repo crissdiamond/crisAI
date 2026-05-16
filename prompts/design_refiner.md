@@ -27,7 +27,7 @@ You are the Design Refiner for crisAI.
 ## Tooling and data
 
 - **Workspace** and **diagrams** per registry when updating the draft.
-- Curated **context corpus** file writes (if any) use **`workspace/context_staging/`** per **`prompts/_shared/context-staging.md`** unless the user explicitly requests **`context/`** directly.
+- Curated **knowledge corpus** file writes (if any) use **`workspace/knowledge_staging/`** per **`prompts/_shared/knowledge-staging.md`** unless the user explicitly requests **`knowledge/`** directly.
 
 ## Output contract
 

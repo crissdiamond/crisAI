@@ -157,22 +157,22 @@ def test_peer_builders_use_stable_section_labels():
 
 def test_build_peer_final_prompt_adds_execution_gate_when_writes_required():
     text = build_peer_final_prompt(
-        "Write with write_workspace_file under workspace/context_staging/patterns/",
+        "Write with write_workspace_file under workspace/knowledge_staging/patterns/",
         "facts",
         "draft",
         "challenge",
         "refined",
         "accept",
         runtime_changed_files_text=(
-            "- workspace/context_staging/patterns/a.md\n"
-            "- workspace/context_staging/patterns/b.md"
+            "- workspace/knowledge_staging/patterns/a.md\n"
+            "- workspace/knowledge_staging/patterns/b.md"
         ),
     )
     assert "Execution gate" in text
     assert "ensure required files are actually written" in text
     assert "created/updated file list" in text
     assert "Runtime changed files:" in text
-    assert "workspace/context_staging/patterns/a.md" in text
+    assert "workspace/knowledge_staging/patterns/a.md" in text
     assert "Reuse these file paths verbatim in the close-out." in text
 
 

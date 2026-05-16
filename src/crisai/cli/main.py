@@ -52,6 +52,7 @@ from crisai.orchestration.semantic_catalog import load_semantic_catalog
 from crisai.registry import Registry
 from crisai.registry_validation import run_doctor
 from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
+from crisai.workspace.spaces import load_workspace_spaces
 
 from .pipelines import run_peer_pipeline, run_pipeline, run_single
 
@@ -439,23 +440,23 @@ def validate_artefacts(
         None,
         "--path",
         "-p",
-        help="Repo-relative Markdown path(s). Omit to scan workspace/knowledge, "
-        "workspace/knowledge_staging, and workspace/tasks recursively.",
+        help="Repo-relative Markdown path(s). Omit to scan configured knowledge, staging, and task roots.",
     ),
 ) -> None:
     """Validate Markdown artefacts against ``registry/workspace_artifact_profiles.yaml``."""
     settings = load_settings()
     root = Path(settings.root_dir)
     registry_dir = Path(settings.registry_dir)
+    spaces = load_workspace_spaces(registry_dir)
     targets: list[str]
     if path:
         targets = sorted({str(Path(p).as_posix().lstrip("./")) for p in path})
     else:
         targets = []
         for base in (
-            settings.workspace_dir / "knowledge",
-            settings.workspace_dir / "knowledge_staging",
-            settings.workspace_dir / "tasks",
+            settings.workspace_dir / spaces.knowledge_root,
+            settings.workspace_dir / spaces.knowledge_staging_root,
+            settings.workspace_dir / spaces.tasks_root,
         ):
             if not base.is_dir():
                 continue

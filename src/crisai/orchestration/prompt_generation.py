@@ -24,6 +24,7 @@ from crisai.orchestration.task_contract import (
     TaskContract,
     render_task_contract_summary,
 )
+from crisai.workspace.spaces import load_workspace_spaces
 
 
 def _resolve_deterministic_context(
@@ -253,19 +254,22 @@ def build_context_retrieval_prompt(
     references that the context stage can structure, without drafting the final
     design response.
     """
-    intranet_rules = ""
-    if _is_intranet_scoped_request(message):
-        intranet_rules = (
-            "Intranet-scoped hard rules:\n"
-            "- This request is scoped to intranet pages. You MUST run intranet tools (`intranet_search_pages`, `intranet_list_pages`, `intranet_list_page_links_by_id`, `intranet_fetch_page`) in this stage.\n"
-            "- Do NOT treat existing workspace draft files under `knowledge_staging/` or `tasks/*/artefacts/` as evidence for factual claims outside the active task.\n"
-            "- If no successful intranet fetch happened in this turn, report retrieval failure clearly rather than producing a workspace-only evidence set.\n"
-        )
     context = _resolve_deterministic_context(
         message,
         registry_dir=registry_dir,
         deterministic_context=deterministic_context,
     )
+    spaces = load_workspace_spaces(registry_dir)
+    knowledge_root = spaces.knowledge_root
+    staging_root = spaces.knowledge_staging_root
+    intranet_rules = ""
+    if _is_intranet_scoped_request(message):
+        intranet_rules = (
+            "Intranet-scoped hard rules:\n"
+            "- This request is scoped to intranet pages. You MUST run intranet tools (`intranet_search_pages`, `intranet_list_pages`, `intranet_list_page_links_by_id`, `intranet_fetch_page`) in this stage.\n"
+            f"- Do NOT treat existing workspace draft files under `{staging_root}/` or `tasks/*/artefacts/` as evidence for factual claims outside the active task.\n"
+            "- If no successful intranet fetch happened in this turn, report retrieval failure clearly rather than producing a workspace-only evidence set.\n"
+        )
     source_constraints = infer_source_fit_constraints(message, registry_dir=registry_dir)
     expansion = (
         ""
@@ -295,9 +299,9 @@ def build_context_retrieval_prompt(
             "When a **Deterministic retrieval expansion** block appears above, treat it as optional query hints from `registry/semantic_graph.yaml`; still validate fit to the user request. "
             "Workspace semantics:\n"
             "- ``search_workspace_text`` matches a **literal substring on one line**; long sentences often return nothing. "
-            "Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``knowledge`` / ``knowledge/patterns`` / the active task path, "
+            f"Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``{knowledge_root}`` / ``{knowledge_root}/patterns`` / the active task path, "
             "or call ``read_workspace_file`` / ``read_document`` when the user request or handoff names a concrete relative path.\n"
-            "- When in doubt, ``list_workspace_files('knowledge')`` (or a deeper subfolder) and the active task artefact folder, then open the best candidates.\n"
+            f"- When in doubt, ``list_workspace_files('{knowledge_root}')`` (or a deeper subfolder) and the active task artefact folder, then open the best candidates.\n"
             + intranet_rules
             + "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
             "Do not create, update, or append workspace artefacts during retrieval; never call write-capable workspace tools from this stage. "

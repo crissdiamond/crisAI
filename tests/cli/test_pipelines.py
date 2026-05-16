@@ -270,7 +270,7 @@ Retrieved and read a deck.
 
 def test_validated_evidence_text_rejects_auxiliary_reads_when_target_read_failed():
     raw = """
-Retrieved local context and failed to read the latest deck.
+Retrieved local knowledge and failed to read the latest deck.
 
 ```json
 {
@@ -280,8 +280,8 @@ Retrieved local context and failed to read the latest deck.
     {
       "source": {
         "source_type": "workspace_file",
-        "title": "context/reference/landscape/integration-operating-model.txt",
-        "workspace_path": "context/reference/landscape/integration-operating-model.txt"
+        "title": "knowledge/reference/landscape/integration-operating-model.txt",
+        "workspace_path": "knowledge/reference/landscape/integration-operating-model.txt"
       },
       "evidence_level": "content_read",
       "read_status": "read",
@@ -530,7 +530,7 @@ async def test_run_pipeline_falls_back_when_retrieval_planner_is_empty(monkeypat
     monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
 
     result = await pipelines.run_pipeline(
-        "Search workspace/context before answering.",
+        "Search workspace/knowledge before answering.",
         verbose=False,
         review=False,
         settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
@@ -1710,7 +1710,7 @@ async def test_run_peer_pipeline_enforces_workspace_write_policy(monkeypatch, tm
 
     with pytest.raises(WorkflowValidationError) as exc:
         await pipelines.run_peer_pipeline(
-            "Write with write_workspace_file under workspace/context_staging/patterns/",
+            "Write with write_workspace_file under workspace/knowledge_staging/patterns/",
             verbose=False,
             review=False,
             settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
@@ -1765,7 +1765,7 @@ async def test_run_peer_pipeline_repairs_final_output_for_repairable_verifier_mi
         pipelines,
         "enforce_workspace_write_policy",
         lambda policy, root_dir, write_before: [
-            "workspace/context_staging/patterns/producer-pattern-1-system-to-enterprise-api-ondemand-synchronous.md"
+            "workspace/knowledge_staging/patterns/producer-pattern-1-system-to-enterprise-api-ondemand-synchronous.md"
         ],
     )
 
@@ -1775,11 +1775,11 @@ async def test_run_peer_pipeline_repairs_final_output_for_repairable_verifier_mi
         if len(verify_calls) == 1:
             raise pipelines.PeerVerificationViolation(
                 "Peer verifier gate failed:\n- Referenced output file does not exist: "
-                "workspace/context_staging/patterns/producer-pattern-1-system-to-enterprise-api-synchronous.md"
+                "workspace/knowledge_staging/patterns/producer-pattern-1-system-to-enterprise-api-synchronous.md"
             )
         return SimpleNamespace(
             checked_files=(
-                "workspace/context_staging/patterns/producer-pattern-1-system-to-enterprise-api-ondemand-synchronous.md",
+                "workspace/knowledge_staging/patterns/producer-pattern-1-system-to-enterprise-api-ondemand-synchronous.md",
             ),
             violations=(),
         )
@@ -1787,7 +1787,7 @@ async def test_run_peer_pipeline_repairs_final_output_for_repairable_verifier_mi
     monkeypatch.setattr(pipelines, "enforce_peer_final_deliverable_verification", _fake_verify)
 
     result = await pipelines.run_peer_pipeline(
-        "Write with write_workspace_file under workspace/context_staging/patterns/",
+        "Write with write_workspace_file under workspace/knowledge_staging/patterns/",
         verbose=False,
         review=False,
         settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),

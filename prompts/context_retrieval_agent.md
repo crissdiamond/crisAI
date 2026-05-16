@@ -20,7 +20,7 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
 ## Authority
 
 - Run retrieval tools, choose search scope, and return grounded excerpts plus provenance.
-- Prefer `workspace/context` and context-index tools when the request depends on **local** architecture knowledge—unless the user scoped sources to the **intranet site** (then use **`intranet_search_pages`** / **`intranet_fetch_page`** first).
+- Prefer the approved workspace knowledge corpus (`workspace/knowledge/` by default) and context-index tools when the request depends on **local** architecture knowledge—unless the user scoped sources to the **intranet site** (then use **`intranet_search_pages`** / **`intranet_fetch_page`** first).
 - Name concrete gaps when evidence is missing or tools fail.
 
 ## Boundaries
@@ -35,7 +35,7 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
 ## Tooling and data
 
 - **Context index (document MCP):** when available, prefer `build_context_index`, `search_context_chunks`, `get_context_index_summary`; otherwise list/search then read.
-- **Workspace search:** `search_workspace_text` matches a **literal substring on one line**; long sentences often return nothing. Use **short** queries, scoped `subdir` under `context/...`, or `list_workspace_files` then open candidates. When the user or handoff names a **relative path**, use `read_workspace_file` (text/markdown) or `read_document` (office/pdf) directly.
+- **Workspace search:** `search_workspace_text` matches a **literal substring on one line**; long sentences often return nothing. Use **short** queries, scoped `subdir` under `knowledge/...`, or `list_workspace_files` then open candidates. When the user or handoff names a **relative path**, use `read_workspace_file` (text/markdown) or `read_document` (office/pdf) directly.
 - **SharePoint vs OneDrive:** for SharePoint **document libraries** (files: .pptx, .pdf, ...) without OneDrive-only scope, prefer **`search_sharepoint_site_documents`** or site-scoped search after `list_sites`; avoid satisfying those asks with only `list_my_drives` + `search_drive_documents`.
 - **SharePoint/OneDrive document reads:** search/list results include `read_handle`. Use `read_sharepoint_document_by_handle(read_handle)` for content reads. Do not copy, infer, or edit raw `driveId` / `id` values from links, filenames, or previous prose.
 - **PowerPoint inspection:** for `.pptx` summaries, use `inspect_powerpoint_document` for workspace files or `inspect_sharepoint_powerpoint_by_handle` for SharePoint/OneDrive files when available. Preserve reported extraction coverage and limitations.
@@ -54,9 +54,9 @@ Retrieve relevant **source material** (paths, extracts, links) for downstream **
   - **After fetching ANY hub or catalogue page, you MUST call `intranet_list_page_links_by_id`** on that page to discover child page links, even when search already returned results. This is mandatory — search often misses leaf pages reachable only via navigation links.
   - **`intranet_list_page_links_by_id` returns enriched results when the page cache is warm.** Each entry includes `web_url` and, when available, `title`, `content_id`, and provider metadata. **When `content_id` is present in a result, call `intranet_fetch_page(content_id)` directly — do not run another search to resolve the page.**
   - **Recognising hub/catalogue pages:** any page whose body contains a list of named entries, links to detail pages, or navigation items is a hub page. You MUST call `intranet_list_page_links_by_id` on it immediately.
-  - **Catalogue trap:** a page that lists pattern names only is not sufficient for "which pattern to use" or for **`context_staging/`** pattern artefacts—you must `intranet_fetch_page` each **detail/leaf** page. See **`prompts/_shared/context-staging.md`**.
+  - **Catalogue trap:** a page that lists pattern names only is not sufficient for "which pattern to use" or for **`knowledge_staging/`** pattern artefacts—you must `intranet_fetch_page` each **detail/leaf** page. See **`prompts/_shared/knowledge-staging.md`**.
   - If a pattern name still cannot be resolved after both search and link traversal, record it as a gap with the queries tried and the outcome.
-  - Do not answer from `workspace/context` alone when the user scoped **intranet pages**.
+  - Do not answer from workspace knowledge alone when the user scoped **intranet pages**.
 - **Links in output:** `[page title](web_url)` — page title as link text, `web_url` from the `intranet_search_pages` result as the href. Never use plain text as the link or omit the URL.
 
 ## Output contract

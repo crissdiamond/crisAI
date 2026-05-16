@@ -31,7 +31,7 @@ def infer_peer_run_contract(message: str) -> PeerRunContract:
     asks_assessment = any(marker in text for marker in markers.assessment_markers)
 
     # Prefer file-backed artefact classification unless explicit code targets
-    # are present; this avoids over-classifying context-staging prompts as
+    # are present; this avoids over-classifying knowledge-staging prompts as
     # code changes due to generic words like "implement".
     if must_write_files and not has_clear_code_targets:
         expected_output_type = "artifact_package"

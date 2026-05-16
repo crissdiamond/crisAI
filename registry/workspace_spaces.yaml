@@ -9,6 +9,28 @@ workspace_spaces:
   legacy_knowledge_staging_roots:
     - context_staging
 
+  knowledge_corpora:
+    - id: approved_knowledge
+      label: Approved knowledge corpus
+      root: knowledge
+      role: approved
+      access: read
+      aliases:
+        - context
+      staging_root: knowledge_staging
+      retrieval_priority: 10
+      validation_profile: default
+    - id: staged_knowledge
+      label: Knowledge staging area
+      root: knowledge_staging
+      role: staging
+      access: read_write
+      aliases:
+        - context_staging
+      promotion_target: knowledge
+      retrieval_priority: 50
+      validation_profile: default
+
   task_subdirs:
     artefacts: artefacts
     inputs: inputs

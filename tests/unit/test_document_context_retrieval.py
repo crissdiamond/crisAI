@@ -47,7 +47,7 @@ def document_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleTy
 
 
 def _write_context_file(workspace: Path, relative_path: str, content: str) -> None:
-    path = workspace / "context" / relative_path
+    path = workspace / "knowledge" / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
@@ -87,7 +87,7 @@ def test_build_context_index_creates_chunks_across_context_folders(
     )
 
     summary = document_server.build_context_index(
-        context_subdir="context",
+        context_subdir="knowledge",
         max_chars=220,
         overlap_chars=40,
     )
@@ -99,7 +99,7 @@ def test_build_context_index_creates_chunks_across_context_folders(
 
     index_summary = document_server.get_context_index_summary()
 
-    assert index_summary["context_subdir"] == "context"
+    assert index_summary["context_subdir"] == "knowledge"
     assert index_summary["documents_indexed"] == 3
     assert index_summary["chunking"] == {"max_chars": 220, "overlap_chars": 40}
 
@@ -143,7 +143,7 @@ def test_search_context_chunks_returns_ranked_cross_folder_results(
         "recurring Excel Power BI dashboard ownership lineage data quality monthly refresh",
         max_results=8,
         rebuild=True,
-        context_subdir="context",
+        context_subdir="knowledge",
     )
 
     assert results
@@ -160,7 +160,7 @@ def test_search_context_chunks_returns_ranked_cross_folder_results(
 
     for result in results:
         assert result["score"] > 0
-        assert result["path"].startswith("context/")
+        assert result["path"].startswith("knowledge/")
         assert result["chunk_id"].startswith("chunk-")
 
 
@@ -178,7 +178,7 @@ def test_context_search_returns_empty_list_for_non_matching_query(
         "kubernetes gpu model serving ollama condenser",
         max_results=5,
         rebuild=True,
-        context_subdir="context",
+        context_subdir="knowledge",
     )
 
     assert results == []
@@ -196,13 +196,13 @@ def test_inspect_powerpoint_document_returns_structured_slides(
     document_server: ModuleType,
     tmp_path: Path,
 ) -> None:
-    path = tmp_path / "context" / "deck.pptx"
+    path = tmp_path / "knowledge" / "deck.pptx"
     path.parent.mkdir(parents=True, exist_ok=True)
     _write_sample_pptx(path)
 
-    result = document_server.inspect_powerpoint_document("context/deck.pptx")
+    result = document_server.inspect_powerpoint_document("knowledge/deck.pptx")
 
     assert result["status"] == "partial_text"
-    assert result["path"] == "context/deck.pptx"
+    assert result["path"] == "knowledge/deck.pptx"
     assert result["slides"][0]["title"] == "Integration Strategy"
     assert "Strategic themes and target operating model" in result["slides"][0]["text"]

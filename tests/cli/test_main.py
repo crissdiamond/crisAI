@@ -42,7 +42,7 @@ def test_should_keep_peer_retrieval_when_prompt_requests_existing_sources():
 
 def test_should_keep_peer_retrieval_for_intranet_file_backed_peer_request():
     prompt = (
-        "Use peer mode. Create files under workspace/context_staging/patterns grounded on "
+        "Use peer mode. Create files under workspace/knowledge_staging/patterns grounded on "
         "SharePoint intranet SitePages integration-patterns.aspx and leaf pages."
     )
     decision = SimpleNamespace(mode="peer", needs_retrieval=True)
@@ -52,7 +52,7 @@ def test_should_keep_peer_retrieval_for_intranet_file_backed_peer_request():
 
 def test_should_force_peer_retrieval_for_intranet_file_backed_peer_request():
     prompt = (
-        "Create files under workspace/context_staging/patterns grounded on "
+        "Create files under workspace/knowledge_staging/patterns grounded on "
         "SharePoint intranet Site Pages integration-patterns.aspx and leaf pages."
     )
     decision = SimpleNamespace(mode="peer", needs_retrieval=False)
@@ -76,7 +76,7 @@ def test_apply_decision_overrides_turns_off_retrieval_for_generative_peer_reques
 
 def test_apply_decision_overrides_forces_retrieval_for_intranet_peer_request():
     prompt = (
-        "Use peer mode and create files in workspace/context_staging based on "
+        "Use peer mode and create files in workspace/knowledge_staging based on "
         "intranet Site Pages and SharePoint sources."
     )
     decision = SimpleNamespace(mode="peer", needs_retrieval=False, needs_review=False)

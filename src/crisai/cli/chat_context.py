@@ -17,6 +17,7 @@ from crisai.cli.session_store import (
 )
 from crisai.cli.text_loader import render_cli_text
 from crisai.config import load_settings
+from crisai.workspace.spaces import load_workspace_spaces
 
 _DEFAULT_CONFIG = {
     "strategy": "deterministic",
@@ -303,13 +304,8 @@ def _source_from_markdown_link(label: str, href: str) -> str:
 
 
 def _canonical_source_path(path: str) -> str:
-    """Normalize legacy workspace context paths in session memory."""
-    clean = (path or "").strip().strip("`")
-    if clean.startswith("workspace/"):
-        clean = clean[len("workspace/") :]
-    if clean == "context" or clean.startswith("context/"):
-        clean = clean.replace("context", "knowledge", 1)
-    return clean
+    """Normalize source paths in session memory to configured workspace roots."""
+    return load_workspace_spaces().canonicalize_workspace_path(path)
 
 
 def _extract_decisions(messages: list[str]) -> list[str]:

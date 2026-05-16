@@ -17,20 +17,20 @@ def _write(path: Path, text: str) -> None:
 
 
 def test_verify_peer_final_deliverable_flags_missing_referenced_file(tmp_path: Path):
-    contract = infer_peer_run_contract("Create files under workspace/context_staging/patterns.")
+    contract = infer_peer_run_contract("Create files under workspace/knowledge_staging/patterns.")
     result = verify_peer_final_deliverable(
         root_dir=tmp_path,
         contract=contract,
-        final_text="Updated workspace/context_staging/patterns/missing.md",
-        changed_paths=["workspace/context_staging/patterns/missing.md"],
+        final_text="Updated workspace/knowledge_staging/patterns/missing.md",
+        changed_paths=["workspace/knowledge_staging/patterns/missing.md"],
     )
     assert any("does not exist" in violation for violation in result.violations)
 
 
 def test_verify_peer_final_deliverable_flags_duplicate_front_matter_ids(tmp_path: Path):
-    contract = infer_peer_run_contract("Create files under workspace/context_staging/patterns.")
-    file_a = tmp_path / "workspace/context_staging/patterns/a.md"
-    file_b = tmp_path / "workspace/context_staging/patterns/b.md"
+    contract = infer_peer_run_contract("Create files under workspace/knowledge_staging/patterns.")
+    file_a = tmp_path / "workspace/knowledge_staging/patterns/a.md"
+    file_b = tmp_path / "workspace/knowledge_staging/patterns/b.md"
     _write(
         file_a,
         (
@@ -49,20 +49,20 @@ def test_verify_peer_final_deliverable_flags_duplicate_front_matter_ids(tmp_path
         root_dir=tmp_path,
         contract=contract,
         final_text=(
-            "Updated workspace/context_staging/patterns/a.md and "
-            "workspace/context_staging/patterns/b.md"
+            "Updated workspace/knowledge_staging/patterns/a.md and "
+            "workspace/knowledge_staging/patterns/b.md"
         ),
         changed_paths=[
-            "workspace/context_staging/patterns/a.md",
-            "workspace/context_staging/patterns/b.md",
+            "workspace/knowledge_staging/patterns/a.md",
+            "workspace/knowledge_staging/patterns/b.md",
         ],
     )
     assert any("Duplicate front-matter id" in violation for violation in result.violations)
 
 
 def test_enforce_peer_final_deliverable_verification_detects_unbacked_mismatch_claim(tmp_path: Path):
-    contract = infer_peer_run_contract("Create files under workspace/context_staging/patterns.")
-    file_a = tmp_path / "workspace/context_staging/patterns/a.md"
+    contract = infer_peer_run_contract("Create files under workspace/knowledge_staging/patterns.")
+    file_a = tmp_path / "workspace/knowledge_staging/patterns/a.md"
     _write(
         file_a,
         (
@@ -75,18 +75,18 @@ def test_enforce_peer_final_deliverable_verification_detects_unbacked_mismatch_c
             root_dir=tmp_path,
             contract=contract,
             final_text=(
-                "Updated workspace/context_staging/patterns/a.md. "
+                "Updated workspace/knowledge_staging/patterns/a.md. "
                 "Mismatch was documented in-file."
             ),
-            changed_paths=["workspace/context_staging/patterns/a.md"],
+            changed_paths=["workspace/knowledge_staging/patterns/a.md"],
         )
     assert "mismatch/inconsistency was documented in files" in str(exc.value)
 
 
 def test_verify_peer_final_deliverable_flags_closeout_omitting_changed_files(tmp_path: Path):
-    contract = infer_peer_run_contract("Create files under workspace/context_staging/patterns.")
-    file_a = tmp_path / "workspace/context_staging/patterns/a.md"
-    file_b = tmp_path / "workspace/context_staging/patterns/b.md"
+    contract = infer_peer_run_contract("Create files under workspace/knowledge_staging/patterns.")
+    file_a = tmp_path / "workspace/knowledge_staging/patterns/a.md"
+    file_b = tmp_path / "workspace/knowledge_staging/patterns/b.md"
     _write(
         file_a,
         "---\nid: P1\ntitle: A\ntype: intake\nstatus: draft\n---\n\n## Source\n- a\n",
@@ -98,19 +98,19 @@ def test_verify_peer_final_deliverable_flags_closeout_omitting_changed_files(tmp
     result = verify_peer_final_deliverable(
         root_dir=tmp_path,
         contract=contract,
-        final_text="Updated workspace/context_staging/patterns/a.md",
+        final_text="Updated workspace/knowledge_staging/patterns/a.md",
         changed_paths=[
-            "workspace/context_staging/patterns/a.md",
-            "workspace/context_staging/patterns/b.md",
+            "workspace/knowledge_staging/patterns/a.md",
+            "workspace/knowledge_staging/patterns/b.md",
         ],
     )
     assert any("close-out omitted changed files" in violation for violation in result.violations)
 
 
 def test_verify_peer_final_deliverable_flags_gap_and_leaf_inconsistency(tmp_path: Path):
-    contract = infer_peer_run_contract("Create files under workspace/context_staging/patterns.")
-    gaps = tmp_path / "workspace/context_staging/patterns/integration-retrieval-gaps.md"
-    leaf = tmp_path / "workspace/context_staging/patterns/consumer-pattern-1.md"
+    contract = infer_peer_run_contract("Create files under workspace/knowledge_staging/patterns.")
+    gaps = tmp_path / "workspace/knowledge_staging/patterns/integration-retrieval-gaps.md"
+    leaf = tmp_path / "workspace/knowledge_staging/patterns/consumer-pattern-1.md"
     _write(
         gaps,
         (
@@ -131,20 +131,20 @@ def test_verify_peer_final_deliverable_flags_gap_and_leaf_inconsistency(tmp_path
         root_dir=tmp_path,
         contract=contract,
         final_text=(
-            "Updated workspace/context_staging/patterns/integration-retrieval-gaps.md and "
-            "workspace/context_staging/patterns/consumer-pattern-1.md"
+            "Updated workspace/knowledge_staging/patterns/integration-retrieval-gaps.md and "
+            "workspace/knowledge_staging/patterns/consumer-pattern-1.md"
         ),
         changed_paths=[
-            "workspace/context_staging/patterns/integration-retrieval-gaps.md",
-            "workspace/context_staging/patterns/consumer-pattern-1.md",
+            "workspace/knowledge_staging/patterns/integration-retrieval-gaps.md",
+            "workspace/knowledge_staging/patterns/consumer-pattern-1.md",
         ],
     )
     assert any("Gap inconsistency" in violation for violation in result.violations)
 
 
 def test_verify_peer_final_deliverable_allows_retrieval_gaps_without_source_section(tmp_path: Path):
-    contract = infer_peer_run_contract("Create files under workspace/context_staging/patterns.")
-    gaps = tmp_path / "workspace/context_staging/patterns/integration-patterns-retrieval-gaps.md"
+    contract = infer_peer_run_contract("Create files under workspace/knowledge_staging/patterns.")
+    gaps = tmp_path / "workspace/knowledge_staging/patterns/integration-patterns-retrieval-gaps.md"
     _write(
         gaps,
         "## Retrieval gaps\n- Consumer Pattern 4: no leaf content available in this run\n",
@@ -152,13 +152,13 @@ def test_verify_peer_final_deliverable_allows_retrieval_gaps_without_source_sect
     result = verify_peer_final_deliverable(
         root_dir=tmp_path,
         contract=contract,
-        final_text="Updated workspace/context_staging/patterns/integration-patterns-retrieval-gaps.md",
-        changed_paths=["workspace/context_staging/patterns/integration-patterns-retrieval-gaps.md"],
+        final_text="Updated workspace/knowledge_staging/patterns/integration-patterns-retrieval-gaps.md",
+        changed_paths=["workspace/knowledge_staging/patterns/integration-patterns-retrieval-gaps.md"],
     )
     assert not any("missing required '## Source'" in violation for violation in result.violations)
 
 
 def test_is_semantic_leaf_file_matches_architecture_terms():
-    assert _is_semantic_leaf_file("workspace/context_staging/patterns/payment-hld-guide.md")
-    assert _is_semantic_leaf_file("workspace/context_staging/patterns/reference-architecture-toolkit.md")
-    assert not _is_semantic_leaf_file("workspace/context_staging/patterns/meeting-notes.md")
+    assert _is_semantic_leaf_file("workspace/knowledge_staging/patterns/payment-hld-guide.md")
+    assert _is_semantic_leaf_file("workspace/knowledge_staging/patterns/reference-architecture-toolkit.md")
+    assert not _is_semantic_leaf_file("workspace/knowledge_staging/patterns/meeting-notes.md")

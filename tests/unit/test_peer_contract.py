@@ -6,7 +6,7 @@ from crisai.orchestration.peer_contract import (
 
 def test_infer_peer_run_contract_detects_artifact_delivery_intent():
     contract = infer_peer_run_contract(
-        "Create files under workspace/context_staging/patterns and keep sources grounded."
+        "Create files under workspace/knowledge_staging/patterns and keep sources grounded."
     )
     assert contract.expected_output_type == "artifact_package"
     assert contract.must_create_or_update_files is True
@@ -24,7 +24,7 @@ def test_infer_peer_run_contract_detects_code_change_intent():
 
 def test_infer_peer_run_contract_prefers_artifact_package_without_clear_code_targets():
     contract = infer_peer_run_contract(
-        "Implement this template and create files under workspace/context_staging/patterns."
+        "Implement this template and create files under workspace/knowledge_staging/patterns."
     )
     assert contract.expected_output_type == "artifact_package"
 

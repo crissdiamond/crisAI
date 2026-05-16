@@ -441,7 +441,7 @@ Best for:
 
 crisAI is a support tool for Solution Architects, Data Architects, and
 Enterprise Architects. Its role is to accelerate daily architecture work by
-turning approved context, retrieved evidence, and UCL templates into
+turning approved knowledge, retrieved evidence, and UCL templates into
 high-quality customised drafts. It should improve first drafts, expose gaps,
 and prepare material for review; it does not replace architect accountability
 for final decisions, stakeholder alignment, or publication.
@@ -656,7 +656,15 @@ workspace/tasks/<task>/exports/       generated native exports from reviewed Mar
 workspace/outputs/                    generic tool outputs
 ```
 
-`registry/workspace_spaces.yaml` owns the canonical root names, writable roots, task subdirectories, promotion roots, and enterprise-architecture vocabulary. Keep semantics there rather than hard-coding new workspace categories in Python.
+`registry/workspace_spaces.yaml` owns the canonical root names, named knowledge corpora, writable roots, task subdirectories, promotion roots, and enterprise-architecture vocabulary. Keep semantics there rather than hard-coding new workspace categories in Python.
+
+Knowledge corpora are declared with an id, label, root, role, access mode,
+aliases, retrieval priority, validation profile, and optional staging or
+promotion target. The defaults are `approved_knowledge` at
+`workspace/knowledge/` and `staged_knowledge` at
+`workspace/knowledge_staging/`. Legacy `context` and `context_staging` roots
+are aliases for migration only; prompts and new artefacts should use the
+configured knowledge roots.
 
 Agents may write task artefacts directly under the active task and may write knowledge promotion candidates under `knowledge_staging/`. Agents do not write directly to `knowledge/` by default. When the user explicitly requests an exact `workspace/knowledge/...` output path, that path is authorized for the current run only; the policy gate then requires that exact path to change and rejects substitution to `knowledge_staging/`. Changed Markdown under `workspace/knowledge/` is validated against the workspace artefact profiles before the run can report success.
 
