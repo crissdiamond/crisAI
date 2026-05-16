@@ -47,6 +47,7 @@ models:
     provider: deepseek
     model_name: deepseek/deepseek-v4-flash
     api_key_env: DEEPSEEK_API_KEY
+    should_replay_reasoning_content: always
     thinking:
       type: enabled
     reasoning_effort: max

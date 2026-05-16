@@ -972,6 +972,8 @@ Both refs use the same underlying model (`deepseek-v4-flash`); the difference is
 
 Assign either ref to any agent in `registry/agents.yaml` the same way you would `gemini_strong` or `anthropic_reasoning`. DeepSeek thinking mode is configured in `registry/models.yaml` with `thinking.type` (`enabled` or `disabled`) and optional `reasoning_effort` (`high` or `max`). crisAI forwards these values through the LiteLLM model settings path as provider request parameters.
 
+DeepSeek thinking responses include provider reasoning content that must be replayed on later turns in the same chat. Newer LiteLLM adapters can expose `should_replay_reasoning_content`; crisAI sets that to `always` for `deepseek_reasoner` when the adapter supports it. If the installed adapter does not support replay and an agent has MCP tools attached, crisAI automatically disables DeepSeek thinking for that tool-enabled run to avoid provider `reasoning_content` replay errors. Tool-free DeepSeek calls can still use thinking mode.
+
 ### Environment variables
 
 Put provider keys in `.env`:
