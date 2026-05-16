@@ -286,6 +286,52 @@ def test_chat_loop_runs_one_request_then_persists_history(monkeypatch):
     assert memory_updates == [("default", [("user", "hello"), ("assistant", "assistant answer")])]
 
 
+def test_chat_alias_delegates_to_classic(monkeypatch):
+    captured = {}
+
+    def fake_classic(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(main, "classic", fake_classic)
+
+    main.chat(
+        agent_id="design",
+        session="PowerBI-4",
+        pipeline=True,
+        peer=False,
+        review=True,
+        verbose=True,
+        retrieval_checkpoint=False,
+        no_retrieval_checkpoint=True,
+    )
+
+    assert captured == {
+        "agent_id": "design",
+        "session": "PowerBI-4",
+        "pipeline": True,
+        "peer": False,
+        "review": True,
+        "verbose": True,
+        "retrieval_checkpoint": False,
+        "no_retrieval_checkpoint": True,
+    }
+
+
+def test_gem_command_is_reserved_until_tui_is_implemented(monkeypatch):
+    notices = []
+    monkeypatch.setattr(main, "print_status_message", lambda body, title=None: notices.append((title, body)))
+
+    try:
+        main.gem()
+    except main.typer.Exit as exc:
+        assert exc.exit_code == 1
+    else:
+        raise AssertionError("gem should exit until implemented")
+
+    assert notices[-1][0] == "💎 crisAI Gem"
+    assert "crisai classic" in notices[-1][1]
+
+
 def test_run_async_cancels_pending_background_tasks():
     observed: dict[str, bool] = {"cancelled": False}
 

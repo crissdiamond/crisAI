@@ -752,26 +752,18 @@ def ask(
         _render_runtime_error(exc)
 
 
-@app.command()
-def chat(
-    agent_id: str = typer.Option("orchestrator", "--agent"),
-    session: str = typer.Option("default", "--session", "-s", help="Persistent chat session name."),
-    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible retrieval planner / design / review / orchestrator pipeline."),
-    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
-    review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
-    retrieval_checkpoint: bool = typer.Option(
-        False,
-        "--retrieval-checkpoint",
-        help="Enable the retrieval checkpoint for this chat session.",
-    ),
-    no_retrieval_checkpoint: bool = typer.Option(
-        False,
-        "--no-retrieval-checkpoint",
-        help="Disable the retrieval checkpoint for this chat session.",
-    ),
+def _run_classic_chat(
+    *,
+    agent_id: str,
+    session: str,
+    pipeline: bool,
+    peer: bool,
+    review: bool,
+    verbose: bool,
+    retrieval_checkpoint: bool,
+    no_retrieval_checkpoint: bool,
 ) -> None:
-    """Start the interactive crisAI chat session."""
+    """Start the stable classic interactive crisAI chat session."""
     update_terminal_title("ready")
     initial_session = _resolve_initial_chat_session(session)
     checkpoint_override = _resolve_checkpoint_override(retrieval_checkpoint, no_retrieval_checkpoint)
@@ -939,6 +931,80 @@ def chat(
         update_terminal_title("ready")
         if gemini_display is not None:
             gemini_display.update_status(_gemini_status_from_state(state, activity="idle"))
+
+
+@app.command()
+def classic(
+    agent_id: str = typer.Option("orchestrator", "--agent"),
+    session: str = typer.Option("default", "--session", "-s", help="Persistent chat session name."),
+    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible retrieval planner / design / review / orchestrator pipeline."),
+    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
+    review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+    retrieval_checkpoint: bool = typer.Option(
+        False,
+        "--retrieval-checkpoint",
+        help="Enable the retrieval checkpoint for this chat session.",
+    ),
+    no_retrieval_checkpoint: bool = typer.Option(
+        False,
+        "--no-retrieval-checkpoint",
+        help="Disable the retrieval checkpoint for this chat session.",
+    ),
+) -> None:
+    """Start the stable classic crisAI chat experience."""
+    _run_classic_chat(
+        agent_id=agent_id,
+        session=session,
+        pipeline=pipeline,
+        peer=peer,
+        review=review,
+        verbose=verbose,
+        retrieval_checkpoint=retrieval_checkpoint,
+        no_retrieval_checkpoint=no_retrieval_checkpoint,
+    )
+
+
+@app.command()
+def chat(
+    agent_id: str = typer.Option("orchestrator", "--agent"),
+    session: str = typer.Option("default", "--session", "-s", help="Persistent chat session name."),
+    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible retrieval planner / design / review / orchestrator pipeline."),
+    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
+    review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+    retrieval_checkpoint: bool = typer.Option(
+        False,
+        "--retrieval-checkpoint",
+        help="Enable the retrieval checkpoint for this chat session.",
+    ),
+    no_retrieval_checkpoint: bool = typer.Option(
+        False,
+        "--no-retrieval-checkpoint",
+        help="Disable the retrieval checkpoint for this chat session.",
+    ),
+) -> None:
+    """Compatibility alias for ``crisai classic``."""
+    classic(
+        agent_id=agent_id,
+        session=session,
+        pipeline=pipeline,
+        peer=peer,
+        review=review,
+        verbose=verbose,
+        retrieval_checkpoint=retrieval_checkpoint,
+        no_retrieval_checkpoint=no_retrieval_checkpoint,
+    )
+
+
+@app.command()
+def gem() -> None:
+    """Start the future full-screen crisAI Gem terminal UI."""
+    print_status_message(
+        "Gem is the planned full-screen terminal UI. Use `crisai classic` for the stable CLI while Gem is implemented.",
+        title="💎 crisAI Gem",
+    )
+    raise typer.Exit(1)
 
 
 if __name__ == "__main__":
