@@ -101,13 +101,19 @@ def _build_model_settings(resolved_model: ResolvedModel) -> ModelSettings:
         return ModelSettings()
 
     extra_body: dict[str, Any] = {}
+    allowed_openai_params: list[str] = []
     thinking = resolved_model.extra.get("thinking")
     if thinking is not None:
         extra_body["thinking"] = thinking
+        allowed_openai_params.append("thinking")
 
     reasoning_effort = _normalize_reasoning_effort(resolved_model.extra.get("reasoning_effort"))
     reasoning = Reasoning(effort=reasoning_effort) if reasoning_effort is not None else None
-    return ModelSettings(extra_body=extra_body or None, reasoning=reasoning)
+    if reasoning_effort is not None:
+        allowed_openai_params.append("reasoning_effort")
+
+    extra_args = {"allowed_openai_params": allowed_openai_params} if allowed_openai_params else None
+    return ModelSettings(extra_body=extra_body or None, reasoning=reasoning, extra_args=extra_args)
 
 
 def _normalize_reasoning_effort(value: Any) -> str | None:

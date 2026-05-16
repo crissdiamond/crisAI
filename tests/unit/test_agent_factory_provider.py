@@ -85,5 +85,8 @@ def test_build_litellm_model_ignores_unsupported_registry_extras(tmp_path: Path,
     assert model.should_replay_reasoning_content == 'always'
     assert captured['model_settings'].extra_body == {'thinking': {'type': 'enabled'}}
     assert captured['model_settings'].reasoning.effort == 'high'
+    assert captured['model_settings'].extra_args == {
+        'allowed_openai_params': ['thinking', 'reasoning_effort'],
+    }
     assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
     assert "Ignoring unsupported LiteLLM model registry option(s)" not in caplog.text
