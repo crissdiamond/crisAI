@@ -13,6 +13,7 @@ from .retrieval_association_graph import (
     deterministic_context_from_registry,
 )
 from .semantic_catalog import SemanticCatalog, load_semantic_catalog
+from .session_anchors import AnchorReference, AnchorRegistry, resolve_anchor_references
 from .task_contract import TaskContract, infer_task_contract
 
 _WORKSPACE_PATH_RE = re.compile(r"`?(workspace/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`?")
@@ -39,6 +40,7 @@ class RequestContract:
     actions: tuple[str, ...] = field(default_factory=tuple)
     quality_gates: tuple[str, ...] = field(default_factory=tuple)
     route_hints: tuple[str, ...] = field(default_factory=tuple)
+    referenced_anchors: tuple[AnchorReference, ...] = field(default_factory=tuple)
 
     @property
     def primary_intent(self) -> str:
@@ -74,6 +76,7 @@ class RequestContract:
             "actions": list(self.actions),
             "quality_gates": list(self.quality_gates),
             "route_hints": list(self.route_hints),
+            "referenced_anchors": [ref.to_dict() for ref in self.referenced_anchors],
         }
 
     def to_json(self) -> str:
@@ -88,6 +91,7 @@ def infer_request_contract(
     registry_dir: Path | None = None,
     catalog: SemanticCatalog | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
+    anchor_registry: AnchorRegistry | None = None,
 ) -> RequestContract:
     """Infer an execution contract by combining task, source, output, and mode facts."""
     catalog = catalog or _load_catalog(registry_dir)
@@ -132,6 +136,11 @@ def infer_request_contract(
         evidence_level=task_contract.required_evidence_level,
         source_families=source_families,
     )
+    referenced_anchors = (
+        resolve_anchor_references(message, anchor_registry, registry_dir=registry_dir)
+        if anchor_registry is not None
+        else ()
+    )
     return RequestContract(
         schema_version="request_contract_v1",
         workflow_preference=workflow_preference,
@@ -145,6 +154,7 @@ def infer_request_contract(
         actions=actions,
         quality_gates=quality_gates,
         route_hints=route_hints,
+        referenced_anchors=referenced_anchors,
     )
 
 

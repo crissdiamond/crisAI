@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from crisai.cli import artefact_lifecycle, session_store
+from crisai.orchestration.session_anchors import AnchorReference, SessionAnchor
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -93,3 +94,43 @@ def test_validate_task_artefacts_reports_template_conformance_failures(
 
     assert any("Evidence" in warning for warning in warnings)
     assert any("placeholder" in warning for warning in warnings)
+
+
+def test_validate_task_artefacts_reports_missing_resolved_anchor(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    settings = _settings(tmp_path)
+    monkeypatch.setattr(artefact_lifecycle, "load_settings", lambda: settings)
+    path = tmp_path / "workspace/tasks/demo/artefacts/option-2-hld.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        (
+            "---\n"
+            "id: DEMO-1\n"
+            "title: Interim controlled ingestion\n"
+            "type: design\n"
+            "status: draft\n"
+            "---\n\n"
+            "## Overview\n\nInterim controlled ingestion content.\n"
+        ),
+        encoding="utf-8",
+    )
+    ref = AnchorReference(
+        matched_text="option 2",
+        anchor=SessionAnchor(
+            kind="option",
+            label="Option 2",
+            title="Target-state governed reporting data product",
+            order="2",
+        ),
+    )
+
+    warnings = artefact_lifecycle.validate_task_artefacts_for_request(
+        user_input="Create HLD for option 2.",
+        paths=["workspace/tasks/demo/artefacts/option-2-hld.md"],
+        root_dir=tmp_path,
+        referenced_anchors=(ref,),
+    )
+
+    assert any("Target-state governed reporting data product" in warning for warning in warnings)

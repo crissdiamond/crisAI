@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from crisai.config import load_settings
+from crisai.orchestration.session_anchors import AnchorRegistry
 from crisai.workspace.spaces import load_workspace_spaces
 
 HistoryEntry = tuple[str, str]
@@ -132,6 +133,11 @@ def session_memory_file(session_name: str) -> Path:
     return task_metadata_dir(session_name) / "memory.json"
 
 
+def session_anchors_file(session_name: str) -> Path:
+    """Build the deterministic anchor registry path for a named session."""
+    return task_metadata_dir(session_name) / "anchors.json"
+
+
 def legacy_session_memory_file(session_name: str) -> Path:
     """Build the pre-task compact-memory path."""
     return session_dir() / f"{sanitize_session_name(session_name)}.memory.json"
@@ -205,9 +211,31 @@ def save_session_memory(session_name: str, memory: SessionMemory) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def load_session_anchors(session_name: str) -> AnchorRegistry:
+    """Load deterministic session anchors, returning an empty registry on failure."""
+    path = session_anchors_file(session_name)
+    if not path.exists():
+        return AnchorRegistry()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            return AnchorRegistry.from_dict(payload)
+    except (json.JSONDecodeError, OSError, TypeError):
+        return AnchorRegistry()
+    return AnchorRegistry()
+
+
+def save_session_anchors(session_name: str, anchors: AnchorRegistry) -> None:
+    """Persist deterministic session anchors as JSON."""
+    ensure_task_manifest(session_name)
+    path = session_anchors_file(session_name)
+    path.write_text(json.dumps(anchors.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+
+
 def clear_session_memory(session_name: str) -> None:
     """Clear compact memory for a session while preserving raw transcript."""
     save_session_memory(session_name, SessionMemory())
+    save_session_anchors(session_name, AnchorRegistry())
 
 
 def clear_history(session_name: str) -> None:

@@ -15,7 +15,8 @@
     "output_target_subdir",
     "actions",
     "quality_gates",
-    "route_hints"
+    "route_hints",
+    "referenced_anchors"
   ],
   "properties": {
     "schema_version": { "const": "request_contract_v1" },
@@ -57,6 +58,34 @@
     "route_hints": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "referenced_anchors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["matched_text", "anchor"],
+        "properties": {
+          "matched_text": { "type": "string" },
+          "anchor": {
+            "type": "object",
+            "required": ["kind", "label", "title"],
+            "properties": {
+              "kind": { "type": "string" },
+              "label": { "type": "string" },
+              "title": { "type": "string" },
+              "order": { "type": "string" },
+              "summary": { "type": "string" },
+              "status": { "type": "string" },
+              "source_path": { "type": "string" },
+              "source_turn": {
+                "anyOf": [{ "type": "integer" }, { "type": "null" }]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false

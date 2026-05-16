@@ -95,7 +95,11 @@ from .pipeline_display import (
     sanitize_user_visible_text,
 )
 from .pipeline_engine import WorkflowEngine
-from .session_store import register_task_artefacts, sanitize_session_name
+from .session_store import (
+    load_session_anchors,
+    register_task_artefacts,
+    sanitize_session_name,
+)
 from .workflow_policy import (
     WorkflowPolicyViolation,
     changed_paths,
@@ -135,14 +139,17 @@ def _infer_runtime_request_contract(
     registry_dir: Path | None,
     deterministic_context: DeterministicRetrievalContext,
     current_mode: str | None = None,
+    session_name: str | None = None,
 ) -> RequestContract:
     """Infer request contract with the configured registry as fallback."""
+    anchor_registry = load_session_anchors(session_name) if session_name else None
     try:
         return infer_request_contract(
             intent_message,
             current_mode=current_mode,
             registry_dir=registry_dir,
             deterministic_context=deterministic_context,
+            anchor_registry=anchor_registry,
         )
     except FileNotFoundError:
         if registry_dir is None:
@@ -152,6 +159,7 @@ def _infer_runtime_request_contract(
             current_mode=current_mode,
             registry_dir=None,
             deterministic_context=deterministic_context,
+            anchor_registry=anchor_registry,
         )
 
 
@@ -232,6 +240,15 @@ def _apply_mcp_env_overrides(environment: Any, overrides: dict[str, str]) -> Non
     current.update(overrides)
 
 
+def _write_target_subdir_from_contract(contract: RequestContract) -> str | None:
+    """Return the subtree to monitor when a contract requires artefact publication."""
+    if contract.output_target_subdir:
+        return contract.output_target_subdir
+    if "publish_artifact" in contract.actions:
+        return "workspace/tasks"
+    return None
+
+
 def _register_and_validate_task_artefacts(
     *,
     workflow: Any | None,
@@ -240,6 +257,7 @@ def _register_and_validate_task_artefacts(
     root_dir: Path,
     user_input: str,
     deliverable_type: str = "",
+    request_contract: RequestContract | None = None,
 ) -> None:
     """Register changed task artefacts and enforce template checks when relevant."""
     if not session_name or not changed:
@@ -256,6 +274,7 @@ def _register_and_validate_task_artefacts(
         user_input=user_input,
         paths=task_artefacts,
         root_dir=root_dir,
+        referenced_anchors=request_contract.referenced_anchors if request_contract is not None else (),
     )
     if warnings:
         message = "Task artefact conformance failed. " + " ".join(warnings)
@@ -567,12 +586,13 @@ async def run_single(
         current_mode="single",
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
+        session_name=session_name,
     )
     policy = infer_workflow_policy(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
-        explicit_write_target_subdir=request_contract.output_target_subdir,
+        explicit_write_target_subdir=_write_target_subdir_from_contract(request_contract),
     )
     authorization = workspace_write_authorization_from_contract(
         request_contract,
@@ -658,6 +678,7 @@ async def run_single(
                         root_dir=root_dir,
                         user_input=intent_message,
                         deliverable_type=getattr(request_contract.task_contract, "deliverable_type", ""),
+                        request_contract=request_contract,
                     )
                     append_trace_entry(
                         environment,
@@ -711,12 +732,13 @@ async def run_pipeline(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
+        session_name=session_name,
     )
     policy = infer_workflow_policy(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
-        explicit_write_target_subdir=request_contract.output_target_subdir,
+        explicit_write_target_subdir=_write_target_subdir_from_contract(request_contract),
     )
     authorization = workspace_write_authorization_from_contract(
         request_contract,
@@ -985,6 +1007,7 @@ async def run_pipeline(
                         root_dir=root_dir,
                         user_input=intent_message,
                         deliverable_type=task_contract.deliverable_type,
+                        request_contract=request_contract,
                     )
                     _trace_workflow_policy_event(
                         workflow,
@@ -1075,6 +1098,7 @@ async def run_pipeline(
                     root_dir=root_dir,
                     user_input=intent_message,
                     deliverable_type=task_contract.deliverable_type,
+                    request_contract=request_contract,
                 )
                 _trace_workflow_policy_event(
                     workflow,
@@ -1124,12 +1148,13 @@ async def run_peer_pipeline(
         current_mode="peer",
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
+        session_name=session_name,
     )
     policy = infer_workflow_policy(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
-        explicit_write_target_subdir=request_contract.output_target_subdir,
+        explicit_write_target_subdir=_write_target_subdir_from_contract(request_contract),
     )
     authorization = workspace_write_authorization_from_contract(
         request_contract,
@@ -1694,6 +1719,7 @@ async def run_peer_pipeline(
                     root_dir=root_dir,
                     user_input=intent_message,
                     deliverable_type=request_contract.deliverable_type,
+                    request_contract=request_contract,
                 )
                 _trace_workflow_policy_event(
                     workflow,

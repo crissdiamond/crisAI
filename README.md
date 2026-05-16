@@ -15,6 +15,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
 - Compact task memory for sessions, so long tasks keep useful context without replaying the full transcript every turn.
+- Deterministic session anchors for prior options, sections, risks, decisions, and recommendations, so follow-up requests like “use option 2 and 3” preserve the labels already shown to the user.
 - Latest-message routing and policy inference, so task scaffolding informs context without changing the current ask.
 - Clean CLI and web stage rendering that separates readable agent prose from structured evidence metadata in traces.
 - Source-fit validation so retrieved content must match explicit title and source-scope constraints before it is summarized.
@@ -32,9 +33,11 @@ flowchart TB
     User[User] --> Surfaces[CLI and Web App]
     Surfaces --> Router[Router and Chat State]
     Router --> SessionMemory[Compact Session Memory]
+    Router --> SessionAnchors[Session Anchors]
     Router --> Workflows[Workflow Modes]
 
     SessionMemory --> Workflows
+    SessionAnchors --> Workflows
     Workflows --> Single[Single Agent]
     Workflows --> Pipeline[Pipeline]
     Workflows --> Peer[Peer Critique]
@@ -219,7 +222,7 @@ The registry is the main control plane:
 - `registry/workflow_policy.yaml`: runtime hard gates.
 - `registry/workspace_spaces.yaml`: workspace roots, named knowledge corpora, task artefact folders, promotion roots, and architecture vocabulary.
 - `registry/session_memory.yaml`: compact session memory defaults, with `.env` overrides via `CRISAI_SESSION_MEMORY_*`.
-- `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, and retrieval source-fit constraints.
+- `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, retrieval source-fit constraints, and generic session-anchor vocabulary used to preserve user-visible labels across follow-up turns.
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
 
 Run `crisai doctor` after registry edits.
@@ -262,6 +265,8 @@ Markdown is the authoritative generated artefact format. Native Word, PowerPoint
 Reusable task deliverables such as options papers, architecture recommendations, assessments, and HLDs are persisted under the active task's `artefacts/` folder when they would otherwise only exist in chat. The task manifest tracks generated artefacts automatically. Retrieval is scoped to approved knowledge plus the active task by default; sibling task sessions are only used when the user names them explicitly.
 
 Generated templated Markdown is checked deterministically against `registry/workspace_artifact_profiles.yaml` before it is registered. When an artefact declares `template_path`, crisAI loads that template, checks the generated document has the template sections, and applies any template-declared conformance rules such as required diagrams or placeholder handling.
+
+Task sessions also maintain `.crisai/anchors.json`. This file records user-visible anchors extracted from prior assistant outputs, such as option numbers, section labels, risk numbers, decisions, and recommendation labels. Later requests that refer to those labels are resolved before agent execution and passed as authoritative runtime context; generated artefacts must preserve the resolved labels and titles.
 
 For DOCX/PPTX output, the `document_formatter` agent uses `document_export`
 tools to inspect a template manifest and render from an existing Markdown task

@@ -505,6 +505,53 @@ artifact_lifecycle:
     options_paper: option-paper.md
     assessment: assessment.md
 
+session_anchors:
+  kinds:
+    option:
+      - option
+      - options
+    section:
+      - section
+      - sections
+    risk:
+      - risk
+      - risks
+    decision:
+      - decision
+      - decisions
+    recommendation:
+      - recommendation
+      - recommendations
+  order_columns:
+    - priority
+    - order
+    - id
+    - number
+    - no
+  title_columns:
+    - option
+    - title
+    - name
+    - item
+    - section
+    - risk
+    - decision
+    - recommendation
+  summary_columns:
+    - summary
+    - description
+    - rationale
+    - benefits
+  status_columns:
+    - status
+    - decision
+    - recommendation
+  preferred_markers:
+    - preferred
+    - selected
+    - recommended
+    - recommend
+
 # Peer run-contract: substring markers (matched against lowercased user text).
 # Phrases with significant trailing spaces must be YAML-quoted (e.g. "function ").
 peer_contract:

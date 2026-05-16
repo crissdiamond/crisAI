@@ -11,12 +11,20 @@ from crisai.cli.display import sanitize_user_visible_text
 from crisai.cli.session_store import (
     HistoryEntry,
     SessionMemory,
+    load_session_anchors,
     load_session_memory,
+    save_session_anchors,
     save_session_memory,
     task_dir,
 )
 from crisai.cli.text_loader import render_cli_text
 from crisai.config import load_settings
+from crisai.orchestration.session_anchors import (
+    extract_session_anchors_from_history,
+    render_anchor_registry,
+    render_resolved_anchor_references,
+    resolve_anchor_references,
+)
 from crisai.workspace.spaces import load_workspace_spaces
 
 _DEFAULT_CONFIG = {
@@ -151,6 +159,8 @@ def update_session_memory(session_name: str, history: list[HistoryEntry], config
     # until the dedicated memory agent is wired into runtime execution.
     memory = compact_session_memory(history, max_memory_chars=cfg.max_memory_chars)
     save_session_memory(session_name, memory)
+    anchors = extract_session_anchors_from_history(history, registry_dir=load_settings().registry_dir)
+    save_session_anchors(session_name, anchors)
     return memory
 
 
@@ -167,6 +177,8 @@ def build_runtime_context_package(
         return RuntimeContextPackage(prompt=user_input, memory=SessionMemory(), included_recent_entries=0, truncated=False)
     cfg = config or load_session_memory_config()
     memory = load_session_memory(session_name) if session_name else SessionMemory()
+    anchors = load_session_anchors(session_name) if session_name else None
+    resolved_anchors = resolve_anchor_references(user_input, anchors, registry_dir=load_settings().registry_dir) if anchors else ()
     if not any((memory.task_goal, memory.current_state, memory.known_sources, memory.last_outputs)):
         memory = compact_session_memory(history, max_memory_chars=cfg.max_memory_chars)
     recent = _relevant_recent_entries(user_input, history, max_entries=cfg.max_recent_turns * 2)
@@ -188,6 +200,12 @@ def build_runtime_context_package(
             if session_name
             else "",
             "Compact session memory:\n" + memory_text if memory_text else "",
+            "Session anchors:\n" + render_anchor_registry(anchors) if anchors and anchors.anchors else "",
+            "Resolved user references:\n"
+            + render_resolved_anchor_references(resolved_anchors)
+            + "\n\nUse these resolved references as authoritative labels/titles. Do not renumber or reinterpret them."
+            if resolved_anchors
+            else "",
             "Relevant recent turns:\n" + transcript if transcript else "",
         ]
         if part.strip()

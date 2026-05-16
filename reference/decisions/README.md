@@ -35,3 +35,4 @@ Each decision file should be short and use this shape:
 | [CRISAI-ADR-008](CRISAI-ADR-008-provider-neutral-intranet.md) | Intranet retrieval is provider-neutral | accepted |
 | [CRISAI-ADR-009](CRISAI-ADR-009-cli-web-alignment.md) | Web UX should align with CLI routing and stage semantics | accepted |
 | [CRISAI-ADR-010](CRISAI-ADR-010-document-formatting-agent.md) | Add a narrow document formatting agent | accepted |
+| [CRISAI-ADR-011](CRISAI-ADR-011-session-anchors.md) | Preserve user-visible session anchors across follow-up turns | accepted |

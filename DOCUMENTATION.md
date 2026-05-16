@@ -81,7 +81,7 @@ The router distinguishes between:
 - **pinned agent**
 
 ### 2.5 Request and task contracts
-Before routing, crisAI infers a small runtime **Request Contract** that combines the user’s workflow preference, source obligations, named sources, output path, required actions, and quality gates.
+Before routing, crisAI infers a small runtime **Request Contract** that combines the user’s workflow preference, source obligations, named sources, output path, required actions, quality gates, and any resolved references to prior session anchors.
 
 The Request Contract wraps the existing **Task Contract**, which preserves the user’s main ask across agent handoffs. The router chooses the workflow from the contract rather than from isolated keyword scores. For example, a request to summarise the latest matching deck is treated as a summary deliverable with a supporting source-resolution step, not as a candidate-ranking task. A request to create an artefact from a SharePoint page is treated as source-backed generation, while a request to format an existing Markdown artefact with a workspace template remains a formatting task.
 
@@ -210,6 +210,8 @@ Generated task artefacts are also registered automatically in the active task ma
 
 Template conformance is deterministic. Generated templated Markdown should declare `template_id` and `template_path` in front matter. The artefact profile can then load either a Markdown template and derive required `##` sections from it, or a `.template.yaml` manifest and use its `required_sections`. Blocking checks cover required front matter, required sections, and any template-declared rules such as required source sections, Mermaid diagrams, or unresolved placeholder handling. The active task manifest is updated only after conformance passes.
 
+When a user asks for artefacts based on previously shown items, crisAI resolves the reference from the session anchor registry before the Publisher runs. For example, if an earlier options table showed `Option 2` with a specific title, a later request for “option 2” is resolved to that visible label and title rather than reinterpreted from domain semantics. The vocabulary for anchor kinds and table columns lives in `registry/semantic_catalog.yaml` under `session_anchors`; the runtime state is stored beside the task in `workspace/tasks/<task>/.crisai/anchors.json`.
+
 ### Mode controls
 
 ```text
@@ -258,11 +260,13 @@ CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS=2
 
 ### Session memory controls
 
-Each task session stores raw history, compact memory, and task metadata under `workspace/tasks/<task>/.crisai/`. Legacy `workspace/chat_sessions/` files are still read for compatibility. Runtime prompts use the compact memory plus a small relevant recent tail instead of replaying the full session, which reduces repeated context and token waste during multi-step tasks.
+Each task session stores raw history, compact memory, deterministic anchors, and task metadata under `workspace/tasks/<task>/.crisai/`. Legacy `workspace/chat_sessions/` files are still read for compatibility. Runtime prompts use the compact memory plus a small relevant recent tail instead of replaying the full session, which reduces repeated context and token waste during multi-step tasks.
 
 Routing and workflow policy are inferred from the **latest user message**, not from the full history wrapper. Session memory and task workspace paths are supporting context only; they must not turn a follow-up such as “generate an option paper” into a file-write request just because the prompt wrapper mentions `workspace/tasks/<task>/artefacts`. Failed chat turns are still persisted with the error status so task history reflects what happened.
 
 Known source paths in compact memory are normalised to current workspace roots, which avoids stale source paths in follow-up drafts.
+
+Session anchors are deterministic state, not model memory. They are extracted from prior assistant Markdown tables and headings, then resolved against later phrases such as “option 2 and 3”, “the preferred option”, or an exact title mention. Resolved anchors are injected into runtime context and into `request_contract_v1.referenced_anchors`; publication validation checks that generated task artefacts preserve the resolved titles.
 
 Use one session per task when possible:
 
@@ -543,7 +547,7 @@ Its purpose is simple:
 
 ### 9.1 Runtime workflow policy gates
 
-Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, and workspace output paths. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations.
+Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, workspace output paths, and resolved session anchors. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations.
 
 After routing selects a mode/agent path, crisAI applies a generic runtime policy layer from `registry/workflow_policy.yaml`:
 
@@ -652,7 +656,7 @@ crisAI separates team-owned knowledge from task-owned work:
 ```text
 workspace/knowledge/                  approved, team-owned, machine-readable corpus
 workspace/knowledge_staging/          review area for knowledge promotion candidates
-workspace/tasks/<task>/.crisai/       task manifest, history, and compact memory
+workspace/tasks/<task>/.crisai/       task manifest, history, compact memory, and anchors
 workspace/tasks/<task>/artefacts/     Markdown/Mermaid source artefacts generated for the task
 workspace/tasks/<task>/inputs/        task-specific source files
 workspace/tasks/<task>/scratch/       temporary notes

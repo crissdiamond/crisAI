@@ -111,6 +111,18 @@ class ArtifactLifecycleTerms:
 
 
 @dataclass(frozen=True)
+class SessionAnchorTerms:
+    """Vocabulary used to extract and resolve user-visible session anchors."""
+
+    kinds: dict[str, frozenset[str]] = dataclass_field(default_factory=dict)
+    order_columns: frozenset[str] = dataclass_field(default_factory=frozenset)
+    title_columns: frozenset[str] = dataclass_field(default_factory=frozenset)
+    summary_columns: frozenset[str] = dataclass_field(default_factory=frozenset)
+    status_columns: frozenset[str] = dataclass_field(default_factory=frozenset)
+    preferred_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+
+
+@dataclass(frozen=True)
 class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
@@ -120,6 +132,7 @@ class SemanticCatalog:
     retrieval_constraints: RetrievalConstraintTerms
     interaction: InteractionPatterns
     artifact_lifecycle: ArtifactLifecycleTerms = dataclass_field(default_factory=ArtifactLifecycleTerms)
+    session_anchors: SessionAnchorTerms = dataclass_field(default_factory=SessionAnchorTerms)
 
 
 class SemanticCatalogError(ValueError):
@@ -195,6 +208,18 @@ def _function_words(values: Any) -> dict[str, frozenset[str]]:
     return result
 
 
+def _anchor_kinds(values: Any) -> dict[str, frozenset[str]]:
+    if not isinstance(values, dict):
+        return {}
+    result: dict[str, frozenset[str]] = {}
+    for kind, terms in values.items():
+        clean_kind = str(kind).strip().lower()
+        term_set = _as_frozenset(terms)
+        if clean_kind and term_set:
+            result[clean_kind] = term_set
+    return result
+
+
 def merge_semantic_catalog_dicts(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     """Deep-merge two catalogue dicts (fork overlays, tests).
 
@@ -262,6 +287,8 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     retrieval_block = data["retrieval_constraints"]
     lifecycle_block = data.get("artifact_lifecycle")
     lifecycle_block = lifecycle_block if isinstance(lifecycle_block, dict) else {}
+    anchor_block = data.get("session_anchors")
+    anchor_block = anchor_block if isinstance(anchor_block, dict) else {}
     pattern_gap_line = str(verifier_block.get("pattern_gap_line") or "").strip()
     leaf_file_pattern = str(verifier_block.get("leaf_file_pattern") or "").strip()
     if not pattern_gap_line or not leaf_file_pattern:
@@ -406,6 +433,14 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             persisted_deliverable_filenames=_string_mapping(
                 lifecycle_block.get("persisted_deliverable_filenames")
             ),
+        ),
+        session_anchors=SessionAnchorTerms(
+            kinds=_anchor_kinds(anchor_block.get("kinds")),
+            order_columns=_as_frozenset(anchor_block.get("order_columns")),
+            title_columns=_as_frozenset(anchor_block.get("title_columns")),
+            summary_columns=_as_frozenset(anchor_block.get("summary_columns")),
+            status_columns=_as_frozenset(anchor_block.get("status_columns")),
+            preferred_markers=_as_frozenset(anchor_block.get("preferred_markers")),
         ),
     )
 
