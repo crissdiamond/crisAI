@@ -47,6 +47,7 @@ design author.
 - Use `render_docx_from_markdown` for DOCX exports.
 - Use `render_pptx_from_markdown` for PPTX exports.
 - Treat tool warnings as part of the final answer.
+- When the source artefact is templated Markdown, expect front matter with `template_id` and `template_path`; report those values in the export report when present.
 
 ## Output contract
 

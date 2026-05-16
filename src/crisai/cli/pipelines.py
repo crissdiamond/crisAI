@@ -86,7 +86,7 @@ from crisai.orchestration.task_contract import (
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
 
-from .artefact_lifecycle import validate_hld_artefacts_for_request
+from .artefact_lifecycle import validate_task_artefacts_for_request
 from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_display import (
     _run_agent_silently,
@@ -252,13 +252,13 @@ def _register_and_validate_task_artefacts(
     ]
     if not task_artefacts:
         return
-    warnings = validate_hld_artefacts_for_request(
+    warnings = validate_task_artefacts_for_request(
         user_input=user_input,
         paths=task_artefacts,
         root_dir=root_dir,
     )
     if warnings:
-        message = "HLD artefact conformance failed. " + " ".join(warnings)
+        message = "Task artefact conformance failed. " + " ".join(warnings)
         if workflow is not None:
             _trace_workflow_policy_event(
                 workflow,

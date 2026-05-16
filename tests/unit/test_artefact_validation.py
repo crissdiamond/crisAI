@@ -88,6 +88,130 @@ def test_type_alias_maps_hld(registry_dir: Path, tmp_path: Path):
     assert result.ok
 
 
+def test_generated_hld_conforms_to_declared_template(registry_dir: Path, tmp_path: Path):
+    root = tmp_path
+    template_rel = "workspace/knowledge/reference/template/hld_generic.md"
+    template_src = Path(__file__).resolve().parents[2] / template_rel
+    _write(root / template_rel, template_src.read_text(encoding="utf-8"))
+    rel = "workspace/tasks/reporting/artefacts/reporting-hld.md"
+    headings = [
+        "Purpose",
+        "Document control",
+        "Executive summary",
+        "Context",
+        "Scope",
+        "Requirements",
+        "Current state",
+        "Target architecture",
+        "Architecture views",
+        "Source inputs",
+        "Data model, business rules, or processing logic",
+        "Validation and quality controls",
+        "Lineage and metadata",
+        "Security, privacy, and access",
+        "Governance and ownership",
+        "Key decisions",
+        "Options considered",
+        "Risks, assumptions, issues, and dependencies",
+        "Delivery approach",
+        "Testing and acceptance",
+        "Operations and support",
+        "Open questions",
+        "Approvals",
+        "Source",
+    ]
+    body = "\n\n".join(f"## {heading}\nContent." for heading in headings)
+    _write(
+        root / rel,
+        (
+            "---\n"
+            "id: HLD-1\n"
+            "title: Reporting HLD\n"
+            "type: high_level_design\n"
+            "status: draft\n"
+            "template_id: REF-TPL-HLD-GENERIC-001\n"
+            f"template_path: {template_rel}\n"
+            "---\n\n"
+            f"{body}\n\n"
+            "```mermaid\nflowchart TD\nA[Source] --> B[Report]\n```\n"
+        ),
+    )
+
+    result = validate_workspace_artefact_paths(
+        root_dir=root,
+        relative_paths=[rel],
+        registry_dir=registry_dir,
+    )
+
+    assert result.ok
+
+
+def test_generated_hld_fails_template_conformance(registry_dir: Path, tmp_path: Path):
+    root = tmp_path
+    template_rel = "workspace/knowledge/reference/template/hld_generic.md"
+    template_src = Path(__file__).resolve().parents[2] / template_rel
+    _write(root / template_rel, template_src.read_text(encoding="utf-8"))
+    rel = "workspace/tasks/reporting/artefacts/reporting-hld.md"
+    _write(
+        root / rel,
+        (
+            "---\n"
+            "id: HLD-1\n"
+            "title: Reporting HLD\n"
+            "type: HLD\n"
+            "status: draft\n"
+            "template_id: REF-TPL-HLD-GENERIC-001\n"
+            f"template_path: {template_rel}\n"
+            "---\n\n"
+            "## Context\n[system] placeholder remains.\n"
+        ),
+    )
+
+    result = validate_workspace_artefact_paths(
+        root_dir=root,
+        relative_paths=[rel],
+        registry_dir=registry_dir,
+    )
+
+    assert any("Purpose" in violation for violation in result.violations)
+    assert any("Mermaid" in violation for violation in result.violations)
+    assert any("placeholder" in violation for violation in result.violations)
+
+
+def test_template_manifest_required_sections_are_used(registry_dir: Path, tmp_path: Path):
+    root = tmp_path
+    manifest = "workspace/knowledge/templates/ucl/hld/ucl-hld-docx.template.yaml"
+    _write(
+        root / manifest,
+        "template_id: hld\nrequired_sections:\n  - Context\n  - Target architecture\n",
+    )
+    rel = "workspace/tasks/reporting/artefacts/reporting-hld.md"
+    _write(
+        root / rel,
+        (
+            "---\n"
+            "id: HLD-1\n"
+            "title: Reporting HLD\n"
+            "type: high_level_design\n"
+            "status: draft\n"
+            "template_id: hld\n"
+            f"template_path: {manifest}\n"
+            "---\n\n"
+            "## Context\nContent.\n\n"
+            "## Source\nContent.\n\n"
+            "```mermaid\nflowchart TD\nA --> B\n```\n"
+        ),
+    )
+
+    result = validate_workspace_artefact_paths(
+        root_dir=root,
+        relative_paths=[rel],
+        registry_dir=registry_dir,
+    )
+
+    assert any("Target architecture" in violation for violation in result.violations)
+
+
 def test_readme_relaxed_metadata(registry_dir: Path, tmp_path: Path):
     root = tmp_path
     rel = "workspace/knowledge/standards/sub/README.md"

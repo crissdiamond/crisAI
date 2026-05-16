@@ -44,22 +44,38 @@ def test_persist_reusable_deliverable_saves_option_paper_and_updates_manifest(
     assert "workspace/tasks/PowerBI-2/artefacts/option-paper.md" in manifest.read_text(encoding="utf-8")
 
 
-def test_validate_hld_artefacts_reports_missing_sections_and_diagram(
+def test_validate_task_artefacts_reports_template_conformance_failures(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     settings = _settings(tmp_path)
     monkeypatch.setattr(artefact_lifecycle, "load_settings", lambda: settings)
+    template_src = REPO_ROOT / "workspace/knowledge/reference/template/hld_generic.md"
+    template = tmp_path / "workspace/knowledge/reference/template/hld_generic.md"
+    template.parent.mkdir(parents=True)
+    template.write_text(template_src.read_text(encoding="utf-8"), encoding="utf-8")
     path = tmp_path / "workspace/tasks/demo/artefacts/hld.md"
     path.parent.mkdir(parents=True)
-    path.write_text("# HLD\n\n## Context\n\nOnly context.\n", encoding="utf-8")
+    path.write_text(
+        (
+            "---\n"
+            "id: HLD-1\n"
+            "title: Demo HLD\n"
+            "type: high_level_design\n"
+            "status: draft\n"
+            "template_id: REF-TPL-HLD-GENERIC-001\n"
+            "template_path: workspace/knowledge/reference/template/hld_generic.md\n"
+            "---\n\n"
+            "## Context\n\nOnly context.\n"
+        ),
+        encoding="utf-8",
+    )
 
-    warnings = artefact_lifecycle.validate_hld_artefacts_for_request(
+    warnings = artefact_lifecycle.validate_task_artefacts_for_request(
         user_input="Create a full HLD for Power BI reporting.",
         paths=["workspace/tasks/demo/artefacts/hld.md"],
         root_dir=tmp_path,
     )
 
-    assert any("missing HLD template section" in warning for warning in warnings)
-    assert any("missing Mermaid architecture diagram" in warning for warning in warnings)
-
+    assert any("Purpose" in warning for warning in warnings)
+    assert any("Mermaid" in warning for warning in warnings)

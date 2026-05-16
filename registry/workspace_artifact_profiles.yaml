@@ -116,9 +116,32 @@ profiles:
         - Implications
 
   - id: high_level_design
+    description: Generated task HLDs must declare their template and conform to it.
+    match:
+      all_of:
+        - path_globs:
+            - workspace/tasks/*/artefacts/*.md
+            - workspace/tasks/*/artefacts/**/*.md
+        - type_equals: high_level_design
+    rules:
+      required_front_matter:
+        - id
+        - title
+        - type
+        - status
+        - template_id
+        - template_path
+      default_template_path: workspace/knowledge/reference/template/hld_generic.md
+      required_h2_sections: from_template
+      require_mermaid: true
+      require_source_section: true
+      placeholder_policy: error
+
+  - id: high_level_design_template_or_knowledge
     match:
       type_equals: high_level_design
     rules:
+      default_template_path: workspace/knowledge/reference/template/hld_generic.md
       required_h2_sections:
         - Context
         - Target architecture

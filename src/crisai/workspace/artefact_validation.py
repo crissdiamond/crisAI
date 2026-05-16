@@ -133,6 +133,7 @@ class ArtefactValidationResult:
     """Aggregate validation outcome for a set of paths."""
 
     violations: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -182,6 +183,15 @@ def _base_rules_from_config(cfg: ArtefactProfileConfig) -> dict[str, Any]:
     """Return default rule mapping from registry ``defaults``."""
     block = cfg.defaults.get("rules")
     return dict(block) if isinstance(block, dict) else {}
+
+
+def _string_list(value: Any) -> list[str]:
+    """Return a clean list of strings from registry data."""
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _match_clause(
@@ -247,6 +257,69 @@ def _resolve_profile_rules(
             overlay = overlay if isinstance(overlay, dict) else {}
             return (pid or None, {**default_rules, **overlay})
     return None, default_rules
+
+
+def _template_path_from_rules(
+    meta: Mapping[str, Any],
+    rules: Mapping[str, Any],
+) -> str:
+    """Resolve the declared or default template path for an artefact."""
+    raw = meta.get("template_path")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    default = rules.get("default_template_path")
+    return str(default).strip() if isinstance(default, str) else ""
+
+
+def _safe_workspace_template_path(root_dir: Path, template_path: str) -> Path | None:
+    """Resolve a workspace-relative template path under the repo root."""
+    clean = template_path.strip().strip("`").strip("/")
+    if not clean:
+        return None
+    if clean.startswith("file://"):
+        clean = clean[len("file://") :].strip("/")
+    if clean.startswith("/"):
+        return None
+    candidate = (root_dir / clean).resolve()
+    try:
+        candidate.relative_to(root_dir.resolve())
+    except ValueError:
+        return None
+    return candidate
+
+
+def _template_required_sections(root_dir: Path, template_path: str) -> tuple[list[str], str]:
+    """Read required H2 sections from a Markdown template or YAML manifest."""
+    resolved = _safe_workspace_template_path(root_dir, template_path)
+    if resolved is None:
+        return [], "template path is not workspace-relative"
+    if not resolved.is_file():
+        return [], "template file does not exist"
+    try:
+        raw = resolved.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [], f"template file could not be read ({exc})"
+    if resolved.suffix.lower() in {".yaml", ".yml"}:
+        try:
+            payload = yaml.safe_load(raw) or {}
+        except yaml.YAMLError as exc:
+            return [], f"template manifest is invalid YAML ({exc})"
+        if not isinstance(payload, dict):
+            return [], "template manifest must be a mapping"
+        return _string_list(payload.get("required_sections")), ""
+    _meta, body = _parse_front_matter(raw)
+    return _h2_titles(body), ""
+
+
+def _contains_mermaid(body: str) -> bool:
+    return bool(re.search(r"```mermaid\s+.+?```", body, re.IGNORECASE | re.DOTALL))
+
+
+def _unresolved_placeholders(body: str) -> list[str]:
+    """Return bracketed placeholders still present in generated content."""
+    body_without_code = re.sub(r"```.*?```", "", body, flags=re.DOTALL)
+    found = re.findall(r"\[[^\]\n]{2,120}\]", body_without_code)
+    return sorted(dict.fromkeys(found))
 
 
 def _check_integration_pattern_slug_dedup(scope_paths: list[str]) -> list[str]:
@@ -366,6 +439,21 @@ def validate_workspace_artefact_paths(
             )
 
         sections = rules.get("required_h2_sections")
+        if sections == "from_template":
+            template_path = _template_path_from_rules(meta, rules)
+            if not template_path:
+                result.violations.append(
+                    f"{rel}: missing template_path and no default_template_path configured "
+                    f"(profile={profile_id or 'defaults'})."
+                )
+                sections = []
+            else:
+                sections, template_error = _template_required_sections(root_dir, template_path)
+                if template_error:
+                    result.violations.append(
+                        f"{rel}: template conformance could not load '{template_path}' "
+                        f"({template_error}) (profile={profile_id or 'defaults'})."
+                    )
         if isinstance(sections, list):
             for heading in sections:
                 h = str(heading).strip()
@@ -384,6 +472,34 @@ def validate_workspace_artefact_paths(
                 f"{rel}: missing required '## Source' section "
                 f"(profile={profile_id or 'defaults'})."
             )
+
+        recommended = _string_list(rules.get("recommended_h2_sections"))
+        for heading in recommended:
+            if not _has_h2_section(body, heading):
+                result.warnings.append(
+                    f"{rel}: missing recommended '## {heading}' section "
+                    f"(profile={profile_id or 'defaults'})."
+                )
+
+        if rules.get("require_mermaid") and not _contains_mermaid(body):
+            result.violations.append(
+                f"{rel}: missing required Mermaid architecture diagram "
+                f"(profile={profile_id or 'defaults'})."
+            )
+
+        placeholder_policy = str(rules.get("placeholder_policy") or "ignore").strip().lower()
+        if placeholder_policy in {"warn", "warning", "error"}:
+            placeholders = _unresolved_placeholders(body)
+            if placeholders:
+                message = (
+                    f"{rel}: unresolved template placeholder(s): "
+                    + ", ".join(placeholders[:8])
+                    + f" (profile={profile_id or 'defaults'})."
+                )
+                if placeholder_policy == "error":
+                    result.violations.append(message)
+                else:
+                    result.warnings.append(message)
 
     # One dedup scan per invocation (covers all slug files).
     result.violations.extend(slug_violations)

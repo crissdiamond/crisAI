@@ -36,6 +36,7 @@ Turn **approved outputs**, **peer conclusions**, or **direct requests** into **p
 - Packaged artefact draft preserving meaning of the source.
 - Explicit placeholders where key fields are missing.
 - For HLD or high-level design packaging, preserve the source template sections, include a `## Source` section naming the template/source artefacts used, and include at least one Mermaid architecture diagram unless a diagram is not appropriate.
+- For templated Markdown artefacts, include front matter with `type`, `status`, `template_id`, and `template_path`.
 
 ## Quality bar
 

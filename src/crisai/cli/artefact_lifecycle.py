@@ -6,39 +6,11 @@ from pathlib import Path
 from crisai.config import load_settings
 from crisai.orchestration.semantic_catalog import load_semantic_catalog
 from crisai.orchestration.task_contract import TaskContract, infer_task_contract
+from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
 
 from .session_store import register_task_artefacts, sanitize_session_name, task_dir
 
 _TASK_ARTEFACT_LINK_RE = re.compile(r"(?:file:///workspace/)?(tasks/[^)\s]+/artefacts/[^)\s]+\.md)")
-_HEADING_RE = re.compile(r"(?m)^##\s+(.+?)\s*$")
-_MERMAID_RE = re.compile(r"```mermaid\s+.+?```", re.DOTALL)
-
-_HLD_REQUIRED_HEADINGS = (
-    "Purpose",
-    "Document control",
-    "Executive summary",
-    "Context",
-    "Scope",
-    "Requirements",
-    "Current state",
-    "Target architecture",
-    "Architecture views",
-    "Source inputs",
-    "Data model, business rules, or processing logic",
-    "Validation and quality controls",
-    "Lineage and metadata",
-    "Security, privacy, and access",
-    "Governance and ownership",
-    "Key decisions",
-    "Options considered",
-    "Risks, assumptions, issues, and dependencies",
-    "Delivery approach",
-    "Testing and acceptance",
-    "Operations and support",
-    "Open questions",
-    "Approvals",
-    "Source",
-)
 
 
 def final_output_references_task_artefacts(final_output: str, session_name: str) -> list[str]:
@@ -86,32 +58,21 @@ def persist_reusable_deliverable(
     return final_output.rstrip() + f"\n\nSaved artefact: [{filename}](file:///{rel})"
 
 
-def validate_hld_artefacts_for_request(
+def validate_task_artefacts_for_request(
     *,
     user_input: str,
     paths: list[str],
     root_dir: Path,
 ) -> list[str]:
-    """Return HLD conformance warnings for changed task artefacts."""
-    contract = infer_task_contract(user_input)
-    if not _is_hld_request(user_input, contract, registry_dir=getattr(load_settings(), "registry_dir", None)):
-        return []
-    warnings: list[str] = []
-    for rel in paths:
-        clean = rel.strip()
-        if not clean.endswith(".md") or "/artefacts/" not in clean:
-            continue
-        path = (root_dir / clean).resolve()
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8")
-        headings = {heading.strip().lower() for heading in _HEADING_RE.findall(text)}
-        missing = [heading for heading in _HLD_REQUIRED_HEADINGS if heading.lower() not in headings]
-        if missing:
-            warnings.append(f"{clean}: missing HLD template section(s): {', '.join(missing[:8])}")
-        if not _MERMAID_RE.search(text):
-            warnings.append(f"{clean}: missing Mermaid architecture diagram for full HLD request")
-    return warnings
+    """Return deterministic conformance violations for generated task artefacts."""
+    del user_input
+    settings = load_settings()
+    result = validate_workspace_artefact_paths(
+        root_dir=root_dir,
+        relative_paths=paths,
+        registry_dir=Path(getattr(settings, "registry_dir", root_dir / "registry")),
+    )
+    return result.violations
 
 
 def _deliverable_filename(user_input: str, contract: TaskContract, *, registry_dir: Path | None = None) -> str:

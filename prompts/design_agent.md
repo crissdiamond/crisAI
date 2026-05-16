@@ -35,6 +35,7 @@ Produce a practical **architecture, design, or documentation draft** from the us
 - Clear structure: context, scope, assumptions, options, recommendation, risks, next steps when appropriate.
 - Give an explicit recommendation when the request calls for one.
 - For a full HLD or high-level design artefact, preserve the sections requested by the chosen template and include at least one Mermaid architecture diagram unless the source evidence makes a diagram inappropriate; state the reason if omitted.
+- For templated Markdown artefacts, include front matter with `type`, `status`, `template_id`, and `template_path`.
 
 ## Quality bar
 
