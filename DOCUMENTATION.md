@@ -356,7 +356,7 @@ Best for:
 Structured flow:
 
 ```text
-task_contract -> retrieval_planner -> context_retrieval -> context_synthesizer -> summary|design -> review -> orchestrator
+task_contract -> retrieval_planner -> context_retrieval -> retrieval_checkpoint -> context_synthesizer -> summary|design -> review -> orchestrator
 ```
 
 With retrieval checkpoints enabled, the pipeline pauses after
@@ -368,7 +368,7 @@ For source-summary requests, the pipeline uses a shorter path after validated
 `content_read` evidence:
 
 ```text
-task_contract -> retrieval_planner -> context_retrieval -> summary
+task_contract -> retrieval_planner -> context_retrieval -> retrieval_checkpoint -> summary
 ```
 
 The skipped context/final stages are traced as skipped events; the summary agent

@@ -40,7 +40,8 @@ foundation:
 
 The main product gaps are:
 
-- pipeline runs still proceed without a user checkpoint after retrieval;
+- pipeline runs now include a retrieval checkpoint, but the initial routing and
+  task-contract decision is not yet shown before agent execution;
 - long stages do not stream output, so users cannot judge progress early;
 - retrieval does not persist validated evidence across iterative runs;
 - the prototype name `crisAI` is not yet aligned with a professional product,
@@ -119,10 +120,9 @@ The main product gaps are:
 
 ## Recommended Sequencing
 
-1. Implement `TODO-001` and `TODO-036` together because they are the same user
-   control surface: routing transparency lets users see the inferred task contract
-   before the pipeline runs; the retrieval checkpoint lets them confirm or stop
-   before design agents spend tokens.
+1. Implement `TODO-036` next because retrieval checkpointing now protects the
+   post-retrieval decision point, while routing transparency is still needed to
+   show the inferred task contract before agents start spending tokens.
 2. Implement `TODO-028` and `TODO-029` before team/shared-machine use, because
    auth caches and secrets must not be readable by agents or other local users.
 3. Implement `TODO-026` before broader team onboarding, because renaming after
@@ -171,4 +171,4 @@ Completed items should move here with the merge commit or PR reference.
 
 | ID | Item | Reference |
 |---|---|---|
-| TODO-001 | Human checkpoint after retrieval | Implemented in the retrieval checkpoint change. |
+| TODO-001 | Human checkpoint after retrieval | `b1959b9 feat(pipeline): add retrieval checkpoint` |
