@@ -88,52 +88,47 @@ def test_type_alias_maps_hld(registry_dir: Path, tmp_path: Path):
     assert result.ok
 
 
-def test_generated_hld_conforms_to_declared_template(registry_dir: Path, tmp_path: Path):
+def test_generated_task_artefact_conforms_to_declared_markdown_template(
+    registry_dir: Path,
+    tmp_path: Path,
+):
     root = tmp_path
-    template_rel = "workspace/knowledge/reference/template/hld_generic.md"
-    template_src = Path(__file__).resolve().parents[2] / template_rel
-    _write(root / template_rel, template_src.read_text(encoding="utf-8"))
-    rel = "workspace/tasks/reporting/artefacts/reporting-hld.md"
     headings = [
-        "Purpose",
-        "Document control",
-        "Executive summary",
-        "Context",
-        "Scope",
-        "Requirements",
-        "Current state",
-        "Target architecture",
-        "Architecture views",
-        "Source inputs",
-        "Data model, business rules, or processing logic",
-        "Validation and quality controls",
-        "Lineage and metadata",
-        "Security, privacy, and access",
-        "Governance and ownership",
-        "Key decisions",
-        "Options considered",
-        "Risks, assumptions, issues, and dependencies",
-        "Delivery approach",
-        "Testing and acceptance",
-        "Operations and support",
-        "Open questions",
-        "Approvals",
-        "Source",
+        "Situation",
+        "Assessment",
+        "Decision",
+        "Actions",
     ]
+    template_rel = "workspace/knowledge/reference/template/custom-deliverable.md"
+    _write(
+        root / template_rel,
+        (
+            "---\n"
+            "id: REF-TPL-CUSTOM-001\n"
+            "title: Custom deliverable template\n"
+            "type: custom_deliverable\n"
+            "status: approved\n"
+            "template_conformance:\n"
+            "  placeholder_policy: error\n"
+            "---\n\n"
+            + "\n\n".join(f"## {heading}\nTemplate guidance." for heading in headings)
+            + "\n"
+        ),
+    )
+    rel = "workspace/tasks/custom/artefacts/custom-deliverable.md"
     body = "\n\n".join(f"## {heading}\nContent." for heading in headings)
     _write(
         root / rel,
         (
             "---\n"
-            "id: HLD-1\n"
-            "title: Reporting HLD\n"
-            "type: high_level_design\n"
+            "id: CUSTOM-1\n"
+            "title: Custom Deliverable\n"
+            "type: custom_deliverable\n"
             "status: draft\n"
-            "template_id: REF-TPL-HLD-GENERIC-001\n"
+            "template_id: REF-TPL-CUSTOM-001\n"
             f"template_path: {template_rel}\n"
             "---\n\n"
-            f"{body}\n\n"
-            "```mermaid\nflowchart TD\nA[Source] --> B[Report]\n```\n"
+            f"{body}\n"
         ),
     )
 
@@ -146,43 +141,86 @@ def test_generated_hld_conforms_to_declared_template(registry_dir: Path, tmp_pat
     assert result.ok
 
 
-def test_generated_task_artefact_conforms_to_arbitrary_markdown_template(
+def test_template_declared_rules_are_applied_without_type_specific_profiles(
     registry_dir: Path,
     tmp_path: Path,
 ):
     root = tmp_path
-    template_rel = "workspace/knowledge/reference/template/options-paper.md"
+    template_rel = "workspace/knowledge/reference/template/diagrammed-brief.md"
     _write(
         root / template_rel,
         (
             "---\n"
-            "id: REF-TPL-OPTIONS-001\n"
-            "title: Options paper template\n"
-            "type: option_paper\n"
+            "id: REF-TPL-DIAGRAMMED-001\n"
+            "title: Diagrammed brief template\n"
+            "type: diagrammed_brief\n"
+            "status: approved\n"
+            "template_conformance:\n"
+            "  require_mermaid: true\n"
+            "  placeholder_policy: error\n"
+            "---\n\n"
+            "## Overview\nDescribe the situation.\n\n"
+            "## Flow\nShow the flow.\n"
+        ),
+    )
+    rel = "workspace/tasks/custom/artefacts/diagrammed-brief.md"
+    _write(
+        root / rel,
+        (
+            "---\n"
+            "id: BRIEF-1\n"
+            "title: Diagrammed Brief\n"
+            "type: diagrammed_brief\n"
+            "status: draft\n"
+            "template_id: REF-TPL-DIAGRAMMED-001\n"
+            f"template_path: {template_rel}\n"
+            "---\n\n"
+            "## Overview\nContent.\n\n"
+            "## Flow\nContent.\n"
+        ),
+    )
+
+    result = validate_workspace_artefact_paths(
+        root_dir=root,
+        relative_paths=[rel],
+        registry_dir=registry_dir,
+    )
+
+    assert any("Mermaid" in violation for violation in result.violations)
+
+
+def test_generated_task_artefact_fails_template_conformance(registry_dir: Path, tmp_path: Path):
+    root = tmp_path
+    template_rel = "workspace/knowledge/reference/template/custom-review.md"
+    _write(
+        root / template_rel,
+        (
+            "---\n"
+            "id: REF-TPL-REVIEW-001\n"
+            "title: Custom review template\n"
+            "type: custom_review\n"
             "status: approved\n"
             "template_conformance:\n"
             "  placeholder_policy: error\n"
             "---\n\n"
-            "## Problem\nDescribe the problem.\n\n"
-            "## Options\nCompare options.\n\n"
-            "## Recommendation\nRecommend one option.\n"
+            "## Summary\nContent.\n\n"
+            "## Findings\nContent.\n\n"
+            "## Actions\nContent.\n"
         ),
     )
-    rel = "workspace/tasks/options/artefacts/options-paper.md"
+    rel = "workspace/tasks/custom/artefacts/custom-review.md"
     _write(
         root / rel,
         (
             "---\n"
-            "id: OPT-1\n"
-            "title: Options Paper\n"
-            "type: option_paper\n"
+            "id: REVIEW-1\n"
+            "title: Custom Review\n"
+            "type: custom_review\n"
             "status: draft\n"
-            "template_id: REF-TPL-OPTIONS-001\n"
+            "template_id: REF-TPL-REVIEW-001\n"
             f"template_path: {template_rel}\n"
             "---\n\n"
-            "## Problem\nContent.\n\n"
-            "## Options\nContent.\n\n"
-            "## Recommendation\nContent.\n"
+            "## Summary\n[system] placeholder remains.\n"
         ),
     )
 
@@ -192,63 +230,30 @@ def test_generated_task_artefact_conforms_to_arbitrary_markdown_template(
         registry_dir=registry_dir,
     )
 
-    assert result.ok
-
-
-def test_generated_hld_fails_template_conformance(registry_dir: Path, tmp_path: Path):
-    root = tmp_path
-    template_rel = "workspace/knowledge/reference/template/hld_generic.md"
-    template_src = Path(__file__).resolve().parents[2] / template_rel
-    _write(root / template_rel, template_src.read_text(encoding="utf-8"))
-    rel = "workspace/tasks/reporting/artefacts/reporting-hld.md"
-    _write(
-        root / rel,
-        (
-            "---\n"
-            "id: HLD-1\n"
-            "title: Reporting HLD\n"
-            "type: HLD\n"
-            "status: draft\n"
-            "template_id: REF-TPL-HLD-GENERIC-001\n"
-            f"template_path: {template_rel}\n"
-            "---\n\n"
-            "## Context\n[system] placeholder remains.\n"
-        ),
-    )
-
-    result = validate_workspace_artefact_paths(
-        root_dir=root,
-        relative_paths=[rel],
-        registry_dir=registry_dir,
-    )
-
-    assert any("Purpose" in violation for violation in result.violations)
-    assert any("Mermaid" in violation for violation in result.violations)
+    assert any("Findings" in violation for violation in result.violations)
     assert any("placeholder" in violation for violation in result.violations)
 
 
 def test_template_manifest_required_sections_are_used(registry_dir: Path, tmp_path: Path):
     root = tmp_path
-    manifest = "workspace/knowledge/templates/ucl/hld/ucl-hld-docx.template.yaml"
+    manifest = "workspace/knowledge/templates/custom/custom-export.template.yaml"
     _write(
         root / manifest,
-        "template_id: hld\nrequired_sections:\n  - Context\n  - Target architecture\n",
+        "template_id: custom_export\nrequired_sections:\n  - Opening\n  - Decision\n",
     )
-    rel = "workspace/tasks/reporting/artefacts/reporting-hld.md"
+    rel = "workspace/tasks/custom/artefacts/custom-export.md"
     _write(
         root / rel,
         (
             "---\n"
-            "id: HLD-1\n"
-            "title: Reporting HLD\n"
-            "type: high_level_design\n"
+            "id: EXPORT-1\n"
+            "title: Custom Export\n"
+            "type: custom_export\n"
             "status: draft\n"
-            "template_id: hld\n"
+            "template_id: custom_export\n"
             f"template_path: {manifest}\n"
             "---\n\n"
-            "## Context\nContent.\n\n"
-            "## Source\nContent.\n\n"
-            "```mermaid\nflowchart TD\nA --> B\n```\n"
+            "## Opening\nContent.\n"
         ),
     )
 
@@ -258,7 +263,7 @@ def test_template_manifest_required_sections_are_used(registry_dir: Path, tmp_pa
         registry_dir=registry_dir,
     )
 
-    assert any("Target architecture" in violation for violation in result.violations)
+    assert any("Decision" in violation for violation in result.violations)
 
 
 def test_readme_relaxed_metadata(registry_dir: Path, tmp_path: Path):

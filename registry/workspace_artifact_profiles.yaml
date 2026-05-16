@@ -139,7 +139,6 @@ profiles:
     match:
       type_equals: high_level_design
     rules:
-      default_template_path: workspace/knowledge/reference/template/hld_generic.md
       required_h2_sections:
         - Context
         - Target architecture

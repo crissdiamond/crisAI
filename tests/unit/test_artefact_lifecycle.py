@@ -50,46 +50,46 @@ def test_validate_task_artefacts_reports_template_conformance_failures(
 ) -> None:
     settings = _settings(tmp_path)
     monkeypatch.setattr(artefact_lifecycle, "load_settings", lambda: settings)
-    template = tmp_path / "workspace/knowledge/reference/template/options-paper.md"
+    template = tmp_path / "workspace/knowledge/reference/template/custom-template.md"
     template.parent.mkdir(parents=True)
     template.write_text(
         (
             "---\n"
-            "id: REF-TPL-OPTIONS-001\n"
-            "title: Options paper template\n"
-            "type: option_paper\n"
+            "id: REF-TPL-CUSTOM-001\n"
+            "title: Custom template\n"
+            "type: custom_deliverable\n"
             "status: approved\n"
             "template_conformance:\n"
             "  placeholder_policy: error\n"
             "---\n\n"
-            "## Problem\nContent.\n\n"
-            "## Options\nContent.\n\n"
-            "## Recommendation\nContent.\n"
+            "## Summary\nContent.\n\n"
+            "## Evidence\nContent.\n\n"
+            "## Decision\nContent.\n"
         ),
         encoding="utf-8",
     )
-    path = tmp_path / "workspace/tasks/demo/artefacts/options-paper.md"
+    path = tmp_path / "workspace/tasks/demo/artefacts/custom-deliverable.md"
     path.parent.mkdir(parents=True)
     path.write_text(
         (
             "---\n"
-            "id: OPT-1\n"
-            "title: Demo Options Paper\n"
-            "type: option_paper\n"
+            "id: CUSTOM-1\n"
+            "title: Demo Custom Deliverable\n"
+            "type: custom_deliverable\n"
             "status: draft\n"
-            "template_id: REF-TPL-OPTIONS-001\n"
-            "template_path: workspace/knowledge/reference/template/options-paper.md\n"
+            "template_id: REF-TPL-CUSTOM-001\n"
+            "template_path: workspace/knowledge/reference/template/custom-template.md\n"
             "---\n\n"
-            "## Problem\n\n[option] placeholder remains.\n"
+            "## Summary\n\n[value] placeholder remains.\n"
         ),
         encoding="utf-8",
     )
 
     warnings = artefact_lifecycle.validate_task_artefacts_for_request(
-        user_input="Create an options paper.",
-        paths=["workspace/tasks/demo/artefacts/options-paper.md"],
+        user_input="Create a templated deliverable.",
+        paths=["workspace/tasks/demo/artefacts/custom-deliverable.md"],
         root_dir=tmp_path,
     )
 
-    assert any("Options" in warning for warning in warnings)
+    assert any("Evidence" in warning for warning in warnings)
     assert any("placeholder" in warning for warning in warnings)
