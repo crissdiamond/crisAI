@@ -8,7 +8,9 @@ class GemPalette:
     """Terminal theme tokens mapped from the web UCL design palette."""
 
     primary_dark: str = "#361a54"
-    background: str = "#fafafa"
+    background: str = "#1f102f"
+    transcript_background: str = "#fafafa"
+    composer_background: str = "#ffffff"
     accent_bright: str = "#993bff"
     accent_mid: str = "#ba82ff"
     surface_light: str = "#ddbdff"
@@ -27,7 +29,7 @@ UCL_PALETTE = GemPalette()
 GEM_CSS = f"""
 Screen {{
     background: {UCL_PALETTE.background};
-    color: {UCL_PALETTE.text};
+    color: {UCL_PALETTE.transcript_background};
 }}
 
 #header {{
@@ -40,6 +42,7 @@ Screen {{
 
 #workspace {{
     layout: horizontal;
+    background: {UCL_PALETTE.background};
 }}
 
 #stages {{
@@ -51,14 +54,17 @@ Screen {{
 }}
 
 #transcript {{
-    background: {UCL_PALETTE.background};
+    background: {UCL_PALETTE.transcript_background};
+    color: {UCL_PALETTE.text};
+    border: solid {UCL_PALETTE.accent_bright};
     padding: 1 2;
 }}
 
 #composer {{
     height: 3;
-    border-top: solid {UCL_PALETTE.border};
-    background: white;
+    border-top: solid {UCL_PALETTE.accent_bright};
+    background: {UCL_PALETTE.composer_background};
+    color: {UCL_PALETTE.text};
     padding: 0 1;
 }}
 
@@ -96,6 +102,8 @@ def gem_palette_as_dict() -> dict[str, str]:
     return {
         "primary_dark": UCL_PALETTE.primary_dark,
         "background": UCL_PALETTE.background,
+        "transcript_background": UCL_PALETTE.transcript_background,
+        "composer_background": UCL_PALETTE.composer_background,
         "accent_bright": UCL_PALETTE.accent_bright,
         "accent_mid": UCL_PALETTE.accent_mid,
         "surface_light": UCL_PALETTE.surface_light,

@@ -9,15 +9,18 @@ def test_gem_palette_matches_web_tokens() -> None:
     palette = gem_palette_as_dict()
 
     assert palette["primary_dark"] == "#361a54"
-    assert palette["background"] == "#fafafa"
+    assert palette["background"] == "#1f102f"
+    assert palette["transcript_background"] == "#fafafa"
     assert palette["accent_blue"] == "#30d6ff"
     assert palette["warning"] == "#FFCA36"
 
 
 def test_gem_css_uses_ucl_palette() -> None:
     assert "#361a54" in GEM_CSS
+    assert "#1f102f" in GEM_CSS
     assert "#eedeff" in GEM_CSS
     assert "#30d6ff" in GEM_CSS
+    assert "border: solid #993bff" in GEM_CSS
 
 
 def test_apply_gem_event_updates_stage_state() -> None:
