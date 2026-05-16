@@ -37,6 +37,7 @@ class ChatRuntimeState:
     current_agent: str
     current_review: bool
     current_verbose: bool
+    current_retrieval_checkpoint: bool
     mode_pinned: bool
     agent_pinned: bool
 
@@ -149,6 +150,12 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
             f"Review preference {'enabled' if state.current_review else 'disabled'}.",
             title="🛡 Review preference",
         )
+    elif action == "set_retrieval_checkpoint":
+        state.current_retrieval_checkpoint = bool(command.value)
+        print_status_message(
+            f"Retrieval checkpoint {'enabled' if state.current_retrieval_checkpoint else 'disabled'}.",
+            title="⏸ Retrieval checkpoint",
+        )
     elif action == "set_verbose":
         state.current_verbose = bool(command.value)
         print_status_message(
@@ -178,6 +185,7 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
             current_agent=state.current_agent,
             current_review=state.current_review,
             current_verbose=state.current_verbose,
+            current_retrieval_checkpoint=state.current_retrieval_checkpoint,
             mode_pinned=state.mode_pinned,
             agent_pinned=state.agent_pinned,
             history_count=len(state.history),

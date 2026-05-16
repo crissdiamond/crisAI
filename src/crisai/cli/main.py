@@ -43,6 +43,10 @@ from crisai.cli.status_views import (
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
 from crisai.orchestration.exceptions import WorkflowValidationError
+from crisai.orchestration.retrieval_checkpoint import (
+    RetrievalCheckpointDecision,
+    RetrievalCheckpointSnapshot,
+)
 from crisai.orchestration.router import RoutingDecision, decide_route
 from crisai.orchestration.semantic_catalog import load_semantic_catalog
 from crisai.registry import Registry
@@ -515,6 +519,8 @@ async def _run_with_routing(
     decision: RoutingDecision,
     *,
     user_intent_message: str | None = None,
+    retrieval_checkpoint_enabled: bool | None = None,
+    retrieval_checkpoint_handler=None,
 ) -> str:
     """Execute the selected runtime path for a routed request."""
     settings, _, server_specs, agent_specs, model_specs = _load_registry()
@@ -553,6 +559,8 @@ async def _run_with_routing(
             agent_specs=agent_specs,
             model_specs=model_specs,
             user_intent_message=user_intent_message,
+            retrieval_checkpoint_enabled=retrieval_checkpoint_enabled,
+            retrieval_checkpoint_handler=retrieval_checkpoint_handler,
         )
     return await run_single(
         message,
@@ -564,6 +572,58 @@ async def _run_with_routing(
     )
 
 
+def _render_retrieval_checkpoint_snapshot(snapshot: RetrievalCheckpointSnapshot) -> str:
+    """Return the CLI markdown shown at the retrieval checkpoint."""
+    parts = [
+        "Retrieval has completed. Review the evidence before downstream stages run.",
+        "",
+        f"Redirects used: {snapshot.attempt}/{snapshot.max_redirects}",
+    ]
+    if snapshot.evidence_brief.strip():
+        parts.extend(["", "## Evidence Brief", snapshot.evidence_brief.strip()])
+    elif snapshot.retrieval_prose.strip():
+        parts.extend(["", "## Retrieval Output", snapshot.retrieval_prose.strip()])
+    if snapshot.retrieval_plan.strip():
+        parts.extend(["", "## Retrieval Plan", snapshot.retrieval_plan.strip()])
+    return "\n".join(parts)
+
+
+def _resolve_checkpoint_override(enabled_flag: bool, disabled_flag: bool) -> bool | None:
+    """Resolve per-command checkpoint flags into a tri-state override."""
+    enabled_flag = enabled_flag if isinstance(enabled_flag, bool) else False
+    disabled_flag = disabled_flag if isinstance(disabled_flag, bool) else False
+    if enabled_flag and disabled_flag:
+        raise typer.BadParameter("Use either --retrieval-checkpoint or --no-retrieval-checkpoint, not both.")
+    if enabled_flag:
+        return True
+    if disabled_flag:
+        return False
+    return None
+
+
+async def _prompt_retrieval_checkpoint(snapshot: RetrievalCheckpointSnapshot) -> RetrievalCheckpointDecision:
+    """Prompt the CLI user for a retrieval checkpoint decision."""
+    print_status_message(_render_retrieval_checkpoint_snapshot(snapshot), title="⏸ Retrieval checkpoint")
+    can_redirect = snapshot.attempt < snapshot.max_redirects
+    choices = "continue, redirect, stop" if can_redirect else "continue, stop"
+    while True:
+        answer = prompt(f"Checkpoint decision ({choices}) > ").strip().lower()
+        if answer in {"", "c", "continue"}:
+            return RetrievalCheckpointDecision.continue_()
+        if answer in {"s", "stop"}:
+            return RetrievalCheckpointDecision.stop()
+        if answer in {"r", "redirect"}:
+            if not can_redirect:
+                print_status_message("Redirect limit reached. Choose continue or stop.", title="⚠ Checkpoint")
+                continue
+            instruction = prompt("Redirect retrieval with > ").strip()
+            if instruction:
+                return RetrievalCheckpointDecision.redirect(instruction)
+            print_status_message("Redirect guidance cannot be empty.", title="⚠ Checkpoint")
+            continue
+        print_status_message(f"Invalid checkpoint decision. Use {choices}.", title="⚠ Checkpoint")
+
+
 @app.command()
 def ask(
     message: str = typer.Option(..., "--message", "-m"),
@@ -572,6 +632,16 @@ def ask(
     peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
+    retrieval_checkpoint: bool = typer.Option(
+        False,
+        "--retrieval-checkpoint",
+        help="Enable the retrieval checkpoint for this run.",
+    ),
+    no_retrieval_checkpoint: bool = typer.Option(
+        False,
+        "--no-retrieval-checkpoint",
+        help="Disable the retrieval checkpoint for this run.",
+    ),
 ) -> None:
     """Run a single non-interactive crisAI request."""
     explicit_mode = _detect_explicit_mode(message)
@@ -585,6 +655,7 @@ def ask(
     )
     decision = _apply_decision_overrides(message, explicit_mode, decision)
     print_status_message(route_display(decision), title="🧭 Routing decision")
+    checkpoint_override = _resolve_checkpoint_override(retrieval_checkpoint, no_retrieval_checkpoint)
 
     async def _run() -> None:
         text = await _run_with_routing(
@@ -593,6 +664,8 @@ def ask(
             review,
             decision,
             user_intent_message=message,
+            retrieval_checkpoint_enabled=checkpoint_override,
+            retrieval_checkpoint_handler=_prompt_retrieval_checkpoint,
         )
         _render_final_output(decision, text)
 
@@ -611,9 +684,21 @@ def chat(
     peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
+    retrieval_checkpoint: bool = typer.Option(
+        False,
+        "--retrieval-checkpoint",
+        help="Enable the retrieval checkpoint for this chat session.",
+    ),
+    no_retrieval_checkpoint: bool = typer.Option(
+        False,
+        "--no-retrieval-checkpoint",
+        help="Disable the retrieval checkpoint for this chat session.",
+    ),
 ) -> None:
     """Start the interactive crisAI chat session."""
     initial_session = _resolve_initial_chat_session(session)
+    checkpoint_override = _resolve_checkpoint_override(retrieval_checkpoint, no_retrieval_checkpoint)
+    checkpoint_default = load_settings().retrieval_checkpoint_enabled if checkpoint_override is None else checkpoint_override
     state = ChatRuntimeState(
         current_session=initial_session,
         history=load_history(initial_session),
@@ -621,6 +706,7 @@ def chat(
         current_agent=agent_id,
         current_review=review,
         current_verbose=verbose,
+        current_retrieval_checkpoint=checkpoint_default,
         mode_pinned=True if (peer or pipeline) else False,
         agent_pinned=True if (agent_id != "orchestrator") else False,
     )
@@ -631,6 +717,7 @@ def chat(
         current_agent=state.current_agent,
         current_review=state.current_review,
         current_verbose=state.current_verbose,
+        current_retrieval_checkpoint=state.current_retrieval_checkpoint,
         mode_pinned=state.mode_pinned,
         agent_pinned=state.agent_pinned,
         history_count=len(state.history),
@@ -688,6 +775,8 @@ def chat(
                 state.current_review,
                 decision,
                 user_intent_message=user_input,
+                retrieval_checkpoint_enabled=state.current_retrieval_checkpoint,
+                retrieval_checkpoint_handler=_prompt_retrieval_checkpoint,
             )
 
         try:

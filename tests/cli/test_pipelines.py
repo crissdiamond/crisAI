@@ -7,6 +7,7 @@ import pytest
 from crisai.cli import pipeline_display, pipelines
 from crisai.orchestration import peer_judge
 from crisai.orchestration.exceptions import WorkflowValidationError
+from crisai.orchestration.retrieval_checkpoint import RetrievalCheckpointDecision
 
 
 class FakeWorkflowSession:
@@ -486,6 +487,167 @@ async def test_run_pipeline_skips_review_when_disabled(monkeypatch, tmp_path):
         ("REVIEW OUTPUT", "Review stage skipped because review is disabled."),
         ("WORKFLOW_END", "Pipeline workflow completed."),
     ]
+
+
+@pytest.mark.anyio
+async def test_run_pipeline_checkpoint_continue_runs_downstream_stages(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "orchestrator-output")
+    engine = FakeWorkflowEngine(session)
+    checkpoints = []
+
+    async def checkpoint_handler(snapshot):
+        checkpoints.append(snapshot)
+        return RetrievalCheckpointDecision.continue_()
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    result = await pipelines.run_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(
+            openai_api_key="key",
+            log_dir=tmp_path,
+            retrieval_checkpoint_enabled=True,
+            retrieval_checkpoint_max_redirects=2,
+        ),
+        server_specs={},
+        agent_specs={},
+        retrieval_checkpoint_handler=checkpoint_handler,
+    )
+
+    assert result == "orchestrator-output"
+    assert len(checkpoints) == 1
+    assert checkpoints[0].retrieval_prose == "context_retrieval-output"
+    assert [name for name, _ in stage_calls] == [
+        "retrieval_planner",
+        "context_retrieval",
+        "context_synthesizer",
+        "design",
+        "orchestrator",
+    ]
+
+
+@pytest.mark.anyio
+async def test_run_pipeline_checkpoint_stop_skips_downstream_stages(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "orchestrator-output")
+    engine = FakeWorkflowEngine(session)
+
+    async def checkpoint_handler(snapshot):
+        del snapshot
+        return RetrievalCheckpointDecision.stop()
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    result = await pipelines.run_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(
+            openai_api_key="key",
+            log_dir=tmp_path,
+            retrieval_checkpoint_enabled=True,
+            retrieval_checkpoint_max_redirects=2,
+        ),
+        server_specs={},
+        agent_specs={},
+        retrieval_checkpoint_handler=checkpoint_handler,
+    )
+
+    assert result == "Run stopped after retrieval checkpoint. No summary or design stages were executed."
+    assert [name for name, _ in stage_calls] == ["retrieval_planner", "context_retrieval"]
+    assert ("WORKFLOW_END", "Pipeline workflow stopped after retrieval checkpoint.") in trace_calls
+
+
+@pytest.mark.anyio
+async def test_run_pipeline_checkpoint_redirect_reruns_retrieval(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FakeWorkflowSession(trace_calls, stage_calls, "orchestrator-output")
+    engine = FakeWorkflowEngine(session)
+    decisions = [
+        RetrievalCheckpointDecision.redirect("Use the architecture standards folder."),
+        RetrievalCheckpointDecision.continue_(),
+    ]
+
+    async def checkpoint_handler(snapshot):
+        del snapshot
+        return decisions.pop(0)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    result = await pipelines.run_pipeline(
+        "hello",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(
+            openai_api_key="key",
+            log_dir=tmp_path,
+            retrieval_checkpoint_enabled=True,
+            retrieval_checkpoint_max_redirects=2,
+        ),
+        server_specs={},
+        agent_specs={},
+        retrieval_checkpoint_handler=checkpoint_handler,
+    )
+
+    assert result == "orchestrator-output"
+    assert [name for name, _ in stage_calls] == [
+        "retrieval_planner",
+        "context_retrieval",
+        "retrieval_planner",
+        "context_retrieval",
+        "context_synthesizer",
+        "design",
+        "orchestrator",
+    ]
+    assert "Additional retrieval direction from checkpoint 1" in stage_calls[2][1]
 
 
 @pytest.mark.anyio

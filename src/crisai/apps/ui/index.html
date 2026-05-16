@@ -68,9 +68,24 @@
           <input type="checkbox" id="verbose" />
           <label for="verbose">Verbose on/off</label>
         </div>
+        <div class="col switch">
+          <input type="checkbox" id="retrievalCheckpoint" />
+          <label for="retrievalCheckpoint">Retrieval checkpoint</label>
+        </div>
       </div>
       <div style="margin-top: 12px;">
         <button id="runBtn" type="button">Run</button>
+      </div>
+      <div id="checkpointPanel" class="checkpoint-panel" hidden>
+        <h3>Retrieval checkpoint</h3>
+        <div id="checkpointContent"></div>
+        <label for="checkpointRedirect">Redirect retrieval</label>
+        <textarea id="checkpointRedirect" placeholder="Add retrieval guidance..."></textarea>
+        <div class="editor-actions">
+          <button id="checkpointContinueBtn" type="button">Continue</button>
+          <button id="checkpointRedirectBtn" type="button">Redirect</button>
+          <button id="checkpointStopBtn" type="button">Stop</button>
+        </div>
       </div>
       <p class="muted" id="uiStatus">UI status: loading</p>
     </section>

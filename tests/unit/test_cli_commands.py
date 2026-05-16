@@ -30,6 +30,8 @@ from crisai.cli.commands import parse_chat_command
         ("/mode peer", "set_mode", "peer", None),
         ("/review on", "set_review", True, None),
         ("/review off", "set_review", False, None),
+        ("/retrieval-checkpoint on", "set_retrieval_checkpoint", True, None),
+        ("/retrieval-checkpoint off", "set_retrieval_checkpoint", False, None),
         ("/verbose on", "set_verbose", True, None),
         ("/verbose off", "set_verbose", False, None),
         ("/agent auto", "set_agent", "auto", None),
@@ -51,6 +53,7 @@ def test_parse_chat_command_supported_inputs(user_input, expected_action, expect
     [
         ("/mode invalid", "Invalid mode. Use /mode auto, /mode single, /mode pipeline, or /mode peer."),
         ("/review maybe", "Invalid review setting. Use /review on or /review off."),
+        ("/retrieval-checkpoint maybe", "Invalid retrieval checkpoint setting. Use /retrieval-checkpoint on or /retrieval-checkpoint off."),
         ("/verbose maybe", "Invalid verbose setting. Use /verbose on or /verbose off."),
         ("/session ", "Please provide a session name."),
         ("/session new ", "Please provide a new session name."),
@@ -72,6 +75,17 @@ def test_parse_chat_command_verbose_without_value_returns_message():
     assert result.handled is True
     assert result.action == "noop"
     assert result.message == "Verbose command requires a value. Use /verbose on or /verbose off."
+
+
+def test_parse_chat_command_retrieval_checkpoint_without_value_returns_message():
+    result = parse_chat_command("/retrieval-checkpoint")
+
+    assert result.handled is True
+    assert result.action == "noop"
+    assert result.message == (
+        "Retrieval checkpoint command requires a value. "
+        "Use /retrieval-checkpoint on or /retrieval-checkpoint off."
+    )
 
 
 def test_parse_chat_command_trims_whitespace_in_values():

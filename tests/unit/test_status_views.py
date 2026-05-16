@@ -120,6 +120,7 @@ def test_print_chat_state_uses_status_message(monkeypatch):
         current_agent="design",
         current_review=True,
         current_verbose=False,
+        current_retrieval_checkpoint=True,
         mode_pinned=True,
         agent_pinned=True,
         history_count=4,
@@ -131,6 +132,7 @@ def test_print_chat_state_uses_status_message(monkeypatch):
     assert "Agent: pinned:design" in captured["body"]
     assert "Review preference: on" in captured["body"]
     assert "Verbose: off" in captured["body"]
+    assert "Retrieval checkpoint: on" in captured["body"]
     assert "Loaded history entries: 4" in captured["body"]
     assert "Logs:" in captured["body"]
 

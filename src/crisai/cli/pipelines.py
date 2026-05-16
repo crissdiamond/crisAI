@@ -63,6 +63,10 @@ from crisai.orchestration.retrieval_association_graph import (
     deterministic_context_from_registry,
     deterministic_context_trace_metadata,
 )
+from crisai.orchestration.retrieval_checkpoint import (
+    RetrievalCheckpointHandler,
+    RetrievalCheckpointSnapshot,
+)
 from crisai.orchestration.source_constraints import (
     evidence_bundle_satisfies_constraints,
     infer_source_fit_constraints,
@@ -448,6 +452,8 @@ async def run_pipeline(
     agent_specs,
     model_specs=None,
     user_intent_message: str | None = None,
+    retrieval_checkpoint_enabled: bool | None = None,
+    retrieval_checkpoint_handler: RetrievalCheckpointHandler | None = None,
 ) -> str:
     """Run the standard retrieval/context pipeline with summary or design drafting."""
     ensure_openai_api_key(settings)
@@ -474,6 +480,12 @@ async def run_pipeline(
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
 
     logger.info("Running pipeline workflow.", extra={"run_id": _get_run_id(environment), "review": review})
+    checkpoint_enabled = (
+        bool(getattr(settings, "retrieval_checkpoint_enabled", False))
+        if retrieval_checkpoint_enabled is None
+        else retrieval_checkpoint_enabled
+    )
+    checkpoint_max_redirects = int(getattr(settings, "retrieval_checkpoint_max_redirects", 2) or 2)
 
     drafting_agent_id = "summary" if task_contract.is_summary else "design"
     required_agent_ids = ["retrieval_planner", "context_retrieval", drafting_agent_id]
@@ -515,81 +527,146 @@ async def run_pipeline(
             },
         )
 
-        retrieval_plan_text = await workflow.run_stage(
-            spec=specs["retrieval_planner"],
-            ui_agent_id="retrieval_planner",
-            prompt=build_retrieval_planner_prompt(
-                message,
-                deterministic_context=deterministic_context,
-                registry_dir=Path(registry_dir) if registry_dir is not None else None,
-                task_contract=task_contract,
-            ),
-            trace_label="RETRIEVAL_PLANNER OUTPUT",
-            verbose=verbose,
-        )
+        retrieval_message = message
+        retrieval_intent_message = intent_message
+        redirect_count = 0
+        retrieval_plan_text = ""
+        context_retrieval_text = ""
+        evidence_capture: EvidenceValidationCapture | None = None
+        validated_context_retrieval_text = ""
 
-        evidence_capture = EvidenceValidationCapture(intent_message)
-
-        context_retrieval_text = await workflow.run_stage(
-            spec=specs["context_retrieval"],
-            ui_agent_id="context_retrieval",
-            prompt=build_context_retrieval_prompt(
-                message,
-                retrieval_plan_text,
-                deterministic_context=deterministic_context,
-                registry_dir=Path(registry_dir) if registry_dir is not None else None,
-                task_contract=task_contract,
-            ),
-            trace_label="CONTEXT RETRIEVAL OUTPUT",
-            verbose=verbose,
-            output_processor=evidence_capture.process,
-        )
-        if evidence_capture.error is not None and request_requires_content_read(intent_message):
-            _trace_workflow_policy_event(
-                workflow,
-                "EVIDENCE_CONTRACT_REPAIR",
-                "Retrying context retrieval because required evidence transport failed validation.",
-                event_type="policy_signal",
-                metadata={"validation_error": str(evidence_capture.error)},
+        while True:
+            retrieval_plan_text = await workflow.run_stage(
+                spec=specs["retrieval_planner"],
+                ui_agent_id="retrieval_planner",
+                prompt=build_retrieval_planner_prompt(
+                    retrieval_message,
+                    deterministic_context=deterministic_context,
+                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                    task_contract=task_contract,
+                ),
+                trace_label="RETRIEVAL_PLANNER OUTPUT",
+                verbose=verbose,
             )
-            repair_capture = EvidenceValidationCapture(intent_message)
+
+            evidence_capture = EvidenceValidationCapture(retrieval_intent_message)
+
             context_retrieval_text = await workflow.run_stage(
                 spec=specs["context_retrieval"],
                 ui_agent_id="context_retrieval",
-                prompt=build_context_retrieval_repair_prompt(
-                    message,
+                prompt=build_context_retrieval_prompt(
+                    retrieval_message,
                     retrieval_plan_text,
-                    context_retrieval_text,
-                    str(evidence_capture.error),
+                    deterministic_context=deterministic_context,
+                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                    task_contract=task_contract,
                 ),
-                trace_label="CONTEXT RETRIEVAL REPAIR OUTPUT",
+                trace_label="CONTEXT RETRIEVAL OUTPUT",
                 verbose=verbose,
-                output_processor=repair_capture.process,
+                output_processor=evidence_capture.process,
             )
-            evidence_capture = repair_capture
-        if evidence_capture.error is not None:
+            if evidence_capture.error is not None and request_requires_content_read(retrieval_intent_message):
+                _trace_workflow_policy_event(
+                    workflow,
+                    "EVIDENCE_CONTRACT_REPAIR",
+                    "Retrying context retrieval because required evidence transport failed validation.",
+                    event_type="policy_signal",
+                    metadata={"validation_error": str(evidence_capture.error)},
+                )
+                repair_capture = EvidenceValidationCapture(retrieval_intent_message)
+                context_retrieval_text = await workflow.run_stage(
+                    spec=specs["context_retrieval"],
+                    ui_agent_id="context_retrieval",
+                    prompt=build_context_retrieval_repair_prompt(
+                        retrieval_message,
+                        retrieval_plan_text,
+                        context_retrieval_text,
+                        str(evidence_capture.error),
+                    ),
+                    trace_label="CONTEXT RETRIEVAL REPAIR OUTPUT",
+                    verbose=verbose,
+                    output_processor=repair_capture.process,
+                )
+                evidence_capture = repair_capture
+            if evidence_capture.error is not None:
+                _trace_workflow_policy_event(
+                    workflow,
+                    "POLICY_VIOLATION",
+                    str(evidence_capture.error),
+                    event_type="policy_violation",
+                )
+                raise WorkflowValidationError(str(evidence_capture.error)) from evidence_capture.error
+            validated_context_retrieval_text = (
+                evidence_capture.transport.prompt_text
+                if evidence_capture.transport is not None
+                else sanitize_user_visible_text(context_retrieval_text)
+            )
+            try:
+                enforce_intranet_fetch_policy(policy, validated_context_retrieval_text)
+            except WorkflowPolicyViolation as exc:
+                _trace_workflow_policy_event(
+                    workflow,
+                    "POLICY_VIOLATION",
+                    str(exc),
+                    event_type="policy_violation",
+                )
+                raise WorkflowValidationError(str(exc)) from exc
+
+            if not checkpoint_enabled:
+                break
+            if retrieval_checkpoint_handler is None:
+                raise WorkflowValidationError(
+                    "Retrieval checkpoint is enabled, but this runtime has no checkpoint handler. "
+                    "Disable it with --no-retrieval-checkpoint or CRISAI_RETRIEVAL_CHECKPOINT_ENABLED=false."
+                )
+            transport = evidence_capture.transport
+            snapshot = RetrievalCheckpointSnapshot(
+                request=intent_message,
+                retrieval_plan=sanitize_user_visible_text(retrieval_plan_text),
+                evidence_brief=transport.evidence_brief if transport is not None else "",
+                retrieval_prose=transport.prose if transport is not None else sanitize_user_visible_text(context_retrieval_text),
+                attempt=redirect_count,
+                max_redirects=checkpoint_max_redirects,
+            )
             _trace_workflow_policy_event(
                 workflow,
-                "POLICY_VIOLATION",
-                str(evidence_capture.error),
-                event_type="policy_violation",
+                "RETRIEVAL_CHECKPOINT",
+                "Retrieval checkpoint presented to user.",
+                event_type="checkpoint",
+                metadata=snapshot.to_dict(),
             )
-            raise WorkflowValidationError(str(evidence_capture.error)) from evidence_capture.error
-        validated_context_retrieval_text = (
-            evidence_capture.transport.prompt_text
-            if evidence_capture.transport is not None
-            else sanitize_user_visible_text(context_retrieval_text)
-        )
-        try:
-            enforce_intranet_fetch_policy(policy, validated_context_retrieval_text)
-        except WorkflowPolicyViolation as exc:
+            decision = await retrieval_checkpoint_handler(snapshot)
             _trace_workflow_policy_event(
                 workflow,
-                "POLICY_VIOLATION",
-                str(exc),
-                event_type="policy_violation",
+                "RETRIEVAL_CHECKPOINT_DECISION",
+                f"Retrieval checkpoint decision: {decision.action}.",
+                event_type="checkpoint_decision",
+                metadata=decision.to_dict(),
             )
-            raise WorkflowValidationError(str(exc)) from exc
+            if decision.action == "continue":
+                break
+            if decision.action == "stop":
+                workflow.finish_workflow("Pipeline workflow stopped after retrieval checkpoint.", metadata={"mode": "pipeline"})
+                return "Run stopped after retrieval checkpoint. No summary or design stages were executed."
+            if decision.action == "redirect":
+                if redirect_count >= checkpoint_max_redirects:
+                    raise WorkflowValidationError(
+                        f"Retrieval checkpoint redirect limit reached ({checkpoint_max_redirects}). "
+                        "Continue with current evidence or start a fresh request."
+                    )
+                if not decision.redirect_instruction.strip():
+                    raise WorkflowValidationError("Retrieval checkpoint redirect requires non-empty guidance.")
+                redirect_count += 1
+                retrieval_message = (
+                    f"{message}\n\nAdditional retrieval direction from checkpoint "
+                    f"{redirect_count}: {decision.redirect_instruction.strip()}"
+                )
+                retrieval_intent_message = (
+                    f"{intent_message}\n\nAdditional retrieval direction: "
+                    f"{decision.redirect_instruction.strip()}"
+                )
+                continue
+            raise WorkflowValidationError(f"Unknown retrieval checkpoint decision: {decision.action}")
 
         if task_contract.is_summary:
             workflow.skip_stage(

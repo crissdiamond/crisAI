@@ -79,7 +79,6 @@ The main product gaps are:
 
 | ID | Priority | Status | Item | Rationale | Definition of Done |
 |---|---:|---|---|---|---|
-| TODO-001 | P0 | todo | Human checkpoint after retrieval | The most expensive failure mode is continuing into design with the wrong sources or an incomplete evidence set. A checkpoint lets the user confirm, redirect, or stop before downstream agents spend tokens. | CLI pipeline can pause after retrieval, render the evidence brief, accept confirm/redirect/stop, and trace the decision. Web has equivalent behaviour or a tracked follow-up. |
 | TODO-002 | P0 | todo | Streaming stage output | Streaming is the largest interactive UX improvement that does not require changing pipeline semantics. Users can see progress and abort earlier. | CLI streams per-stage output without exposing machine evidence JSON. Trace output remains complete. Web streaming is either implemented or tracked separately. |
 | TODO-003 | P0 | todo | Persistent retrieval cache | Repeated source reads during iterative tasks waste time and tokens. Evidence bundles can be reused when the query and source revision are unchanged. | Evidence bundles are cached by query fingerprint, source identity, and source revision/hash. Cache hits are visible in trace metadata. Stale entries are invalidated using provider revision metadata where available, such as ETag, source version, Graph `lastModifiedDateTime`, content hash, or configurable TTL expiry. |
 | TODO-026 | P0 | todo | Product and repository rename | `crisAI` was the prototype name. Before broader team adoption, the project should use a professional product, repository, package, CLI, docs, log, and MCP identity such as `Architecture Assistant`, `architecture-assistant`, `architecture_assistant`, and `arch-assistant`. Doing this early avoids team-facing churn later. | Rename the GitHub repository, Python package, CLI entry point, docs, UI labels, MCP server names, log labels, and setup instructions. Decide explicitly whether to keep a temporary `crisai` compatibility alias or remove it for a clean first team clone. Full test suite, doctor, packaging, and install-from-clone flow pass under the new name. |
@@ -169,3 +168,7 @@ The main product gaps are:
 ## Done
 
 Completed items should move here with the merge commit or PR reference.
+
+| ID | Item | Reference |
+|---|---|---|
+| TODO-001 | Human checkpoint after retrieval | Implemented in the retrieval checkpoint change. |

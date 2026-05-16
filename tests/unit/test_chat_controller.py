@@ -14,6 +14,7 @@ def state() -> ChatRuntimeState:
         current_agent="orchestrator",
         current_review=False,
         current_verbose=False,
+        current_retrieval_checkpoint=True,
         mode_pinned=False,
         agent_pinned=False,
     )
@@ -164,6 +165,13 @@ def test_set_verbose_updates_state(monkeypatch, state):
 
     assert handle_chat_command("/verbose on", state) is True
     assert state.current_verbose is True
+
+
+def test_set_retrieval_checkpoint_updates_state(monkeypatch, state):
+    monkeypatch.setattr("crisai.cli.chat_controller.print_status_message", lambda *args, **kwargs: None)
+
+    assert handle_chat_command("/retrieval-checkpoint off", state) is True
+    assert state.current_retrieval_checkpoint is False
 
 
 def test_set_agent_auto_clears_pin(monkeypatch, state):

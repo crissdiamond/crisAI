@@ -76,7 +76,20 @@ def _make_settings(tmp_path: Path):
         "workspace_dir": tmp_path / "workspace",
         "log_dir": str(tmp_path / "logs"),
         "registry_dir": str(tmp_path),
+        "retrieval_checkpoint_enabled": True,
+        "retrieval_checkpoint_max_redirects": 2,
     })()
+
+
+class _DummyFuture:
+    def __init__(self) -> None:
+        self.value = None
+
+    def done(self) -> bool:
+        return self.value is not None
+
+    def set_result(self, value: Any) -> None:
+        self.value = value
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +200,7 @@ def test_run_status_returns_running_while_job_in_progress(
         "stage_outputs": [],
         "final_output": "",
         "error": "",
+        "checkpoint": None,
         "history": [],
         "current_session": "default",
         "task": None,
@@ -197,6 +211,56 @@ def test_run_status_returns_running_while_job_in_progress(
     assert resp.status_code == 200
     assert resp.json()["status"] == "running"
     assert resp.json()["final_output"] == ""
+
+
+def test_run_status_returns_checkpoint_payload(
+    client: _ASGITestClient,
+) -> None:
+    """GET /api/run/status returns checkpoint data when a job is paused."""
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["job-check"] = {
+        "status": "checkpoint_waiting",
+        "payload": RunRequest(message="x"),
+        "decision": _FakeDecision(),
+        "before_size": 0,
+        "run_id": None,
+        "stage_outputs": [],
+        "final_output": "",
+        "error": "",
+        "checkpoint": {"evidence_brief": "read Deck.pptx"},
+        "checkpoint_future": _DummyFuture(),
+        "history": [],
+        "current_session": "default",
+        "task": None,
+    }
+
+    resp = client.get("/api/run/status/job-check")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "checkpoint_waiting"
+    assert body["checkpoint"]["evidence_brief"] == "read Deck.pptx"
+
+
+def test_run_checkpoint_submits_continue_decision(
+    client: _ASGITestClient,
+) -> None:
+    """POST /api/run/checkpoint resumes a paused job."""
+    from crisai.apps import web as web_mod
+
+    future = _DummyFuture()
+    web_mod._RUN_JOBS["job-check"] = {
+        "status": "checkpoint_waiting",
+        "checkpoint_future": future,
+        "checkpoint": {"evidence_brief": "read Deck.pptx"},
+    }
+
+    resp = client.post("/api/run/checkpoint/job-check", json={"action": "continue"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "accepted", "action": "continue"}
+    assert future.value.action == "continue"
 
 
 def test_run_status_returns_completed_after_job_finishes(
@@ -214,6 +278,7 @@ def test_run_status_returns_completed_after_job_finishes(
         "stage_outputs": [{"key": "design", "agent_id": "design", "content": "output"}],
         "final_output": "finished result",
         "error": "",
+        "checkpoint": None,
         "history": [{"role": "user", "content": "x"}, {"role": "assistant", "content": "finished result"}],
         "current_session": "default",
         "task": None,
@@ -243,6 +308,7 @@ def test_run_status_returns_failed_on_pipeline_error(
         "stage_outputs": [],
         "final_output": "",
         "error": "pipeline crashed",
+        "checkpoint": None,
         "history": [],
         "current_session": "default",
         "task": None,
@@ -260,6 +326,15 @@ def test_run_status_404_for_unknown_job(client: _ASGITestClient) -> None:
     """GET /api/run/status returns 404 for an unknown job id."""
     resp = client.get("/api/run/status/no-such-job")
     assert resp.status_code == 404
+
+
+def test_app_config_returns_retrieval_checkpoint_defaults(client: _ASGITestClient) -> None:
+    """GET /api/config exposes web defaults for checkpoint controls."""
+    resp = client.get("/api/config")
+
+    assert resp.status_code == 200
+    assert resp.json()["retrieval_checkpoint_enabled"] is True
+    assert resp.json()["retrieval_checkpoint_max_redirects"] == 2
 
 
 # ---------------------------------------------------------------------------

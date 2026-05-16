@@ -16,6 +16,13 @@ const workspaceEditor = document.getElementById("workspaceEditor");
 const workspacePath = document.getElementById("workspacePath");
 const workspaceStatus = document.getElementById("workspaceStatus");
 const workspaceSaveBtn = document.getElementById("workspaceSaveBtn");
+const retrievalCheckpointInput = document.getElementById("retrievalCheckpoint");
+const checkpointPanel = document.getElementById("checkpointPanel");
+const checkpointContent = document.getElementById("checkpointContent");
+const checkpointRedirect = document.getElementById("checkpointRedirect");
+const checkpointContinueBtn = document.getElementById("checkpointContinueBtn");
+const checkpointRedirectBtn = document.getElementById("checkpointRedirectBtn");
+const checkpointStopBtn = document.getElementById("checkpointStopBtn");
 
 let stageData = [];
 let sessions = [];
@@ -25,6 +32,7 @@ let pollingTimer = null;
 let activeFlowKey = null;
 let workspaceFileRecords = [];
 let selectedWorkspacePath = "";
+let checkpointSubmitted = false;
 
 function setUiStatus(text) {
   if (uiStatus) uiStatus.textContent = `UI status: ${text}`;
@@ -246,6 +254,52 @@ function buildPlaceholderFlowTabs(expectedTabs) {
   }));
 }
 
+function renderCheckpoint(snapshot) {
+  if (!checkpointPanel || !checkpointContent) return;
+  if (!snapshot) {
+    checkpointPanel.hidden = true;
+    checkpointContent.innerHTML = "";
+    checkpointSubmitted = false;
+    return;
+  }
+  const remaining = Number(snapshot.remaining_redirects || 0);
+  const sections = [
+    `**Redirects used:** ${snapshot.attempt || 0}/${snapshot.max_redirects || 0}`,
+  ];
+  if (snapshot.evidence_brief) sections.push("## Evidence Brief\n" + snapshot.evidence_brief);
+  else if (snapshot.retrieval_prose) sections.push("## Retrieval Output\n" + snapshot.retrieval_prose);
+  if (snapshot.retrieval_plan) sections.push("## Retrieval Plan\n" + snapshot.retrieval_plan);
+  checkpointContent.innerHTML = markdownToSafeHtml(sections.join("\n\n"));
+  if (checkpointRedirectBtn) checkpointRedirectBtn.disabled = remaining <= 0 || checkpointSubmitted;
+  if (checkpointContinueBtn) checkpointContinueBtn.disabled = checkpointSubmitted;
+  if (checkpointStopBtn) checkpointStopBtn.disabled = checkpointSubmitted;
+  checkpointPanel.hidden = false;
+}
+
+async function submitCheckpointDecision(action) {
+  if (!currentJobId || checkpointSubmitted) return;
+  const payload = {
+    action,
+    redirect_instruction: checkpointRedirect ? checkpointRedirect.value.trim() : "",
+  };
+  if (action === "redirect" && !payload.redirect_instruction) {
+    throw new Error("Redirect guidance is required.");
+  }
+  checkpointSubmitted = true;
+  renderCheckpoint(null);
+  const response = await fetch(`/api/run/checkpoint/${encodeURIComponent(currentJobId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    checkpointSubmitted = false;
+    throw new Error(data.detail || "Checkpoint decision failed.");
+  }
+  setUiStatus("running");
+}
+
 function applyStageUpdates(records, updates, finalOutputText) {
   const byKey = new Map();
   records.forEach((item) => byKey.set(item.key || item.agent_id, item));
@@ -290,6 +344,15 @@ async function loadSessionMeta() {
   renderSessionHistory(data.history || []);
 }
 
+async function loadAppConfig() {
+  const response = await fetch("/api/config");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail || "Config load failed.");
+  if (retrievalCheckpointInput) {
+    retrievalCheckpointInput.checked = Boolean(data.retrieval_checkpoint_enabled);
+  }
+}
+
 async function switchSession(sessionName) {
   const response = await fetch(`/api/sessions/${encodeURIComponent(sessionName)}`);
   const data = await response.json();
@@ -325,6 +388,7 @@ async function runWorkflow() {
       agent: document.getElementById("agent").value.trim() || "auto",
       review: document.getElementById("review").checked,
       verbose: document.getElementById("verbose").checked,
+      retrieval_checkpoint: retrievalCheckpointInput ? retrievalCheckpointInput.checked : undefined,
       session: currentSession,
     };
     if (!payload.message) throw new Error("Please enter a prompt.");
@@ -343,6 +407,7 @@ async function runWorkflow() {
     activeFlowKey = stageData.length ? (stageData[0].key || stageData[0].agent_id) : null;
     renderTabs(stageData);
     setUiStatus("running");
+    renderCheckpoint(null);
     messageInput.value = "";
 
     if (pollingTimer) clearInterval(pollingTimer);
@@ -359,16 +424,21 @@ async function runWorkflow() {
       if (statusData.final_output) activeFlowKey = "final_output";
       renderTabs(stageData);
 
-      if (statusData.status === "completed") {
+      if (statusData.status === "checkpoint_waiting") {
+        renderCheckpoint(statusData.checkpoint);
+        setUiStatus("waiting for retrieval checkpoint");
+      } else if (statusData.status === "completed") {
         clearInterval(pollingTimer);
         pollingTimer = null;
         currentJobId = null;
+        renderCheckpoint(null);
         renderSessionHistory(statusData.history || []);
         setUiStatus("ready");
       } else if (statusData.status === "failed") {
         clearInterval(pollingTimer);
         pollingTimer = null;
         currentJobId = null;
+        renderCheckpoint(null);
         throw new Error(statusData.error || "Run failed.");
       }
     }, 1000);
@@ -399,6 +469,15 @@ function initUiBindings() {
   }
   if (workspaceSaveBtn) {
     workspaceSaveBtn.addEventListener("click", () => saveWorkspaceFile().catch(handleUiError));
+  }
+  if (checkpointContinueBtn) {
+    checkpointContinueBtn.addEventListener("click", () => submitCheckpointDecision("continue").catch(handleUiError));
+  }
+  if (checkpointRedirectBtn) {
+    checkpointRedirectBtn.addEventListener("click", () => submitCheckpointDecision("redirect").catch(handleUiError));
+  }
+  if (checkpointStopBtn) {
+    checkpointStopBtn.addEventListener("click", () => submitCheckpointDecision("stop").catch(handleUiError));
   }
   setUiStatus("ready");
 }
@@ -465,5 +544,5 @@ async function saveWorkspaceFile() {
 window.addEventListener("error", (event) => handleUiError(event.error || event.message || "Unknown UI error"));
 
 initUiBindings();
-if (tabContent) loadSessionMeta().catch(handleUiError);
+if (tabContent) Promise.all([loadSessionMeta(), loadAppConfig()]).catch(handleUiError);
 if (workspaceFiles) loadWorkspaceTree().catch(handleUiError);

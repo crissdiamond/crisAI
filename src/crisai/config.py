@@ -29,6 +29,33 @@ class Settings:
     registry_dir: Path
     root_dir: Path
     log_level: str
+    retrieval_checkpoint_enabled: bool
+    retrieval_checkpoint_max_redirects: int
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Return a boolean environment setting using common truthy/falsy values."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def _env_positive_int(name: str, default: int) -> int:
+    """Return a positive integer environment setting, or the default."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
 
 
 def load_settings() -> Settings:
@@ -60,4 +87,6 @@ def load_settings() -> Settings:
         registry_dir=registry_dir,
         root_dir=root,
         log_level=os.getenv("CRISAI_LOG_LEVEL", "INFO"),
+        retrieval_checkpoint_enabled=_env_bool("CRISAI_RETRIEVAL_CHECKPOINT_ENABLED", True),
+        retrieval_checkpoint_max_redirects=_env_positive_int("CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS", 2),
     )

@@ -186,7 +186,7 @@ python -m crisai.cli.main ask -m "Find the most relevant document for integratio
 | Mode | Purpose |
 |---|---|
 | `single` | Run one selected specialist agent for bounded work. |
-| `pipeline` | Retrieve, synthesize, summarize or design, optionally review, then orchestrate. |
+| `pipeline` | Retrieve, pause for source confirmation, synthesize, summarize or design, optionally review, then orchestrate. |
 | `peer` | Run author, challenger, refiner, judge, bounded revise loops, and final verification. |
 
 Use `/mode auto` to let the router decide, or pin a mode with `/mode single`, `/mode pipeline`, or `/mode peer`.
@@ -198,6 +198,13 @@ recommendations, roadmap trade-offs, governance models, and architecture review
 findings. crisAI is a support tool for producing high-quality, UCL-customised
 drafts from local templates and approved context; architects remain accountable
 for final decisions, stakeholder alignment, and publication.
+
+Pipeline retrieval checkpoints are enabled by default. After retrieval, the CLI
+and web app show a concise evidence brief before downstream summary or design
+stages run. The user can continue, redirect retrieval, or stop the run. Disable
+per run with `--no-retrieval-checkpoint`, in chat with
+`/retrieval-checkpoint off`, or by setting
+`CRISAI_RETRIEVAL_CHECKPOINT_ENABLED=false`.
 
 ## Configuration
 

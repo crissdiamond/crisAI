@@ -231,6 +231,27 @@ The same validator runs automatically as part of the **peer post-run verifier** 
 
 With **`/verbose off`** (the usual default for readable transcripts), pipeline and peer **stage output** is shown as **compact Markdown**: short headings, bullets, and recaps rather than dumping full raw model text. Machine handoffs such as evidence bundles, task contracts, and retrieval planning payloads are hidden from normal stage panels. Turn **`/verbose on`** when you need fuller readable stage bodies for debugging; raw machine contracts are still stripped from stage rendering and retained as structured metadata in `logs/agent_trace.jsonl`.
 
+### Retrieval checkpoint controls
+
+Pipeline retrieval checkpoints are enabled by default. After `context_retrieval`
+returns validated evidence, crisAI pauses before summary, design, review, or
+orchestration stages. The user can continue with the evidence, redirect
+retrieval with extra guidance, or stop before spending more tokens.
+
+```text
+/retrieval-checkpoint on
+/retrieval-checkpoint off
+```
+
+For one-off CLI requests, use `--retrieval-checkpoint` or
+`--no-retrieval-checkpoint`. The web app exposes the same setting as a checkbox
+in the prompt workspace. Defaults are controlled by:
+
+```text
+CRISAI_RETRIEVAL_CHECKPOINT_ENABLED=true
+CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS=2
+```
+
 ### Session memory controls
 
 Each task session stores raw history, compact memory, and task metadata under `workspace/tasks/<task>/.crisai/`. Legacy `workspace/chat_sessions/` files are still read for compatibility. Runtime prompts use the compact memory plus a small relevant recent tail instead of replaying the full session, which reduces repeated context and token waste during multi-step tasks.
@@ -337,6 +358,11 @@ Structured flow:
 ```text
 task_contract -> retrieval_planner -> context_retrieval -> context_synthesizer -> summary|design -> review -> orchestrator
 ```
+
+With retrieval checkpoints enabled, the pipeline pauses after
+`context_retrieval` and before the downstream stages. A redirect reruns
+`retrieval_planner` and `context_retrieval` with the user's extra guidance,
+bounded by `CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS`.
 
 For source-summary requests, the pipeline uses a shorter path after validated
 `content_read` evidence:

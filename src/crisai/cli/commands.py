@@ -18,6 +18,7 @@ CommandAction = Literal[
     "switch_session",
     "set_mode",
     "set_review",
+    "set_retrieval_checkpoint",
     "set_verbose",
     "set_agent",
     "invalid",
@@ -144,6 +145,32 @@ def parse_chat_command(user_input: str) -> CommandResult:
             handled=True,
             action="invalid",
             message="Invalid review setting. Use /review on or /review off.",
+        )
+
+    if raw == "/retrieval-checkpoint":
+        return CommandResult(
+            handled=True,
+            action="noop",
+            message="Retrieval checkpoint command requires a value. Use /retrieval-checkpoint on or /retrieval-checkpoint off.",
+        )
+
+    if raw.startswith("/retrieval-checkpoint"):
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(
+                handled=True,
+                action="invalid",
+                message="Invalid retrieval checkpoint setting. Use /retrieval-checkpoint on or /retrieval-checkpoint off.",
+            )
+        value = parts[1].strip().lower()
+        if value in {"on", "true", "yes"}:
+            return CommandResult(handled=True, action="set_retrieval_checkpoint", value=True)
+        if value in {"off", "false", "no"}:
+            return CommandResult(handled=True, action="set_retrieval_checkpoint", value=False)
+        return CommandResult(
+            handled=True,
+            action="invalid",
+            message="Invalid retrieval checkpoint setting. Use /retrieval-checkpoint on or /retrieval-checkpoint off.",
         )
 
     if raw.startswith("/agent"):

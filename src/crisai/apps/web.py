@@ -39,6 +39,10 @@ from crisai.cli.session_store import (
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging
 from crisai.orchestration.exceptions import WorkflowValidationError
+from crisai.orchestration.retrieval_checkpoint import (
+    RetrievalCheckpointDecision,
+    RetrievalCheckpointSnapshot,
+)
 from crisai.workspace.spaces import load_workspace_spaces
 
 
@@ -64,6 +68,14 @@ class RunRequest(BaseModel):
     review: bool = False
     verbose: bool = False
     session: str = Field(default="default")
+    retrieval_checkpoint: bool | None = None
+
+
+class CheckpointRequest(BaseModel):
+    """Represent a web retrieval checkpoint decision."""
+
+    action: str
+    redirect_instruction: str = Field(default="")
 
 
 class SessionCreateRequest(BaseModel):
@@ -185,6 +197,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
             review=payload.review,
             decision=decision,
             user_intent_message=payload.message,
+            retrieval_checkpoint_enabled=False,
         )
     except Exception as exc:  # noqa: BLE001
         raise _to_http_exception(exc) from exc
@@ -198,6 +211,25 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
         "final_output": sanitize_user_visible_text(final_output),
         "stage_outputs": stage_outputs,
     }
+
+
+def _make_web_checkpoint_handler(job_id: str):
+    """Return a pipeline checkpoint handler bound to a web job."""
+
+    async def _handler(snapshot: RetrievalCheckpointSnapshot) -> RetrievalCheckpointDecision:
+        job = _RUN_JOBS[job_id]
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[RetrievalCheckpointDecision] = loop.create_future()
+        job["checkpoint_future"] = future
+        job["checkpoint"] = snapshot.to_dict()
+        job["status"] = "checkpoint_waiting"
+        decision = await future
+        job["checkpoint"] = None
+        job["checkpoint_future"] = None
+        job["status"] = "running"
+        return decision
+
+    return _handler
 
 
 def _list_session_names() -> list[str]:
@@ -417,6 +449,8 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
             review=payload.review,
             decision=decision,
             user_intent_message=payload.message,
+            retrieval_checkpoint_enabled=getattr(payload, "retrieval_checkpoint", None),
+            retrieval_checkpoint_handler=_make_web_checkpoint_handler(job_id),
         )
         history.append(("user", payload.message))
         history.append(("assistant", sanitize_user_visible_text(final_output)))
@@ -525,6 +559,8 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         "stage_outputs": [],
         "final_output": "",
         "error": "",
+        "checkpoint": None,
+        "checkpoint_future": None,
         "history": [],
         "current_session": sanitize_session_name(payload.session),
         "task": None,
@@ -575,9 +611,48 @@ async def run_status(job_id: str) -> dict[str, Any]:
         "status": job.get("status"),
         "stage_outputs": job.get("stage_outputs", []),
         "final_output": job.get("final_output", ""),
+        "checkpoint": job.get("checkpoint"),
         "history": job.get("history", []),
         "current_session": job.get("current_session"),
         "error": job.get("error", ""),
+    }
+
+
+@app.post("/api/run/checkpoint/{job_id}")
+async def run_checkpoint(job_id: str, payload: CheckpointRequest) -> dict[str, Any]:
+    """Resume a run that is waiting at the retrieval checkpoint."""
+    if payload.action not in {"continue", "redirect", "stop"}:
+        raise HTTPException(status_code=422, detail="Invalid checkpoint action.")
+    job = _RUN_JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Run job not found.")
+    if job.get("status") != "checkpoint_waiting":
+        raise HTTPException(status_code=409, detail="Run job is not waiting at a retrieval checkpoint.")
+    future = job.get("checkpoint_future")
+    if future is None or not hasattr(future, "done"):
+        raise HTTPException(status_code=409, detail="Retrieval checkpoint is not resumable.")
+    if future.done():
+        raise HTTPException(status_code=409, detail="Retrieval checkpoint decision was already submitted.")
+    instruction = payload.redirect_instruction.strip()
+    if payload.action == "redirect" and not instruction:
+        raise HTTPException(status_code=422, detail="Redirect requires non-empty guidance.")
+    if payload.action == "continue":
+        decision = RetrievalCheckpointDecision.continue_()
+    elif payload.action == "stop":
+        decision = RetrievalCheckpointDecision.stop()
+    else:
+        decision = RetrievalCheckpointDecision.redirect(instruction)
+    future.set_result(decision)
+    return {"status": "accepted", "action": decision.action}
+
+
+@app.get("/api/config")
+async def app_config() -> dict[str, Any]:
+    """Return user-facing web defaults."""
+    settings = load_settings()
+    return {
+        "retrieval_checkpoint_enabled": settings.retrieval_checkpoint_enabled,
+        "retrieval_checkpoint_max_redirects": settings.retrieval_checkpoint_max_redirects,
     }
 
 

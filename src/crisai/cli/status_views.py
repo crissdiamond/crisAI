@@ -142,6 +142,7 @@ def print_chat_state(
     current_agent: str,
     current_review: bool,
     current_verbose: bool,
+    current_retrieval_checkpoint: bool,
     mode_pinned: bool,
     agent_pinned: bool,
     history_count: int,
@@ -154,9 +155,10 @@ def print_chat_state(
         f"Agent: {agent_status(current_agent, agent_pinned)}",
         f"Review preference: {'on' if current_review else 'off'}",
         f"Verbose: {'on' if current_verbose else 'off'}",
+        f"Retrieval checkpoint: {'on' if current_retrieval_checkpoint else 'off'}",
         f"Loaded history entries: {history_count}",
         f"Logs: {log_dir} (crisai.log, agent_trace.jsonl, *_mcp.log when servers run)",
-        "Commands: /session new <name> • /context show • /mode auto|single|pipeline|peer • /status • /help",
+        "Commands: /session new <name> • /context show • /mode auto|single|pipeline|peer • /retrieval-checkpoint on|off • /status • /help",
     ]
     print_status_message("\n".join(lines), title="💬 Chat state")
 

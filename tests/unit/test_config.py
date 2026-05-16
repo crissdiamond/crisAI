@@ -144,9 +144,30 @@ class TestLoadSettings:
             "registry_dir",
             "root_dir",
             "log_level",
+            "retrieval_checkpoint_enabled",
+            "retrieval_checkpoint_max_redirects",
         }
         actual_fields = {f.name for f in fields(settings)}
         assert expected_fields.issubset(actual_fields), (
             f"Missing fields: {expected_fields - actual_fields}"
         )
 
+    def test_retrieval_checkpoint_defaults_enabled(self):
+        """Retrieval checkpoint defaults to enabled with two redirects."""
+        settings = load_settings()
+        assert settings.retrieval_checkpoint_enabled is True
+        assert settings.retrieval_checkpoint_max_redirects == 2
+
+    @mock.patch.dict(
+        "os.environ",
+        {
+            "OPENAI_API_KEY": "test-key",
+            "CRISAI_RETRIEVAL_CHECKPOINT_ENABLED": "false",
+            "CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS": "3",
+        },
+    )
+    def test_retrieval_checkpoint_env_overrides(self):
+        """Retrieval checkpoint settings should respect env overrides."""
+        settings = load_settings()
+        assert settings.retrieval_checkpoint_enabled is False
+        assert settings.retrieval_checkpoint_max_redirects == 3

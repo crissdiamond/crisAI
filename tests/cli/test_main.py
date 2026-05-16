@@ -167,6 +167,7 @@ def test_close_chat_session_persists_history_and_shows_exit_notice(monkeypatch):
         current_agent="orchestrator",
         current_review=False,
         current_verbose=False,
+        current_retrieval_checkpoint=True,
         mode_pinned=False,
         agent_pinned=False,
     )
