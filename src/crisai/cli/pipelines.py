@@ -90,7 +90,7 @@ from .artefact_lifecycle import validate_task_artefacts_for_request
 from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_display import (
     _run_agent_silently,
-    _run_agent_with_transient_box,
+    _run_agent_with_progress,
     print_agent_output,
     sanitize_user_visible_text,
 )
@@ -547,7 +547,7 @@ def _create_workflow_engine(environment: WorkflowEnvironment, server_specs) -> W
         environment=environment,
         server_specs=server_specs,
         server_context_factory=workflow_server_context,
-        stage_runner=_run_agent_with_transient_box,
+        stage_runner=_run_agent_with_progress,
         trace_writer=trace_writer,
         output_printer=print_agent_output,
     )

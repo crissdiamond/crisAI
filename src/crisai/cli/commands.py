@@ -21,6 +21,7 @@ CommandAction = Literal[
     "set_retrieval_checkpoint",
     "set_verbose",
     "set_agent",
+    "settings",
     "invalid",
     "noop",
 ]
@@ -101,6 +102,12 @@ def parse_chat_command(user_input: str) -> CommandResult:
                 message="Invalid mode. Use /mode auto, /mode single, /mode pipeline, or /mode peer.",
             )
         return CommandResult(handled=True, action="set_mode", value=value)
+
+    if raw.startswith("/settings") or raw.startswith("/config"):
+        parts = raw.split(maxsplit=1)
+        if len(parts) == 1 or not parts[1].strip():
+            return CommandResult(handled=True, action="settings", value=None)
+        return CommandResult(handled=True, action="settings", value=parts[1].strip())
 
     if raw == "/verbose":
         return CommandResult(

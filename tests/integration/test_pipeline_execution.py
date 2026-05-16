@@ -3,7 +3,7 @@ Integration tests for pipeline execution modes.
 
 These tests exercise real prompt builders, real evidence bundle parsing, real task
 contract inference, and real registry loading. Only the LLM boundary
-(_run_agent_with_transient_box → Runner.run) and MCP server startup
+(_run_agent_with_progress → Runner.run) and MCP server startup
 (MultiServerContext) are stubbed.
 
 The distinction from the orchestration-level tests (tests/orchestration/) is that
@@ -144,7 +144,7 @@ def integration_env(monkeypatch, tmp_path, _registry_specs):
 
     called_stages: list[str] = []
 
-    async def _stub_stage_runner(agent_id: str, agent, prompt: str) -> str:
+    async def _stub_stage_runner(agent_id: str, agent, prompt: str, topic: str = "Working...") -> str:
         called_stages.append(agent_id)
         return _STUB_STAGE_OUTPUTS.get(agent_id, f"stub:{agent_id}")
 
@@ -162,7 +162,7 @@ def integration_env(monkeypatch, tmp_path, _registry_specs):
     )
     monkeypatch.setattr(pipelines, "RuntimeManager", _FakeRuntimeManager)
     monkeypatch.setattr(pipelines, "MultiServerContext", _NoOpServerContext)
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", _stub_stage_runner)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", _stub_stage_runner)
     monkeypatch.setattr(pipelines, "_run_agent_silently", _stub_agent_silently)
     monkeypatch.setattr(pipelines, "append_trace", lambda *a, **kw: None)
     monkeypatch.setattr(pipelines, "print_agent_output", lambda *a, **kw: None)

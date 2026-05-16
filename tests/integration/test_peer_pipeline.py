@@ -6,7 +6,7 @@ revise-then-accept, stagnation detection, escalation accepting after rounds
 exhaust, full exhaustion raising, and the no-retrieval path.
 
 Prompt builders, evidence handling, task contract inference, and registry loading
-are all real. Only the LLM boundary (_run_agent_with_transient_box) and MCP server
+are all real. Only the LLM boundary (_run_agent_with_progress) and MCP server
 startup (MultiServerContext) are stubbed.
 """
 from __future__ import annotations
@@ -92,7 +92,7 @@ def peer_env(monkeypatch, tmp_path):
 
     called_stages: list[str] = []
 
-    async def _default_runner(agent_id: str, agent, prompt: str) -> str:
+    async def _default_runner(agent_id: str, agent, prompt: str, topic: str = "Working...") -> str:
         called_stages.append(agent_id)
         if agent_id == "judge":
             return _JUDGE_ACCEPT
@@ -104,7 +104,7 @@ def peer_env(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(pipelines, "RuntimeManager", _FakeRuntimeManager)
     monkeypatch.setattr(pipelines, "MultiServerContext", _NoOpServerContext)
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", _default_runner)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", _default_runner)
     monkeypatch.setattr(pipelines, "_run_agent_silently", lambda a, p: None)
     monkeypatch.setattr(pipelines, "append_trace", lambda *a, **kw: None)
     monkeypatch.setattr(pipelines, "print_agent_output", lambda *a, **kw: None)
@@ -181,7 +181,7 @@ async def test_peer_refiner_reruns_when_judge_revises(peer_env, monkeypatch):
     ])
     refiner_call = [0]
 
-    async def _runner(agent_id: str, agent, prompt: str) -> str:
+    async def _runner(agent_id: str, agent, prompt: str, topic: str = "Working...") -> str:
         peer_env["called_stages"].append(agent_id)
         if agent_id == "judge":
             return next(judge_seq)
@@ -190,7 +190,7 @@ async def test_peer_refiner_reruns_when_judge_revises(peer_env, monkeypatch):
             return f"## Refined Design (round {refiner_call[0]})\nUpdated content."
         return _STAGE_DEFAULTS.get(agent_id, f"stub:{agent_id}")
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", _runner)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", _runner)
 
     result = await _run_peer(peer_env)
 
@@ -211,7 +211,7 @@ async def test_peer_stagnation_detected_when_refiner_output_is_unchanged(peer_en
     monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "2")
     monkeypatch.setenv("CRISAI_PEER_MAX_ESCALATIONS", "0")
 
-    async def _runner(agent_id: str, agent, prompt: str) -> str:
+    async def _runner(agent_id: str, agent, prompt: str, topic: str = "Working...") -> str:
         peer_env["called_stages"].append(agent_id)
         if agent_id == "judge":
             return "Decision: revise\nReason: Not good enough."
@@ -219,7 +219,7 @@ async def test_peer_stagnation_detected_when_refiner_output_is_unchanged(peer_en
             return "## Refined Design\nNo change."  # identical every call → stagnation
         return _STAGE_DEFAULTS.get(agent_id, f"stub:{agent_id}")
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", _runner)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", _runner)
 
     with pytest.raises(WorkflowValidationError, match="Peer quality gate failed"):
         await _run_peer(peer_env)
@@ -255,7 +255,7 @@ async def test_peer_escalation_accepts_after_refinement_rounds_exhaust(peer_env,
     ])
     refiner_call = [0]
 
-    async def _runner(agent_id: str, agent, prompt: str) -> str:
+    async def _runner(agent_id: str, agent, prompt: str, topic: str = "Working...") -> str:
         peer_env["called_stages"].append(agent_id)
         if agent_id == "judge":
             return next(judge_seq)
@@ -266,7 +266,7 @@ async def test_peer_escalation_accepts_after_refinement_rounds_exhaust(peer_env,
             return f"## Author (call {peer_env['called_stages'].count('design_author')})"
         return _STAGE_DEFAULTS.get(agent_id, f"stub:{agent_id}")
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", _runner)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", _runner)
 
     result = await _run_peer(peer_env)
 
@@ -293,7 +293,7 @@ async def test_peer_raises_when_all_rounds_and_escalations_exhausted(peer_env, m
 
     refiner_call = [0]
 
-    async def _runner(agent_id: str, agent, prompt: str) -> str:
+    async def _runner(agent_id: str, agent, prompt: str, topic: str = "Working...") -> str:
         peer_env["called_stages"].append(agent_id)
         if agent_id == "judge":
             return "Decision: revise\nReason: Always needs more work."
@@ -302,7 +302,7 @@ async def test_peer_raises_when_all_rounds_and_escalations_exhausted(peer_env, m
             return f"## Design attempt {refiner_call[0]}"  # unique each call → no stagnation
         return _STAGE_DEFAULTS.get(agent_id, f"stub:{agent_id}")
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", _runner)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", _runner)
 
     with pytest.raises(WorkflowValidationError, match="Peer quality gate failed"):
         await _run_peer(peer_env)

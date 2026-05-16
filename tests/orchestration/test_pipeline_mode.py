@@ -158,11 +158,11 @@ async def test_pipeline_runs_expected_stage_order_when_review_off(monkeypatch, f
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
-    async def fake_run_with_transient_box(agent_id, agent, prompt):
+    async def fake_run_with_progress(agent_id, agent, prompt, topic="Working..."):
         calls.append(agent.id)
         return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", fake_run_with_progress)
 
     result = await pipelines.run_pipeline(
         "draft something",
@@ -188,11 +188,11 @@ async def test_pipeline_runs_expected_stage_order_when_review_on(monkeypatch, fa
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
-    async def fake_run_with_transient_box(agent_id, agent, prompt):
+    async def fake_run_with_progress(agent_id, agent, prompt, topic="Working..."):
         calls.append(agent.id)
         return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", fake_run_with_progress)
 
     result = await pipelines.run_pipeline(
         "draft something",
@@ -225,7 +225,7 @@ async def test_pipeline_uses_summary_agent_for_summary_request(
     calls: list[str] = []
     prompts: dict[str, str] = {}
 
-    async def fake_run_with_transient_box(agent_id, agent, prompt):
+    async def fake_run_with_progress(agent_id, agent, prompt, topic=None):
         calls.append(agent.id)
         prompts[agent.id] = prompt
         if agent.id == "context_retrieval":
@@ -255,7 +255,7 @@ async def test_pipeline_uses_summary_agent_for_summary_request(
 """
         return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", fake_run_with_progress)
 
     result = await pipelines.run_pipeline(
         "Summarise the latest Integration Strategy deck.",

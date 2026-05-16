@@ -19,31 +19,27 @@ console = Console()
 RenderKind = Literal["status", "stage", "final"]
 
 _ICONS = {
-    # Clipboard: plans retrieval handoff before Context Retrieval fetches sources.
-    "retrieval_planner": "📋",
-    "context_retrieval": "📚",
-    # Puzzle: assembles retrieved facts into a brief for design.
-    "context_synthesizer": "🧩",
-    "design": "✍",
-    "summary": "📝",
-    "design_author": "✍",
-    "design_challenger": "⚔",
-    "design_refiner": "🛠",
-    "review": "🛡",
-    "judge": "⚖",
-    "orchestrator": "🧭",
-    # Wrench: local tooling, debugging, and environment fixes.
-    "operations": "🔧",
+    "retrieval_planner": "🔍",
+    "context_retrieval": "📖",
+    "context_synthesizer": "🧬",
+    "design": "🎨",
+    "summary": "📑",
+    "design_author": "✍️",
+    "design_challenger": "🤺",
+    "design_refiner": "💎",
+    "review": "🔎",
+    "judge": "🏛️",
+    "orchestrator": "🛰️",
+    "operations": "🛠️",
     "memory_summarizer": "🧠",
-    # Package: templates and formal artefacts.
-    "publisher": "📦",
-    "document_formatter": "🧾",
+    "publisher": "🚢",
+    "document_formatter": "🎭",
 }
 
 _LABELS = {
-    "retrieval_planner": "Retrieval planner",
-    "context_retrieval": "Context Retrieval",
-    "context_synthesizer": "Context Synthesizer",
+    "retrieval_planner": "Planner",
+    "context_retrieval": "Retrieval",
+    "context_synthesizer": "Synthesis",
     "design": "Design",
     "summary": "Summary",
     "design_author": "Author",
@@ -52,41 +48,100 @@ _LABELS = {
     "review": "Review",
     "judge": "Judge",
     "orchestrator": "Orchestrator",
-    "operations": "Operations",
-    "memory_summarizer": "Memory Summarizer",
+    "operations": "Ops",
+    "memory_summarizer": "Memory",
     "publisher": "Publisher",
-    "document_formatter": "Document Formatter",
+    "document_formatter": "Formatter",
 }
 
 _STYLES = {
-    "retrieval_planner": "yellow",
-    "context_retrieval": "cyan",
-    "context_synthesizer": "magenta",
-    "design": "green",
-    "summary": "green",
-    "design_author": "green",
-    "design_challenger": "blue",
-    "design_refiner": "red",
-    "review": "yellow",
-    "judge": "white",
+    "retrieval_planner": "bright_yellow",
+    "context_retrieval": "bright_cyan",
+    "context_synthesizer": "bright_magenta",
+    "design": "bright_green",
+    "summary": "bright_green",
+    "design_author": "bright_green",
+    "design_challenger": "bright_blue",
+    "design_refiner": "bright_red",
+    "review": "bright_yellow",
+    "judge": "bright_white",
     "orchestrator": "bright_black",
-    "operations": "blue",
-    "memory_summarizer": "cyan",
-    "publisher": "magenta",
-    "document_formatter": "magenta",
+    "operations": "bright_blue",
+    "memory_summarizer": "bright_cyan",
+    "publisher": "bright_magenta",
+    "document_formatter": "bright_magenta",
 }
 
 _RENDER_TITLES = {
-    "status": "ℹ Status",
-    "stage": "🧩 Stage output",
-    "final": "🧭 Final answer",
+    "status": "◇ Status",
+    "stage": "✦ Stage Output",
+    "final": "📡 Final Answer",
 }
 
 _RENDER_STYLES = {
-    "status": "cyan",
-    "stage": "bright_black",
-    "final": "bright_black",
+    "status": "bright_blue",
+    "stage": "dim",
+    "final": "bold white",
 }
+
+
+def update_terminal_title(status: Literal["ready", "working", "input"]):
+    """Update the terminal window title with status icons."""
+    icons = {"ready": "◇", "working": "✦", "input": "✋"}
+    icon = icons.get(status, "◇")
+    # OSC 0; title BEL
+    print(f"\033]0;{icon} crisAI\a", end="", flush=True)
+
+
+class AgentDisplayManager:
+    """Manages real-time progress and output for an agent stage."""
+
+    def __init__(self, agent_id: str, console: Console = console):
+        self.agent_id = agent_id
+        self.console = console
+        self.icon = _ICONS.get(agent_id, "🤖")
+        self.label = _LABELS.get(agent_id, agent_id.capitalize())
+        self.style = _STYLES.get(agent_id, "white")
+        self.current_topic = "Initializing..."
+        self.live = Live(
+            self._render(),
+            console=self.console,
+            refresh_per_second=4,
+            transient=True,
+        )
+
+    def _render(self) -> Panel:
+        title = Text(f"{self.icon} {self.label}", style=f"bold {self.style}")
+        body = Text.assemble(
+            ("✦ ", f"bold {self.style}"),
+            (self.current_topic, "italic dim")
+        )
+        return Panel(
+            body,
+            title=title,
+            border_style=self.style,
+            padding=(0, 1),
+            expand=True,
+        )
+
+    def update(self, topic: str):
+        self.current_topic = topic
+        self.live.update(self._render())
+
+    def __enter__(self):
+        self.live.start()
+        update_terminal_title("working")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.live.stop()
+        update_terminal_title("ready")
+
+
+def get_bottom_toolbar(session: str, mode: str, model: str) -> str:
+    """Return a formatted toolbar for prompt_toolkit."""
+    return f" ⬡ {session} | 🧭 {mode} | 🤖 {model} "
+
 
 _FENCED_CODE_BLOCK_RE = re.compile(r"```[^\n`]*\n.*?```", re.DOTALL)
 _MACHINE_SCHEMA_RE = re.compile(

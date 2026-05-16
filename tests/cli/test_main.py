@@ -150,6 +150,7 @@ def test_resolve_initial_chat_session_prefers_newest_non_default_when_default_is
     os.utime(named_session, (base - 100, base - 100))
     os.utime(default_session, (base, base))
     monkeypatch.setattr(main, "session_dir", lambda: tmp_path)
+    monkeypatch.setattr(main, "list_task_names", lambda: [])
 
     assert main._resolve_initial_chat_session("default") == "architecture-review"
 

@@ -122,9 +122,10 @@ def compact_session_memory(history: list[HistoryEntry], *, max_memory_chars: int
         return SessionMemory()
     user_messages = [_clean_for_memory(content) for role, content in history if role == "user" and content.strip()]
     assistant_messages = [
-        _clean_for_memory(sanitize_user_visible_text(content))
+        clean
         for role, content in history
         if role == "assistant" and content.strip()
+        if (clean := _clean_for_memory(sanitize_user_visible_text(content)))
     ]
     sources = _extract_sources(history)
     task_goal = _truncate(user_messages[-1] if user_messages else "", 500)
@@ -299,8 +300,24 @@ def _bool_setting(value: object, default: bool) -> bool:
 
 def _clean_for_memory(text: str) -> str:
     clean = sanitize_user_visible_text(text or "")
+    if _is_runtime_failure_note(clean):
+        return ""
     clean = _NOISE_SECTION_RE.sub("", clean)
     return re.sub(r"\n{3,}", "\n\n", clean).strip()
+
+
+def _is_runtime_failure_note(text: str) -> bool:
+    """Return whether text is an infrastructure failure note, not task content."""
+    lower = (text or "").strip().lower()
+    return lower.startswith("request failed:") and any(
+        marker in lower
+        for marker in (
+            "runtimeerror:",
+            "workflowvalidationerror:",
+            "filenotfounderror:",
+            "valueerror:",
+        )
+    )
 
 
 def _extract_sources(history: list[HistoryEntry]) -> list[str]:
@@ -357,9 +374,14 @@ def _relevant_recent_entries(user_input: str, history: list[HistoryEntry], *, ma
     relevant = [
         (role, _truncate(_clean_for_memory(content), 1200))
         for role, content in recent
-        if query_terms & _content_terms(content)
+        if _clean_for_memory(content) and query_terms & _content_terms(content)
     ]
-    return relevant or [(role, _truncate(_clean_for_memory(content), 1200)) for role, content in recent[-2:]]
+    fallback = [
+        (role, _truncate(clean, 1200))
+        for role, content in recent[-2:]
+        if (clean := _clean_for_memory(content))
+    ]
+    return relevant or fallback
 
 
 def _content_terms(text: str) -> set[str]:

@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import typer
-from prompt_toolkit import prompt
+from prompt_toolkit import PromptSession, prompt
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
 
@@ -24,10 +24,12 @@ from crisai.cli.chat_context import (
 )
 from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
 from crisai.cli.display import (
+    get_bottom_toolbar,
     print_final_answer,
     print_final_recommendation,
     print_status_message,
     sanitize_user_visible_text,
+    update_terminal_title,
 )
 from crisai.cli.session_store import (
     clear_cli_history,
@@ -626,8 +628,9 @@ async def _prompt_retrieval_checkpoint(snapshot: RetrievalCheckpointSnapshot) ->
     print_status_message(_render_retrieval_checkpoint_snapshot(snapshot), title="⏸ Retrieval checkpoint")
     can_redirect = snapshot.attempt < snapshot.max_redirects
     choices = "continue, redirect, stop" if can_redirect else "continue, stop"
+    session: PromptSession[str] = PromptSession()
     while True:
-        answer = prompt(f"Checkpoint decision ({choices}) > ").strip().lower()
+        answer = (await session.prompt_async(f"Checkpoint decision ({choices}) > ")).strip().lower()
         if answer in {"", "c", "continue"}:
             return RetrievalCheckpointDecision.continue_()
         if answer in {"s", "stop"}:
@@ -636,7 +639,7 @@ async def _prompt_retrieval_checkpoint(snapshot: RetrievalCheckpointSnapshot) ->
             if not can_redirect:
                 print_status_message("Redirect limit reached. Choose continue or stop.", title="⚠ Checkpoint")
                 continue
-            instruction = prompt("Redirect retrieval with > ").strip()
+            instruction = (await session.prompt_async("Redirect retrieval with > ")).strip()
             if instruction:
                 return RetrievalCheckpointDecision.redirect(instruction)
             print_status_message("Redirect guidance cannot be empty.", title="⚠ Checkpoint")
@@ -690,9 +693,12 @@ def ask(
         _render_final_output(decision, text)
 
     try:
+        update_terminal_title("working")
         with _suppress_console_info_logs():
             _run_async(_run())
+        update_terminal_title("ready")
     except Exception as exc:  # noqa: BLE001
+        update_terminal_title("ready")
         _render_runtime_error(exc)
 
 
@@ -716,6 +722,7 @@ def chat(
     ),
 ) -> None:
     """Start the interactive crisAI chat session."""
+    update_terminal_title("ready")
     initial_session = _resolve_initial_chat_session(session)
     checkpoint_override = _resolve_checkpoint_override(retrieval_checkpoint, no_retrieval_checkpoint)
     checkpoint_default = load_settings().retrieval_checkpoint_enabled if checkpoint_override is None else checkpoint_override
@@ -746,11 +753,18 @@ def chat(
 
     while True:
         try:
+            update_terminal_title("input")
             user_input = prompt(
                 "> ",
                 history=FileHistory(str(cli_history_file(state.current_session))),
                 auto_suggest=AutoSuggestFromHistory(),
+                bottom_toolbar=lambda: get_bottom_toolbar(
+                    state.current_session,
+                    state.current_mode,
+                    state.settings.model.default_model
+                ),
             ).strip()
+            update_terminal_title("working")
         except (EOFError, KeyboardInterrupt):
             _close_chat_session(state)
             break
@@ -821,6 +835,7 @@ def chat(
         state.history.append(("assistant", sanitize_user_visible_text(text)))
         save_history(state.current_session, state.history)
         update_session_memory(state.current_session, state.history)
+        update_terminal_title("ready")
 
 
 if __name__ == "__main__":

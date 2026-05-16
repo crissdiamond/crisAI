@@ -36,6 +36,10 @@ from crisai.cli.commands import parse_chat_command
         ("/verbose off", "set_verbose", False, None),
         ("/agent auto", "set_agent", "auto", None),
         ("/agent discovery", "set_agent", "discovery", None),
+        ("/settings", "settings", None, None),
+        ("/settings ui.verbose", "settings", "ui.verbose", None),
+        ("/settings ui.verbose on", "settings", "ui.verbose on", None),
+        ("/config", "settings", None, None),
     ],
 )
 def test_parse_chat_command_supported_inputs(user_input, expected_action, expected_value, expected_message):

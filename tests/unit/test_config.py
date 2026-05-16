@@ -134,23 +134,29 @@ class TestLoadSettings:
         assert settings_1.workspace_dir.exists()
 
     def test_all_fields_present(self):
-        """Settings should contain all expected fields."""
+        """Settings should contain all expected hierarchical fields."""
         settings = load_settings()
-        expected_fields = {
-            "openai_api_key",
-            "default_model",
-            "workspace_dir",
-            "log_dir",
-            "registry_dir",
-            "root_dir",
-            "log_level",
-            "retrieval_checkpoint_enabled",
-            "retrieval_checkpoint_max_redirects",
+        expected_sections = {
+            "general",
+            "ui",
+            "model",
+            "workflow",
         }
         actual_fields = {f.name for f in fields(settings)}
-        assert expected_fields.issubset(actual_fields), (
-            f"Missing fields: {expected_fields - actual_fields}"
-        )
+        assert expected_sections == actual_fields
+
+    def test_top_level_property_proxies(self):
+        """Settings should provide backward-compatible properties for old flat fields."""
+        settings = load_settings()
+        assert settings.openai_api_key == settings.model.openai_api_key
+        assert settings.default_model == settings.model.default_model
+        assert settings.workspace_dir == settings.general.workspace_dir
+        assert settings.log_dir == settings.general.log_dir
+        assert settings.registry_dir == settings.general.registry_dir
+        assert settings.root_dir == settings.general.root_dir
+        assert settings.log_level == settings.general.log_level
+        assert settings.retrieval_checkpoint_enabled == settings.ui.retrieval_checkpoint_enabled
+        assert settings.retrieval_checkpoint_max_redirects == settings.workflow.retrieval_checkpoint_max_redirects
 
     def test_retrieval_checkpoint_defaults_enabled(self):
         """Retrieval checkpoint defaults to enabled with two redirects."""

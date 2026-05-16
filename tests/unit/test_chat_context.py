@@ -109,6 +109,19 @@ def test_compact_memory_canonicalizes_workspace_prefix_sources():
     assert "knowledge/patterns/reporting-patterns.txt" in memory.known_sources
 
 
+def test_compact_memory_ignores_runtime_failure_notes():
+    history = [
+        ("user", "Create a Power BI recommendation."),
+        ("assistant", "Request failed: RuntimeError: asyncio.run() cannot be called from a running event loop"),
+    ]
+
+    memory = chat_context.compact_session_memory(history)
+
+    assert "Request failed" not in memory.current_state
+    assert "RuntimeError" not in memory.current_state
+    assert memory.last_outputs == []
+
+
 def test_runtime_context_package_flags_task_drift():
     history = [
         ("user", "Work on the Integration Strategy document summary."),

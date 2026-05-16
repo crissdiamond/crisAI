@@ -14,13 +14,13 @@ from agents import Runner
 
 from crisai.logging_utils import get_logger
 
-from .display import create_agent_live, print_agent_output, sanitize_user_visible_text
+from .display import AgentDisplayManager, print_agent_output, sanitize_user_visible_text
 
 __all__ = [
     "_DEFAULT_AGENT_MAX_TURNS",
     "_resolve_agent_max_turns",
     "_run_agent_silently",
-    "_run_agent_with_transient_box",
+    "_run_agent_with_progress",
     "print_agent_output",
     "sanitize_user_visible_text",
 ]
@@ -67,9 +67,9 @@ async def _run_agent_silently(agent, prompt: str) -> str:
     return str(result.final_output)
 
 
-async def _run_agent_with_transient_box(agent_id: str, agent, prompt: str) -> str:
+async def _run_agent_with_progress(agent_id: str, agent, prompt: str, topic: str = "Working...") -> str:
     """Run an agent and render its transient progress box."""
-    live = create_agent_live(agent_id)
-    with live:
+    with AgentDisplayManager(agent_id) as manager:
+        manager.update(topic)
         result = await _run_agent_silently(agent, prompt)
     return result

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 from crisai.cli.chat_context import (
     build_runtime_context_package,
@@ -24,6 +26,7 @@ from crisai.cli.status_views import (
     print_session_history,
 )
 from crisai.cli.text_loader import load_cli_text
+from crisai.config import Settings, load_settings
 from crisai.orchestration.router import normalize_agent_id
 
 
@@ -40,6 +43,52 @@ class ChatRuntimeState:
     current_retrieval_checkpoint: bool
     mode_pinned: bool
     agent_pinned: bool
+    settings: Settings = field(default_factory=load_settings)
+
+
+def _print_hierarchical_settings(settings: Settings) -> None:
+    lines = []
+    for section_name in ["general", "ui", "model", "workflow"]:
+        section = getattr(settings, section_name)
+        lines.append(f"[bold cyan]{section_name.capitalize()}[/bold cyan]")
+        for f in section.__dataclass_fields__:
+            val = getattr(section, f)
+            lines.append(f"  [dim]{f}:[/dim] {val}")
+    print_status_message("\n".join(lines), title="⚙ Settings")
+
+
+def _update_setting(settings: Settings, path: str, value: str) -> str:
+    parts = path.split(".")
+    if len(parts) != 2:
+        return f"Invalid path '{path}'. Use <section>.<key> (e.g. ui.verbose)."
+
+    section_name, key = parts
+    if not hasattr(settings, section_name):
+        return f"Invalid section '{section_name}'."
+
+    section = getattr(settings, section_name)
+    if not hasattr(section, key):
+        return f"Invalid key '{key}' in section '{section_name}'."
+
+    current_val = getattr(section, key)
+    new_val: Any = value
+    if isinstance(current_val, bool):
+        if value.lower() in {"on", "true", "yes", "1"}:
+            new_val = True
+        elif value.lower() in {"off", "false", "no", "0"}:
+            new_val = False
+        else:
+            return f"Invalid boolean value '{value}'."
+    elif isinstance(current_val, int):
+        try:
+            new_val = int(value)
+        except ValueError:
+            return f"Invalid integer value '{value}'."
+    elif isinstance(current_val, Path):
+        new_val = Path(value)
+
+    setattr(section, key, new_val)
+    return f"Updated [bold]{path}[/bold] to {new_val}."
 
 
 def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
@@ -178,6 +227,27 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
                 f"Single-agent target pinned to {state.current_agent}",
                 title="🤖 Agent selection",
             )
+    elif action == "settings":
+        if not command.value:
+            _print_hierarchical_settings(state.settings)
+        else:
+            val = str(command.value)
+            if " " in val:
+                path, new_val = val.split(maxsplit=1)
+                msg = _update_setting(state.settings, path, new_val)
+                # Sync back to top-level state if applicable
+                if path == "ui.verbose":
+                    state.current_verbose = state.settings.ui.verbose
+                elif path == "ui.retrieval_checkpoint_enabled":
+                    state.current_retrieval_checkpoint = state.settings.ui.retrieval_checkpoint_enabled
+                print_status_message(msg, title="⚙ Settings")
+            else:
+                # Show single setting
+                try:
+                    current = getattr(getattr(state.settings, val.split(".")[0]), val.split(".")[1])
+                    print_status_message(f"[dim]{val}:[/dim] {current}", title="⚙ Settings")
+                except (AttributeError, IndexError):
+                    print_status_message(f"Invalid setting path '{val}'.", title="⚠ Settings")
     elif action == "noop" and command.message == "status":
         print_chat_state(
             current_session=state.current_session,

@@ -122,7 +122,7 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
-    async def fake_run_with_transient_box(agent_id, agent, prompt):
+    async def fake_run_with_progress(agent_id, agent, prompt, topic="Working..."):
         calls.append(agent.id)
         if agent.id == "orchestrator":
             return "Final recommendation\nORCHESTRATOR OUTPUT"
@@ -130,7 +130,7 @@ async def test_peer_mode_runs_expected_stage_order_when_retrieval_is_needed(monk
             return "Decision: accept"
         return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", fake_run_with_progress)
 
     result = await pipelines.run_peer_pipeline(
         "debate this design",
@@ -161,7 +161,7 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
-    async def fake_run_with_transient_box(agent_id, agent, prompt):
+    async def fake_run_with_progress(agent_id, agent, prompt, topic="Working..."):
         calls.append(agent.id)
         if agent.id == "orchestrator":
             return "Final recommendation\nORCHESTRATOR OUTPUT"
@@ -169,7 +169,7 @@ async def test_peer_mode_runs_all_peer_stages_even_when_review_off(monkeypatch, 
             return "Decision: accept"
         return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", fake_run_with_progress)
 
     result = await pipelines.run_peer_pipeline(
         "debate this design",
@@ -200,7 +200,7 @@ async def test_peer_mode_skips_retrieval_planner_when_retrieval_not_needed(monke
     server_specs, agent_specs = fake_specs
     calls: list[str] = []
 
-    async def fake_run_with_transient_box(agent_id, agent, prompt):
+    async def fake_run_with_progress(agent_id, agent, prompt, topic="Working..."):
         calls.append(agent.id)
         if agent.id == "orchestrator":
             return "Final recommendation\nORCHESTRATOR OUTPUT"
@@ -208,7 +208,7 @@ async def test_peer_mode_skips_retrieval_planner_when_retrieval_not_needed(monke
             return "Decision: accept"
         return f"{agent.id.upper()} OUTPUT"
 
-    monkeypatch.setattr(pipelines, "_run_agent_with_transient_box", fake_run_with_transient_box)
+    monkeypatch.setattr(pipelines, "_run_agent_with_progress", fake_run_with_progress)
 
     result = await pipelines.run_peer_pipeline(
         "propose a simple CLI design",

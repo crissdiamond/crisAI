@@ -30,29 +30,33 @@ def agent_icon(agent_id: str) -> str:
     """Return the icon for an agent identifier."""
     aid = agent_id.lower()
     if "orchestrator" in aid:
-        return "🧭"
+        return "🛰️"
     if "retrieval_planner" in aid:
-        return "📋"
-    if aid == "discovery":
-        return "📋"
+        return "🔍"
+    if "context_retrieval" in aid:
+        return "📖"
+    if "context_synthesizer" in aid:
+        return "🧬"
+    if "summary" in aid:
+        return "📑"
     if "design_author" in aid:
-        return "✍"
+        return "✍️"
     if "design_challenger" in aid:
-        return "⚔"
+        return "🤺"
     if "design_refiner" in aid:
-        return "🛠"
-    if aid == "design":
-        return "🏗"
+        return "💎"
+    if "design" in aid:
+        return "🎨"
     if "review" in aid:
-        return "🛡"
+        return "🔎"
     if "judge" in aid:
-        return "⚖"
+        return "🏛️"
     if "operations" in aid:
-        return "🔧"
+        return "🛠️"
     if "document_formatter" in aid:
-        return "🧾"
+        return "🎭"
     if "publisher" in aid:
-        return "📦"
+        return "🚢"
     return "🧠"
 
 
@@ -158,7 +162,7 @@ def print_chat_state(
         f"Retrieval checkpoint: {'on' if current_retrieval_checkpoint else 'off'}",
         f"Loaded history entries: {history_count}",
         f"Logs: {log_dir} (crisai.log, agent_trace.jsonl, *_mcp.log when servers run)",
-        "Commands: /session new <name> • /context show • /mode auto|single|pipeline|peer • /retrieval-checkpoint on|off • /status • /help",
+        "Commands: /session new <name> • /settings • /mode auto|single|pipeline|peer • /status • /help",
     ]
     print_status_message("\n".join(lines), title="💬 Chat state")
 

@@ -37,6 +37,7 @@ tests/logs/
 # Coding assistant instructions (local to each developer's toolchain)
 AGENTS.md
 CLAUDE.md
+GEMINI.md
 
 # Local env, auth, and secrets
 .env
