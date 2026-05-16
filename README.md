@@ -15,6 +15,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
 - Compact task memory for sessions, so long tasks keep useful context without replaying the full transcript every turn.
+- Latest-message routing and policy inference, so task scaffolding informs context without changing the current ask.
 - Clean CLI and web stage rendering that separates readable agent prose from structured evidence metadata in traces.
 - Source-fit validation so retrieved content must match explicit title and source-scope constraints before it is summarized.
 - Deterministic retrieval expansion from registry dictionaries.

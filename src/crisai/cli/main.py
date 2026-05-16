@@ -345,6 +345,15 @@ def _render_runtime_error(exc: Exception) -> None:
     )
 
 
+def _persist_failed_chat_turn(state: ChatRuntimeState, user_input: str, exc: Exception) -> None:
+    """Persist failed turns so task history reflects what happened."""
+    error_text = f"Request failed: {type(exc).__name__}: {exc}"
+    state.history.append(("user", user_input))
+    state.history.append(("assistant", sanitize_user_visible_text(error_text)))
+    save_history(state.current_session, state.history)
+    update_session_memory(state.current_session, state.history)
+
+
 def _close_chat_session(state: ChatRuntimeState) -> None:
     """Persist current session state and render a consistent exit notice."""
     save_history(state.current_session, state.history)
@@ -569,6 +578,7 @@ async def _run_with_routing(
         server_specs=server_specs,
         agent_specs=agent_specs,
         model_specs=model_specs,
+        user_intent_message=user_intent_message,
     )
 
 
@@ -784,6 +794,7 @@ def chat(
                 text = _run_async(_run())
         except Exception as exc:  # noqa: BLE001
             _render_runtime_error(exc)
+            _persist_failed_chat_turn(state, user_input, exc)
             continue
 
         _render_final_output(decision, text)

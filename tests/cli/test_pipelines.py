@@ -1552,6 +1552,46 @@ async def test_run_single_emits_fail_open_deterministic_trace_when_graph_missing
 
 
 @pytest.mark.anyio
+async def test_run_single_policy_uses_latest_user_intent_not_history_wrapper(monkeypatch, tmp_path):
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(
+            root_dir=tmp_path,
+            trace_file=tmp_path / "trace.log",
+            runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
+            factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
+            run_id="test-run-id",
+        ),
+    )
+
+    async def _fake_run_agent_silently(agent, prompt: str) -> str:
+        del agent, prompt
+        return "option paper prose"
+
+    monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
+    history_wrapped_prompt = (
+        "Conversation so far:\n"
+        "Active task workspace:\n"
+        "- Artefacts: workspace/tasks/Power-BI_CB_dashboard/artefacts\n\n"
+        "Latest user message:\n"
+        "Please generate an option paper."
+    )
+
+    result = await pipelines.run_single(
+        history_wrapped_prompt,
+        "design",
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={"design": SimpleNamespace(id="design", allowed_servers=[])},
+        user_intent_message="Please generate an option paper.",
+    )
+
+    assert result == "option paper prose"
+
+
+@pytest.mark.anyio
 async def test_run_pipeline_enforces_intranet_fetch_policy(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
     stage_calls: list[tuple[str, str]] = []

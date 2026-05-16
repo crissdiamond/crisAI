@@ -26,7 +26,7 @@ _DEFAULT_CONFIG = {
     "max_memory_chars": 3000,
     "task_drift_nudge": True,
 }
-_SOURCE_PATH_RE = re.compile(r"`((?:context|workspace)/[^`]+)`")
+_SOURCE_PATH_RE = re.compile(r"`((?:context|knowledge|knowledge_staging|tasks|workspace)/[^`]+)`")
 _MARKDOWN_LINK_RE = re.compile(r"\[([^\]]{3,160})\]\(([^)]+)\)")
 _NOISE_SECTION_RE = re.compile(
     r"(?ims)^(\|.*\|\n\|[-:| ]+\|\n(?:\|.*\|\n?)+|```(?:json)?\s*\{.*?schema_version.*?\}\s*```)"
@@ -281,16 +281,35 @@ def _extract_sources(history: list[HistoryEntry]) -> list[str]:
     for _role, content in history:
         text = sanitize_user_visible_text(content)
         for match in _SOURCE_PATH_RE.finditer(text):
-            value = match.group(1).strip()
+            value = _canonical_source_path(match.group(1).strip())
             if value not in seen:
                 seen.add(value)
                 sources.append(value)
         for match in _MARKDOWN_LINK_RE.finditer(text):
-            value = match.group(1).strip()
-            if value not in seen and len(value.split()) <= 12:
+            value = _canonical_source_path(_source_from_markdown_link(match.group(1), match.group(2)))
+            if value and value not in seen and len(value.split()) <= 12:
                 seen.add(value)
                 sources.append(value)
     return sources
+
+
+def _source_from_markdown_link(label: str, href: str) -> str:
+    """Extract a workspace source path from a Markdown link label or href."""
+    href_text = (href or "").strip()
+    marker = "/workspace/"
+    if marker in href_text:
+        return href_text.split(marker, 1)[1]
+    return (label or "").strip()
+
+
+def _canonical_source_path(path: str) -> str:
+    """Normalize legacy workspace context paths in session memory."""
+    clean = (path or "").strip().strip("`")
+    if clean.startswith("workspace/"):
+        clean = clean[len("workspace/") :]
+    if clean == "context" or clean.startswith("context/"):
+        clean = clean.replace("context", "knowledge", 1)
+    return clean
 
 
 def _extract_decisions(messages: list[str]) -> list[str]:

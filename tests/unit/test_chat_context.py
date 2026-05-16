@@ -68,9 +68,22 @@ def test_build_chat_input_wraps_compact_memory_and_relevant_tail(monkeypatch):
     transcript = captured["kwargs"]["transcript"]
     assert "Compact session memory:" in transcript
     assert "Known sources:" in transcript
-    assert "workspace/context/integration-strategy.md" in transcript
+    assert "knowledge/integration-strategy.md" in transcript
     assert "Relevant recent turns:" in transcript
     assert "User: Now continue with Integration Strategy details." in transcript
+
+
+def test_compact_memory_canonicalizes_legacy_context_sources():
+    history = [
+        ("user", "Use the local source."),
+        ("assistant", "Read [reporting-standard.txt](file:///workspace/context/standards/reporting-standard.txt)."),
+        ("assistant", "Also used `knowledge/patterns/reporting-patterns.txt`."),
+    ]
+
+    memory = chat_context.compact_session_memory(history)
+
+    assert "knowledge/standards/reporting-standard.txt" in memory.known_sources
+    assert "knowledge/patterns/reporting-patterns.txt" in memory.known_sources
 
 
 def test_runtime_context_package_flags_task_drift():

@@ -256,6 +256,10 @@ CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS=2
 
 Each task session stores raw history, compact memory, and task metadata under `workspace/tasks/<task>/.crisai/`. Legacy `workspace/chat_sessions/` files are still read for compatibility. Runtime prompts use the compact memory plus a small relevant recent tail instead of replaying the full session, which reduces repeated context and token waste during multi-step tasks.
 
+Routing and workflow policy are inferred from the **latest user message**, not from the full history wrapper. Session memory and task workspace paths are supporting context only; they must not turn a follow-up such as “generate an option paper” into a file-write request just because the prompt wrapper mentions `workspace/tasks/<task>/artefacts`. Failed chat turns are still persisted with the error status so task history reflects what happened.
+
+Known source paths in compact memory are normalised to current workspace roots. Legacy `workspace/context/...` or `context/...` references are carried forward as `knowledge/...` where possible, which avoids stale source paths in follow-up drafts.
+
 Use one session per task when possible:
 
 ```text

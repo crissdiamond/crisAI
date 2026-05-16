@@ -480,7 +480,16 @@ def _create_workflow_engine(environment: WorkflowEnvironment, server_specs) -> W
     )
 
 
-async def run_single(message: str, agent_id: str, *, settings, server_specs, agent_specs, model_specs=None) -> str:
+async def run_single(
+    message: str,
+    agent_id: str,
+    *,
+    settings,
+    server_specs,
+    agent_specs,
+    model_specs=None,
+    user_intent_message: str | None = None,
+) -> str:
     """Run a single agent directly."""
     ensure_openai_api_key(settings)
 
@@ -493,18 +502,19 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
     logger.info("Running single agent request.", extra={"agent_id": agent_id, "run_id": _get_run_id(environment)})
 
     registry_dir = getattr(settings, "registry_dir", None)
+    intent_message = user_intent_message or message
     deterministic_context = _empty_deterministic_context()
     graph_loaded = False
     if registry_dir is not None:
-        deterministic_context, graph_loaded = deterministic_context_from_registry(message, Path(registry_dir))
+        deterministic_context, graph_loaded = deterministic_context_from_registry(intent_message, Path(registry_dir))
     request_contract = _infer_runtime_request_contract(
-        message,
+        intent_message,
         current_mode="single",
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
     )
     policy = infer_workflow_policy(
-        message,
+        intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
         deterministic_context=deterministic_context,
         explicit_write_target_subdir=request_contract.output_target_subdir,
@@ -561,7 +571,7 @@ async def run_single(message: str, agent_id: str, *, settings, server_specs, age
             agent = environment.factory.build_agent(agent_spec, active_agent_servers)
             prompt = (
                 build_single_retrieval_planner_prompt(
-                    message,
+                    intent_message,
                     deterministic_context=deterministic_context,
                     registry_dir=Path(registry_dir) if registry_dir is not None else None,
                 )
