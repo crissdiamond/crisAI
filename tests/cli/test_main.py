@@ -215,7 +215,6 @@ def test_chat_loop_runs_one_request_then_persists_history(monkeypatch):
     monkeypatch.setattr(main, "PromptSession", FakePromptSession)
     monkeypatch.setattr(main, "_resolve_initial_chat_session", lambda session: session)
     monkeypatch.setattr(main, "load_history", lambda session: [])
-    monkeypatch.setattr(main, "print_chat_state", lambda **kwargs: None)
     monkeypatch.setattr(main, "handle_chat_command", lambda user_input, state: False)
     monkeypatch.setattr(
         main,

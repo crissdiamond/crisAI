@@ -43,7 +43,6 @@ from crisai.cli.session_store import (
 )
 from crisai.cli.status_views import (
     print_agents_table,
-    print_chat_state,
     print_servers_table,
     route_display,
 )
@@ -738,17 +737,6 @@ def chat(
         agent_pinned=True if (agent_id != "orchestrator") else False,
     )
 
-    print_chat_state(
-        current_session=state.current_session,
-        current_mode=state.current_mode,
-        current_agent=state.current_agent,
-        current_review=state.current_review,
-        current_verbose=state.current_verbose,
-        current_retrieval_checkpoint=state.current_retrieval_checkpoint,
-        mode_pinned=state.mode_pinned,
-        agent_pinned=state.agent_pinned,
-        history_count=len(state.history),
-    )
     last_route_line: str | None = None
     prompt_session: PromptSession[str] | None = None
     prompt_session_name: str | None = None

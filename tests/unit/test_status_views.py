@@ -118,23 +118,11 @@ def test_print_chat_state_uses_status_message(monkeypatch):
 
     status_views.print_chat_state(
         current_session="demo",
-        current_mode="pipeline",
-        current_agent="design",
-        current_review=True,
-        current_verbose=False,
-        current_retrieval_checkpoint=True,
-        mode_pinned=True,
-        agent_pinned=True,
         history_count=4,
     )
 
-    assert captured["title"] == "💬 Chat state"
+    assert captured["title"] == "💬 Session status"
     assert "Session: demo" in captured["body"]
-    assert "Routing: pinned:pipeline" in captured["body"]
-    assert "Agent: pinned:design" in captured["body"]
-    assert "Review preference: on" in captured["body"]
-    assert "Verbose: off" in captured["body"]
-    assert "Retrieval checkpoint: on" in captured["body"]
     assert "Loaded history entries: 4" in captured["body"]
     assert "Logs:" in captured["body"]
 

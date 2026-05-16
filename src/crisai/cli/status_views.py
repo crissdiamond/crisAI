@@ -142,29 +142,17 @@ def agent_status(current_agent: str, agent_pinned: bool) -> str:
 def print_chat_state(
     *,
     current_session: str,
-    current_mode: str,
-    current_agent: str,
-    current_review: bool,
-    current_verbose: bool,
-    current_retrieval_checkpoint: bool,
-    mode_pinned: bool,
-    agent_pinned: bool,
     history_count: int,
 ) -> None:
-    """Render the current interactive chat state."""
+    """Render lean interactive session diagnostics."""
     log_dir = load_settings().log_dir.resolve()
     lines = [
         f"Session: {current_session}",
-        f"Routing: {mode_status(current_mode, mode_pinned)}",
-        f"Agent: {agent_status(current_agent, agent_pinned)}",
-        f"Review preference: {'on' if current_review else 'off'}",
-        f"Verbose: {'on' if current_verbose else 'off'}",
-        f"Retrieval checkpoint: {'on' if current_retrieval_checkpoint else 'off'}",
         f"Loaded history entries: {history_count}",
         f"Logs: {log_dir} (crisai.log, agent_trace.jsonl, *_mcp.log when servers run)",
-        "Commands: /session new <name> • /settings • /mode auto|single|pipeline|peer • /status • /help",
+        "Commands: /settings • /context show • /history • /help",
     ]
-    print_status_message("\n".join(lines), title="💬 Chat state")
+    print_status_message("\n".join(lines), title="💬 Session status")
 
 
 def print_session_history(history: Iterable[HistoryEntry]) -> None:

@@ -251,13 +251,6 @@ def handle_chat_command(user_input: str, state: ChatRuntimeState) -> bool:
     elif action == "noop" and command.message == "status":
         print_chat_state(
             current_session=state.current_session,
-            current_mode=state.current_mode,
-            current_agent=state.current_agent,
-            current_review=state.current_review,
-            current_verbose=state.current_verbose,
-            current_retrieval_checkpoint=state.current_retrieval_checkpoint,
-            mode_pinned=state.mode_pinned,
-            agent_pinned=state.agent_pinned,
             history_count=len(state.history),
         )
     elif action in {"invalid", "noop"} and command.message:
