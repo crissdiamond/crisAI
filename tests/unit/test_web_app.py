@@ -78,6 +78,24 @@ def test_trace_line_sanitizes_single_agent_workflow_output():
     assert out["content"] == "Found files."
 
 
+def test_trace_line_maps_stage_error_to_agent_tab():
+    entry = {
+        "event_type": "stage_error",
+        "stage": "RETRIEVAL_PLANNER OUTPUT_ERROR",
+        "agent_id": "retrieval_planner",
+        "content": "Stage retrieval_planner returned empty output.",
+        "run_id": "run-x",
+    }
+
+    out = _trace_line_to_stage_output(entry, verbose=True)
+
+    assert out is not None
+    assert out["key"] == "retrieval_planner"
+    assert out["agent_id"] == "retrieval_planner"
+    assert out["event_type"] == "stage_error"
+    assert out["content"] == "Stage retrieval_planner returned empty output."
+
+
 def test_trace_line_ignores_unrelated_workflow_output():
     entry = {"event_type": "workflow_output", "stage": "OTHER", "agent_id": "retrieval_planner", "content": "x"}
     assert _trace_line_to_stage_output(entry) is None
@@ -88,6 +106,7 @@ def test_collect_stage_outputs_keeps_only_renderable_stage_events():
         {"event_type": "workflow_event", "stage": "WORKFLOW_START", "content": "start"},
         {"event_type": "stage_output", "stage": "RETRIEVAL_PLANNER OUTPUT", "content": "plan", "agent_id": "retrieval_planner"},
         {"event_type": "stage_skipped", "stage": "REVIEW_OUTPUT", "content": "skipped", "agent_id": "review"},
+        {"event_type": "stage_error", "stage": "SUMMARY OUTPUT_ERROR", "content": "empty", "agent_id": "summary"},
     ]
 
     result = _collect_stage_outputs(entries, verbose=True)
@@ -104,6 +123,12 @@ def test_collect_stage_outputs_keeps_only_renderable_stage_events():
             "stage": "REVIEW_OUTPUT",
             "event_type": "stage_skipped",
             "content": "skipped",
+        },
+        {
+            "agent_id": "summary",
+            "stage": "SUMMARY OUTPUT_ERROR",
+            "event_type": "stage_error",
+            "content": "empty",
         },
     ]
 
