@@ -139,9 +139,11 @@ Recommended startup behaviour:
 When crisAI opens, you are inside the interactive CLI.
 
 The stable CLI command is `crisai classic`. The existing `crisai chat` command
-is kept as a compatibility alias. The planned full-screen terminal UI is named
-`crisai gem`; it is reserved as a separate entrypoint so it can be built with a
-proper TUI architecture instead of patching the classic prompt/Rich flow.
+is kept as a compatibility alias. The full-screen terminal UI is named
+`crisai gem`; it is built as a separate Textual TUI so it can own the terminal
+layout instead of patching the classic prompt/Rich flow. Gem maps the UCL web
+palette from `src/crisai/apps/.style.md` into terminal-safe header, footer,
+stage, transcript, and warning/error styles.
 
 To run the web interface:
 

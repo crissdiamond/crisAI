@@ -317,8 +317,9 @@ def test_chat_alias_delegates_to_classic(monkeypatch):
     }
 
 
-def test_gem_command_is_reserved_until_tui_is_implemented(monkeypatch):
+def test_gem_command_reports_missing_textual(monkeypatch):
     notices = []
+    monkeypatch.setattr(main, "run_gem_app", lambda: 1)
     monkeypatch.setattr(main, "print_status_message", lambda body, title=None: notices.append((title, body)))
 
     try:
@@ -329,7 +330,13 @@ def test_gem_command_is_reserved_until_tui_is_implemented(monkeypatch):
         raise AssertionError("gem should exit until implemented")
 
     assert notices[-1][0] == "💎 crisAI Gem"
-    assert "crisai classic" in notices[-1][1]
+    assert "Textual dependency" in notices[-1][1]
+
+
+def test_gem_command_exits_cleanly_when_app_runs(monkeypatch):
+    monkeypatch.setattr(main, "run_gem_app", lambda: 0)
+
+    assert main.gem() is None
 
 
 def test_run_async_cancels_pending_background_tasks():

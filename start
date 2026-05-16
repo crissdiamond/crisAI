@@ -26,6 +26,9 @@ case "$MODE" in
   cli)
     exec python -m crisai.cli.main classic
     ;;
+  gem)
+    exec python -m crisai.cli.main gem
+    ;;
   web)
     exec crisai-web
     ;;

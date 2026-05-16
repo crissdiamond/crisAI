@@ -161,10 +161,10 @@ crisai doctor
 ./start cli
 ```
 
-The stable terminal experience is `crisai classic`. The future full-screen TUI
-entrypoint is reserved as `crisai gem`; it will be implemented separately with
-proper terminal layout ownership. The older `crisai chat` command remains as a
-compatibility alias for `crisai classic`.
+The stable terminal experience is `crisai classic`. The new full-screen TUI
+entrypoint is `crisai gem`; it uses the same UCL palette as the web interface
+and is being built separately with proper terminal layout ownership. The older
+`crisai chat` command remains as a compatibility alias for `crisai classic`.
 
 For the web app:
 

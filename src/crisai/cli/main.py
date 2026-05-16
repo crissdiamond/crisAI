@@ -36,6 +36,7 @@ from crisai.cli.display import (
     set_active_runtime_footer,
     update_terminal_title,
 )
+from crisai.cli.gem_app import run_gem_app
 from crisai.cli.gemini_chat import GeminiChatDisplay, GeminiChatStatus
 from crisai.cli.session_store import (
     clear_cli_history,
@@ -1000,11 +1001,13 @@ def chat(
 @app.command()
 def gem() -> None:
     """Start the future full-screen crisAI Gem terminal UI."""
-    print_status_message(
-        "Gem is the planned full-screen terminal UI. Use `crisai classic` for the stable CLI while Gem is implemented.",
-        title="💎 crisAI Gem",
-    )
-    raise typer.Exit(1)
+    exit_code = run_gem_app()
+    if exit_code != 0:
+        print_status_message(
+            "Gem needs the Textual dependency. Run `pip install -e .` in this environment, or use `crisai classic` for the stable CLI.",
+            title="💎 crisAI Gem",
+        )
+        raise typer.Exit(exit_code)
 
 
 if __name__ == "__main__":
