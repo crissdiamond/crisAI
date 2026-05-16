@@ -1,0 +1,86 @@
+theme:
+  name: ucl_dark
+  palette:
+    primary_dark: "#361a54"
+    background: "#1f102f"
+    transcript_background: "#fafafa"
+    composer_background: "#ffffff"
+    accent_bright: "#993bff"
+    accent_mid: "#ba82ff"
+    surface_light: "#ddbdff"
+    surface_pale: "#eedeff"
+    accent_blue: "#30d6ff"
+    text: "#1f1f2e"
+    border: "#c9b7dd"
+    vibrant_purple: "#500778"
+    success: "#52C152"
+    error: "#D50032"
+    warning: "#FFCA36"
+  css_template: |
+    Screen {
+        background: $background;
+        color: $transcript_background;
+    }
+
+    #header {
+        background: $primary_dark;
+        color: $background;
+        height: 3;
+        padding: 0 2;
+        border-bottom: tall $accent_mid;
+    }
+
+    #workspace {
+        layout: horizontal;
+        background: $background;
+    }
+
+    #stages {
+        width: 31;
+        min-width: 24;
+        background: $surface_pale;
+        border-right: solid $border;
+        padding: 1;
+    }
+
+    #transcript {
+        background: $transcript_background;
+        color: $text;
+        border: solid $accent_bright;
+        padding: 1 2;
+    }
+
+    #composer {
+        height: 3;
+        border-top: solid $accent_bright;
+        background: $composer_background;
+        color: $text;
+        padding: 0 1;
+    }
+
+    #footer {
+        height: 1;
+        background: $primary_dark;
+        color: $accent_mid;
+    }
+
+    .stage-active {
+        color: $accent_blue;
+        text-style: bold;
+    }
+
+    .stage-complete {
+        color: $success;
+    }
+
+    .stage-pending {
+        color: $text;
+    }
+
+    .stage-warning {
+        color: $warning;
+    }
+
+    .stage-error {
+        color: $error;
+    }

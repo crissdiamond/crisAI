@@ -1,118 +1,85 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pathlib import Path
+from string import Template
+from typing import Any
+
+import yaml
+
+REQUIRED_PALETTE_TOKENS = {
+    "primary_dark",
+    "background",
+    "transcript_background",
+    "composer_background",
+    "accent_bright",
+    "accent_mid",
+    "surface_light",
+    "surface_pale",
+    "accent_blue",
+    "text",
+    "border",
+    "vibrant_purple",
+    "success",
+    "error",
+    "warning",
+}
 
 
-@dataclass(frozen=True, slots=True)
-class GemPalette:
-    """Terminal theme tokens mapped from the web UCL design palette."""
-
-    primary_dark: str = "#361a54"
-    background: str = "#1f102f"
-    transcript_background: str = "#fafafa"
-    composer_background: str = "#ffffff"
-    accent_bright: str = "#993bff"
-    accent_mid: str = "#ba82ff"
-    surface_light: str = "#ddbdff"
-    surface_pale: str = "#eedeff"
-    accent_blue: str = "#30d6ff"
-    text: str = "#1f1f2e"
-    border: str = "#c9b7dd"
-    vibrant_purple: str = "#500778"
-    success: str = "#52C152"
-    error: str = "#D50032"
-    warning: str = "#FFCA36"
+def default_gem_ui_config_path() -> Path:
+    """Return the default Gem UI registry path."""
+    return Path(__file__).resolve().parents[3] / "registry" / "gem_ui.yaml"
 
 
-UCL_PALETTE = GemPalette()
-
-GEM_CSS = f"""
-Screen {{
-    background: {UCL_PALETTE.background};
-    color: {UCL_PALETTE.transcript_background};
-}}
-
-#header {{
-    background: {UCL_PALETTE.primary_dark};
-    color: {UCL_PALETTE.background};
-    height: 3;
-    padding: 0 2;
-    border-bottom: tall {UCL_PALETTE.accent_mid};
-}}
-
-#workspace {{
-    layout: horizontal;
-    background: {UCL_PALETTE.background};
-}}
-
-#stages {{
-    width: 31;
-    min-width: 24;
-    background: {UCL_PALETTE.surface_pale};
-    border-right: solid {UCL_PALETTE.border};
-    padding: 1;
-}}
-
-#transcript {{
-    background: {UCL_PALETTE.transcript_background};
-    color: {UCL_PALETTE.text};
-    border: solid {UCL_PALETTE.accent_bright};
-    padding: 1 2;
-}}
-
-#composer {{
-    height: 3;
-    border-top: solid {UCL_PALETTE.accent_bright};
-    background: {UCL_PALETTE.composer_background};
-    color: {UCL_PALETTE.text};
-    padding: 0 1;
-}}
-
-#footer {{
-    height: 1;
-    background: {UCL_PALETTE.primary_dark};
-    color: {UCL_PALETTE.accent_mid};
-}}
-
-.stage-active {{
-    color: {UCL_PALETTE.accent_blue};
-    text-style: bold;
-}}
-
-.stage-complete {{
-    color: {UCL_PALETTE.success};
-}}
-
-.stage-pending {{
-    color: {UCL_PALETTE.text};
-}}
-
-.stage-warning {{
-    color: {UCL_PALETTE.warning};
-}}
-
-.stage-error {{
-    color: {UCL_PALETTE.error};
-}}
-"""
+def load_gem_ui_config(path: Path | None = None) -> dict[str, Any]:
+    """Load Gem UI theme configuration from YAML."""
+    config_path = path or default_gem_ui_config_path()
+    with config_path.open("r", encoding="utf-8") as handle:
+        data = yaml.safe_load(handle) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"Gem UI config must be a mapping: {config_path}")
+    return data
 
 
-def gem_palette_as_dict() -> dict[str, str]:
-    """Return Gem palette tokens for tests and future diagnostics."""
-    return {
-        "primary_dark": UCL_PALETTE.primary_dark,
-        "background": UCL_PALETTE.background,
-        "transcript_background": UCL_PALETTE.transcript_background,
-        "composer_background": UCL_PALETTE.composer_background,
-        "accent_bright": UCL_PALETTE.accent_bright,
-        "accent_mid": UCL_PALETTE.accent_mid,
-        "surface_light": UCL_PALETTE.surface_light,
-        "surface_pale": UCL_PALETTE.surface_pale,
-        "accent_blue": UCL_PALETTE.accent_blue,
-        "text": UCL_PALETTE.text,
-        "border": UCL_PALETTE.border,
-        "vibrant_purple": UCL_PALETTE.vibrant_purple,
-        "success": UCL_PALETTE.success,
-        "error": UCL_PALETTE.error,
-        "warning": UCL_PALETTE.warning,
-    }
+def _theme_config(config: dict[str, Any]) -> dict[str, Any]:
+    theme = config.get("theme")
+    if not isinstance(theme, dict):
+        raise ValueError("Gem UI config requires a theme mapping.")
+    return theme
+
+
+def gem_palette_as_dict(path: Path | None = None) -> dict[str, str]:
+    """Return Gem palette tokens from registry configuration."""
+    theme = _theme_config(load_gem_ui_config(path))
+    palette = theme.get("palette")
+    if not isinstance(palette, dict):
+        raise ValueError("Gem UI theme requires a palette mapping.")
+    missing = REQUIRED_PALETTE_TOKENS - set(palette)
+    if missing:
+        raise ValueError(f"Gem UI palette is missing token(s): {', '.join(sorted(missing))}")
+    return {key: str(palette[key]) for key in sorted(REQUIRED_PALETTE_TOKENS)}
+
+
+def _template_fields(template: str) -> set[str]:
+    fields: set[str] = set()
+    for match in Template.pattern.finditer(template):
+        named = match.group("named") or match.group("braced")
+        if named:
+            fields.add(named)
+    return fields
+
+
+def render_gem_css(path: Path | None = None) -> str:
+    """Render Gem Textual CSS from registry-backed theme tokens."""
+    config = load_gem_ui_config(path)
+    theme = _theme_config(config)
+    template = theme.get("css_template")
+    if not isinstance(template, str) or not template.strip():
+        raise ValueError("Gem UI theme requires a non-empty css_template.")
+    palette = gem_palette_as_dict(path)
+    missing = _template_fields(template) - set(palette)
+    if missing:
+        raise ValueError(f"Gem UI css_template references unknown token(s): {', '.join(sorted(missing))}")
+    return Template(template).substitute(**palette)
+
+
+GEM_CSS = render_gem_css()
