@@ -169,6 +169,7 @@ def build_retrieval_planner_prompt(
             "- When the user names explicit workspace-relative paths (for example "
             "``knowledge/patterns/foo.txt`` or ``tasks/<task>/artefacts/foo.md``), list them verbatim under **Paths to open** "
             "so the retrieval stage can call ``read_workspace_file`` immediately.\n"
+            "- Respect active task isolation: use approved knowledge and active task artefacts only; do not search sibling ``tasks/`` sessions unless the user explicitly names those task paths.\n"
             "- End with a **Retrieval handoff summary** using plain bullets for activated topics, query terms, and source priority.\n"
             "- Do not output JSON; machine-readable deterministic context is already supplied separately by the runtime.\n"
             "Keep the response brief (about one screen of tight bullets).",
@@ -302,6 +303,7 @@ def build_context_retrieval_prompt(
             f"Use **short** queries (distinctive words or path fragments) or ``subdir`` scoped to ``{knowledge_root}`` / ``{knowledge_root}/patterns`` / the active task path, "
             "or call ``read_workspace_file`` / ``read_document`` when the user request or handoff names a concrete relative path.\n"
             f"- When in doubt, ``list_workspace_files('{knowledge_root}')`` (or a deeper subfolder) and the active task artefact folder, then open the best candidates.\n"
+            "- Active task isolation: do not browse or search sibling ``tasks/`` sessions by fuzzy topic match. Use only the active task root, approved knowledge roots, or task paths explicitly named by the user.\n"
             + intranet_rules
             + "Return only grounded findings, source paths, relevant extracts, and any retrieval limitations. "
             "Do not create, update, or append workspace artefacts during retrieval; never call write-capable workspace tools from this stage. "

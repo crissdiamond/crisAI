@@ -261,6 +261,90 @@ def ensure_task_manifest(session_name: str) -> Path:
     return path
 
 
+def register_task_artefacts(
+    session_name: str,
+    paths: list[str],
+    *,
+    request: str = "",
+    deliverable_type: str = "",
+    root_dir: Path | None = None,
+) -> None:
+    """Register generated task artefacts in the task manifest."""
+    safe = sanitize_session_name(session_name)
+    manifest_path = ensure_task_manifest(safe)
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            payload = {}
+    except (json.JSONDecodeError, OSError):
+        payload = {}
+    payload.setdefault("schema_version", "crisai_task_v1")
+    payload.setdefault("slug", safe)
+    payload.setdefault("title", session_name.strip() or safe)
+    payload.setdefault("status", "active")
+    payload.setdefault("created_at", datetime.utcnow().isoformat() + "Z")
+    existing_paths = _string_list(payload.get("artefact_paths"))
+    existing_entries = payload.get("artefacts")
+    if not isinstance(existing_entries, list):
+        existing_entries = []
+    existing_by_path = {
+        str(item.get("path") or "").strip(): item
+        for item in existing_entries
+        if isinstance(item, dict) and str(item.get("path") or "").strip()
+    }
+    now = datetime.utcnow().isoformat() + "Z"
+    for path in paths:
+        rel = _normalise_task_artefact_path(path, root_dir=root_dir)
+        if not rel or f"{safe}/artefacts/" not in rel:
+            continue
+        if rel not in existing_paths:
+            existing_paths.append(rel)
+        entry = dict(existing_by_path.get(rel) or {})
+        entry.update(
+            {
+                "path": rel,
+                "title": _artefact_title_from_path(rel),
+                "type": deliverable_type or entry.get("type") or "artifact",
+                "updated_at": now,
+            }
+        )
+        if "created_at" not in entry:
+            entry["created_at"] = now
+        if request:
+            entry["source_request"] = request
+        existing_by_path[rel] = entry
+    payload["artefact_paths"] = sorted(dict.fromkeys(existing_paths))
+    payload["artefacts"] = [existing_by_path[path] for path in payload["artefact_paths"] if path in existing_by_path]
+    payload["updated_at"] = now
+    manifest_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _normalise_task_artefact_path(path: str, *, root_dir: Path | None = None) -> str:
+    raw = str(path or "").strip().strip("`").strip()
+    if not raw:
+        return ""
+    if raw.startswith("file://"):
+        raw = raw[len("file://") :]
+    if root_dir is not None:
+        try:
+            raw_path = Path(raw)
+            if raw_path.is_absolute():
+                raw = raw_path.resolve().relative_to(root_dir.resolve()).as_posix()
+        except (OSError, ValueError):
+            pass
+    raw = raw.strip("/")
+    if raw.startswith("workspace/"):
+        return raw
+    if raw.startswith("tasks/"):
+        return f"workspace/{raw}"
+    return raw
+
+
+def _artefact_title_from_path(path: str) -> str:
+    stem = Path(path).stem
+    return stem.replace("-", " ").replace("_", " ").strip().title() or Path(path).name
+
+
 def list_task_names() -> list[str]:
     """List task-backed session names."""
     if not tasks_dir().exists():

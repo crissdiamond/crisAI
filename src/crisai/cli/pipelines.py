@@ -86,6 +86,7 @@ from crisai.orchestration.task_contract import (
 from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
 
+from .artefact_lifecycle import validate_hld_artefacts_for_request
 from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_display import (
     _run_agent_silently,
@@ -94,6 +95,7 @@ from .pipeline_display import (
     sanitize_user_visible_text,
 )
 from .pipeline_engine import WorkflowEngine
+from .session_store import register_task_artefacts, sanitize_session_name
 from .workflow_policy import (
     WorkflowPolicyViolation,
     changed_paths,
@@ -228,6 +230,58 @@ def _apply_mcp_env_overrides(environment: Any, overrides: dict[str, str]) -> Non
         setattr(environment, "mcp_env_overrides", dict(overrides))
         return
     current.update(overrides)
+
+
+def _register_and_validate_task_artefacts(
+    *,
+    workflow: Any | None,
+    session_name: str | None,
+    changed: list[str],
+    root_dir: Path,
+    user_input: str,
+    deliverable_type: str = "",
+) -> None:
+    """Register changed task artefacts and enforce template checks when relevant."""
+    if not session_name or not changed:
+        return
+    safe = sanitize_session_name(session_name)
+    task_artefacts = [
+        path
+        for path in changed
+        if path.startswith(f"workspace/tasks/{safe}/artefacts/") and path.endswith(".md")
+    ]
+    if not task_artefacts:
+        return
+    warnings = validate_hld_artefacts_for_request(
+        user_input=user_input,
+        paths=task_artefacts,
+        root_dir=root_dir,
+    )
+    if warnings:
+        message = "HLD artefact conformance failed. " + " ".join(warnings)
+        if workflow is not None:
+            _trace_workflow_policy_event(
+                workflow,
+                "POLICY_VIOLATION",
+                message,
+                event_type="policy_violation",
+            )
+        raise WorkflowPolicyViolation(message)
+    register_task_artefacts(
+        session_name,
+        task_artefacts,
+        request=user_input,
+        deliverable_type=deliverable_type,
+        root_dir=root_dir,
+    )
+    if workflow is not None:
+        _trace_workflow_policy_event(
+            workflow,
+            "TASK_ARTEFACTS_REGISTERED",
+            "\n".join(task_artefacts),
+            event_type="policy_signal",
+            metadata={"changed_count": len(task_artefacts)},
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -489,6 +543,7 @@ async def run_single(
     agent_specs,
     model_specs=None,
     user_intent_message: str | None = None,
+    session_name: str | None = None,
 ) -> str:
     """Run a single agent directly."""
     ensure_openai_api_key(settings)
@@ -596,6 +651,14 @@ async def run_single(
                     Path(registry_dir) if registry_dir is not None else None,
                 )
                 if changed:
+                    _register_and_validate_task_artefacts(
+                        workflow=None,
+                        session_name=session_name,
+                        changed=changed,
+                        root_dir=root_dir,
+                        user_input=intent_message,
+                        deliverable_type=getattr(request_contract.task_contract, "deliverable_type", ""),
+                    )
                     append_trace_entry(
                         environment,
                         "POLICY_WRITE_CHANGES",
@@ -624,6 +687,7 @@ async def run_pipeline(
     agent_specs,
     model_specs=None,
     user_intent_message: str | None = None,
+    session_name: str | None = None,
     retrieval_checkpoint_enabled: bool | None = None,
     retrieval_checkpoint_handler: RetrievalCheckpointHandler | None = None,
 ) -> str:
@@ -914,6 +978,14 @@ async def run_pipeline(
                     Path(registry_dir) if registry_dir is not None else None,
                 )
                 if changed:
+                    _register_and_validate_task_artefacts(
+                        workflow=workflow,
+                        session_name=session_name,
+                        changed=changed,
+                        root_dir=root_dir,
+                        user_input=intent_message,
+                        deliverable_type=task_contract.deliverable_type,
+                    )
                     _trace_workflow_policy_event(
                         workflow,
                         "POLICY_WRITE_CHANGES",
@@ -996,6 +1068,14 @@ async def run_pipeline(
                 Path(registry_dir) if registry_dir is not None else None,
             )
             if changed:
+                _register_and_validate_task_artefacts(
+                    workflow=workflow,
+                    session_name=session_name,
+                    changed=changed,
+                    root_dir=root_dir,
+                    user_input=intent_message,
+                    deliverable_type=task_contract.deliverable_type,
+                )
                 _trace_workflow_policy_event(
                     workflow,
                     "POLICY_WRITE_CHANGES",
@@ -1026,6 +1106,7 @@ async def run_peer_pipeline(
     model_specs=None,
     needs_retrieval: bool = True,
     user_intent_message: str | None = None,
+    session_name: str | None = None,
 ) -> str:
     """Run the peer workflow with optional retrieval and final recommendation."""
     del review  # Unused in peer mode today; kept for API compatibility.
@@ -1151,6 +1232,7 @@ async def run_peer_pipeline(
                     message,
                     deterministic_context=deterministic_context,
                     registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                    task_contract=request_contract.task_contract,
                 ),
                 trace_label="RETRIEVAL_PLANNER OUTPUT",
                 verbose=verbose,
@@ -1166,6 +1248,7 @@ async def run_peer_pipeline(
                         retrieval_plan_text,
                         deterministic_context=deterministic_context,
                         registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                        task_contract=request_contract.task_contract,
                     ),
                     trace_label="CONTEXT RETRIEVAL OUTPUT",
                     verbose=verbose,
@@ -1604,6 +1687,14 @@ async def run_peer_pipeline(
                 Path(registry_dir) if registry_dir is not None else None,
             )
             if changed:
+                _register_and_validate_task_artefacts(
+                    workflow=workflow,
+                    session_name=session_name,
+                    changed=changed,
+                    root_dir=root_dir,
+                    user_input=intent_message,
+                    deliverable_type=request_contract.deliverable_type,
+                )
                 _trace_workflow_policy_event(
                     workflow,
                     "POLICY_WRITE_CHANGES",

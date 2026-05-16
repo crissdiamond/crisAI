@@ -206,6 +206,10 @@ crisai validate-artefacts -p workspace/knowledge_staging/patterns/example.md
 
 The same validator runs automatically as part of the **peer post-run verifier** for Markdown files touched in that workflow (`src/crisai/orchestration/peer_verifier.py` calling `validate_workspace_artefact_paths`).
 
+Generated task artefacts are also registered automatically in the active task manifest when agents write Markdown under `workspace/tasks/<task>/artefacts/`. Reusable chat-only deliverables such as options papers, architecture recommendations, assessments, and HLDs are saved to that folder so later turns can use the concrete artefact rather than relying on transcript memory.
+
+For full HLD requests, crisAI applies an additional lifecycle check: generated Markdown must preserve the expected HLD sections and include a Mermaid architecture diagram unless the artefact states why a diagram is not appropriate. This catches incomplete HLD files before the workflow reports success.
+
 ### Mode controls
 
 ```text
@@ -667,6 +671,8 @@ configured knowledge roots. Additional aliases can be declared explicitly under
 `knowledge_corpora.aliases` when an organisation needs them.
 
 Agents may write task artefacts directly under the active task and may write knowledge promotion candidates under `knowledge_staging/`. Agents do not write directly to `knowledge/` by default. When the user explicitly requests an exact `workspace/knowledge/...` output path, that path is authorized for the current run only; the policy gate then requires that exact path to change and rejects substitution to `knowledge_staging/`. Changed Markdown under `workspace/knowledge/` is validated against the workspace artefact profiles before the run can report success.
+
+Retrieval uses active task isolation. Workspace retrieval should read approved knowledge and the active task's artefacts/inputs unless the user explicitly names another task path. This prevents a new task from being contaminated by similarly named older sessions.
 
 Markdown/Mermaid is the source of truth for generated architecture artefacts. Native Word, PowerPoint, Excel, email, JSON payload, mapping documents, and diagram exports should be generated as follow-on tasks from reviewed Markdown and organisation templates.
 

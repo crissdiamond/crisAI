@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -103,6 +104,14 @@ class InteractionPatterns:
 
 
 @dataclass(frozen=True)
+class ArtifactLifecycleTerms:
+    """Terms and mappings used by generated artefact lifecycle helpers."""
+
+    persisted_deliverable_filenames: dict[str, str] = dataclass_field(default_factory=dict)
+    hld_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+
+
+@dataclass(frozen=True)
 class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
@@ -111,6 +120,7 @@ class SemanticCatalog:
     lexicon: LexiconTerms
     retrieval_constraints: RetrievalConstraintTerms
     interaction: InteractionPatterns
+    artifact_lifecycle: ArtifactLifecycleTerms = dataclass_field(default_factory=ArtifactLifecycleTerms)
 
 
 class SemanticCatalogError(ValueError):
@@ -156,6 +166,19 @@ def _source_scope_markers(values: Any) -> dict[str, frozenset[str]]:
         marker_set = _as_frozenset(markers)
         if marker_set:
             result[clean_scope] = marker_set
+    return result
+
+
+def _string_mapping(values: Any) -> dict[str, str]:
+    """Return a clean string-to-string mapping from optional YAML data."""
+    if not isinstance(values, dict):
+        return {}
+    result: dict[str, str] = {}
+    for key, value in values.items():
+        clean_key = str(key or "").strip()
+        clean_value = str(value or "").strip()
+        if clean_key and clean_value:
+            result[clean_key] = clean_value
     return result
 
 
@@ -238,6 +261,8 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     peer_judge_block = data["peer_judge"]
     lexicon_block = data["lexicon"]
     retrieval_block = data["retrieval_constraints"]
+    lifecycle_block = data.get("artifact_lifecycle")
+    lifecycle_block = lifecycle_block if isinstance(lifecycle_block, dict) else {}
     pattern_gap_line = str(verifier_block.get("pattern_gap_line") or "").strip()
     leaf_file_pattern = str(verifier_block.get("leaf_file_pattern") or "").strip()
     if not pattern_gap_line or not leaf_file_pattern:
@@ -377,6 +402,12 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             generative_peer_patterns=_compile_list("generative_peer_patterns"),
             retrieval_required_patterns=_compile_list("retrieval_required_patterns"),
             peer_retrieval_force_patterns=_compile_list("peer_retrieval_force_patterns"),
+        ),
+        artifact_lifecycle=ArtifactLifecycleTerms(
+            persisted_deliverable_filenames=_string_mapping(
+                lifecycle_block.get("persisted_deliverable_filenames")
+            ),
+            hld_markers=_as_frozenset(lifecycle_block.get("hld_markers")),
         ),
     )
 

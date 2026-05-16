@@ -259,6 +259,10 @@ Agents do not write to `workspace/knowledge/` by default. If the user explicitly
 
 Markdown is the authoritative generated artefact format. Native Word, PowerPoint, Excel, email, JSON, and diagram exports should be generated later from reviewed Markdown and organisation templates.
 
+Reusable task deliverables such as options papers, architecture recommendations, assessments, and HLDs are persisted under the active task's `artefacts/` folder when they would otherwise only exist in chat. The task manifest tracks generated artefacts automatically. Retrieval is scoped to approved knowledge plus the active task by default; sibling task sessions are only used when the user names them explicitly.
+
+Full HLD artefacts are checked against the configured HLD section expectations and must include a Mermaid architecture diagram unless the output explains why a diagram is not appropriate.
+
 For DOCX/PPTX output, the `document_formatter` agent uses `document_export`
 tools to inspect a template manifest and render from an existing Markdown task
 artefact into `workspace/tasks/<task>/exports/` or `workspace/outputs/`.

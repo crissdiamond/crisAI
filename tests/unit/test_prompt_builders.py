@@ -36,6 +36,7 @@ def test_build_retrieval_planner_prompt_contains_only_runtime_context():
     assert "Do not output JSON" in text
     assert "Deterministic retrieval handoff (pre-computed)" in text
     assert "Paths to open" in text
+    assert "active task isolation" in text.lower()
     assert "Rules:" not in text
     assert "Return:" not in text
 
@@ -77,6 +78,7 @@ def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     assert EVIDENCE_BUNDLE_CONTRACT in text
     assert LINK_FORMATTING_CONTRACT in text
     assert "always end with the required fenced `evidence_bundle_v1` JSON block" in text
+    assert "sibling ``tasks/`` sessions" in text
     assert "this fenced JSON block is mandatory" in text
     assert "`source` must be an object" in text
     assert '"source_type": "sharepoint_document"' in text

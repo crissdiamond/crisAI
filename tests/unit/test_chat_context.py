@@ -43,6 +43,12 @@ def test_build_chat_input_returns_plain_input_without_history():
     assert chat_context.build_chat_input("hello", []) == "hello"
 
 
+def test_build_chat_input_normalises_legacy_context_path_without_history():
+    assert chat_context.build_chat_input("Read workspace/context/templates/hld.md", []) == (
+        "Read workspace/knowledge/templates/hld.md"
+    )
+
+
 def test_build_chat_input_wraps_compact_memory_and_relevant_tail(monkeypatch):
     captured = {}
 
@@ -71,6 +77,23 @@ def test_build_chat_input_wraps_compact_memory_and_relevant_tail(monkeypatch):
     assert "knowledge/integration-strategy.md" in transcript
     assert "Relevant recent turns:" in transcript
     assert "User: Now continue with Integration Strategy details." in transcript
+
+
+def test_runtime_context_package_normalises_legacy_context_path_in_wrapper(monkeypatch):
+    captured = {}
+
+    def fake_render_cli_text(template: str, **kwargs):
+        captured.update(kwargs)
+        return "wrapped"
+
+    monkeypatch.setattr(chat_context, "render_cli_text", fake_render_cli_text)
+
+    chat_context.build_runtime_context_package(
+        "Open context/reference/template/hld.md",
+        [("user", "prior"), ("assistant", "prior answer")],
+    )
+
+    assert captured["user_input"] == "Open workspace/knowledge/reference/template/hld.md"
 
 
 def test_compact_memory_canonicalizes_workspace_prefix_sources():

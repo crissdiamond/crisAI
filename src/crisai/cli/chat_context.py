@@ -32,6 +32,7 @@ _MARKDOWN_LINK_RE = re.compile(r"\[([^\]]{3,160})\]\(([^)]+)\)")
 _NOISE_SECTION_RE = re.compile(
     r"(?ims)^(\|.*\|\n\|[-:| ]+\|\n(?:\|.*\|\n?)+|```(?:json)?\s*\{.*?schema_version.*?\}\s*```)"
 )
+_LEGACY_WORKSPACE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_/-])(?:workspace/)?context(?=/)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +162,7 @@ def build_runtime_context_package(
     config: SessionMemoryConfig | None = None,
 ) -> RuntimeContextPackage:
     """Build bounded runtime context for agent execution."""
+    user_input = normalise_legacy_workspace_paths(user_input)
     if not history:
         return RuntimeContextPackage(prompt=user_input, memory=SessionMemory(), included_recent_entries=0, truncated=False)
     cfg = config or load_session_memory_config()
@@ -246,6 +248,13 @@ def build_chat_input(user_input: str, history: list[HistoryEntry], *, session_na
     Raw history is compacted into task memory plus a small relevant recent tail.
     """
     return build_runtime_context_package(user_input, history, session_name=session_name).prompt
+
+
+def normalise_legacy_workspace_paths(text: str) -> str:
+    """Map pre-refactor workspace path wording to the configured knowledge root."""
+    if not text:
+        return ""
+    return _LEGACY_WORKSPACE_PATH_RE.sub("workspace/knowledge", text)
 
 
 def _int_setting(value: object, default: int) -> int:

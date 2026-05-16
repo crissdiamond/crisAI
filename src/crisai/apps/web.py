@@ -14,8 +14,10 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from crisai.apps.ui_config import UI_CONFIG
+from crisai.cli.artefact_lifecycle import persist_reusable_deliverable
 from crisai.cli.chat_context import (
     build_chat_input,
+    normalise_legacy_workspace_paths,
     render_session_memory,
     update_session_memory,
 )
@@ -151,18 +153,19 @@ def _collect_stage_outputs(entries: list[dict[str, Any]], *, verbose: bool = Fal
 
 def _resolve_decision(payload: RunRequest):
     """Resolve router decision from web request preferences."""
-    explicit_mode = _detect_explicit_mode(payload.message)
+    message = normalise_legacy_workspace_paths(payload.message)
+    explicit_mode = _detect_explicit_mode(message)
     mode_override = None if payload.mode == "auto" else payload.mode
     if mode_override is None:
         mode_override = explicit_mode
     agent_override = None if payload.agent == "auto" else payload.agent
     decision = _resolve_route(
-        payload.message,
+        message,
         review_enabled=payload.review,
         mode_override=mode_override,
         agent_override=agent_override,
     )
-    return _apply_decision_overrides(payload.message, explicit_mode, decision)
+    return _apply_decision_overrides(message, explicit_mode, decision)
 
 
 def _to_http_exception(exc: Exception) -> HTTPException:
@@ -189,15 +192,23 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
     decision = _resolve_decision(payload)
     session_name = sanitize_session_name(payload.session)
     history = load_history(session_name)
-    chat_input = build_chat_input(payload.message, history, session_name=session_name)
+    runtime_message = normalise_legacy_workspace_paths(payload.message)
+    chat_input = build_chat_input(runtime_message, history, session_name=session_name)
     try:
         final_output = await _run_with_routing(
             message=chat_input,
             verbose=payload.verbose,
             review=payload.review,
             decision=decision,
-            user_intent_message=payload.message,
+            user_intent_message=runtime_message,
+            session_name=session_name,
             retrieval_checkpoint_enabled=False,
+        )
+        final_output = persist_reusable_deliverable(
+            session_name=session_name,
+            user_input=runtime_message,
+            final_output=final_output,
+            registry_dir=load_settings().registry_dir,
         )
     except Exception as exc:  # noqa: BLE001
         raise _to_http_exception(exc) from exc
@@ -443,15 +454,23 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
     try:
         session_name = sanitize_session_name(payload.session)
         history = load_history(session_name)
-        chat_input = build_chat_input(payload.message, history, session_name=session_name)
+        runtime_message = normalise_legacy_workspace_paths(payload.message)
+        chat_input = build_chat_input(runtime_message, history, session_name=session_name)
         final_output = await _run_with_routing(
             message=chat_input,
             verbose=payload.verbose,
             review=payload.review,
             decision=decision,
-            user_intent_message=payload.message,
+            user_intent_message=runtime_message,
+            session_name=session_name,
             retrieval_checkpoint_enabled=getattr(payload, "retrieval_checkpoint", None),
             retrieval_checkpoint_handler=_make_web_checkpoint_handler(job_id),
+        )
+        final_output = persist_reusable_deliverable(
+            session_name=session_name,
+            user_input=runtime_message,
+            final_output=final_output,
+            registry_dir=load_settings().registry_dir,
         )
         history.append(("user", payload.message))
         history.append(("assistant", sanitize_user_visible_text(final_output)))

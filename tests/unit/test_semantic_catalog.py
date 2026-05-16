@@ -62,6 +62,8 @@ def test_load_semantic_catalog_reads_registry_overrides(tmp_path: Path):
     assert "called" in catalog.lexicon.title_relation_terms
     assert "document" in catalog.retrieval_constraints.object_type_terms
     assert "personal_onedrive" in catalog.retrieval_constraints.source_scope_markers
+    assert catalog.artifact_lifecycle.persisted_deliverable_filenames["options_paper"] == "option-paper.md"
+    assert "hld" in catalog.artifact_lifecycle.hld_markers
     assert not hasattr(catalog.retrieval_constraints, "title_noise_terms")
     assert not hasattr(catalog.retrieval_constraints, "title_connector_terms")
 

@@ -16,7 +16,12 @@ from prompt_toolkit import prompt
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
 
-from crisai.cli.chat_context import build_runtime_context_package, update_session_memory
+from crisai.cli.artefact_lifecycle import persist_reusable_deliverable
+from crisai.cli.chat_context import (
+    build_runtime_context_package,
+    normalise_legacy_workspace_paths,
+    update_session_memory,
+)
 from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
 from crisai.cli.display import (
     print_final_answer,
@@ -529,6 +534,7 @@ async def _run_with_routing(
     decision: RoutingDecision,
     *,
     user_intent_message: str | None = None,
+    session_name: str | None = None,
     retrieval_checkpoint_enabled: bool | None = None,
     retrieval_checkpoint_handler=None,
 ) -> str:
@@ -558,6 +564,7 @@ async def _run_with_routing(
             model_specs=model_specs,
             needs_retrieval=decision.needs_retrieval,
             user_intent_message=user_intent_message,
+            session_name=session_name,
         )
     if decision.mode == "pipeline":
         return await run_pipeline(
@@ -569,6 +576,7 @@ async def _run_with_routing(
             agent_specs=agent_specs,
             model_specs=model_specs,
             user_intent_message=user_intent_message,
+            session_name=session_name,
             retrieval_checkpoint_enabled=retrieval_checkpoint_enabled,
             retrieval_checkpoint_handler=retrieval_checkpoint_handler,
         )
@@ -580,6 +588,7 @@ async def _run_with_routing(
         agent_specs=agent_specs,
         model_specs=model_specs,
         user_intent_message=user_intent_message,
+        session_name=session_name,
     )
 
 
@@ -762,17 +771,18 @@ def chat(
         if context_package.drift_nudge:
             print_status_message(context_package.drift_nudge, title="💡 Session context")
         chat_input = context_package.prompt
-        explicit_mode = _detect_explicit_mode(user_input)
+        runtime_user_input = normalise_legacy_workspace_paths(user_input)
+        explicit_mode = _detect_explicit_mode(runtime_user_input)
         mode_override = state.current_mode if state.mode_pinned else explicit_mode
         agent_override = state.current_agent if state.agent_pinned else None
 
         decision = _resolve_route(
-            user_input,
+            runtime_user_input,
             review_enabled=state.current_review,
             mode_override=mode_override,
             agent_override=agent_override,
         )
-        decision = _apply_decision_overrides(user_input, explicit_mode, decision)
+        decision = _apply_decision_overrides(runtime_user_input, explicit_mode, decision)
 
         current_route_line = route_display(decision)
         if current_route_line != last_route_line:
@@ -785,7 +795,8 @@ def chat(
                 state.current_verbose,
                 state.current_review,
                 decision,
-                user_intent_message=user_input,
+                user_intent_message=runtime_user_input,
+                session_name=state.current_session,
                 retrieval_checkpoint_enabled=state.current_retrieval_checkpoint,
                 retrieval_checkpoint_handler=_prompt_retrieval_checkpoint,
             )
@@ -798,6 +809,12 @@ def chat(
             _persist_failed_chat_turn(state, user_input, exc)
             continue
 
+        text = persist_reusable_deliverable(
+            session_name=state.current_session,
+            user_input=runtime_user_input,
+            final_output=text,
+            registry_dir=load_settings().registry_dir,
+        )
         _render_final_output(decision, text)
 
         state.history.append(("user", user_input))
