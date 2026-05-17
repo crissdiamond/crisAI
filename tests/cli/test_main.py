@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-import time
 from types import SimpleNamespace
 
 from crisai.cli import main
@@ -126,70 +124,6 @@ def test_is_benign_ssl_shutdown_context_detects_close_notify_sslerror():
 
     ssl_context = {"exception": ssl.SSLError("application data after close notify")}
     assert main._is_benign_ssl_shutdown_context(ssl_context) is True
-
-
-def test_resolve_initial_chat_session_prefers_newest_when_default(tmp_path, monkeypatch):
-    older = tmp_path / "older.json"
-    newer = tmp_path / "newer.json"
-    older.write_text("[]", encoding="utf-8")
-    newer.write_text("[]", encoding="utf-8")
-    base = time.time()
-    os.utime(older, (base - 100, base - 100))
-    os.utime(newer, (base, base))
-    monkeypatch.setattr(main, "session_dir", lambda: tmp_path)
-
-    assert main._resolve_initial_chat_session("default") == "newer"
-
-
-def test_resolve_initial_chat_session_prefers_newest_non_default_when_default_is_newer(tmp_path, monkeypatch):
-    default_session = tmp_path / "default.json"
-    named_session = tmp_path / "architecture-review.json"
-    named_session.write_text("[]", encoding="utf-8")
-    default_session.write_text("[]", encoding="utf-8")
-    base = time.time()
-    os.utime(named_session, (base - 100, base - 100))
-    os.utime(default_session, (base, base))
-    monkeypatch.setattr(main, "session_dir", lambda: tmp_path)
-    monkeypatch.setattr(main, "list_task_names", lambda: [])
-
-    assert main._resolve_initial_chat_session("default") == "architecture-review"
-
-
-def test_resolve_initial_chat_session_preserves_explicit_session(monkeypatch):
-    monkeypatch.setattr(main, "_session_name_newest_by_mtime", lambda: "newer")
-    assert main._resolve_initial_chat_session("team_review") == "team_review"
-
-
-def test_close_chat_session_persists_history_and_shows_exit_notice(monkeypatch):
-    state = main.ChatRuntimeState(
-        current_session="test-9",
-        history=[("user", "hello"), ("assistant", "hi")],
-        current_mode="single",
-        current_agent="orchestrator",
-        current_review=False,
-        current_verbose=False,
-        current_retrieval_checkpoint=True,
-        mode_pinned=False,
-        agent_pinned=False,
-    )
-    saved = {}
-    notices = []
-    monkeypatch.setattr(
-        main,
-        "save_history",
-        lambda session, history: saved.update({"session": session, "history": list(history)}),
-    )
-    monkeypatch.setattr(
-        main,
-        "print_status_message",
-        lambda body, title=None: notices.append((title, body)),
-    )
-
-    main._close_chat_session(state)
-
-    assert saved == {"session": "test-9", "history": [("user", "hello"), ("assistant", "hi")]}
-    assert notices[-1] == ("👋 Session closed", "Exiting.")
-
 
 
 def test_web_react_command_delegates_to_ui_workspace_script(monkeypatch, tmp_path):

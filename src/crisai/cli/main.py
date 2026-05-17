@@ -6,7 +6,6 @@ import os
 import re
 import ssl
 import subprocess
-import sys
 from collections.abc import Awaitable
 from contextlib import contextmanager
 from dataclasses import is_dataclass, replace
@@ -17,28 +16,15 @@ from typing import Any
 import typer
 from prompt_toolkit import PromptSession
 
-from crisai.cli.artefact_lifecycle import persist_reusable_deliverable
-from crisai.cli.chat_context import (
-    build_runtime_context_package,
-    normalise_legacy_workspace_paths,
-    update_session_memory,
-)
-from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
 from crisai.cli.display import (
     print_final_answer,
     print_final_recommendation,
     print_status_message,
-    sanitize_user_visible_text,
     update_terminal_title,
 )
 from crisai.cli.session_store import (
     clear_cli_history,
     clear_history,
-    list_task_names,
-    load_history,
-    save_history,
-    session_dir,
-    tasks_dir,
 )
 from crisai.cli.status_views import (
     print_agents_table,
@@ -278,57 +264,6 @@ def _resolve_route(
     )
 
 
-def _session_name_newest_by_mtime() -> str | None:
-    """Return the newest persisted chat session name by file mtime.
-
-    Preference order:
-    1) newest non-default session when at least one exists
-    2) otherwise newest session including ``default``
-    """
-    best_non_default_mtime: int | None = None
-    best_non_default_name: str | None = None
-    best_any_mtime: int | None = None
-    best_name: str | None = None
-
-    candidates = list(session_dir().glob("*.json"))
-    for task_name in list_task_names():
-        candidates.append(tasks_dir() / task_name / ".crisai" / "history.json")
-
-    for file_path in candidates:
-        try:
-            mtime = file_path.stat().st_mtime_ns
-        except OSError:
-            continue
-        stem = file_path.stem
-        if file_path.name == "history.json" and file_path.parent.name == ".crisai":
-            stem = file_path.parent.parent.name
-
-        if best_any_mtime is None or mtime >= best_any_mtime:
-            best_any_mtime = mtime
-            best_name = stem
-
-        if stem == "default":
-            continue
-        if best_non_default_mtime is None or mtime >= best_non_default_mtime:
-            best_non_default_mtime = mtime
-            best_non_default_name = stem
-
-    return best_non_default_name or best_name
-
-
-def _resolve_initial_chat_session(requested_session: str) -> str:
-    """Resolve startup chat session.
-
-    When chat starts with the default session value, prefer the most recently
-    modified persisted session (if any) to resume the latest active context.
-    """
-    if requested_session != "default":
-        return requested_session
-    newest = _session_name_newest_by_mtime()
-    return newest or requested_session
-
-
-
 def _effective_pipeline_review(decision: RoutingDecision) -> bool:
     """Return whether pipeline review should execute for this decision."""
     return decision.mode == "pipeline" and decision.needs_review
@@ -370,22 +305,6 @@ def _request_contract_display(user_input: str, decision: RoutingDecision) -> str
         selected_mode=str(getattr(decision, "mode", "") or ""),
         selected_agent=str(getattr(decision, "agent", "") or ""),
     )
-
-
-def _persist_failed_chat_turn(state: ChatRuntimeState, user_input: str, exc: Exception) -> None:
-    """Persist failed turns so task history reflects what happened."""
-    error_text = f"Request failed: {type(exc).__name__}: {exc}"
-    state.history.append(("user", user_input))
-    state.history.append(("assistant", sanitize_user_visible_text(error_text)))
-    save_history(state.current_session, state.history)
-    update_session_memory(state.current_session, state.history)
-
-
-def _close_chat_session(state: ChatRuntimeState) -> None:
-    """Persist current session state and render a consistent exit notice."""
-    save_history(state.current_session, state.history)
-    print_status_message("Exiting.", title="👋 Session closed")
-
 
 
 def _is_benign_ssl_shutdown_context(context: dict[str, Any]) -> bool:

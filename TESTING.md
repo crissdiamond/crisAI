@@ -61,10 +61,6 @@ tests/
     test_agent_factory_provider.py
     test_artefact_validation.py
     test_chat_context.py
-    test_chat_controller.py
-    test_chat_pin_state.py
-    test_chat_session.py
-    test_cli_commands.py
     test_config.py
     test_diagram_server.py
     test_display.py
@@ -261,7 +257,7 @@ pytest tests/smoke
 
 ```bash
 pytest tests/unit/test_model_resolver.py
-pytest tests/unit/test_chat_controller.py
+pytest tests/unit/test_chat_context.py
 pytest tests/cli/test_pipelines.py
 pytest tests/orchestration/test_peer_mode.py
 ```
@@ -344,7 +340,6 @@ Check:
 ### If CLI tests fail
 Check:
 - `src/crisai/cli/main.py`
-- `src/crisai/cli/chat_controller.py`
 - `src/crisai/cli/status_views.py`
 - `src/crisai/cli/session_store.py`
 

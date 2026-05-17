@@ -29,9 +29,5 @@ def test_import_cli_status_views() -> None:
     import crisai.cli.status_views  # noqa: F401
 
 
-def test_import_cli_chat_controller() -> None:
-    import crisai.cli.chat_controller  # noqa: F401
-
-
 def test_import_orchestration_router() -> None:
     import crisai.orchestration.router  # noqa: F401
