@@ -166,6 +166,19 @@ stage progress, retrieval checkpoints, final answers, and failures. The legacy
 `/api/run/*` endpoints remain available for the current static web interface
 during the migration.
 
+The future React and Ink clients are scaffolded in `ui/`:
+
+```bash
+cd ui
+npm install
+npm run dev:web
+npm run dev:gem
+```
+
+These clients are not yet the default launch path. They connect to the local
+Python runtime at `http://127.0.0.1:8000`; start `./start web` first while the
+runtime/API remains hosted by FastAPI.
+
 ---
 
 ## 4. First things to try

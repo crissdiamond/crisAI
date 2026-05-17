@@ -403,6 +403,31 @@ def test_app_config_returns_retrieval_checkpoint_defaults(client: _ASGITestClien
     assert resp.json()["retrieval_checkpoint_max_redirects"] == 2
 
 
+def test_api_v1_ui_theme_returns_shared_registry(client: _ASGITestClient, tmp_path: Path) -> None:
+    """GET /api/v1/ui/theme exposes registry-backed shared UI tokens."""
+    (tmp_path / "ui.yaml").write_text(
+        """
+schema_version: ui_theme_v1
+default_theme: ucl_dark
+themes:
+  ucl_dark:
+    palette:
+      primary_dark: "#361a54"
+surfaces:
+  web:
+    theme: ucl_dark
+""",
+        encoding="utf-8",
+    )
+
+    resp = client.get("/api/v1/ui/theme")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["schema_version"] == "ui_theme_v1"
+    assert body["themes"]["ucl_dark"]["palette"]["primary_dark"] == "#361a54"
+
+
 # ---------------------------------------------------------------------------
 # Eviction does not remove running jobs
 # ---------------------------------------------------------------------------

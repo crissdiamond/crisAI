@@ -33,9 +33,10 @@ case "$MODE" in
     exec crisai-web
     ;;
   *)
-    echo "Usage: ./start [cli|web]"
+    echo "Usage: ./start [cli|gem|web]"
     echo "Examples:"
     echo "  ./start cli"
+    echo "  ./start gem"
     echo "  ./start web"
     exit 2
     ;;

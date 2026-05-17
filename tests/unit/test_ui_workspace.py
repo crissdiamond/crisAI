@@ -1,0 +1,38 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_json(path: str) -> dict:
+    return json.loads((ROOT / path).read_text(encoding="utf-8"))
+
+
+def test_ui_workspace_defines_react_and_ink_clients() -> None:
+    package = _load_json("ui/package.json")
+
+    assert package["private"] is True
+    assert "apps/*" in package["workspaces"]
+    assert package["scripts"]["dev:web"] == "npm --workspace @crisai/web run dev"
+    assert package["scripts"]["dev:gem"] == "npm --workspace @crisai/gem run dev"
+
+
+def test_ui_apps_depend_on_shared_contract_package() -> None:
+    web = _load_json("ui/apps/web/package.json")
+    gem = _load_json("ui/apps/gem/package.json")
+
+    assert web["dependencies"]["@crisai/contracts"] == "0.1.0"
+    assert gem["dependencies"]["@crisai/contracts"] == "0.1.0"
+    assert "react" in web["dependencies"]
+    assert "ink" in gem["dependencies"]
+    assert "eventsource" in gem["dependencies"]
+
+
+def test_contract_client_targets_v1_runtime_api() -> None:
+    client_source = (ROOT / "ui/packages/contracts/src/index.ts").read_text(encoding="utf-8")
+
+    assert "/api/v1/runs" in client_source
+    assert "/api/v1/ui/theme" in client_source
+    assert "EventSource" in client_source

@@ -106,6 +106,7 @@ src/crisai/   CLI, web app/API, orchestration, MCP servers, runtime, schemas, an
 tests/        Network-free unit, CLI, and orchestration regression tests
 workspace/    Knowledge base, task workspaces, staged knowledge, outputs, sessions, and caches
 runbooks/     Operational setup, security, registry, policy, and observability notes
+ui/           Future React web and Ink Gem clients plus shared TypeScript UI contracts
 ```
 
 ## Requirements
@@ -177,6 +178,10 @@ For the web app:
 ```
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+Experimental React and Ink UI scaffolds live under `ui/`. They consume the
+shared `/api/v1` runtime contract exposed by `./start web`, but they are not yet
+the default launch path.
 
 ## First Commands
 

@@ -9,6 +9,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 import typer
+import yaml
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -410,6 +411,20 @@ def _serialize_memory(session_name: str) -> dict[str, Any]:
 def _read_ui_asset(name: str) -> str:
     """Read a UI asset file from the local apps UI directory."""
     return (_UI_DIR / name).read_text(encoding="utf-8")
+
+
+def _read_ui_theme_config() -> dict[str, Any]:
+    """Read shared UI theme configuration from the registry."""
+    path = Path(load_settings().registry_dir) / "ui.yaml"
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Shared UI theme registry not found.") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=500, detail="Shared UI theme registry must be a mapping.")
+    if data.get("schema_version") != "ui_theme_v1":
+        raise HTTPException(status_code=500, detail="Shared UI theme registry must use schema_version ui_theme_v1.")
+    return data
 
 
 def _workspace_root() -> Path:
@@ -910,6 +925,12 @@ async def api_v1_run_events(job_id: str) -> StreamingResponse:
             await asyncio.sleep(0.25)
 
     return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
+@app.get("/api/v1/ui/theme")
+async def api_v1_ui_theme() -> dict[str, Any]:
+    """Return shared UI theme tokens for web, Gem, and future clients."""
+    return _read_ui_theme_config()
 
 
 @app.get("/api/config")

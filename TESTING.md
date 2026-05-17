@@ -24,6 +24,7 @@ The suite provides confidence around:
 - session persistence
 - prompt builder assembly
 - web app job lifecycle, shared UI runtime API, integration path, and bounded eviction
+- UI workspace scaffolding for shared TypeScript contracts, React web, and Ink Gem
 - document export, workspace search, SharePoint helper behaviour, intranet MCP behaviour, diagram MCP behaviour, PowerPoint extraction, and vision MCP path safety/tool behaviour
 - import smoke tests for main orchestration modules
 
@@ -108,6 +109,7 @@ tests/
     test_status_views.py
     test_task_contract.py
     test_ui_events.py
+    test_ui_workspace.py
     test_web_app.py
     test_workflow_policy.py
     test_workspace_server_search.py

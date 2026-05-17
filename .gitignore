@@ -53,6 +53,14 @@ workspace/.auth/
 node_modules/
 package.json
 package-lock.json
+!ui/package.json
+!ui/package-lock.json
+!ui/**/package.json
+ui/**/node_modules/
+ui/**/dist/
+ui/**/.vite/
+ui/**/coverage/
+ui/**/*.tsbuildinfo
 
 # crisAI runtime workspace state
 workspace/.cache/

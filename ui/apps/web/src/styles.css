@@ -1,0 +1,161 @@
+:root {
+  color: #1f1f2e;
+  background: #1f102f;
+  font-family: "DM Sans", "Aptos", "Segoe UI", Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 16px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.topbar,
+.composer,
+.stage-rail,
+.transcript,
+.alert {
+  border: 1px solid #c9b7dd;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.eyebrow,
+.status {
+  margin: 0;
+  color: #500778;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+.composer {
+  padding: 16px;
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.controls label {
+  display: grid;
+  gap: 4px;
+}
+
+.toggle {
+  display: flex;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  min-height: 44px;
+}
+
+button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 4px;
+  padding: 0 16px;
+  color: #fafafa;
+  background: #361a54;
+  font-weight: 700;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.stage-rail,
+.transcript,
+.alert {
+  padding: 16px;
+}
+
+.stage {
+  display: grid;
+  gap: 4px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eedeff;
+}
+
+.event-card {
+  padding: 16px 0;
+  border-bottom: 1px solid #eedeff;
+}
+
+.event-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.summary {
+  font-weight: 600;
+}
+
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.checkpoint-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.alert {
+  border-color: #d50032;
+  color: #d50032;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .topbar,
+  .workspace {
+    display: block;
+  }
+
+  .stage-rail {
+    margin-bottom: 16px;
+  }
+}
