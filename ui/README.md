@@ -38,6 +38,11 @@ Current status:
   `/stop`). It renders streamed `stage_delta` output in the main pane while a
   run is active and keeps an in-session command history available with the up
   and down arrows when the output pane is not using those keys for scrolling.
+  The stage sidebar uses a terminal-relative width with minimum and maximum
+  bounds, and renders compact status items so running, completed, failed, and
+  pending stages are easy to scan. When the runtime requests a checkpoint, the
+  prompt panel becomes an explicit action state showing `/continue`,
+  `/redirect <guidance>`, and `/stop`.
   The bottom status bar shows the selected model when the runtime exposes it,
   elapsed execution time, and token/cost placeholders until provider usage
   telemetry is available. By default, Gem uses the current terminal columns and

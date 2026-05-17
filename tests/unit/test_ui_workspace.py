@@ -80,6 +80,13 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "CRISAI_GEM_WIDTH" in gem_source
     assert "CRISAI_GEM_HEIGHT" in gem_source
     assert "resolveViewportDimension" in gem_source
+    assert "resolveStageSidebarWidth" in gem_source
+    assert "minimumStageSidebarWidth" in gem_source
+    assert "maximumStageSidebarWidth" in gem_source
+    assert "stageSidebarWidth" in gem_source
+    assert "StageItem" in gem_source
+    assert "backgroundColor" in gem_source
+    assert "CHECKPOINT REQUESTED" in gem_source
     assert "stdout?.columns" in gem_source
     assert "stdout?.rows" in gem_source
     assert "minimumGemWidth" in gem_source

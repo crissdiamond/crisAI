@@ -21,6 +21,8 @@ const fallbackGemWidth = 132;
 const fallbackGemHeight = 40;
 const minimumGemWidth = 80;
 const minimumGemHeight = 24;
+const minimumStageSidebarWidth = 20;
+const maximumStageSidebarWidth = 34;
 const promptPanelHeight = 5;
 
 const runtime = new CrisaiRuntimeClient({
@@ -140,16 +142,37 @@ function ScrollPane({
   );
 }
 
-function StageLine({ stage }: { stage: UiStageSummary }) {
-  const marker =
+function StageItem({ stage, sidebarWidth }: { stage: UiStageSummary; sidebarWidth: number }) {
+  const icon =
     stage.status === "failed" ? "!" :
     stage.status === "complete" ? "✓" :
-    stage.status === "running" ? ">" : "•";
+    stage.status === "running" ? ">" : "·";
   const color =
     stage.status === "failed" ? "red" :
     stage.status === "complete" ? "green" :
     stage.status === "running" ? "yellow" : undefined;
-  return <Text color={color}>{marker} {stage.label}</Text>;
+  const backgroundColor =
+    stage.status === "failed" ? "red" :
+    stage.status === "complete" ? "green" : undefined;
+  const foregroundColor =
+    stage.status === "failed" ? "white" :
+    stage.status === "complete" ? "black" : color;
+  const maxLabelLength = Math.max(6, sidebarWidth - 9);
+  const shortLabel = stage.label.length > maxLabelLength
+    ? `${stage.label.slice(0, Math.max(1, maxLabelLength - 1))}…`
+    : stage.label;
+
+  return (
+    <Text
+      bold={stage.status === "running" || stage.status === "complete"}
+      color={foregroundColor}
+      backgroundColor={backgroundColor}
+      dimColor={stage.status === "pending"}
+      wrap="truncate-end"
+    >
+      [{icon} {shortLabel}]
+    </Text>
+  );
 }
 
 // --- Main app ---
@@ -168,6 +191,7 @@ function GemApp() {
     fallbackGemHeight,
     minimumGemHeight
   );
+  const stageSidebarWidth = resolveStageSidebarWidth(viewportWidth);
   const transcriptHeight = Math.max(8, viewportHeight - 6 - promptPanelHeight);
 
   const [prompt, setPrompt] = useState("");
@@ -365,10 +389,12 @@ function GemApp() {
       </Box>
 
       <Box height={transcriptHeight + 2} flexDirection="row">
-        <Box width={28} borderStyle="single" borderColor="blue" paddingX={1} flexDirection="column">
+        <Box width={stageSidebarWidth} borderStyle="single" borderColor="blue" paddingX={1} flexDirection="column">
           <Text bold>Stages</Text>
           {stages.length === 0 ? <Text dimColor>No stages yet.</Text> : null}
-          {stages.slice(-12).map((stage) => <StageLine key={stage.key} stage={stage} />)}
+          {stages.slice(-12).map((stage) => (
+            <StageItem key={stage.key} stage={stage} sidebarWidth={stageSidebarWidth} />
+          ))}
         </Box>
 
         <Box flexGrow={1} borderStyle="single" borderColor="white" paddingX={1} flexDirection="column">
@@ -398,8 +424,21 @@ function GemApp() {
         </Box>
       </Box>
 
-      <Box height={promptPanelHeight} borderStyle="single" borderColor={accent} paddingX={1} flexDirection="column">
-        <Text dimColor>Prompt</Text>
+      <Box
+        height={promptPanelHeight}
+        borderStyle="single"
+        borderColor={checkpointWaiting ? "yellow" : accent}
+        paddingX={1}
+        flexDirection="column"
+      >
+        {checkpointWaiting ? (
+          <>
+            <Text bold color="black" backgroundColor="yellow">CHECKPOINT REQUESTED</Text>
+            <Text color="yellow" wrap="truncate-end">/continue  /redirect &lt;guidance&gt;  /stop</Text>
+          </>
+        ) : (
+          <Text dimColor>Prompt</Text>
+        )}
         <Text wrap="truncate-end">{"> "}{prompt}</Text>
       </Box>
 
@@ -508,6 +547,11 @@ function resolveViewportDimension(
   const pinned = Number(pinnedValue);
   const preferred = Number.isFinite(pinned) && pinned > 0 ? pinned : terminalValue ?? fallbackValue;
   return Math.max(minimumValue, Math.floor(preferred));
+}
+
+function resolveStageSidebarWidth(viewportWidth: number): number {
+  const proportionalWidth = Math.floor(viewportWidth * 0.24);
+  return Math.min(maximumStageSidebarWidth, Math.max(minimumStageSidebarWidth, proportionalWidth));
 }
 
 render(<GemApp />);
