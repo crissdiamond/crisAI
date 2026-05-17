@@ -16,12 +16,17 @@ import {
 } from "@crisai/contracts";
 import "./styles.css";
 
+const apiKeyStorageKey = "crisai_api_key";
+const configuredApiKey = import.meta.env.VITE_CRISAI_API_KEY ?? import.meta.env.VITE_CRISAI_API_TOKEN ?? "";
+
 const runtime = new CrisaiRuntimeClient({
   baseUrl: import.meta.env.VITE_CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000",
-  apiToken: import.meta.env.VITE_CRISAI_API_KEY ?? import.meta.env.VITE_CRISAI_API_TOKEN
+  apiToken: configuredApiKey || localStorage.getItem(apiKeyStorageKey) || undefined
 });
 
 function App() {
+  const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem(apiKeyStorageKey) ?? configuredApiKey);
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(Boolean(apiKeyInput.trim()));
   const [message, setMessage] = useState("");
   const [session, setSession] = useState("default");
   const [sessions, setSessions] = useState<string[]>(["default"]);
@@ -40,6 +45,7 @@ function App() {
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
 
   useEffect(() => {
+    applyApiKey(apiKeyInput);
     runtime
       .getTheme()
       .then((theme) => {
@@ -52,6 +58,24 @@ function App() {
         // Fallback CSS variables keep the experimental client usable offline.
       });
   }, []);
+
+  function applyApiKey(value: string) {
+    const token = value.trim();
+    runtime.setApiToken(token);
+    setApiKeyConfigured(Boolean(token));
+    if (token) {
+      localStorage.setItem(apiKeyStorageKey, token);
+    } else {
+      localStorage.removeItem(apiKeyStorageKey);
+    }
+  }
+
+  function saveApiKey(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    applyApiKey(apiKeyInput);
+    refreshSessions().catch((reason: unknown) => setError(String(reason)));
+  }
 
   useEffect(() => {
     refreshSessions().catch((reason: unknown) => setError(String(reason)));
@@ -132,7 +156,21 @@ function App() {
           <p className="eyebrow">Architecture workstation</p>
           <h1>crisAI Web</h1>
         </div>
-        <p className="status">status: {latestStatus}</p>
+        <div className="topbar-actions">
+          <form className="api-key-form" onSubmit={saveApiKey}>
+            <label>
+              API key
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(event) => setApiKeyInput(event.target.value)}
+                placeholder={apiKeyConfigured ? "configured" : "optional"}
+              />
+            </label>
+            <button type="submit">{apiKeyConfigured ? "Update" : "Set"}</button>
+          </form>
+          <p className="status">status: {latestStatus}</p>
+        </div>
       </header>
 
       <form className="composer" onSubmit={submitRun}>

@@ -42,6 +42,7 @@ def test_contract_client_targets_v1_runtime_api() -> None:
     assert "getWorkspaceTree" in client_source
     assert "saveWorkspaceFile" in client_source
     assert "apiToken" in client_source
+    assert "setApiToken" in client_source
     assert "authorization" in client_source
     assert "subscribeWithFetch" in client_source
     assert "EventSource" in client_source
@@ -62,6 +63,8 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "WorkspaceBrowser" in web_source
     assert "runtime.getWorkspaceTree" in web_source
     assert "VITE_CRISAI_API_KEY" in web_source
+    assert "localStorage.getItem(apiKeyStorageKey)" in web_source
+    assert "runtime.setApiToken" in web_source
     assert "deriveStageSummaries(events" in gem_source
     assert "/redirect <guidance>" in gem_source
     assert "/session <name>" in gem_source

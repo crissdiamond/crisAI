@@ -37,7 +37,8 @@ reach parity.
 
 Auth-aware local development:
 
-- React web reads `VITE_CRISAI_API_KEY`.
+- React web reads `VITE_CRISAI_API_KEY` and also provides an in-page API key
+  control backed by browser local storage for local development.
 - Ink Gem reads `CRISAI_API_KEY`.
 - `./start web-react` maps `CRISAI_API_KEY` to `VITE_CRISAI_API_KEY` and
   `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` when the Vite-specific

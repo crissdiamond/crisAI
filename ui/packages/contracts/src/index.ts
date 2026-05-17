@@ -229,13 +229,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export class CrisaiRuntimeClient {
   readonly baseUrl: string;
-  private readonly apiToken?: string;
+  private apiToken?: string;
   private readonly eventSourceFactory?: (url: string) => EventSource;
 
   constructor(options: CrisaiClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? defaultBaseUrl).replace(/\/$/, "");
     this.apiToken = options.apiToken;
     this.eventSourceFactory = options.eventSourceFactory;
+  }
+
+  setApiToken(apiToken?: string): void {
+    const nextToken = apiToken?.trim();
+    this.apiToken = nextToken || undefined;
   }
 
   async startRun(request: UiRunRequest): Promise<UiRunState> {

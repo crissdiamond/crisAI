@@ -53,7 +53,31 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 16px 20px;
+}
+
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: end;
+  gap: 12px;
+}
+
+.api-key-form {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.api-key-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.api-key-form input {
+  max-width: 180px;
 }
 
 .eyebrow,
@@ -321,6 +345,16 @@ pre {
   .topbar,
   .workspace {
     display: block;
+  }
+
+  .topbar-actions,
+  .api-key-form {
+    justify-content: stretch;
+    margin-top: 12px;
+  }
+
+  .api-key-form input {
+    max-width: none;
   }
 
   .stage-rail {
