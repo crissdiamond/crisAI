@@ -16,10 +16,9 @@ from uuid import uuid4
 import typer
 import yaml
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from crisai.apps.ui_config import UI_CONFIG
 from crisai.cli.artefact_lifecycle import persist_reusable_deliverable
 from crisai.cli.chat_context import (
     build_chat_input,
@@ -73,7 +72,6 @@ async def _lifespan(_app: FastAPI):
 
 app = FastAPI(title="crisAI Web", lifespan=_lifespan)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
-_UI_DIR = Path(__file__).parent / "ui"
 _MAX_COMPLETED_JOBS = 20
 _MAX_WORKSPACE_UPLOAD_BYTES = 25 * 1024 * 1024
 _UPLOAD_SUFFIXES = frozenset({
@@ -95,10 +93,6 @@ _UPLOAD_SUFFIXES = frozenset({
     ".yml",
 })
 
-# Paths that always bypass auth (static assets served to the browser on load).
-_AUTH_PUBLIC_PATHS: frozenset[str] = frozenset({"/", "/app.js", "/styles.css"})
-
-
 @app.middleware("http")
 async def _auth_middleware(request: Request, call_next: Any) -> Any:
     """Enforce Bearer token auth when CRISAI_API_KEY is set.
@@ -107,7 +101,7 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
     local single-user deployments require no configuration change.
     """
     api_key = os.getenv("CRISAI_API_KEY", "").strip()
-    if not api_key or request.url.path in _AUTH_PUBLIC_PATHS:
+    if not api_key:
         return await call_next(request)
     auth = request.headers.get("authorization", "")
     if not auth.startswith("Bearer ") or not secrets.compare_digest(auth[len("Bearer "):], api_key):
@@ -546,11 +540,6 @@ def _serialize_memory(session_name: str) -> dict[str, Any]:
     }
 
 
-def _read_ui_asset(name: str) -> str:
-    """Read a UI asset file from the local apps UI directory."""
-    return (_UI_DIR / name).read_text(encoding="utf-8")
-
-
 def _read_ui_theme_config() -> dict[str, Any]:
     """Read shared UI theme configuration from the registry."""
     path = Path(load_settings().registry_dir) / "ui.yaml"
@@ -872,50 +861,6 @@ def _evict_old_jobs(max_completed: int = _MAX_COMPLETED_JOBS) -> None:
         del _RUN_JOBS[job_id]
 
 
-@app.get("/", response_class=HTMLResponse)
-async def index() -> HTMLResponse:
-    """Return the single-page web interface."""
-    html = _read_ui_asset("index.html")
-    return HTMLResponse(
-        content=html,
-        headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
-
-
-@app.get("/app.js")
-async def app_js() -> Response:
-    """Return frontend JavaScript for the web interface."""
-    script = _read_ui_asset("app.js")
-    return Response(
-        content=script,
-        media_type="application/javascript",
-        headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
-
-
-@app.get("/styles.css")
-async def styles_css() -> Response:
-    """Return stylesheet for web interface."""
-    css = _read_ui_asset("styles.css").replace(
-        "__HISTORY_MAX_LINES__", str(UI_CONFIG.history_max_lines)
-    )
-    return Response(
-        content=css,
-        media_type="text/css",
-        headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
 
 
 @app.post("/api/run")

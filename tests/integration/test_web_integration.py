@@ -655,12 +655,3 @@ def test_auth_middleware_uses_constant_time_compare() -> None:
     assert "secrets.compare_digest" in source
 
 
-def test_static_assets_bypass_auth(
-    client: _ASGITestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """/, /app.js, /styles.css are always accessible regardless of auth config."""
-    monkeypatch.setenv("CRISAI_API_KEY", "test-secret")
-    for path in ("/app.js", "/styles.css"):
-        resp = client.get(path)
-        assert resp.status_code == 200, f"{path} should bypass auth"
