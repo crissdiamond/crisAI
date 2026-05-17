@@ -213,6 +213,10 @@ by the previous hcom session name otherwise. Missing previous sessions fall back
 to fresh launches. Successful launches record provider session UUIDs when hcom
 exposes them.
 
+`scripts/hcom_stop.sh` snapshots the active hcom/provider session IDs before
+stopping the team, so the next `scripts/hcom_start.sh --resume` can restore the
+same agent sessions where the provider still supports resume.
+
 In WSL, `scripts/hcom_start.sh` opens hcom shells in Windows Terminal when
 `wt.exe` is available, otherwise it falls back to `tmux`. Override this with
 `--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`, for example:

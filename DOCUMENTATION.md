@@ -212,6 +212,15 @@ otherwise. Claude memory remains the durable cross-agent context layer; resumed
 provider sessions are for active-work continuity. Successful launches record
 provider session UUIDs when hcom exposes them.
 
+`scripts/hcom_stop.sh` snapshots active hcom/provider session IDs, transcript
+paths, and stopped status before killing the team tags. The normal continuation
+sequence is:
+
+```bash
+scripts/hcom_stop.sh
+scripts/hcom_start.sh --resume
+```
+
 In WSL, the launcher opens hcom shells in Windows Terminal when `wt.exe` is
 available, otherwise it falls back to `tmux`. Override this with
 `--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`.

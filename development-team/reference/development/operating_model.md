@@ -43,6 +43,11 @@ exposes one. Claude memory remains the durable project memory layer, so resumed
 provider sessions should be used for continuity on active work rather than as
 the source of truth.
 
+Use `scripts/hcom_stop.sh` to end the team. The stop script snapshots the active
+hcom/provider session IDs, transcript paths, and stopped status before killing
+the team tags, so `scripts/hcom_start.sh --resume` has the information needed to
+restore the previous sessions.
+
 In WSL, the launcher opens shells in Windows Terminal when `wt.exe` is
 available, otherwise it falls back to `tmux`. Override this with
 `--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL` when a different hcom

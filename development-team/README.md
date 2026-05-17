@@ -107,6 +107,10 @@ or by the previous hcom session name otherwise. Missing previous sessions fall
 back to fresh launches. Successful launches record provider session UUIDs when
 hcom exposes them.
 
+`scripts/hcom_stop.sh` snapshots the active hcom/provider session IDs before
+stopping the team, so the next `scripts/hcom_start.sh --target-repo /path/to/crisAI --resume`
+can restore the same agent sessions where the provider still supports resume.
+
 Both should be ignored by the target repository. This package includes
 `.gitignore.example` entries to copy into the target repo if needed.
 
