@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -10,7 +11,7 @@ from uuid import uuid4
 
 import typer
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -61,6 +62,30 @@ app = FastAPI(title="crisAI Web", lifespan=_lifespan)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
 _UI_DIR = Path(__file__).parent / "ui"
 _MAX_COMPLETED_JOBS = 20
+
+# Paths that always bypass auth (static assets served to the browser on load).
+_AUTH_PUBLIC_PATHS: frozenset[str] = frozenset({"/", "/app.js", "/styles.css"})
+
+
+@app.middleware("http")
+async def _auth_middleware(request: Request, call_next: Any) -> Any:
+    """Enforce Bearer token auth when CRISAI_API_KEY is set.
+
+    When CRISAI_API_KEY is empty or unset the middleware is a no-op so that
+    local single-user deployments require no configuration change.
+    """
+    api_key = os.getenv("CRISAI_API_KEY", "").strip()
+    if not api_key or request.url.path in _AUTH_PUBLIC_PATHS:
+        return await call_next(request)
+    auth = request.headers.get("authorization", "")
+    if not auth.startswith("Bearer ") or auth[len("Bearer "):] != api_key:
+        return Response(
+            content='{"detail":"Unauthorized"}',
+            status_code=401,
+            media_type="application/json",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return await call_next(request)
 
 
 class RunRequest(BaseModel):

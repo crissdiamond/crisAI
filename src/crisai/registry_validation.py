@@ -456,6 +456,15 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
                 ),
             ))
 
+    if not os.getenv("CRISAI_API_KEY", "").strip():
+        warnings.append(DoctorIssue(
+            message="CRISAI_API_KEY is not set. All API endpoints are unprotected.",
+            hint=(
+                "Set `CRISAI_API_KEY=<random-secret>` in your `.env` file "
+                "before exposing the server beyond localhost."
+            ),
+        ))
+
     strategy = os.getenv("CRISAI_SESSION_MEMORY_STRATEGY")
     if strategy and strategy.strip().lower() not in {"deterministic", "agentic"}:
         warnings.append(DoctorIssue(

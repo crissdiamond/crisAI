@@ -365,3 +365,32 @@ def test_validation_rejects_unknown_transport(tmp_path: Path) -> None:
     errors, _ = _validate_registry_cross_references(root, registry_dir)
 
     assert any("remote_test" in e.message and "unsupported transport" in e.message for e in errors)
+
+
+# --- CRISAI_API_KEY warning ---
+
+
+def test_doctor_warns_when_api_key_not_set(tmp_path: Path, monkeypatch) -> None:
+    """Doctor issues a warning when CRISAI_API_KEY is not configured."""
+    monkeypatch.delenv("CRISAI_API_KEY", raising=False)
+    # Include key in .env (empty value) so the missing-key check does not fire.
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=test\nCRISAI_API_KEY=\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text("OPENAI_API_KEY=\nCRISAI_API_KEY=\n", encoding="utf-8")
+
+    _errors, warnings = _check_env_setup(tmp_path)
+
+    api_key_warning = next((w for w in warnings if "unprotected" in w.message), None)
+    assert api_key_warning is not None, "expected an 'unprotected' warning for unset CRISAI_API_KEY"
+    assert api_key_warning.hint is not None
+    assert "localhost" in api_key_warning.hint
+
+
+def test_doctor_does_not_warn_when_api_key_set(tmp_path: Path, monkeypatch) -> None:
+    """No CRISAI_API_KEY warning when the key is configured."""
+    monkeypatch.setenv("CRISAI_API_KEY", "a-real-secret-key")
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=test\nCRISAI_API_KEY=a-real-secret-key\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text("OPENAI_API_KEY=\nCRISAI_API_KEY=\n", encoding="utf-8")
+
+    _errors, warnings = _check_env_setup(tmp_path)
+
+    assert not any("CRISAI_API_KEY" in w.message and "unprotected" in w.message for w in warnings)

@@ -34,6 +34,37 @@ let workspaceFileRecords = [];
 let selectedWorkspacePath = "";
 let checkpointSubmitted = false;
 
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+function getApiKey() {
+  return localStorage.getItem("crisai_api_key") || "";
+}
+
+function _storeApiKey(key) {
+  if (key) localStorage.setItem("crisai_api_key", key.trim());
+  else localStorage.removeItem("crisai_api_key");
+}
+
+async function apiFetch(url, options, _retry) {
+  if (_retry === undefined) _retry = true;
+  const key = getApiKey();
+  const headers = Object.assign({}, options ? options.headers : {});
+  if (key) headers["Authorization"] = "Bearer " + key;
+  const response = await fetch(url, Object.assign({}, options, { headers }));
+  if (response.status === 401 && _retry) {
+    const newKey = prompt("API key required. Enter your CRISAI_API_KEY:");
+    if (newKey) {
+      _storeApiKey(newKey);
+      return apiFetch(url, options, false);
+    }
+  }
+  return response;
+}
+
+// ---------------------------------------------------------------------------
+
 function setUiStatus(text) {
   if (uiStatus) uiStatus.textContent = `UI status: ${text}`;
 }
@@ -287,7 +318,7 @@ async function submitCheckpointDecision(action) {
   }
   checkpointSubmitted = true;
   renderCheckpoint(null);
-  const response = await fetch(`/api/run/checkpoint/${encodeURIComponent(currentJobId)}`, {
+  const response = await apiFetch(`/api/run/checkpoint/${encodeURIComponent(currentJobId)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -336,7 +367,7 @@ function selectProgressKey(records) {
 }
 
 async function loadSessionMeta() {
-  const response = await fetch("/api/sessions");
+  const response = await apiFetch("/api/sessions");
   const data = await response.json();
   sessions = data.sessions || ["default"];
   currentSession = data.current_session || sessions[0] || "default";
@@ -345,7 +376,7 @@ async function loadSessionMeta() {
 }
 
 async function loadAppConfig() {
-  const response = await fetch("/api/config");
+  const response = await apiFetch("/api/config");
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "Config load failed.");
   if (retrievalCheckpointInput) {
@@ -354,7 +385,7 @@ async function loadAppConfig() {
 }
 
 async function switchSession(sessionName) {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionName)}`);
+  const response = await apiFetch(`/api/sessions/${encodeURIComponent(sessionName)}`);
   const data = await response.json();
   currentSession = data.current_session;
   if (!sessions.includes(currentSession)) sessions.push(currentSession);
@@ -365,7 +396,7 @@ async function switchSession(sessionName) {
 async function createSession() {
   const proposed = newSessionNameInput.value.trim();
   if (!proposed) return;
-  const response = await fetch("/api/sessions", {
+  const response = await apiFetch("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session: proposed }),
@@ -393,7 +424,7 @@ async function runWorkflow() {
     };
     if (!payload.message) throw new Error("Please enter a prompt.");
 
-    const response = await fetch("/api/run/start", {
+    const response = await apiFetch("/api/run/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -413,7 +444,7 @@ async function runWorkflow() {
     if (pollingTimer) clearInterval(pollingTimer);
     pollingTimer = setInterval(async () => {
       if (!currentJobId) return;
-      const statusResponse = await fetch(`/api/run/status/${encodeURIComponent(currentJobId)}`);
+      const statusResponse = await apiFetch(`/api/run/status/${encodeURIComponent(currentJobId)}`);
       const statusData = await statusResponse.json();
       if (!statusResponse.ok) throw new Error(statusData.detail || "Status polling failed.");
 
@@ -505,7 +536,7 @@ async function loadWorkspaceTree() {
   if (!workspaceRootSelect) return;
   setWorkspaceStatus("loading");
   const root = workspaceRootSelect.value || "knowledge";
-  const response = await fetch(`/api/workspace/tree/${encodeURIComponent(root)}`);
+  const response = await apiFetch(`/api/workspace/tree/${encodeURIComponent(root)}`);
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "Workspace tree failed.");
   workspaceFileRecords = data.files || [];
@@ -517,7 +548,7 @@ async function loadWorkspaceTree() {
 }
 
 async function openWorkspaceFile(path) {
-  const response = await fetch(`/api/workspace/file?path=${encodeURIComponent(path)}`);
+  const response = await apiFetch(`/api/workspace/file?path=${encodeURIComponent(path)}`);
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "Workspace file read failed.");
   selectedWorkspacePath = data.path;
@@ -529,7 +560,7 @@ async function openWorkspaceFile(path) {
 
 async function saveWorkspaceFile() {
   if (!selectedWorkspacePath) throw new Error("Select a workspace file first.");
-  const response = await fetch("/api/workspace/file", {
+  const response = await apiFetch("/api/workspace/file", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path: selectedWorkspacePath, content: workspaceEditor ? workspaceEditor.value : "" }),

@@ -40,6 +40,7 @@ def _clear_jobs():
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _ASGITestClient:
     """Return an ASGI test client with I/O side-effects suppressed."""
+    monkeypatch.delenv("CRISAI_API_KEY", raising=False)  # ensure auth is disabled by default
     monkeypatch.setattr("crisai.apps.web.load_history", lambda _: [])
     monkeypatch.setattr("crisai.apps.web.save_history", lambda *a: None)
     monkeypatch.setattr("crisai.apps.web.update_session_memory", lambda *a: None)
@@ -59,11 +60,11 @@ class _ASGITestClient:
     relying on TestClient's blocking portal.
     """
 
-    def get(self, url: str) -> httpx.Response:
-        return asyncio.run(self._request("GET", url))
+    def get(self, url: str, *, headers: dict[str, str] | None = None) -> httpx.Response:
+        return asyncio.run(self._request("GET", url, headers=headers))
 
-    def post(self, url: str, *, json: dict[str, Any]) -> httpx.Response:
-        return asyncio.run(self._request("POST", url, json=json))
+    def post(self, url: str, *, json: dict[str, Any], headers: dict[str, str] | None = None) -> httpx.Response:
+        return asyncio.run(self._request("POST", url, json=json, headers=headers))
 
     async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=True)
@@ -516,3 +517,60 @@ def test_eviction_preserves_running_job_after_start(
     new_job_id = resp.json()["job_id"]
     assert new_job_id in web_mod._RUN_JOBS
     assert web_mod._RUN_JOBS[new_job_id]["status"] == "running"
+
+
+# ---------------------------------------------------------------------------
+# Auth middleware
+# ---------------------------------------------------------------------------
+
+
+def test_api_endpoint_accessible_without_key_when_auth_disabled(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CRISAI_API_KEY unset → middleware no-op, endpoint reachable."""
+    monkeypatch.delenv("CRISAI_API_KEY", raising=False)
+    resp = client.get("/api/config")
+    assert resp.status_code == 200
+
+
+def test_api_endpoint_returns_401_without_header_when_key_set(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CRISAI_API_KEY set, no Authorization header → 401 with WWW-Authenticate."""
+    monkeypatch.setenv("CRISAI_API_KEY", "test-secret")
+    resp = client.get("/api/config")
+    assert resp.status_code == 401
+    assert resp.headers.get("www-authenticate") == "Bearer"
+
+
+def test_api_endpoint_returns_401_with_wrong_token(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Wrong Bearer token → 401."""
+    monkeypatch.setenv("CRISAI_API_KEY", "test-secret")
+    resp = client.get("/api/config", headers={"Authorization": "Bearer wrong"})
+    assert resp.status_code == 401
+
+
+def test_api_endpoint_accessible_with_correct_token(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Correct Bearer token → request proceeds normally."""
+    monkeypatch.setenv("CRISAI_API_KEY", "test-secret")
+    resp = client.get("/api/config", headers={"Authorization": "Bearer test-secret"})
+    assert resp.status_code == 200
+
+
+def test_static_assets_bypass_auth(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """/, /app.js, /styles.css are always accessible regardless of auth config."""
+    monkeypatch.setenv("CRISAI_API_KEY", "test-secret")
+    for path in ("/app.js", "/styles.css"):
+        resp = client.get(path)
+        assert resp.status_code == 200, f"{path} should bypass auth"
