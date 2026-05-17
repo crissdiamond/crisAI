@@ -15,6 +15,52 @@ focused patches inside their assigned area. The Claude memory MCP server is the
 shared durable context layer across agent streams; hcom is used for concise
 coordination and bundles.
 
+## Architecture
+
+```mermaid
+flowchart TB
+    User[User] --> Orchestrator[Codex Orchestrator<br/>repo root]
+
+    Orchestrator --> RuntimePair[Runtime Area]
+    Orchestrator --> GemPair[Gem Area]
+    Orchestrator --> WebPair[Web Area]
+
+    RuntimePair --> RuntimeCodex[Runtime Codex<br/>primary implementer]
+    RuntimePair --> RuntimeClaude[Runtime Claude<br/>review and small patches]
+
+    GemPair --> GemCodex[Gem Codex<br/>primary implementer]
+    GemPair --> GemClaude[Gem Claude<br/>review and small patches]
+
+    WebPair --> WebCodex[Web Codex<br/>primary implementer]
+    WebPair --> WebClaude[Web Claude<br/>review and small patches]
+
+    RuntimeCodex <--> RuntimeClaude
+    GemCodex <--> GemClaude
+    WebCodex <--> WebClaude
+
+    Orchestrator --> Hcom[hcom<br/>messages, threads, bundles, events]
+    RuntimeCodex --> Hcom
+    RuntimeClaude --> Hcom
+    GemCodex --> Hcom
+    GemClaude --> Hcom
+    WebCodex --> Hcom
+    WebClaude --> Hcom
+
+    Orchestrator --> Memory[Claude memory MCP<br/>durable shared task context]
+    RuntimeCodex --> Memory
+    RuntimeClaude --> Memory
+    GemCodex --> Memory
+    GemClaude --> Memory
+    WebCodex --> Memory
+    WebClaude --> Memory
+
+    Hcom --> LocalState[Target repo local state<br/>.hcom / .hcom-development]
+    Orchestrator --> TargetRepo[Target crisAI repo]
+    RuntimeCodex --> TargetRepo
+    GemCodex --> TargetRepo
+    WebCodex --> TargetRepo
+```
+
 ## Repository Use
 
 This directory is designed to become its own repository, for example:
