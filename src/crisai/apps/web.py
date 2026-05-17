@@ -933,6 +933,24 @@ async def api_v1_ui_theme() -> dict[str, Any]:
     return _read_ui_theme_config()
 
 
+@app.get("/api/v1/sessions")
+async def api_v1_list_sessions() -> dict[str, Any]:
+    """Return available sessions through the shared UI API."""
+    return list_sessions()
+
+
+@app.post("/api/v1/sessions")
+async def api_v1_create_session(payload: SessionCreateRequest) -> dict[str, Any]:
+    """Create or select a session through the shared UI API."""
+    return create_session(payload)
+
+
+@app.get("/api/v1/sessions/{session_name}")
+async def api_v1_get_session(session_name: str) -> dict[str, Any]:
+    """Return one session through the shared UI API."""
+    return get_session(session_name)
+
+
 @app.get("/api/config")
 async def app_config() -> dict[str, Any]:
     """Return user-facing web defaults."""

@@ -8,7 +8,9 @@ import {
   isTerminalEvent,
   latestFinalContent,
   type UiEvent,
+  type UiHistoryEntry,
   type UiRunState,
+  type UiSessionState,
   type UiStageSummary
 } from "@crisai/contracts";
 import "./styles.css";
@@ -20,6 +22,10 @@ const runtime = new CrisaiRuntimeClient({
 function App() {
   const [message, setMessage] = useState("");
   const [session, setSession] = useState("default");
+  const [sessions, setSessions] = useState<string[]>(["default"]);
+  const [history, setHistory] = useState<UiHistoryEntry[]>([]);
+  const [memorySummary, setMemorySummary] = useState("");
+  const [newSessionName, setNewSessionName] = useState("");
   const [mode, setMode] = useState("auto");
   const [verbose, setVerbose] = useState(false);
   const [run, setRun] = useState<UiRunState | null>(null);
@@ -45,6 +51,36 @@ function App() {
       });
   }, []);
 
+  useEffect(() => {
+    refreshSessions().catch((reason: unknown) => setError(String(reason)));
+  }, []);
+
+  async function refreshSessions(preferredSession?: string) {
+    const state = preferredSession ? await runtime.getSession(preferredSession) : await runtime.listSessions();
+    applySessionState(state);
+  }
+
+  function applySessionState(state: UiSessionState) {
+    setSessions(state.sessions.length > 0 ? state.sessions : [state.current_session]);
+    setSession(state.current_session);
+    setHistory(state.history);
+    setMemorySummary(state.memory?.summary ?? "");
+  }
+
+  async function selectSession(value: string) {
+    setError("");
+    await refreshSessions(value);
+  }
+
+  async function createSession(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!newSessionName.trim()) return;
+    setError("");
+    const state = await runtime.createSession(newSessionName);
+    applySessionState(state);
+    setNewSessionName("");
+  }
+
   async function submitRun(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!message.trim()) return;
@@ -68,7 +104,13 @@ function App() {
         setEvents((current) => dedupeEvents([...current, item]));
         if (isTerminalEvent(item)) {
           source.close();
-          runtime.getRun(started.run_id).then(setRun).catch((reason: unknown) => setError(String(reason)));
+          runtime
+            .getRun(started.run_id)
+            .then((state) => {
+              setRun(state);
+              return refreshSessions(state.session);
+            })
+            .catch((reason: unknown) => setError(String(reason)));
         }
       },
       () => setError("Runtime event stream disconnected.")
@@ -100,7 +142,11 @@ function App() {
         <div className="controls">
           <label>
             Session
-            <input value={session} onChange={(event) => setSession(event.target.value)} />
+            <select value={session} onChange={(event) => void selectSession(event.target.value)}>
+              {sessions.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
           </label>
           <label>
             Mode
@@ -121,6 +167,18 @@ function App() {
         </div>
       </form>
 
+      <form className="session-create" onSubmit={createSession}>
+        <label>
+          New session
+          <input
+            value={newSessionName}
+            onChange={(event) => setNewSessionName(event.target.value)}
+            placeholder="task-name"
+          />
+        </label>
+        <button type="submit">Create</button>
+      </form>
+
       {error ? <section className="alert">{error}</section> : null}
 
       <section className="workspace">
@@ -133,6 +191,7 @@ function App() {
           onRedirectInstructionChange={setRedirectInstruction}
           onCheckpoint={checkpoint}
         />
+        <HistoryPanel history={history} memorySummary={memorySummary} />
       </section>
     </main>
   );
@@ -148,6 +207,23 @@ function StageRail({ stages }: { stages: UiStageSummary[] }) {
           <strong>{stage.label}</strong>
           <span>{stage.status}</span>
           {stage.summary ? <small>{stage.summary}</small> : null}
+        </article>
+      ))}
+    </aside>
+  );
+}
+
+function HistoryPanel({ history, memorySummary }: { history: UiHistoryEntry[]; memorySummary: string }) {
+  const recentHistory = history.slice(-6);
+  return (
+    <aside className="history-panel" aria-label="Session history">
+      <h2>Session</h2>
+      {memorySummary ? <p className="memory-summary">{memorySummary}</p> : null}
+      {recentHistory.length === 0 ? <p>No session history yet.</p> : null}
+      {recentHistory.map((entry, index) => (
+        <article key={`${entry.role}-${index}`} className="history-entry">
+          <strong>{entry.role}</strong>
+          <p>{entry.content}</p>
         </article>
       ))}
     </aside>

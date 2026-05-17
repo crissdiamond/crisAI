@@ -11,6 +11,7 @@ import {
   resolveThemePalette,
   type UiEvent,
   type UiRunState,
+  type UiSessionState,
   type UiStageSummary
 } from "@crisai/contracts";
 
@@ -25,6 +26,8 @@ function GemApp() {
   const [events, setEvents] = useState<UiEvent[]>([]);
   const [error, setError] = useState("");
   const [accent, setAccent] = useState("magenta");
+  const [session, setSession] = useState("default");
+  const [sessions, setSessions] = useState<string[]>(["default"]);
   const status = useMemo(() => events.at(-1)?.status ?? run?.status ?? "idle", [events, run]);
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
@@ -40,11 +43,20 @@ function GemApp() {
       .catch(() => undefined);
   }, []);
 
+  React.useEffect(() => {
+    runtime
+      .listSessions()
+      .then(applySessionState)
+      .catch((reason: unknown) => setError(String(reason)));
+  }, []);
+
   useInput((input, key) => {
     if (key.return && prompt.trim()) {
       const command = prompt.trim();
       if (checkpointWaiting && command.startsWith("/")) {
         void handleCheckpointCommand(command);
+      } else if (command === "/sessions" || command.startsWith("/session ")) {
+        void handleSessionCommand(command);
       } else {
         void startRun(command);
       }
@@ -60,11 +72,16 @@ function GemApp() {
     }
   });
 
+  function applySessionState(state: UiSessionState) {
+    setSession(state.current_session);
+    setSessions(state.sessions.length > 0 ? state.sessions : [state.current_session]);
+  }
+
   async function startRun(message: string) {
     try {
       setError("");
       setEvents([]);
-      const started = await runtime.startRun({ message, mode: "auto", session: "default" });
+      const started = await runtime.startRun({ message, mode: "auto", session });
       setRun(started);
       setEvents(started.events);
       const source = runtime.subscribe(
@@ -73,11 +90,38 @@ function GemApp() {
           setEvents((current) => dedupeEvents([...current, event]));
           if (isTerminalEvent(event)) {
             source.close();
-            runtime.getRun(started.run_id).then(setRun).catch((reason: unknown) => setError(String(reason)));
+            runtime
+              .getRun(started.run_id)
+              .then((state) => {
+                setRun(state);
+                return runtime.getSession(state.session).then(applySessionState);
+              })
+              .catch((reason: unknown) => setError(String(reason)));
           }
         },
         () => setError("Runtime event stream disconnected.")
       );
+    } catch (reason) {
+      setError(String(reason));
+    }
+  }
+
+  async function handleSessionCommand(command: string) {
+    try {
+      setError("");
+      if (command === "/sessions") {
+        const state = await runtime.listSessions();
+        applySessionState(state);
+        setError(`sessions: ${state.sessions.join(", ")}`);
+        return;
+      }
+      const requested = command.replace(/^\/session\s+/, "").trim();
+      if (!requested) {
+        setError("Usage: /session <name>.");
+        return;
+      }
+      const state = await runtime.createSession(requested);
+      applySessionState(state);
     } catch (reason) {
       setError(String(reason));
     }
@@ -108,6 +152,7 @@ function GemApp() {
       <Box borderStyle="single" borderColor={accent} paddingX={1}>
         <Text bold>crisAI Gem</Text>
         <Text> | status: {status}</Text>
+        <Text> | session: {session}</Text>
         {checkpointWaiting ? <Text color="yellow"> | checkpoint waiting</Text> : null}
       </Box>
 
@@ -145,7 +190,7 @@ function GemApp() {
         <Text dimColor>
           {checkpointWaiting
             ? "checkpoint: /continue | /redirect <guidance> | /stop"
-            : "mode:auto | session:default | Enter to run | Ctrl+C to exit"}
+            : `mode:auto | session:${session} | sessions:${sessions.length} | /session <name> | /sessions`}
         </Text>
       </Box>
     </Box>

@@ -160,6 +160,10 @@ web app and Ink Gem client:
 - `GET /api/v1/runs/{run_id}`
 - `GET /api/v1/runs/{run_id}/events`
 - `POST /api/v1/runs/{run_id}/checkpoint`
+- `GET /api/v1/sessions`
+- `POST /api/v1/sessions`
+- `GET /api/v1/sessions/{session_name}`
+- `GET /api/v1/ui/theme`
 
 The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
 stage progress, retrieval checkpoints, final answers, and failures. The legacy
@@ -185,10 +189,12 @@ launch helpers are:
 ./start gem-ink
 ```
 
-Both clients use shared stage derivation and theme tokens from the UI contract
-package. The React client exposes retrieval checkpoint continue, redirect, and
-stop actions directly. The Ink client accepts `/continue`, `/redirect <guidance>`,
-and `/stop` while a checkpoint is waiting.
+Both clients use shared stage derivation, session APIs, and theme tokens from
+the UI contract package. The React client can select or create sessions, show
+recent session history, and expose retrieval checkpoint continue, redirect, and
+stop actions directly. The Ink client accepts `/session <name>` and `/sessions`
+for session control, plus `/continue`, `/redirect <guidance>`, and `/stop` while
+a checkpoint is waiting.
 
 ---
 

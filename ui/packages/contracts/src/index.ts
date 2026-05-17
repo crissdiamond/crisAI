@@ -52,6 +52,26 @@ export type UiRunState = {
   error: string;
 };
 
+export type UiHistoryEntry = {
+  role: string;
+  content: string;
+};
+
+export type UiSessionMemory = {
+  schema_version?: string;
+  summary?: string;
+  known_sources_count?: number;
+  updated_at?: string | null;
+  [key: string]: unknown;
+};
+
+export type UiSessionState = {
+  sessions: string[];
+  current_session: string;
+  history: UiHistoryEntry[];
+  memory?: UiSessionMemory;
+};
+
 export type UiExpectedStage = {
   key?: string;
   label?: string;
@@ -219,6 +239,25 @@ export class CrisaiRuntimeClient {
 
   async getTheme(): Promise<UiTheme> {
     const response = await fetch(`${this.baseUrl}/api/v1/ui/theme`);
+    return this.readJson(response);
+  }
+
+  async listSessions(): Promise<UiSessionState> {
+    const response = await fetch(`${this.baseUrl}/api/v1/sessions`);
+    return this.readJson(response);
+  }
+
+  async createSession(session: string): Promise<UiSessionState> {
+    const response = await fetch(`${this.baseUrl}/api/v1/sessions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session })
+    });
+    return this.readJson(response);
+  }
+
+  async getSession(session: string): Promise<UiSessionState> {
+    const response = await fetch(`${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}`);
     return this.readJson(response);
   }
 

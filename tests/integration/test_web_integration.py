@@ -428,6 +428,33 @@ surfaces:
     assert body["themes"]["ucl_dark"]["palette"]["primary_dark"] == "#361a54"
 
 
+def test_api_v1_sessions_list_returns_shared_session_state(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GET /api/v1/sessions exposes session state for shared UI clients."""
+    monkeypatch.setattr("crisai.apps.web.load_history", lambda _: [("user", "hello")])
+
+    resp = client.get("/api/v1/sessions")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["sessions"] == ["default"]
+    assert body["current_session"] == "default"
+    assert body["history"] == [{"role": "user", "content": "hello"}]
+    assert "memory" in body
+
+
+def test_api_v1_sessions_create_sanitizes_name(client: _ASGITestClient) -> None:
+    """POST /api/v1/sessions creates or selects a sanitized session."""
+    resp = client.post("/api/v1/sessions", json={"session": "new task"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["current_session"] == "new_task"
+    assert isinstance(body["history"], list)
+
+
 # ---------------------------------------------------------------------------
 # Eviction does not remove running jobs
 # ---------------------------------------------------------------------------
