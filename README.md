@@ -8,7 +8,8 @@ Use it to find source material, reason over it, draft architecture or documentat
 
 ## What It Provides
 
-- CLI and web app surfaces for the same routed workflows.
+- Classic CLI, Web, and Gem terminal surfaces for the same routed workflows.
+- Shared UI event contracts for routing, stages, checkpoints, final answers, and run state.
 - Specialist agents with separate responsibilities and configurable model assignment.
 - Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
 - Native DOCX/PPTX export from reviewed Markdown task artefacts via template manifests.
@@ -30,8 +31,9 @@ For the full operator manual, see [DOCUMENTATION.md](DOCUMENTATION.md). For dete
 
 ```mermaid
 flowchart TB
-    User[User] --> Surfaces[CLI and Web App]
-    Surfaces --> Router[Router and Chat State]
+    User[User] --> Surfaces[Classic CLI / Web / Gem]
+    Surfaces --> RuntimeAPI[Local Runtime API and UI Event Contract]
+    RuntimeAPI --> Router[Router and Chat State]
     Router --> SessionMemory[Compact Session Memory]
     Router --> SessionAnchors[Session Anchors]
     Router --> Workflows[Workflow Modes]
@@ -56,7 +58,9 @@ flowchart TB
     Runtime --> Sources[Workspace / Documents / Diagrams / Vision / SharePoint / Intranet]
 
     Workflows --> Trace[Trace and Logs]
+    Workflows --> UIEvents[Canonical UI Events]
     Workflows --> Policy[Workflow Policy and Verifiers]
+    UIEvents --> RuntimeAPI
 ```
 
 ## Workflow Shape
@@ -98,7 +102,7 @@ flowchart LR
 ```text
 registry/     Agent, server, model, routing, policy, and retrieval dictionaries
 prompts/      Agent prompt files and prompt-authoring guidance
-src/crisai/   CLI, web app, orchestration, MCP servers, runtime, and validation code
+src/crisai/   CLI, web app/API, orchestration, MCP servers, runtime, schemas, and validation code
 tests/        Network-free unit, CLI, and orchestration regression tests
 workspace/    Knowledge base, task workspaces, staged knowledge, outputs, sessions, and caches
 runbooks/     Operational setup, security, registry, policy, and observability notes

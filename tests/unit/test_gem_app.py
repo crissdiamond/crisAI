@@ -27,7 +27,7 @@ def test_gem_css_uses_ucl_palette() -> None:
 
 
 def test_render_gem_css_from_yaml_config(tmp_path) -> None:
-    config = tmp_path / "gem_ui.yaml"
+    config = tmp_path / "ui.yaml"
     config.write_text(
         """
 theme:
@@ -57,7 +57,7 @@ theme:
 
 
 def test_gem_palette_reports_missing_token(tmp_path) -> None:
-    config = tmp_path / "gem_ui.yaml"
+    config = tmp_path / "ui.yaml"
     config.write_text(
         """
 theme:
@@ -73,7 +73,7 @@ theme:
 
 
 def test_gem_css_reports_unknown_template_token(tmp_path) -> None:
-    config = tmp_path / "gem_ui.yaml"
+    config = tmp_path / "ui.yaml"
     config.write_text(
         """
 theme:

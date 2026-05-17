@@ -23,7 +23,7 @@ The suite provides confidence around:
 - CLI state rendering helpers
 - session persistence
 - prompt builder assembly
-- web app job lifecycle, integration path, and bounded eviction
+- web app job lifecycle, shared UI runtime API, integration path, and bounded eviction
 - document export, workspace search, SharePoint helper behaviour, intranet MCP behaviour, diagram MCP behaviour, PowerPoint extraction, and vision MCP path safety/tool behaviour
 - import smoke tests for main orchestration modules
 
@@ -107,6 +107,7 @@ tests/
     test_source_constraints.py
     test_status_views.py
     test_task_contract.py
+    test_ui_events.py
     test_web_app.py
     test_workflow_policy.py
     test_workspace_server_search.py

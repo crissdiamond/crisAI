@@ -140,10 +140,10 @@ When crisAI opens, you are inside the interactive CLI.
 
 The stable CLI command is `crisai classic`. The existing `crisai chat` command
 is kept as a compatibility alias. The full-screen terminal UI is named
-`crisai gem`; it is built as a separate Textual TUI so it can own the terminal
-layout instead of patching the classic prompt/Rich flow. Gem maps the UCL web
-palette from `src/crisai/apps/.style.md` into terminal-safe header, footer,
-stage, transcript, and warning/error styles.
+`crisai gem`; the current implementation is a Textual scaffold, while the next
+Gem implementation will move to Ink and consume the same runtime event contract
+as the web app. Shared UI theme tokens live in `registry/ui.yaml`; surface
+adapters map those tokens into CSS variables or terminal-safe styles.
 
 To run the web interface:
 
@@ -152,6 +152,19 @@ To run the web interface:
 ```
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+The web server also exposes the v1 shared UI runtime API for the planned React
+web app and Ink Gem client:
+
+- `POST /api/v1/runs`
+- `GET /api/v1/runs/{run_id}`
+- `GET /api/v1/runs/{run_id}/events`
+- `POST /api/v1/runs/{run_id}/checkpoint`
+
+The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
+stage progress, retrieval checkpoints, final answers, and failures. The legacy
+`/api/run/*` endpoints remain available for the current static web interface
+during the migration.
 
 ---
 

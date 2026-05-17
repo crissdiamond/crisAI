@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/ui_event_v1.schema.json",
+  "title": "crisAI UI Event",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_type",
+    "run_id",
+    "timestamp",
+    "session",
+    "status",
+    "title",
+    "summary",
+    "content",
+    "verbose_content",
+    "mode",
+    "agent_id",
+    "stage",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "ui_event_v1" },
+    "event_type": {
+      "enum": [
+        "run_created",
+        "routing_decision",
+        "task_contract",
+        "stage_started",
+        "stage_output",
+        "stage_completed",
+        "stage_skipped",
+        "stage_failed",
+        "checkpoint_requested",
+        "checkpoint_decision",
+        "final_answer",
+        "run_failed",
+        "run_completed"
+      ]
+    },
+    "run_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "minLength": 1 },
+    "session": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string" },
+    "content": { "type": "string" },
+    "verbose_content": { "type": "string" },
+    "mode": { "type": ["string", "null"] },
+    "agent_id": { "type": ["string", "null"] },
+    "stage": { "type": ["string", "null"] },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": false
+}

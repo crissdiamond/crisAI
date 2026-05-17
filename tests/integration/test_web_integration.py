@@ -166,6 +166,31 @@ def test_run_start_returns_job_id_and_decision(
     assert isinstance(body["expected_tabs"], list)
 
 
+def test_api_v1_run_start_returns_shared_ui_state(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POST /api/v1/runs returns the shared UI contract state."""
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _noop_run_job(job_id: str, payload: Any, decision: Any) -> None:
+        from crisai.apps import web as web_mod
+        web_mod._RUN_JOBS[job_id]["status"] = "completed"
+        web_mod._RUN_JOBS[job_id]["final_output"] = "done"
+
+    monkeypatch.setattr("crisai.apps.web._run_job", _noop_run_job)
+
+    resp = client.post("/api/v1/runs", json={"message": "propose a design"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["schema_version"] == "ui_run_state_v1"
+    assert body["decision"]["intent"] == "design"
+    assert body["events"][0]["schema_version"] == "ui_event_v1"
+    assert body["events"][0]["event_type"] == "run_created"
+    assert body["events"][1]["event_type"] == "routing_decision"
+
+
 def test_run_start_rejects_concurrent_run(
     client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -291,6 +316,47 @@ def test_run_status_returns_completed_after_job_finishes(
     assert body["status"] == "completed"
     assert body["final_output"] == "finished result"
     assert len(body["stage_outputs"]) == 1
+
+
+def test_api_v1_run_state_maps_trace_rows_to_ui_events(
+    client: _ASGITestClient,
+    tmp_path: Path,
+) -> None:
+    """GET /api/v1/runs/{id} exposes trace-backed stage rows as UI events."""
+    from crisai.apps import web as web_mod
+
+    trace_path = tmp_path / "trace.jsonl"
+    trace_path.write_text(
+        '{"run_id":"trace-run","event_type":"stage_output","stage":"DESIGN OUTPUT",'
+        '"agent_id":"design","content":"Drafted recommendation.","timestamp":"t1"}\n',
+        encoding="utf-8",
+    )
+    web_mod._RUN_JOBS["job-ui"] = {
+        "status": "running",
+        "payload": RunRequest(message="x"),
+        "decision": _FakeDecision(mode="pipeline", agent="design"),
+        "decision_data": {"mode": "pipeline", "agent": "design"},
+        "before_size": 0,
+        "run_id": "trace-run",
+        "stage_outputs": [],
+        "final_output": "",
+        "error": "",
+        "checkpoint": None,
+        "events": [],
+        "event_trace_keys": set(),
+        "history": [],
+        "current_session": "default",
+        "task": None,
+    }
+
+    resp = client.get("/api/v1/runs/job-ui")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["schema_version"] == "ui_run_state_v1"
+    assert body["events"][0]["event_type"] == "stage_output"
+    assert body["events"][0]["agent_id"] == "design"
+    assert "drafted recommendation" in body["events"][0]["content"]
 
 
 def test_run_status_returns_failed_on_pipeline_error(

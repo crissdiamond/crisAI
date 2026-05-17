@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/ui_theme_v1.schema.json",
+  "title": "crisAI UI Theme",
+  "type": "object",
+  "required": ["schema_version", "themes", "surfaces"],
+  "properties": {
+    "schema_version": { "const": "ui_theme_v1" },
+    "default_theme": { "type": "string" },
+    "themes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["palette"],
+        "properties": {
+          "palette": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "surfaces": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    }
+  },
+  "additionalProperties": false
+}

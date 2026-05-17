@@ -80,7 +80,7 @@ def run_gem_app() -> int:
 
         def action_palette_notice(self) -> None:
             self.notify(
-                "Gem themes are loaded from registry/gem_ui.yaml. Built-in Textual palette switching is disabled for now.",
+                "Gem themes are loaded from registry/ui.yaml. Built-in Textual palette switching is disabled for now.",
                 title="Gem theme",
             )
 

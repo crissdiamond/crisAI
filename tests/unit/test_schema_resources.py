@@ -13,6 +13,10 @@ def test_schema_resources_are_valid_json() -> None:
         "request_contract_v1.schema.json",
         "deterministic_context_v1.schema.json",
         "peer_run_contract.schema.json",
+        "ui_event_v1.schema.json",
+        "ui_run_request_v1.schema.json",
+        "ui_run_state_v1.schema.json",
+        "ui_theme_v1.schema.json",
     ):
         payload = json.loads(load_schema_text(name))
         assert payload["$schema"] == "https://json-schema.org/draft/2020-12/schema"

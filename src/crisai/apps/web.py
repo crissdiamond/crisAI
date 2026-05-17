@@ -5,12 +5,12 @@ import json
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import typer
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from crisai.apps.ui_config import UI_CONFIG
@@ -45,6 +45,7 @@ from crisai.orchestration.retrieval_checkpoint import (
     RetrievalCheckpointDecision,
     RetrievalCheckpointSnapshot,
 )
+from crisai.ui_events import UiEvent, UiEventType, make_ui_event
 from crisai.workspace.spaces import load_workspace_spaces
 
 
@@ -151,6 +152,101 @@ def _collect_stage_outputs(entries: list[dict[str, Any]], *, verbose: bool = Fal
     return stage_records
 
 
+def _append_job_event(job_id: str, event: UiEvent) -> None:
+    """Append one canonical UI event to a background job."""
+    job = _RUN_JOBS[job_id]
+    job.setdefault("events", []).append(event.to_dict())
+
+
+def _job_session(job: dict[str, Any]) -> str:
+    return str(job.get("current_session") or "default")
+
+
+def _job_mode(job: dict[str, Any]) -> str | None:
+    decision = job.get("decision")
+    return str(getattr(decision, "mode", "")) or None
+
+
+def _trace_entry_event_key(entry: dict[str, Any]) -> str:
+    """Return a stable key for de-duplicating trace-backed UI events."""
+    return "|".join(
+        [
+            str(entry.get("run_id", "")),
+            str(entry.get("event_type", "")),
+            str(entry.get("agent_id", "")),
+            str(entry.get("stage", "")),
+            str(entry.get("timestamp", "")),
+            str(hash(str(entry.get("content", "")))),
+        ]
+    )
+
+
+def _ui_event_from_stage_entry(
+    *,
+    job_id: str,
+    job: dict[str, Any],
+    stage_entry: dict[str, Any],
+) -> dict[str, Any]:
+    """Convert a rendered stage row into the shared UI event contract."""
+    source_event = str(stage_entry.get("event_type") or "")
+    event_type = cast(UiEventType, {
+        "stage_start": "stage_started",
+        "stage_output": "stage_output",
+        "stage_skipped": "stage_skipped",
+        "stage_error": "stage_failed",
+    }.get(source_event, "stage_output"))
+    agent_id = str(stage_entry.get("agent_id") or "system")
+    content = str(stage_entry.get("content") or "")
+    event = make_ui_event(
+        event_type,
+        run_id=job_id,
+        session=_job_session(job),
+        status=str(job.get("status") or "running"),
+        title=agent_id.replace("_", " ").title(),
+        summary=content.splitlines()[0] if content else "",
+        content=content,
+        verbose_content=content,
+        mode=_job_mode(job),
+        agent_id=agent_id,
+        stage=str(stage_entry.get("stage") or ""),
+        metadata={"source_event_type": source_event},
+    )
+    return event.to_dict()
+
+
+def _refresh_job_from_trace(job_id: str) -> None:
+    """Update legacy stage rows and canonical UI events from appended trace lines."""
+    job = _RUN_JOBS[job_id]
+    trace_path = _trace_file_path()
+    new_entries = _read_json_lines_from_offset(trace_path, int(job.get("before_size", 0)))
+    if trace_path.exists():
+        job["before_size"] = trace_path.stat().st_size
+
+    if job.get("run_id") is None:
+        for entry in new_entries:
+            candidate = entry.get("run_id")
+            if isinstance(candidate, str) and candidate:
+                job["run_id"] = candidate
+
+    run_id = job.get("run_id")
+    run_entries = [entry for entry in new_entries if entry.get("run_id") == run_id] if run_id else []
+    seen = job.setdefault("event_trace_keys", set())
+    for entry in run_entries:
+        payload = job.get("payload")
+        stage_entry = _trace_line_to_stage_output(entry, verbose=bool(getattr(payload, "verbose", False)))
+        if stage_entry is None:
+            continue
+        job["stage_outputs"] = [e for e in job["stage_outputs"] if e.get("key") != stage_entry["key"]]
+        job["stage_outputs"].append(stage_entry)
+        event_key = _trace_entry_event_key(entry)
+        if event_key in seen:
+            continue
+        seen.add(event_key)
+        job.setdefault("events", []).append(
+            _ui_event_from_stage_entry(job_id=job_id, job=job, stage_entry=stage_entry)
+        )
+
+
 def _resolve_decision(payload: RunRequest):
     """Resolve router decision from web request preferences."""
     message = normalise_legacy_workspace_paths(payload.message)
@@ -234,6 +330,22 @@ def _make_web_checkpoint_handler(job_id: str):
         job["checkpoint_future"] = future
         job["checkpoint"] = snapshot.to_dict()
         job["status"] = "checkpoint_waiting"
+        _append_job_event(
+            job_id,
+            make_ui_event(
+                "checkpoint_requested",
+                run_id=job_id,
+                session=_job_session(job),
+                status="checkpoint_waiting",
+                title="Retrieval checkpoint",
+                summary="Retrieval evidence is ready for confirmation.",
+                content=snapshot.evidence_brief,
+                mode=_job_mode(job),
+                agent_id="retrieval_checkpoint",
+                stage="retrieval_checkpoint",
+                metadata=snapshot.to_dict(),
+            ),
+        )
         decision = await future
         job["checkpoint"] = None
         job["checkpoint_future"] = None
@@ -481,9 +593,49 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
         job["final_output"] = sanitize_user_visible_text(final_output)
         job["history"] = _serialize_history(history)
         job["current_session"] = session_name
+        _append_job_event(
+            job_id,
+            make_ui_event(
+                "final_answer",
+                run_id=job_id,
+                session=session_name,
+                status="completed",
+                title="Final answer",
+                summary="Run completed with a final answer.",
+                content=job["final_output"],
+                mode=_job_mode(job),
+                agent_id="final_output",
+                stage="final_output",
+            ),
+        )
+        _append_job_event(
+            job_id,
+            make_ui_event(
+                "run_completed",
+                run_id=job_id,
+                session=session_name,
+                status="completed",
+                title="Run completed",
+                summary="Workflow completed.",
+                mode=_job_mode(job),
+            ),
+        )
     except Exception as exc:  # noqa: BLE001
         job["status"] = "failed"
         job["error"] = _to_http_exception(exc).detail
+        _append_job_event(
+            job_id,
+            make_ui_event(
+                "run_failed",
+                run_id=job_id,
+                session=_job_session(job),
+                status="failed",
+                title="Run failed",
+                summary=str(job["error"]),
+                content=str(job["error"]),
+                mode=_job_mode(job),
+            ),
+        )
 
 
 def _evict_old_jobs(max_completed: int = _MAX_COMPLETED_JOBS) -> None:
@@ -583,8 +735,38 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         "checkpoint_future": None,
         "history": [],
         "current_session": sanitize_session_name(payload.session),
+        "events": [],
+        "event_trace_keys": set(),
         "task": None,
     }
+    _append_job_event(
+        job_id,
+        make_ui_event(
+            "run_created",
+            run_id=job_id,
+            session=sanitize_session_name(payload.session),
+            status="running",
+            title="Run created",
+            summary="Workflow run accepted.",
+            mode=getattr(decision, "mode", None),
+            metadata={"expected_tabs": _expected_flow_tabs(decision)},
+        ),
+    )
+    _append_job_event(
+        job_id,
+        make_ui_event(
+            "routing_decision",
+            run_id=job_id,
+            session=sanitize_session_name(payload.session),
+            status="running",
+            title="Routing decision",
+            summary=str(getattr(decision, "reason", "")),
+            content=str(getattr(decision, "reason", "")),
+            mode=getattr(decision, "mode", None),
+            agent_id=getattr(decision, "agent", None),
+            metadata=asdict(decision),
+        ),
+    )
     _RUN_JOBS[job_id]["task"] = asyncio.create_task(_run_job(job_id, payload, decision))
     _evict_old_jobs()
 
@@ -602,30 +784,7 @@ async def run_status(job_id: str) -> dict[str, Any]:
     if job is None:
         raise HTTPException(status_code=404, detail="Run job not found.")
 
-    trace_path = _trace_file_path()
-    new_entries = _read_json_lines_from_offset(trace_path, int(job.get("before_size", 0)))
-    if trace_path.exists():
-        job["before_size"] = trace_path.stat().st_size
-
-    if job.get("run_id") is None:
-        for entry in new_entries:
-            candidate = entry.get("run_id")
-            if isinstance(candidate, str) and candidate:
-                job["run_id"] = candidate
-
-    run_id = job.get("run_id")
-    if run_id:
-        run_entries = [entry for entry in new_entries if entry.get("run_id") == run_id]
-    else:
-        run_entries = []
-
-    for entry in run_entries:
-        payload = job.get("payload")
-        stage_entry = _trace_line_to_stage_output(entry, verbose=bool(getattr(payload, "verbose", False)))
-        if stage_entry is None:
-            continue
-        job["stage_outputs"] = [e for e in job["stage_outputs"] if e.get("key") != stage_entry["key"]]
-        job["stage_outputs"].append(stage_entry)
+    _refresh_job_from_trace(job_id)
 
     return {
         "status": job.get("status"),
@@ -663,7 +822,94 @@ async def run_checkpoint(job_id: str, payload: CheckpointRequest) -> dict[str, A
     else:
         decision = RetrievalCheckpointDecision.redirect(instruction)
     future.set_result(decision)
+    _append_job_event(
+        job_id,
+        make_ui_event(
+            "checkpoint_decision",
+            run_id=job_id,
+            session=_job_session(job),
+            status="running",
+            title="Checkpoint decision",
+            summary=f"Checkpoint decision: {decision.action}.",
+            content=decision.redirect_instruction,
+            mode=_job_mode(job),
+            agent_id="retrieval_checkpoint",
+            stage="retrieval_checkpoint",
+            metadata=decision.to_dict(),
+        ),
+    )
     return {"status": "accepted", "action": decision.action}
+
+
+def _run_state(job_id: str) -> dict[str, Any]:
+    """Return the shared UI run state for React, Ink, and future clients."""
+    job = _RUN_JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Run job not found.")
+    _refresh_job_from_trace(job_id)
+    return {
+        "schema_version": "ui_run_state_v1",
+        "run_id": job_id,
+        "session": _job_session(job),
+        "status": job.get("status"),
+        "decision": job.get("decision_data", {}),
+        "expected_stages": _expected_flow_tabs(job.get("decision")),
+        "events": job.get("events", []),
+        "final_output": job.get("final_output", ""),
+        "error": job.get("error", ""),
+    }
+
+
+@app.post("/api/v1/runs")
+async def api_v1_run_start(payload: RunRequest) -> dict[str, Any]:
+    """Start a run using the shared UI contract."""
+    started = await run_start(payload)
+    job_id = str(started["job_id"])
+    state = _run_state(job_id)
+    return {
+        "schema_version": "ui_run_state_v1",
+        "run_id": job_id,
+        "session": state["session"],
+        "status": state["status"],
+        "decision": state["decision"],
+        "expected_stages": state["expected_stages"],
+        "events": state["events"],
+        "final_output": state["final_output"],
+        "error": state["error"],
+    }
+
+
+@app.get("/api/v1/runs/{job_id}")
+async def api_v1_run_state(job_id: str) -> dict[str, Any]:
+    """Return the latest shared UI state for a run."""
+    return _run_state(job_id)
+
+
+@app.post("/api/v1/runs/{job_id}/checkpoint")
+async def api_v1_run_checkpoint(job_id: str, payload: CheckpointRequest) -> dict[str, Any]:
+    """Submit a retrieval checkpoint decision through the shared UI API."""
+    return await run_checkpoint(job_id, payload)
+
+
+@app.get("/api/v1/runs/{job_id}/events")
+async def api_v1_run_events(job_id: str) -> StreamingResponse:
+    """Stream canonical UI events for one run using server-sent events."""
+    if job_id not in _RUN_JOBS:
+        raise HTTPException(status_code=404, detail="Run job not found.")
+
+    async def _stream():
+        cursor = 0
+        while True:
+            state = _run_state(job_id)
+            events = state["events"]
+            for event in events[cursor:]:
+                yield f"event: {event['event_type']}\ndata: {json.dumps(event)}\n\n"
+            cursor = len(events)
+            if state["status"] in {"completed", "failed"} and cursor >= len(events):
+                break
+            await asyncio.sleep(0.25)
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 @app.get("/api/config")

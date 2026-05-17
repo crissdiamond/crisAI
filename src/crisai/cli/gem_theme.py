@@ -27,7 +27,7 @@ REQUIRED_PALETTE_TOKENS = {
 
 def default_gem_ui_config_path() -> Path:
     """Return the default Gem UI registry path."""
-    return Path(__file__).resolve().parents[3] / "registry" / "gem_ui.yaml"
+    return Path(__file__).resolve().parents[3] / "registry" / "ui.yaml"
 
 
 def load_gem_ui_config(path: Path | None = None) -> dict[str, Any]:
@@ -41,10 +41,22 @@ def load_gem_ui_config(path: Path | None = None) -> dict[str, Any]:
 
 
 def _theme_config(config: dict[str, Any]) -> dict[str, Any]:
+    surfaces = config.get("surfaces")
+    themes = config.get("themes")
+    if isinstance(surfaces, dict) and isinstance(themes, dict):
+        gem = surfaces.get("gem")
+        if not isinstance(gem, dict):
+            raise ValueError("UI config requires surfaces.gem mapping.")
+        theme_name = str(gem.get("theme") or config.get("default_theme") or "")
+        theme = themes.get(theme_name)
+        if not isinstance(theme, dict):
+            raise ValueError(f"UI config references unknown Gem theme: {theme_name}")
+        return {"palette": theme.get("palette"), "css_template": gem.get("css_template")}
+
     theme = config.get("theme")
-    if not isinstance(theme, dict):
-        raise ValueError("Gem UI config requires a theme mapping.")
-    return theme
+    if isinstance(theme, dict):
+        return theme
+    raise ValueError("Gem UI config requires a theme mapping.")
 
 
 def gem_palette_as_dict(path: Path | None = None) -> dict[str, str]:

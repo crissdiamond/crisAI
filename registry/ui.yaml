@@ -1,0 +1,112 @@
+schema_version: ui_theme_v1
+default_theme: ucl_dark
+themes:
+  ucl_dark:
+    palette:
+      primary_dark: "#361a54"
+      background: "#1f102f"
+      transcript_background: "#fafafa"
+      composer_background: "#ffffff"
+      accent_bright: "#993bff"
+      accent_mid: "#ba82ff"
+      surface_light: "#ddbdff"
+      surface_pale: "#eedeff"
+      accent_blue: "#30d6ff"
+      text: "#1f1f2e"
+      border: "#c9b7dd"
+      vibrant_purple: "#500778"
+      success: "#52C152"
+      error: "#D50032"
+      warning: "#FFCA36"
+surfaces:
+  gem:
+    theme: ucl_dark
+    css_template: |
+      Screen {
+          background: $background;
+          color: $transcript_background;
+      }
+
+      #header {
+          background: $primary_dark;
+          color: $background;
+          height: 3;
+          padding: 0 2;
+          border-bottom: tall $accent_mid;
+      }
+
+      #workspace {
+          layout: horizontal;
+          background: $background;
+      }
+
+      #stages {
+          width: 31;
+          min-width: 24;
+          background: $surface_pale;
+          border-right: solid $border;
+          padding: 1;
+      }
+
+      #transcript {
+          background: $transcript_background;
+          color: $text;
+          border: solid $accent_bright;
+          padding: 1 2;
+      }
+
+      #transcript-content {
+          background: $transcript_background;
+          color: $text;
+          padding: 0 1;
+      }
+
+      #composer {
+          height: 3;
+          border-top: solid $accent_bright;
+          background: $composer_background;
+          color: $text;
+          padding: 0 1;
+      }
+
+      #footer {
+          height: 1;
+          background: $primary_dark;
+          color: $accent_mid;
+      }
+
+      .stage-active {
+          color: $accent_blue;
+          text-style: bold;
+      }
+
+      .stage-complete {
+          color: $success;
+      }
+
+      .stage-pending {
+          color: $text;
+      }
+
+      .stage-warning {
+          color: $warning;
+      }
+
+      .stage-error {
+          color: $error;
+      }
+  web:
+    theme: ucl_dark
+    css_variables:
+      color-primary-dark: primary_dark
+      color-bg: transcript_background
+      color-accent-bright: accent_bright
+      color-accent-mid: accent_mid
+      color-surface-light: surface_light
+      color-surface-pale: surface_pale
+      color-accent-blue: accent_blue
+      color-text: text
+      color-border: border
+      color-success: success
+      color-error: error
+      color-warning: warning
