@@ -22,6 +22,27 @@ Python and UI locations.
 Use `scripts/hcom_start.sh` from the team repository. The launcher writes local
 session assignments under the target repository.
 
+Use a fresh launch for new work:
+
+```bash
+scripts/hcom_start.sh --target-repo /path/to/crisAI
+```
+
+Use resume only when continuing the same team context:
+
+```bash
+scripts/hcom_start.sh --target-repo /path/to/crisAI --resume
+```
+
+Resume reads the previous assignment file before overwriting it. If a role has a
+`provider_session_id`, the launcher resumes that Codex or Claude session through
+hcom; otherwise it resumes the previous hcom session name. Missing previous
+sessions fall back to a fresh launch for that role. After launch, the assignment
+file records both the hcom session name and the provider session UUID when hcom
+exposes one. Claude memory remains the durable project memory layer, so resumed
+provider sessions should be used for continuity on active work rather than as
+the source of truth.
+
 In WSL, the launcher opens shells in Windows Terminal when `wt.exe` is
 available, otherwise it falls back to `tmux`. Override this with
 `--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL` when a different hcom

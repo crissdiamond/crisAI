@@ -79,6 +79,7 @@ From that repo, launch against a target crisAI checkout:
 ```bash
 scripts/hcom_start.sh --target-repo /path/to/crisAI --dry-run
 scripts/hcom_start.sh --target-repo /path/to/crisAI
+scripts/hcom_start.sh --target-repo /path/to/crisAI --resume
 scripts/hcom_status.sh --target-repo /path/to/crisAI
 scripts/hcom_stop.sh --target-repo /path/to/crisAI
 ```
@@ -99,6 +100,12 @@ The scripts use target-repo local hcom state:
 
 - `<target-repo>/.hcom/`
 - `<target-repo>/.hcom-development/session_assignments.local.yaml`
+
+Use `--resume` only when continuing the same active team context. The launcher
+resumes each role by `provider_session_id` when present in the assignment file,
+or by the previous hcom session name otherwise. Missing previous sessions fall
+back to fresh launches. Successful launches record provider session UUIDs when
+hcom exposes them.
 
 Both should be ignored by the target repository. This package includes
 `.gitignore.example` entries to copy into the target repo if needed.

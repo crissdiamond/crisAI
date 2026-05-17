@@ -7,13 +7,16 @@ HCOM_DIR="${HCOM_DIR:-$ROOT_DIR/.hcom}"
 ASSIGNMENTS="$ROOT_DIR/reference/development/session_assignments.local.yaml"
 DRY_RUN=0
 HEADLESS=0
+RESUME=0
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
 EXTRA_ARGS=()
 LAUNCHED_NAMES=()
+declare -A PREVIOUS_HCOM_NAMES=()
+declare -A PREVIOUS_PROVIDER_SESSION_IDS=()
 
 usage() {
   cat <<'EOF'
-Usage: scripts/hcom_start.sh [--dry-run] [--headless] [--terminal PRESET_OR_COMMAND] [-- extra hcom args]
+Usage: scripts/hcom_start.sh [--dry-run] [--headless] [--resume] [--terminal PRESET_OR_COMMAND] [-- extra hcom args]
 
 Launches:
   - one Codex orchestrator from repo root
@@ -25,6 +28,8 @@ State:
   HCOM_DIR defaults to ./.hcom and is ignored by git.
   Generated session assignments are written to
   reference/development/session_assignments.local.yaml.
+  Use --resume to resume previous hcom/provider sessions from that assignment
+  file when available.
 
 Terminal:
   HCOM_TEAM_TERMINAL or --terminal controls where hcom opens shells.
@@ -40,6 +45,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --headless)
       HEADLESS=1
+      shift
+      ;;
+    --resume)
+      RESUME=1
       shift
       ;;
     --terminal)
@@ -84,6 +93,33 @@ EOF
 
 extract_names() {
   sed -n 's/^Names: //p' | tr ' ' '\n' | sed '/^$/d'
+}
+
+load_previous_assignments() {
+  [[ -f "$ASSIGNMENTS" ]] || return 0
+  while IFS='|' read -r role hcom_name provider_session_id; do
+    [[ -n "$role" && -n "$hcom_name" ]] || continue
+    PREVIOUS_HCOM_NAMES["$role"]="$hcom_name"
+    if [[ -n "$provider_session_id" ]]; then
+      PREVIOUS_PROVIDER_SESSION_IDS["$role"]="$provider_session_id"
+    fi
+  done < <(awk '
+function flush() {
+  if (role != "" && name != "") {
+    print role "|" name "|" provider_session_id
+  }
+}
+/^  [^[:space:]][^:]*:$/ {
+  flush()
+  name=$1
+  sub(":$", "", name)
+  role=""
+  provider_session_id=""
+}
+/^[[:space:]]+role:/ { role=$2 }
+/^[[:space:]]+provider_session_id:/ { provider_session_id=$2 }
+END { flush() }
+' "$ASSIGNMENTS")
 }
 
 default_team_terminal() {
@@ -148,6 +184,29 @@ if matches:
   done
 }
 
+provider_session_id_for_name() {
+  local hcom_name="$1"
+  local json
+  if ! json="$(hcom list --json 2>/dev/null)"; then
+    return 0
+  fi
+  printf '%s\n' "$json" | python -c '
+import json
+import sys
+
+name = sys.argv[1]
+try:
+    agents = json.load(sys.stdin)
+except json.JSONDecodeError:
+    agents = []
+
+for agent in agents:
+    if name in {agent.get("name"), agent.get("base_name")} and agent.get("session_id"):
+        print(agent["session_id"])
+        break
+' "$hcom_name"
+}
+
 run_cmd() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf 'DRY RUN:' >&2
@@ -166,10 +225,21 @@ launch_agent() {
   local role_file="$5"
   local area="$6"
 
-  local prompt
+  local prompt resume_target
   prompt="$(role_prompt "$role_file")"
 
-  local cmd=(hcom "$provider" --tag "$tag" --dir "$ROOT_DIR/$launch_dir" --hcom-prompt "$prompt")
+  if [[ "$RESUME" -eq 1 ]]; then
+    resume_target="${PREVIOUS_PROVIDER_SESSION_IDS[$role]:-${PREVIOUS_HCOM_NAMES[$role]:-}}"
+  else
+    resume_target=""
+  fi
+
+  local cmd
+  if [[ -n "$resume_target" ]]; then
+    cmd=(hcom r --tag "$tag" --dir "$ROOT_DIR/$launch_dir" --hcom-prompt "$prompt" --go)
+  else
+    cmd=(hcom "$provider" --tag "$tag" --dir "$ROOT_DIR/$launch_dir" --hcom-prompt "$prompt")
+  fi
   if [[ "$HEADLESS" -eq 1 ]]; then
     cmd+=(--headless)
   elif [[ -n "$TEAM_TERMINAL" ]]; then
@@ -178,10 +248,17 @@ launch_agent() {
   if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
     cmd+=("${EXTRA_ARGS[@]}")
   fi
+  if [[ -n "$resume_target" ]]; then
+    cmd+=("$resume_target")
+  fi
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
     run_cmd "${cmd[@]}"
-    echo "dry-run-$role"
+    if [[ -n "$resume_target" ]]; then
+      echo "${PREVIOUS_HCOM_NAMES[$role]:-dry-run-$role}"
+    else
+      echo "dry-run-$role"
+    fi
     return 0
   fi
 
@@ -190,6 +267,9 @@ launch_agent() {
   printf '%s\n' "$output" >&2
   local name
   name="$(printf '%s\n' "$output" | extract_names | head -n 1)"
+  if [[ -z "$name" && -n "$resume_target" && "$resume_target" == "${PREVIOUS_HCOM_NAMES[$role]:-}" ]]; then
+    name="$resume_target"
+  fi
   if [[ -z "$name" ]]; then
     name="$(name_from_hcom_list "$tag" "$provider" | head -n 1)"
   fi
@@ -206,6 +286,11 @@ write_assignment() {
   local area="$3"
   local provider="$4"
   local tag="$5"
+  local provider_session_id
+  provider_session_id="${PREVIOUS_PROVIDER_SESSION_IDS[$role]:-}"
+  if [[ -z "$provider_session_id" && "$DRY_RUN" -eq 0 ]]; then
+    provider_session_id="$(provider_session_id_for_name "$name")"
+  fi
 
   cat >>"$ASSIGNMENTS" <<EOF
   $name:
@@ -213,6 +298,14 @@ write_assignment() {
     area: $area
     provider: $provider
     tag: $tag
+    hcom_session_id: $name
+EOF
+  if [[ -n "$provider_session_id" ]]; then
+    cat >>"$ASSIGNMENTS" <<EOF
+    provider_session_id: $provider_session_id
+EOF
+  fi
+  cat >>"$ASSIGNMENTS" <<EOF
     status: active
 EOF
 }
@@ -224,6 +317,7 @@ require_bin claude
 export HCOM_DIR
 mkdir -p "$HCOM_DIR"
 TEAM_TERMINAL="$(default_team_terminal)"
+load_previous_assignments
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
   hcom config name_export HCOM_NAME >/dev/null

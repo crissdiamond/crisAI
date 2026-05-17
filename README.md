@@ -196,6 +196,7 @@ Gem, and web work.
 ```bash
 scripts/hcom_start.sh --dry-run   # inspect launch commands
 scripts/hcom_start.sh             # launch the hcom team
+scripts/hcom_start.sh --resume    # resume previous hcom/provider sessions
 scripts/hcom_status.sh            # show local assignments and agent status
 scripts/hcom_stop.sh              # stop crisAI hcom agent tags
 ```
@@ -205,6 +206,12 @@ session mappings to `reference/development/session_assignments.local.yaml`.
 Both are ignored by git. Stable role definitions live under
 `reference/development/`; the top-level `runtime/`, `gem/`, and `web/` folders
 are hcom launch folders, not source roots.
+
+Use `--resume` only when continuing the same development context. The launcher
+resumes a role by `provider_session_id` when present in the assignment file, or
+by the previous hcom session name otherwise. Missing previous sessions fall back
+to fresh launches. Successful launches record provider session UUIDs when hcom
+exposes them.
 
 In WSL, `scripts/hcom_start.sh` opens hcom shells in Windows Terminal when
 `wt.exe` is available, otherwise it falls back to `tmux`. Override this with

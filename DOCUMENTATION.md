@@ -200,9 +200,17 @@ Launch helpers:
 ```bash
 scripts/hcom_start.sh --dry-run
 scripts/hcom_start.sh
+scripts/hcom_start.sh --resume
 scripts/hcom_status.sh
 scripts/hcom_stop.sh
 ```
+
+Use `--resume` only when continuing the same development context. The launcher
+reads the previous assignment file before replacing it and resumes each role by
+`provider_session_id` when present, or by the previous hcom session name
+otherwise. Claude memory remains the durable cross-agent context layer; resumed
+provider sessions are for active-work continuity. Successful launches record
+provider session UUIDs when hcom exposes them.
 
 In WSL, the launcher opens hcom shells in Windows Terminal when `wt.exe` is
 available, otherwise it falls back to `tmux`. Override this with
