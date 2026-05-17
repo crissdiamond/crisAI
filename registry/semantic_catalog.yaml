@@ -384,6 +384,14 @@ lexicon:
       - dei
       - delle
       - per
+    conjunctions:
+      - and
+      - e
+    demonstratives:
+      - that
+      - this
+    auxiliaries:
+      - would
   prompt_noise_terms:
     - this
     - that
@@ -448,6 +456,43 @@ lexicon:
     - chiamata
     - intitolato
     - intitolata
+
+session_memory:
+  decision_markers:
+    - recommend
+    - should
+    - do not
+    - use
+    - target state
+    - interim
+  rejected_option_markers:
+    - rejected
+    - not selected
+    - do not use
+    - avoid
+  assumption_markers:
+    - assume
+    - assumption
+  constraint_markers:
+    - must
+    - constraint
+    - do not
+    - cannot
+  source_finding_markers:
+    - source
+    - found
+    - evidence
+    - according to
+  next_action_markers:
+    - next
+    - todo
+    - follow up
+    - remaining
+  open_question_starters:
+    - can
+    - should
+    - why
+    - how
 
 retrieval_constraints:
   object_type_terms:

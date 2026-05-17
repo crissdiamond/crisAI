@@ -123,6 +123,19 @@ class SessionAnchorTerms:
 
 
 @dataclass(frozen=True)
+class SessionMemoryTerms:
+    """Vocabulary used by deterministic session-memory extraction."""
+
+    decision_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+    rejected_option_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+    assumption_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+    constraint_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+    source_finding_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+    next_action_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+    open_question_starters: frozenset[str] = dataclass_field(default_factory=frozenset)
+
+
+@dataclass(frozen=True)
 class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
@@ -133,6 +146,7 @@ class SemanticCatalog:
     interaction: InteractionPatterns
     artifact_lifecycle: ArtifactLifecycleTerms = dataclass_field(default_factory=ArtifactLifecycleTerms)
     session_anchors: SessionAnchorTerms = dataclass_field(default_factory=SessionAnchorTerms)
+    session_memory: SessionMemoryTerms = dataclass_field(default_factory=SessionMemoryTerms)
 
 
 class SemanticCatalogError(ValueError):
@@ -289,6 +303,8 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     lifecycle_block = lifecycle_block if isinstance(lifecycle_block, dict) else {}
     anchor_block = data.get("session_anchors")
     anchor_block = anchor_block if isinstance(anchor_block, dict) else {}
+    session_memory_block = data.get("session_memory")
+    session_memory_block = session_memory_block if isinstance(session_memory_block, dict) else {}
     pattern_gap_line = str(verifier_block.get("pattern_gap_line") or "").strip()
     leaf_file_pattern = str(verifier_block.get("leaf_file_pattern") or "").strip()
     if not pattern_gap_line or not leaf_file_pattern:
@@ -441,6 +457,15 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             summary_columns=_as_frozenset(anchor_block.get("summary_columns")),
             status_columns=_as_frozenset(anchor_block.get("status_columns")),
             preferred_markers=_as_frozenset(anchor_block.get("preferred_markers")),
+        ),
+        session_memory=SessionMemoryTerms(
+            decision_markers=_as_frozenset(session_memory_block.get("decision_markers")),
+            rejected_option_markers=_as_frozenset(session_memory_block.get("rejected_option_markers")),
+            assumption_markers=_as_frozenset(session_memory_block.get("assumption_markers")),
+            constraint_markers=_as_frozenset(session_memory_block.get("constraint_markers")),
+            source_finding_markers=_as_frozenset(session_memory_block.get("source_finding_markers")),
+            next_action_markers=_as_frozenset(session_memory_block.get("next_action_markers")),
+            open_question_starters=_as_frozenset(session_memory_block.get("open_question_starters")),
         ),
     )
 

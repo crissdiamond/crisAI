@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from crisai.cli import chat_context
+
+
+def _repo_catalog():
+    return chat_context.load_semantic_catalog(str(Path(__file__).resolve().parents[2] / "registry"))
 
 
 def test_render_history_formats_roles():
@@ -126,7 +132,10 @@ def test_compact_memory_canonicalizes_workspace_prefix_sources():
     assert "knowledge/patterns/reporting-patterns.txt" in memory.known_sources
 
 
-def test_compact_memory_extracts_v2_structured_fields():
+def test_compact_memory_extracts_v2_structured_fields(monkeypatch):
+    chat_context.load_semantic_catalog.cache_clear()
+    catalog = _repo_catalog()
+    monkeypatch.setattr(chat_context, "load_semantic_catalog", lambda: catalog)
     history = [
         ("user", "Build a reporting architecture. Must stay local. Assume Power BI is retained."),
         (
@@ -145,6 +154,56 @@ def test_compact_memory_extracts_v2_structured_fields():
     assert any("Rejected option" in item for item in memory.rejected_options)
     assert any("Source finding" in item for item in memory.source_findings)
     assert any("Next action" in item for item in memory.next_actions)
+
+
+def test_compact_memory_uses_semantic_catalog_session_memory_terms(monkeypatch):
+    catalog = _repo_catalog()
+    custom_catalog = type(catalog)(
+        router=catalog.router,
+        peer_verifier=catalog.peer_verifier,
+        peer_contract=catalog.peer_contract,
+        peer_judge=catalog.peer_judge,
+        lexicon=catalog.lexicon,
+        retrieval_constraints=catalog.retrieval_constraints,
+        interaction=catalog.interaction,
+        artifact_lifecycle=catalog.artifact_lifecycle,
+        session_anchors=catalog.session_anchors,
+        session_memory=type(catalog.session_memory)(
+            decision_markers=frozenset({"chosen"}),
+            rejected_option_markers=frozenset({"discarded"}),
+            assumption_markers=frozenset({"given"}),
+            constraint_markers=frozenset({"bounded"}),
+            source_finding_markers=frozenset({"observed"}),
+            next_action_markers=frozenset({"afterwards"}),
+            open_question_starters=frozenset({"whether"}),
+        ),
+    )
+    monkeypatch.setattr(chat_context, "load_semantic_catalog", lambda: custom_catalog)
+    history = [
+        ("user", "Build a reporting architecture. Given Power BI. Bounded to local sources. Whether model A?"),
+        (
+            "assistant",
+            "Chosen approach keeps semantic models. Discarded direct extracts. "
+            "Observed the reporting standard. Afterwards draft the artefact.",
+        ),
+    ]
+
+    memory = chat_context.compact_session_memory(history)
+
+    assert memory.important_decisions == ["Chosen approach keeps semantic models."]
+    assert memory.rejected_options == ["Discarded direct extracts."]
+    assert memory.assumptions == ["Given Power BI."]
+    assert memory.constraints == ["Bounded to local sources."]
+    assert memory.source_findings == ["Observed the reporting standard."]
+    assert memory.next_actions == ["Afterwards draft the artefact."]
+    assert memory.open_questions == ["Whether model A?"]
+
+
+def test_content_terms_fail_soft_when_semantic_catalog_unavailable(monkeypatch):
+    monkeypatch.setattr(chat_context, "load_semantic_catalog", lambda: (_ for _ in ()).throw(RuntimeError("missing")))
+
+    assert "about" in chat_context._content_terms("about reporting target")
+    assert chat_context.compact_session_memory([("user", "Create reporting target architecture.")]).task_goal
 
 
 def test_compact_memory_preserves_initial_task_goal_across_followups():

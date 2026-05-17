@@ -14,19 +14,26 @@ from crisai.cli.session_store import (
     SessionMemory,
     load_session_anchors,
     load_session_memory,
+    sanitize_session_name,
     save_session_anchors,
     save_session_memory,
-    sanitize_session_name,
 )
 from crisai.cli.text_loader import render_cli_text
 from crisai.config import load_settings
+from crisai.orchestration.retrieval_association_graph import (
+    deterministic_context_from_registry,
+)
+from crisai.orchestration.semantic_catalog import (
+    LexiconTerms,
+    SessionMemoryTerms,
+    load_semantic_catalog,
+)
 from crisai.orchestration.session_anchors import (
     extract_session_anchors_from_history,
     render_anchor_registry,
     render_resolved_anchor_references,
     resolve_anchor_references,
 )
-from crisai.orchestration.retrieval_association_graph import deterministic_context_from_registry
 from crisai.workspace.spaces import load_workspace_spaces
 
 _DEFAULT_CONFIG = {
@@ -162,17 +169,14 @@ def compact_session_memory(history: list[HistoryEntry], *, max_memory_chars: int
     task_goal = _truncate(_durable_task_goal(user_messages), 500)
     last_outputs = [_truncate(item, 500) for item in assistant_messages[-2:]]
     current_state = _truncate(last_outputs[-1] if last_outputs else task_goal, 800)
-    decisions = _extract_decisions(assistant_messages)
-    rejected_options = _extract_marked_items(assistant_messages, ("rejected", "not selected", "do not use", "avoid"))
-    assumptions = _extract_marked_items([*user_messages, *assistant_messages], ("assume", "assumption"))
-    constraints = _extract_marked_items([*user_messages, *assistant_messages], ("must", "constraint", "do not", "cannot"))
-    source_findings = _extract_marked_items(assistant_messages, ("source", "found", "evidence", "according to"))
-    next_actions = _extract_marked_items(assistant_messages[-3:], ("next", "todo", "follow up", "remaining"))
-    open_questions = [
-        _truncate(item, 240)
-        for item in user_messages[-4:]
-        if "?" in item or item.lower().startswith(("can ", "should ", "why ", "how "))
-    ]
+    memory_terms = _session_memory_terms()
+    decisions = _extract_decisions(assistant_messages, memory_terms)
+    rejected_options = _extract_marked_items(assistant_messages, memory_terms.rejected_option_markers)
+    assumptions = _extract_marked_items([*user_messages, *assistant_messages], memory_terms.assumption_markers)
+    constraints = _extract_marked_items([*user_messages, *assistant_messages], memory_terms.constraint_markers)
+    source_findings = _extract_marked_items(assistant_messages, memory_terms.source_finding_markers)
+    next_actions = _extract_marked_items(assistant_messages[-3:], memory_terms.next_action_markers)
+    open_questions = _extract_open_questions(user_messages, memory_terms)
     do_not_repeat = [
         "Do not repeat old source tables or previous final answers unless the user explicitly asks.",
         "Prefer compact source references over copied historical prose.",
@@ -474,6 +478,23 @@ def _is_runtime_failure_note(text: str) -> bool:
     )
 
 
+def _semantic_catalog():
+    try:
+        return load_semantic_catalog()
+    except Exception:  # noqa: BLE001 - session memory must degrade safely.
+        return None
+
+
+def _session_memory_terms() -> SessionMemoryTerms:
+    catalog = _semantic_catalog()
+    return catalog.session_memory if catalog is not None else SessionMemoryTerms()
+
+
+def _lexicon_terms() -> LexiconTerms:
+    catalog = _semantic_catalog()
+    return catalog.lexicon if catalog is not None else LexiconTerms(function_words={}, prompt_noise_terms=frozenset(), title_relation_terms=frozenset())
+
+
 def _extract_sources(history: list[HistoryEntry]) -> list[str]:
     seen: set[str] = set()
     sources: list[str] = []
@@ -506,28 +527,46 @@ def _canonical_source_path(path: str) -> str:
     return load_workspace_spaces().canonicalize_workspace_path(path)
 
 
-def _extract_decisions(messages: list[str]) -> list[str]:
+def _extract_decisions(messages: list[str], terms: SessionMemoryTerms) -> list[str]:
     decisions: list[str] = []
-    markers = ("recommend", "should", "do not", "use ", "target state", "interim")
     for message in messages[-6:]:
         for sentence in re.split(r"(?<=[.!?])\s+", message):
             stripped = sentence.strip(" -*\n")
-            if 30 <= len(stripped) <= 260 and any(marker in stripped.lower() for marker in markers):
+            if 30 <= len(stripped) <= 260 and _contains_marker(stripped, terms.decision_markers):
                 decisions.append(stripped)
                 break
     return list(dict.fromkeys(decisions))
 
 
-def _extract_marked_items(messages: list[str], markers: tuple[str, ...]) -> list[str]:
+def _extract_marked_items(messages: list[str], markers: frozenset[str]) -> list[str]:
     items: list[str] = []
     for message in messages[-8:]:
         for sentence in re.split(r"(?<=[.!?])\s+|\n+", message):
             stripped = sentence.strip(" -*\n")
-            lowered = stripped.lower()
-            if 10 <= len(stripped) <= 260 and any(marker in lowered for marker in markers):
+            if 10 <= len(stripped) <= 260 and _contains_marker(stripped, markers):
                 items.append(_truncate(stripped, 260))
                 break
     return list(dict.fromkeys(items))
+
+
+def _contains_marker(text: str, markers: frozenset[str]) -> bool:
+    lowered = text.lower()
+    return any(marker in lowered for marker in markers)
+
+
+def _starts_with_marker(text: str, markers: frozenset[str]) -> bool:
+    lowered = text.lower().lstrip()
+    return any(lowered.startswith(f"{marker} ") for marker in markers)
+
+
+def _extract_open_questions(user_messages: list[str], terms: SessionMemoryTerms) -> list[str]:
+    questions: list[str] = []
+    for message in user_messages[-4:]:
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", message):
+            stripped = sentence.strip(" -*\n")
+            if stripped and ("?" in stripped or _starts_with_marker(stripped, terms.open_question_starters)):
+                questions.append(_truncate(stripped, 240))
+    return list(dict.fromkeys(questions))
 
 
 def _extract_scope(user_messages: list[str]) -> list[str]:
@@ -607,20 +646,8 @@ def _relevant_recent_entries(user_input: str, history: list[HistoryEntry], *, ma
 
 
 def _content_terms(text: str) -> set[str]:
-    stop = {
-        "the",
-        "and",
-        "for",
-        "with",
-        "that",
-        "this",
-        "from",
-        "into",
-        "about",
-        "using",
-        "please",
-        "would",
-    }
+    lexicon = _lexicon_terms()
+    stop = lexicon.all_function_words | lexicon.prompt_noise_terms
     return {token for token in re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{3,}", (text or "").lower()) if token not in stop}
 
 
