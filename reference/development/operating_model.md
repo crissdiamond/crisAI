@@ -46,6 +46,24 @@ terminal backend is preferred.
 - No agent should revert another agent's edits. If there is a conflict, stop and
   ask the orchestrator.
 
+## Git Authority
+
+The development team uses a single Git writer model.
+
+- The orchestrator is the only role allowed to run Git commands that write
+  repository metadata, including `git add`, `git commit`, `git fetch`,
+  `git pull`, `git push`, branch switching, merge, rebase, and tag commands.
+- Area agents may use read-only Git commands such as `git status`, `git diff`,
+  `git log`, and `git show` to understand their work.
+- Area agents must hand off changed files, checks, and a suggested Conventional
+  Commit message to the orchestrator instead of committing or pushing.
+- The orchestrator may run metadata-writing Git commands through the approved
+  outside-sandbox path when `.git` is mounted read-only in normal agent
+  sandboxes.
+- Pushes remain an explicit user-controlled action. The orchestrator must not
+  push unless the user has asked for a push or the active task instructions
+  clearly include pushing.
+
 ## Shared Memory
 
 All agents should use the Claude memory MCP server as the durable task context

@@ -11,6 +11,7 @@ Bundle: <hcom bundle id if available>
 Scope: <owned area and paths>
 Changed files: <files or "none yet">
 Checks: <commands run or requested>
+Suggested commit: <Conventional Commit message or "n/a">
 Open questions: <specific blockers or "none">
 
 Request:

@@ -18,7 +18,9 @@ roles:
       - coordinate hcom threads and bundles
       - integrate changes
       - run final checks
+      - own Git metadata writes using approved outside-sandbox commands when needed
       - commit using Conventional Commits
+      - push only when explicitly requested by the user
 
   runtime_codex:
     provider: codex
@@ -110,4 +112,7 @@ shared_rules:
   local_assignments: <target-repo>/.hcom-development/session_assignments.local.yaml
   memory_layer: Claude memory MCP server
   commit_owner: orchestrator_codex
+  git_write_owner: orchestrator_codex
+  area_agents_git_access: read-only
+  push_policy: explicit-user-request-only
   default_review_policy: Claude reviews/challenges and may make small focused patches inside its area when requested.

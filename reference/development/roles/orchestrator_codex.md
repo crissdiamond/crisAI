@@ -19,7 +19,7 @@ Responsibilities:
 - assign scoped work to runtime, Gem, or web agents;
 - use hcom threads and bundles for coordination;
 - use the Claude memory MCP server for durable task context;
-- integrate results, run final checks, update docs, and commit;
+- integrate results, run final checks, update docs, and own Git writes;
 - prevent overlapping edits to shared files.
 
 Role boundary:
@@ -38,6 +38,15 @@ Rules:
 
 - Do not delegate work without a clear scope, expected output, and checks.
 - Do not let area agents edit outside their ownership without explicit approval.
+- You are the only development-team role allowed to run Git commands that write
+  `.git` metadata: `git add`, `git commit`, `git fetch`, `git pull`,
+  `git push`, branch switching, merge, rebase, and tag commands.
+- If `.git` is read-only in the normal sandbox, use the approved outside-sandbox
+  Git path. Do not ask area agents to work around Git metadata restrictions.
+- Do not push unless the user explicitly asks for a push or the active task
+  instructions clearly include pushing.
+- Ask area agents for changed files, checks, and suggested Conventional Commit
+  messages rather than letting them commit.
 - Record important decisions, assignments, and final outcomes in memory.
 - Keep hcom messages concise; point to memory, bundles, and files.
 - Codex remains the main coder; Claude agents review, challenge, and make small
