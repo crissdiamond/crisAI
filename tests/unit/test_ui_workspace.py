@@ -76,6 +76,10 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "deriveStageSummaries(events" in gem_source
     assert "latestLiveStageEvent" in gem_source
     assert "commandHistory" in gem_source
+    assert "buildStatusMetrics" in gem_source
+    assert "CRISAI_GEM_WIDTH" in gem_source
+    assert "promptPanelHeight" in gem_source
+    assert "tokens:${statusMetrics.tokens}" in gem_source
     assert "event.event_type !== \"stage_delta\"" in gem_source
     assert "/redirect <guidance>" in gem_source
     assert "/session <name>" in gem_source

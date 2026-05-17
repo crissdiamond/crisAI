@@ -17,6 +17,9 @@ import {
 } from "@crisai/contracts";
 
 const runtimeBaseUrl = process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000";
+const gemWidth = Number(process.env.CRISAI_GEM_WIDTH ?? "132");
+const gemHeight = Number(process.env.CRISAI_GEM_HEIGHT ?? "40");
+const promptPanelHeight = 5;
 
 const runtime = new CrisaiRuntimeClient({
   baseUrl: runtimeBaseUrl,
@@ -151,8 +154,9 @@ function StageLine({ stage }: { stage: UiStageSummary }) {
 
 function GemApp() {
   const { stdout } = useStdout();
-  // header(3) + main-borders(2) + prompt(3) + hints(1) = 9 fixed rows
-  const transcriptHeight = Math.max(8, (stdout?.rows ?? 24) - 9);
+  const viewportWidth = Math.min(gemWidth, stdout?.columns ?? gemWidth);
+  const viewportHeight = Math.min(gemHeight, stdout?.rows ?? gemHeight);
+  const transcriptHeight = Math.max(8, viewportHeight - 6 - promptPanelHeight);
 
   const [prompt, setPrompt] = useState("");
   const [run, setRun] = useState<UiRunState | null>(null);
@@ -165,8 +169,10 @@ function GemApp() {
   const [showEvents, setShowEvents] = useState(false);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyCursor, setHistoryCursor] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   const status = useMemo(() => events.at(-1)?.status ?? run?.status ?? "idle", [events, run]);
+  const statusMetrics = useMemo(() => buildStatusMetrics(events, now), [events, now]);
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
@@ -195,6 +201,13 @@ function GemApp() {
       .then(applySessionState)
       .catch((reason: unknown) => setError(formatRuntimeError(reason)));
   }, []);
+
+  React.useEffect(() => {
+    const latest = events.at(-1);
+    if (!run || (latest && isTerminalEvent(latest))) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [run, events]);
 
   useInput((input, key) => {
     // Scroll output pane when a streamed or final answer is showing.
@@ -329,7 +342,7 @@ function GemApp() {
   }
 
   return (
-    <Box flexDirection="column" height="100%">
+    <Box flexDirection="column" width={viewportWidth} height={viewportHeight}>
       <Box borderStyle="single" borderColor={accent} paddingX={1}>
         <Text bold>crisAI Gem</Text>
         <Text> | {status}</Text>
@@ -339,7 +352,7 @@ function GemApp() {
         {inScrollMode ? <Text dimColor> | tab: events</Text> : null}
       </Box>
 
-      <Box flexGrow={1} flexDirection="row">
+      <Box height={transcriptHeight + 2} flexDirection="row">
         <Box width={28} borderStyle="single" borderColor="blue" paddingX={1} flexDirection="column">
           <Text bold>Stages</Text>
           {stages.length === 0 ? <Text dimColor>No stages yet.</Text> : null}
@@ -373,12 +386,14 @@ function GemApp() {
         </Box>
       </Box>
 
-      <Box borderStyle="single" borderColor={accent} paddingX={1}>
-        <Text>{"> "}{prompt}</Text>
+      <Box height={promptPanelHeight} borderStyle="single" borderColor={accent} paddingX={1} flexDirection="column">
+        <Text dimColor>Prompt</Text>
+        <Text wrap="truncate-end">{"> "}{prompt}</Text>
       </Box>
 
       <Box paddingX={1}>
-        <Text dimColor>
+        <Text dimColor wrap="truncate-end">
+          {`${statusMetrics.model} | ${statusMetrics.elapsed} | tokens:${statusMetrics.tokens} | cost:${statusMetrics.cost} | `}
           {checkpointWaiting
             ? "checkpoint: /continue | /redirect <guidance> | /stop"
             : inScrollMode
@@ -402,6 +417,64 @@ function formatRuntimeError(reason: unknown): string {
     return `Cannot reach crisAI API at ${runtimeBaseUrl}. Start it in another terminal with './start api' or set CRISAI_RUNTIME_URL.`;
   }
   return message;
+}
+
+type StatusMetrics = {
+  model: string;
+  elapsed: string;
+  tokens: string;
+  cost: string;
+};
+
+function buildStatusMetrics(events: UiEvent[], nowMs: number): StatusMetrics {
+  const startedAt = parseTimestamp(events.find((event) => event.event_type === "run_created")?.timestamp);
+  const terminal = [...events].reverse().find((event) => isTerminalEvent(event));
+  const endedAt = parseTimestamp(terminal?.timestamp);
+  const elapsedMs = startedAt === null ? 0 : Math.max(0, (endedAt ?? nowMs) - startedAt);
+  const metadataItems = events.map((event) => event.metadata);
+  const model = firstString(metadataItems, ["model_name", "model_ref", "provider"]) ?? "model:n/a";
+  const tokens = firstNumber(metadataItems, ["total_tokens", "tokens", "token_count"]);
+  const cost = firstNumber(metadataItems, ["cost_usd", "total_cost_usd", "cost"]);
+  return {
+    model,
+    elapsed: formatElapsed(elapsedMs),
+    tokens: tokens === null ? "n/a" : String(Math.round(tokens)),
+    cost: cost === null ? "n/a" : `$${cost.toFixed(4)}`,
+  };
+}
+
+function parseTimestamp(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatElapsed(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function firstString(items: Record<string, unknown>[], keys: string[]): string | null {
+  for (const item of items) {
+    for (const key of keys) {
+      const value = item[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+  }
+  return null;
+}
+
+function firstNumber(items: Record<string, unknown>[], keys: string[]): number | null {
+  for (const item of items) {
+    for (const key of keys) {
+      const value = item[key];
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+    }
+  }
+  return null;
 }
 
 function dedupeEvents(items: UiEvent[]): UiEvent[] {

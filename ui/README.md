@@ -38,6 +38,10 @@ Current status:
   `/stop`). It renders streamed `stage_delta` output in the main pane while a
   run is active and keeps an in-session command history available with the up
   and down arrows when the output pane is not using those keys for scrolling.
+  The bottom status bar shows the selected model when the runtime exposes it,
+  elapsed execution time, and token/cost placeholders until provider usage
+  telemetry is available. `CRISAI_GEM_WIDTH` and `CRISAI_GEM_HEIGHT` can pin
+  the terminal layout size for local testing.
 
 The existing static web app and Textual Gem remain active until these clients
 reach parity.

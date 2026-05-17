@@ -185,6 +185,15 @@ def test_api_v1_run_start_returns_shared_ui_state(
 ) -> None:
     """POST /api/v1/runs returns the shared UI contract state."""
     monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+    monkeypatch.setattr(
+        "crisai.apps.web._agent_model_metadata",
+        lambda agent_id: {
+            "agent_id": agent_id,
+            "model_ref": "openai_fast",
+            "provider": "openai",
+            "model_name": "gpt-5.4-mini",
+        },
+    )
 
     async def _noop_run_job(job_id: str, payload: Any, decision: Any) -> None:
         from crisai.apps import web as web_mod
@@ -201,7 +210,9 @@ def test_api_v1_run_start_returns_shared_ui_state(
     assert body["decision"]["intent"] == "design"
     assert body["events"][0]["schema_version"] == "ui_event_v1"
     assert body["events"][0]["event_type"] == "run_created"
+    assert body["events"][0]["metadata"]["model_ref"] == "openai_fast"
     assert body["events"][1]["event_type"] == "routing_decision"
+    assert body["events"][1]["metadata"]["model_name"] == "gpt-5.4-mini"
     assert body["events"][2]["event_type"] == "task_contract"
     assert "Intent:" in body["events"][2]["content"]
     assert "```json" not in body["events"][2]["content"]

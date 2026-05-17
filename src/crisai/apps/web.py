@@ -59,6 +59,7 @@ from crisai.orchestration.retrieval_checkpoint import (
     RetrievalCheckpointDecision,
     RetrievalCheckpointSnapshot,
 )
+from crisai.registry import Registry
 from crisai.ui_events import UiEvent, UiEventType, make_ui_event
 from crisai.workspace.spaces import load_workspace_spaces
 
@@ -264,6 +265,32 @@ def _job_session(job: dict[str, Any]) -> str:
 def _job_mode(job: dict[str, Any]) -> str | None:
     decision = job.get("decision")
     return str(getattr(decision, "mode", "")) or None
+
+
+def _agent_model_metadata(agent_id: str | None) -> dict[str, Any]:
+    """Return registry model metadata for an agent when available."""
+    if not agent_id:
+        return {}
+    try:
+        registry = Registry(load_settings().registry_dir)
+        agents = {agent.id: agent for agent in registry.load_agents()}
+        models = {model.id: model for model in registry.load_models()}
+    except Exception:  # noqa: BLE001 - UI metadata must not break execution.
+        return {}
+    agent = agents.get(agent_id)
+    if agent is None:
+        return {}
+    model_ref = agent.model_ref or agent.model or ""
+    model = models.get(model_ref)
+    metadata: dict[str, Any] = {"agent_id": agent.id, "model_ref": model_ref}
+    if model is not None:
+        metadata.update({
+            "provider": model.provider,
+            "model_name": model.model_name,
+        })
+    elif agent.model:
+        metadata["model_name"] = agent.model
+    return {key: value for key, value in metadata.items() if value}
 
 
 def _trace_entry_event_key(entry: dict[str, Any]) -> str:
@@ -949,7 +976,11 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
             title="Run created",
             summary="Workflow run accepted.",
             mode=getattr(decision, "mode", None),
-            metadata={"expected_tabs": _expected_flow_tabs(decision)},
+            metadata={
+                "expected_tabs": _expected_flow_tabs(decision),
+                "selected_agent": getattr(decision, "agent", None),
+                **_agent_model_metadata(getattr(decision, "agent", None)),
+            },
         ),
     )
     _append_job_event(
@@ -964,7 +995,10 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
             content=str(getattr(decision, "reason", "")),
             mode=getattr(decision, "mode", None),
             agent_id=getattr(decision, "agent", None),
-            metadata=asdict(decision),
+            metadata={
+                **asdict(decision),
+                **_agent_model_metadata(getattr(decision, "agent", None)),
+            },
         ),
     )
     _append_job_event(
