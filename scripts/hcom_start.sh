@@ -186,11 +186,13 @@ if matches:
 
 provider_session_id_for_name() {
   local hcom_name="$1"
-  local json
-  if ! json="$(hcom list --json 2>/dev/null)"; then
-    return 0
-  fi
-  printf '%s\n' "$json" | python -c '
+  local attempt json session_id
+  for attempt in {1..30}; do
+    if ! json="$(hcom list --json 2>/dev/null)"; then
+      sleep 1
+      continue
+    fi
+    session_id="$(printf '%s\n' "$json" | python -c '
 import json
 import sys
 
@@ -204,7 +206,13 @@ for agent in agents:
     if name in {agent.get("name"), agent.get("base_name")} and agent.get("session_id"):
         print(agent["session_id"])
         break
-' "$hcom_name"
+' "$hcom_name")"
+    if [[ -n "$session_id" ]]; then
+      printf '%s\n' "$session_id"
+      return 0
+    fi
+    sleep 1
+  done
 }
 
 run_cmd() {
@@ -236,7 +244,7 @@ launch_agent() {
 
   local cmd
   if [[ -n "$resume_target" ]]; then
-    cmd=(hcom r --tag "$tag" --dir "$ROOT_DIR/$launch_dir" --hcom-prompt "$prompt" --go)
+    cmd=(hcom r "$resume_target" --tag "$tag" --dir "$ROOT_DIR/$launch_dir" --hcom-prompt "$prompt" --go)
   else
     cmd=(hcom "$provider" --tag "$tag" --dir "$ROOT_DIR/$launch_dir" --hcom-prompt "$prompt")
   fi
@@ -248,10 +256,6 @@ launch_agent() {
   if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
     cmd+=("${EXTRA_ARGS[@]}")
   fi
-  if [[ -n "$resume_target" ]]; then
-    cmd+=("$resume_target")
-  fi
-
   if [[ "$DRY_RUN" -eq 1 ]]; then
     run_cmd "${cmd[@]}"
     if [[ -n "$resume_target" ]]; then
