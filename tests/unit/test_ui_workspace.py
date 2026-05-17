@@ -74,6 +74,9 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "localStorage.getItem(apiKeyStorageKey)" in web_source
     assert "runtime.setApiToken" in web_source
     assert "deriveStageSummaries(events" in gem_source
+    assert "latestLiveStageEvent" in gem_source
+    assert "commandHistory" in gem_source
+    assert "event.event_type !== \"stage_delta\"" in gem_source
     assert "/redirect <guidance>" in gem_source
     assert "/session <name>" in gem_source
     assert "formatRuntimeError" in gem_source

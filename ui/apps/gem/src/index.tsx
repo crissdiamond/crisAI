@@ -16,8 +16,10 @@ import {
   type UiStageSummary
 } from "@crisai/contracts";
 
+const runtimeBaseUrl = process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000";
+
 const runtime = new CrisaiRuntimeClient({
-  baseUrl: process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000",
+  baseUrl: runtimeBaseUrl,
   apiToken: process.env.CRISAI_API_KEY ?? process.env.CRISAI_API_TOKEN,
   eventSourceFactory: (url) => new EventSource(url) as unknown as globalThis.EventSource
 });
@@ -161,15 +163,21 @@ function GemApp() {
   const [sessions, setSessions] = useState<string[]>(["default"]);
   const [scrollTop, setScrollTop] = useState(0);
   const [showEvents, setShowEvents] = useState(false);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyCursor, setHistoryCursor] = useState<number | null>(null);
 
   const status = useMemo(() => events.at(-1)?.status ?? run?.status ?? "idle", [events, run]);
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
   const finalLines = useMemo(() => renderMarkdownLines(finalContent), [finalContent]);
+  const liveStageEvent = useMemo(() => latestLiveStageEvent(events), [events]);
+  const liveLines = useMemo(() => renderMarkdownLines(liveStageEvent?.content ?? ""), [liveStageEvent]);
+  const outputLines = finalLines.length > 0 ? finalLines : liveLines;
   const contentH = Math.max(1, transcriptHeight - 1);
-  const maxScroll = Math.max(0, finalLines.length - contentH);
-  const inScrollMode = finalLines.length > 0 && !showEvents;
+  const maxScroll = Math.max(0, outputLines.length - contentH);
+  const inScrollMode = outputLines.length > 0 && !showEvents;
+  const isLiveOutput = finalLines.length === 0 && liveLines.length > 0;
 
   React.useEffect(() => {
     runtime
@@ -185,25 +193,46 @@ function GemApp() {
     runtime
       .listSessions()
       .then(applySessionState)
-      .catch((reason: unknown) => setError(String(reason)));
+      .catch((reason: unknown) => setError(formatRuntimeError(reason)));
   }, []);
 
   useInput((input, key) => {
-    // Scroll output pane when the final answer is showing
+    // Scroll output pane when a streamed or final answer is showing.
     if (inScrollMode) {
       if (key.upArrow) { setScrollTop((prev) => Math.max(0, prev - 1)); return; }
       if (key.downArrow) { setScrollTop((prev) => Math.min(maxScroll, prev + 1)); return; }
       if (key.pageUp) { setScrollTop((prev) => Math.max(0, prev - Math.max(1, contentH - 1))); return; }
       if (key.pageDown) { setScrollTop((prev) => Math.min(maxScroll, prev + Math.max(1, contentH - 1))); return; }
+    } else {
+      if (key.upArrow && commandHistory.length > 0) {
+        const next = historyCursor === null ? commandHistory.length - 1 : Math.max(0, historyCursor - 1);
+        setHistoryCursor(next);
+        setPrompt(commandHistory[next] ?? "");
+        return;
+      }
+      if (key.downArrow && commandHistory.length > 0) {
+        if (historyCursor === null) return;
+        const next = historyCursor + 1;
+        if (next >= commandHistory.length) {
+          setHistoryCursor(null);
+          setPrompt("");
+        } else {
+          setHistoryCursor(next);
+          setPrompt(commandHistory[next] ?? "");
+        }
+        return;
+      }
     }
 
-    if (key.tab && finalLines.length > 0) {
+    if (key.tab && outputLines.length > 0) {
       setShowEvents((prev) => !prev);
       return;
     }
 
     if (key.return && prompt.trim()) {
       const command = prompt.trim();
+      setCommandHistory((current) => current.at(-1) === command ? current : [...current, command].slice(-100));
+      setHistoryCursor(null);
       if (checkpointWaiting && command.startsWith("/")) {
         void handleCheckpointCommand(command);
       } else if (command === "/sessions" || command.startsWith("/session ")) {
@@ -215,10 +244,12 @@ function GemApp() {
       return;
     }
     if (key.backspace || key.delete) {
+      setHistoryCursor(null);
       setPrompt((prev) => prev.slice(0, -1));
       return;
     }
     if (!key.ctrl && input) {
+      setHistoryCursor(null);
       setPrompt((prev) => prev + input);
     }
   });
@@ -255,7 +286,7 @@ function GemApp() {
         () => setError("Runtime event stream disconnected.")
       );
     } catch (reason) {
-      setError(String(reason));
+      setError(formatRuntimeError(reason));
     }
   }
 
@@ -273,7 +304,7 @@ function GemApp() {
       const state = await runtime.createSession(requested);
       applySessionState(state);
     } catch (reason) {
-      setError(String(reason));
+      setError(formatRuntimeError(reason));
     }
   }
 
@@ -304,6 +335,7 @@ function GemApp() {
         <Text> | {status}</Text>
         <Text> | {session}</Text>
         {checkpointWaiting ? <Text color="yellow"> | checkpoint</Text> : null}
+        {isLiveOutput ? <Text color="yellow"> | streaming</Text> : null}
         {inScrollMode ? <Text dimColor> | tab: events</Text> : null}
       </Box>
 
@@ -316,12 +348,12 @@ function GemApp() {
 
         <Box flexGrow={1} borderStyle="single" borderColor="white" paddingX={1} flexDirection="column">
           {inScrollMode ? (
-            <ScrollPane lines={finalLines} height={transcriptHeight} scrollTop={scrollTop} />
+            <ScrollPane lines={outputLines} height={transcriptHeight} scrollTop={scrollTop} />
           ) : (
             <>
               {events.length === 0 ? <Text dimColor>No output yet.</Text> : null}
               {events
-                .filter((event) => event.event_type !== "final_answer")
+                .filter((event) => event.event_type !== "final_answer" && event.event_type !== "stage_delta")
                 .slice(-10)
                 .map((event, index) => (
                   <Box key={`${event.event_type}-${event.timestamp}-${index}`} flexDirection="column" marginBottom={1}>
@@ -332,6 +364,8 @@ function GemApp() {
                 ))}
               {finalLines.length > 0 ? (
                 <Text dimColor>Answer ready — press tab to read</Text>
+              ) : liveLines.length > 0 ? (
+                <Text dimColor>Streaming output — press tab to follow</Text>
               ) : null}
               {error ? <Text color="red">{error}</Text> : null}
             </>
@@ -349,11 +383,25 @@ function GemApp() {
             ? "checkpoint: /continue | /redirect <guidance> | /stop"
             : inScrollMode
               ? `↑↓/PgUp/PgDn scroll · tab: events · /session <name>`
-              : `mode:auto | session:${session} | sessions:${sessions.length} | /session <name>`}
+              : `mode:auto | session:${session} | sessions:${sessions.length} | ↑↓ history | /session <name>`}
         </Text>
       </Box>
     </Box>
   );
+}
+
+function latestLiveStageEvent(events: UiEvent[]): UiEvent | null {
+  const terminal = [...events].reverse().find((event) => isTerminalEvent(event));
+  if (terminal) return null;
+  return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
+}
+
+function formatRuntimeError(reason: unknown): string {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (message.toLowerCase().includes("fetch failed")) {
+    return `Cannot reach crisAI API at ${runtimeBaseUrl}. Start it in another terminal with './start api' or set CRISAI_RUNTIME_URL.`;
+  }
+  return message;
 }
 
 function dedupeEvents(items: UiEvent[]): UiEvent[] {

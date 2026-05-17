@@ -35,7 +35,9 @@ Current status:
   retrieval checkpoint decisions.
 - `apps/gem` is an Ink scaffold that uses the same contract, stage derivation,
   session APIs, and checkpoint commands (`/continue`, `/redirect <guidance>`,
-  `/stop`).
+  `/stop`). It renders streamed `stage_delta` output in the main pane while a
+  run is active and keeps an in-session command history available with the up
+  and down arrows when the output pane is not using those keys for scrolling.
 
 The existing static web app and Textual Gem remain active until these clients
 reach parity.
