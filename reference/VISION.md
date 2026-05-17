@@ -114,6 +114,22 @@ The workstation should make cost, token usage, model choice, routing decisions,
 source gaps, and quality gates visible. Architecture teams should be able to
 understand why a run behaved the way it did and where money was spent.
 
+### 8. Secure By Design, Least Privilege
+
+The FastAPI boundary is the only network exposure point. Any deployment beyond a
+single user's localhost must require authentication and authorisation before any
+request reaches the runtime. Unauthenticated paths to LLM-spending endpoints or
+workspace write operations must not exist in any deployed configuration.
+
+Agents and MCP adapters operate under least privilege. Each agent should only
+hold the tools it needs for its role. Auth caches, token stores, and credentials
+must never be within the agent-readable workspace surface. MCP adapters run as
+stateless subprocesses and must not accumulate elevated permissions between calls.
+
+Token spend and workspace writes are the two highest-risk operations in the
+system. Both must be authorised, observable, and rate-guarded before the
+workstation is used by more than one person.
+
 ## Architecture Direction
 
 crisAI should evolve around these stable building blocks:
