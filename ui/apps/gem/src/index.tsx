@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+import chalk from "chalk";
 import React, { useMemo, useState } from "react";
 import { EventSource } from "eventsource";
-import { Box, render, Text, useInput } from "ink";
+import { Box, render, Text, useInput, useStdout } from "ink";
 import {
   CrisaiRuntimeClient,
   deriveStageSummaries,
@@ -15,15 +16,142 @@ import {
   type UiStageSummary
 } from "@crisai/contracts";
 
-const runtimeBaseUrl = process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000";
-
 const runtime = new CrisaiRuntimeClient({
-  baseUrl: runtimeBaseUrl,
+  baseUrl: process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000",
   apiToken: process.env.CRISAI_API_KEY ?? process.env.CRISAI_API_TOKEN,
   eventSourceFactory: (url) => new EventSource(url) as unknown as globalThis.EventSource
 });
 
+// --- Markdown rendering ---
+
+function renderMarkdownLines(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split("\n");
+  const result: string[] = [];
+  let inCodeBlock = false;
+  let codeLang = "";
+
+  for (const raw of lines) {
+    const fence = raw.match(/^```(\w*)$/);
+    if (fence !== null) {
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+        codeLang = fence[1] || "code";
+        result.push(chalk.dim(`┌─ ${codeLang} ` + "─".repeat(Math.max(2, 36 - codeLang.length))));
+      } else {
+        inCodeBlock = false;
+        codeLang = "";
+        result.push(chalk.dim("└" + "─".repeat(39)));
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      result.push("  " + chalk.cyan(raw));
+      continue;
+    }
+
+    if (raw.startsWith("### ")) { result.push(chalk.bold(raw.slice(4))); continue; }
+    if (raw.startsWith("## "))  { result.push(chalk.bold.underline(raw.slice(3))); continue; }
+    if (raw.startsWith("# "))   { result.push(chalk.bold.underline(raw.slice(2))); continue; }
+
+    if (/^[-*_]{3,}$/.test(raw.trim())) {
+      result.push(chalk.dim("─".repeat(40)));
+      continue;
+    }
+
+    if (raw.startsWith("> ")) {
+      result.push(chalk.dim("│ ") + chalk.italic(renderInline(raw.slice(2))));
+      continue;
+    }
+
+    const ulMatch = raw.match(/^(  )?[-*+] (.*)/);
+    if (ulMatch) {
+      const indent = ulMatch[1] ? "    " : "  ";
+      result.push(indent + chalk.yellow("•") + " " + renderInline(ulMatch[2]));
+      continue;
+    }
+
+    const olMatch = raw.match(/^(\d+)\. (.*)/);
+    if (olMatch) {
+      result.push("  " + chalk.yellow(olMatch[1] + ".") + " " + renderInline(olMatch[2]));
+      continue;
+    }
+
+    if (raw.startsWith("    ")) {
+      result.push("  " + chalk.cyan(raw.trimStart()));
+      continue;
+    }
+
+    result.push(renderInline(raw));
+  }
+
+  return result;
+}
+
+function renderInline(text: string): string {
+  text = text.replace(/\*\*\*(.*?)\*\*\*/gs, (_: string, g: string) => chalk.bold.italic(g));
+  text = text.replace(/\*\*(.*?)\*\*/gs, (_: string, g: string) => chalk.bold(g));
+  text = text.replace(/\*(.*?)\*/gs, (_: string, g: string) => chalk.italic(g));
+  text = text.replace(/`([^`]+)`/g, (_: string, g: string) => chalk.cyan(g));
+  text = text.replace(/~~(.*?)~~/gs, (_: string, g: string) => chalk.strikethrough(g));
+  return text;
+}
+
+// --- Components ---
+
+function ScrollPane({
+  lines,
+  height,
+  scrollTop,
+}: {
+  lines: string[];
+  height: number;
+  scrollTop: number;
+}) {
+  const contentH = Math.max(1, height - 1);
+  const visible = lines.slice(scrollTop, scrollTop + contentH);
+  const padCount = Math.max(0, contentH - visible.length);
+  const lineEnd = Math.min(scrollTop + contentH, lines.length);
+  const pct = lines.length > 0 ? Math.round((lineEnd / lines.length) * 100) : 100;
+
+  return (
+    <Box flexDirection="column" height={height}>
+      {visible.map((line, i) => (
+        <Text key={scrollTop + i}>{line || " "}</Text>
+      ))}
+      {Array.from({ length: padCount }, (_, i) => (
+        <Text key={`pad-${i}`}> </Text>
+      ))}
+      <Text dimColor>
+        {scrollTop > 0 ? "↑ " : "  "}
+        {`line ${lineEnd}/${lines.length} (${pct}%)`}
+        {lineEnd < lines.length ? " ↓" : "  "}
+        {"  · ↑↓ / PgUp PgDn"}
+      </Text>
+    </Box>
+  );
+}
+
+function StageLine({ stage }: { stage: UiStageSummary }) {
+  const marker =
+    stage.status === "failed" ? "!" :
+    stage.status === "complete" ? "✓" :
+    stage.status === "running" ? ">" : "•";
+  const color =
+    stage.status === "failed" ? "red" :
+    stage.status === "complete" ? "green" :
+    stage.status === "running" ? "yellow" : undefined;
+  return <Text color={color}>{marker} {stage.label}</Text>;
+}
+
+// --- Main app ---
+
 function GemApp() {
+  const { stdout } = useStdout();
+  // header(3) + main-borders(2) + prompt(3) + hints(1) = 9 fixed rows
+  const transcriptHeight = Math.max(8, (stdout?.rows ?? 24) - 9);
+
   const [prompt, setPrompt] = useState("");
   const [run, setRun] = useState<UiRunState | null>(null);
   const [events, setEvents] = useState<UiEvent[]>([]);
@@ -31,10 +159,17 @@ function GemApp() {
   const [accent, setAccent] = useState("magenta");
   const [session, setSession] = useState("default");
   const [sessions, setSessions] = useState<string[]>(["default"]);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [showEvents, setShowEvents] = useState(false);
+
   const status = useMemo(() => events.at(-1)?.status ?? run?.status ?? "idle", [events, run]);
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
+  const finalLines = useMemo(() => renderMarkdownLines(finalContent), [finalContent]);
+  const contentH = Math.max(1, transcriptHeight - 1);
+  const maxScroll = Math.max(0, finalLines.length - contentH);
+  const inScrollMode = finalLines.length > 0 && !showEvents;
 
   React.useEffect(() => {
     runtime
@@ -50,10 +185,23 @@ function GemApp() {
     runtime
       .listSessions()
       .then(applySessionState)
-      .catch((reason: unknown) => setError(formatRuntimeError(reason)));
+      .catch((reason: unknown) => setError(String(reason)));
   }, []);
 
   useInput((input, key) => {
+    // Scroll output pane when the final answer is showing
+    if (inScrollMode) {
+      if (key.upArrow) { setScrollTop((prev) => Math.max(0, prev - 1)); return; }
+      if (key.downArrow) { setScrollTop((prev) => Math.min(maxScroll, prev + 1)); return; }
+      if (key.pageUp) { setScrollTop((prev) => Math.max(0, prev - Math.max(1, contentH - 1))); return; }
+      if (key.pageDown) { setScrollTop((prev) => Math.min(maxScroll, prev + Math.max(1, contentH - 1))); return; }
+    }
+
+    if (key.tab && finalLines.length > 0) {
+      setShowEvents((prev) => !prev);
+      return;
+    }
+
     if (key.return && prompt.trim()) {
       const command = prompt.trim();
       if (checkpointWaiting && command.startsWith("/")) {
@@ -67,11 +215,11 @@ function GemApp() {
       return;
     }
     if (key.backspace || key.delete) {
-      setPrompt((current) => current.slice(0, -1));
+      setPrompt((prev) => prev.slice(0, -1));
       return;
     }
     if (!key.ctrl && input) {
-      setPrompt((current) => current + input);
+      setPrompt((prev) => prev + input);
     }
   });
 
@@ -84,6 +232,8 @@ function GemApp() {
     try {
       setError("");
       setEvents([]);
+      setScrollTop(0);
+      setShowEvents(false);
       const started = await runtime.startRun({ message, mode: "auto", session });
       setRun(started);
       setEvents(started.events);
@@ -105,7 +255,7 @@ function GemApp() {
         () => setError("Runtime event stream disconnected.")
       );
     } catch (reason) {
-      setError(formatRuntimeError(reason));
+      setError(String(reason));
     }
   }
 
@@ -119,14 +269,11 @@ function GemApp() {
         return;
       }
       const requested = command.replace(/^\/session\s+/, "").trim();
-      if (!requested) {
-        setError("Usage: /session <name>.");
-        return;
-      }
+      if (!requested) { setError("Usage: /session <name>."); return; }
       const state = await runtime.createSession(requested);
       applySessionState(state);
     } catch (reason) {
-      setError(formatRuntimeError(reason));
+      setError(String(reason));
     }
   }
 
@@ -154,9 +301,10 @@ function GemApp() {
     <Box flexDirection="column" height="100%">
       <Box borderStyle="single" borderColor={accent} paddingX={1}>
         <Text bold>crisAI Gem</Text>
-        <Text> | status: {status}</Text>
-        <Text> | session: {session}</Text>
-        {checkpointWaiting ? <Text color="yellow"> | checkpoint waiting</Text> : null}
+        <Text> | {status}</Text>
+        <Text> | {session}</Text>
+        {checkpointWaiting ? <Text color="yellow"> | checkpoint</Text> : null}
+        {inScrollMode ? <Text dimColor> | tab: events</Text> : null}
       </Box>
 
       <Box flexGrow={1} flexDirection="row">
@@ -167,21 +315,27 @@ function GemApp() {
         </Box>
 
         <Box flexGrow={1} borderStyle="single" borderColor="white" paddingX={1} flexDirection="column">
-          {events.length === 0 ? <Text dimColor>No output yet.</Text> : null}
-          {events.filter((event) => event.event_type !== "final_answer").slice(-10).map((event, index) => (
-            <Box key={`${event.event_type}-${event.timestamp}-${index}`} flexDirection="column" marginBottom={1}>
-              <Text bold>{event.title}</Text>
-              {event.summary ? <Text>{event.summary}</Text> : null}
-              {event.content ? <Text dimColor>{event.content}</Text> : null}
-            </Box>
-          ))}
-          {finalContent ? (
-            <Box flexDirection="column" marginBottom={1}>
-              <Text bold color="green">Final answer</Text>
-              <Text>{finalContent}</Text>
-            </Box>
-          ) : null}
-          {error ? <Text color="red">{error}</Text> : null}
+          {inScrollMode ? (
+            <ScrollPane lines={finalLines} height={transcriptHeight} scrollTop={scrollTop} />
+          ) : (
+            <>
+              {events.length === 0 ? <Text dimColor>No output yet.</Text> : null}
+              {events
+                .filter((event) => event.event_type !== "final_answer")
+                .slice(-10)
+                .map((event, index) => (
+                  <Box key={`${event.event_type}-${event.timestamp}-${index}`} flexDirection="column" marginBottom={1}>
+                    <Text bold>{event.title}</Text>
+                    {event.summary ? <Text>{event.summary}</Text> : null}
+                    {event.content ? <Text dimColor>{event.content}</Text> : null}
+                  </Box>
+                ))}
+              {finalLines.length > 0 ? (
+                <Text dimColor>Answer ready — press tab to read</Text>
+              ) : null}
+              {error ? <Text color="red">{error}</Text> : null}
+            </>
+          )}
         </Box>
       </Box>
 
@@ -193,28 +347,12 @@ function GemApp() {
         <Text dimColor>
           {checkpointWaiting
             ? "checkpoint: /continue | /redirect <guidance> | /stop"
-            : `mode:auto | session:${session} | sessions:${sessions.length} | /session <name> | /sessions`}
+            : inScrollMode
+              ? `↑↓/PgUp/PgDn scroll · tab: events · /session <name>`
+              : `mode:auto | session:${session} | sessions:${sessions.length} | /session <name>`}
         </Text>
       </Box>
     </Box>
-  );
-}
-
-function formatRuntimeError(reason: unknown): string {
-  const message = reason instanceof Error ? reason.message : String(reason);
-  if (message.toLowerCase().includes("fetch failed")) {
-    return `Cannot reach crisAI API at ${runtimeBaseUrl}. Start it in another terminal with './start api' or set CRISAI_RUNTIME_URL.`;
-  }
-  return message;
-}
-
-function StageLine({ stage }: { stage: UiStageSummary }) {
-  const marker = stage.status === "failed" ? "!" : stage.status === "complete" ? "✓" : stage.status === "running" ? ">" : "•";
-  const color = stage.status === "failed" ? "red" : stage.status === "complete" ? "green" : stage.status === "running" ? "yellow" : undefined;
-  return (
-    <Text color={color}>
-      {marker} {stage.label}
-    </Text>
   );
 }
 
