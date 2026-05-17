@@ -5,15 +5,24 @@ import {
   buildEventLines,
   checkpointDecisionLines,
   clampScrollTop,
+  buildPromptView,
+  deletePromptBackward,
+  deletePromptForward,
   fallbackGemHeight,
   fallbackGemWidth,
   findStagePinTarget,
   gemTerminalThemeFromPalette,
+  insertPromptText,
   maximumStageSidebarWidth,
   minimumGemHeight,
   minimumGemWidth,
   minimumStageSidebarWidth,
+  movePromptCursorHorizontal,
+  movePromptCursorVertical,
+  normalizePromptInput,
   pinnedStageContent,
+  promptVisibleLineCount,
+  promptVisualLines,
   resolveCommandHistoryMove,
   resolveCheckpointWaiting,
   formatRunSummaryTimestamp,
@@ -90,8 +99,8 @@ test("Gem layout calculations keep sidebar and transcript dimensions bounded", (
   assert.equal(resolveStageSidebarWidth(80), minimumStageSidebarWidth);
   assert.equal(resolveStageSidebarWidth(132), 31);
   assert.equal(resolveStageSidebarWidth(200), maximumStageSidebarWidth);
-  assert.equal(resolveTranscriptHeight(24), 13);
-  assert.equal(resolvePanelContentHeight(13), 12);
+  assert.equal(resolveTranscriptHeight(24), 11);
+  assert.equal(resolvePanelContentHeight(11), 10);
   assert.equal(resolveOutputPanelWidth(80, 20), 52);
   assert.equal(clampScrollTop(99, 30, 10), 20);
 });
@@ -356,4 +365,49 @@ test("ghost suffix only uses slash-command prefix matches and truncates without 
   assert.equal(resolveGhostSuffix("/s", history, 20), "tage retrieval");
   assert.equal(resolveGhostSuffix("/stage", history, 8), " r");
   assert.equal(resolveGhostSuffix("/stage retrieval", history, 30), "");
+});
+
+test("prompt input normalizes pasted text and edits at the cursor", () => {
+  const inserted = insertPromptText({ text: "hello world", cursor: 5 }, "\r\n\tthere\u001b[31m");
+  assert.deepEqual(inserted, { text: "hello\n  there world", cursor: 13 });
+  assert.deepEqual(deletePromptBackward(inserted), { text: "hello\n  ther world", cursor: 12 });
+  assert.deepEqual(deletePromptForward({ text: "abc", cursor: 1 }), { text: "ac", cursor: 1 });
+  assert.deepEqual(movePromptCursorHorizontal({ text: "abc", cursor: 0 }, "previous"), { text: "abc", cursor: 0 });
+  assert.equal(normalizePromptInput("a\r\nb\rc\td"), "a\nb\nc  d");
+});
+
+test("prompt visual lines wrap logical lines and keep cursor visible in a bounded viewport", () => {
+  const text = "alpha beta\ngamma";
+  const lines = promptVisualLines(text, 5);
+
+  assert.deepEqual(lines.map((line) => line.text), ["alpha", " beta", "gamma"]);
+  const down = movePromptCursorVertical({ text, cursor: 2 }, 5, "next");
+  const up = movePromptCursorVertical(down, 5, "previous");
+
+  assert.equal(down.cursor, 7);
+  assert.equal(up.cursor, 2);
+
+  const view = buildPromptView("one two three four five", 18, 4, promptVisibleLineCount, "");
+  assert.equal(view.lines.length, promptVisibleLineCount);
+  assert.equal(view.hiddenBefore > 0, true);
+  assert.equal(view.hiddenAfter, 1);
+  assert.equal(view.totalLines, 6);
+});
+
+test("prompt view renders ghost suffix only on the cursor line", () => {
+  const view = buildPromptView("/st", 3, 10, 4, "age retrieval");
+
+  assert.equal(view.lines[0]?.beforeCursor, "/st");
+  assert.equal(view.lines[0]?.cursorText, " ");
+  assert.equal(view.lines[0]?.ghostSuffix, "age retrieval");
+});
+
+test("prompt cursor remains visible at exact visual wrap boundaries", () => {
+  const view = buildPromptView("abcdEF", 4, 4, 4, "");
+
+  assert.equal(view.cursorLine, 0);
+  assert.equal(view.lines[0]?.beforeCursor, "abcd");
+  assert.equal(view.lines[0]?.cursorText, " ");
+  assert.equal(view.lines[1]?.beforeCursor, "EF");
+  assert.equal(view.lines[1]?.cursorText, "");
 });

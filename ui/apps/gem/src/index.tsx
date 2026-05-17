@@ -22,15 +22,23 @@ import {
   checkpointDecisionLines,
   clampScrollTop,
   defaultGemTerminalTheme,
+  deletePromptBackward,
+  deletePromptForward,
   fallbackGemHeight,
   fallbackGemWidth,
   findStagePinTarget,
+  buildPromptView,
   gemTerminalThemeFromPalette,
+  insertPromptText,
   minimumGemHeight,
   minimumGemWidth,
+  movePromptCursorHorizontal,
+  movePromptCursorVertical,
+  normalizePromptInput,
   pinnedStageContent,
   resolveCommandHistoryMove,
   promptPanelHeight,
+  promptVisibleLineCount,
   resolveGhostSuffix,
   resolveRunsListIndex,
   resolveNavCursorAfterPrune,
@@ -49,7 +57,8 @@ import {
   truncateStageLabel,
   wrapPlainText,
   type DisplayMode,
-  type GemTerminalTheme
+  type GemTerminalTheme,
+  type PromptBufferState
 } from "./viewModel.js";
 
 const runtimeBaseUrl = process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000";
@@ -245,8 +254,10 @@ function GemApp() {
   const stageSidebarWidth = resolveStageSidebarWidth(viewportWidth);
   const transcriptHeight = resolveTranscriptHeight(viewportHeight);
   const outputPanelWidth = resolveOutputPanelWidth(viewportWidth, stageSidebarWidth);
+  const promptEditorWidth = Math.max(8, viewportWidth - 6);
 
   const [prompt, setPrompt] = useState("");
+  const [promptCursor, setPromptCursor] = useState(0);
   const [run, setRun] = useState<UiRunState | null>(null);
   const [events, setEvents] = useState<UiEvent[]>([]);
   const [error, setError] = useState("");
@@ -320,8 +331,13 @@ function GemApp() {
   const canScrollPanel = panelLines.length > contentH;
   const isLiveOutput = displayMode === "live" && !navMode && selectedStage === null && finalLines.length === 0 && liveLines.length > 0;
   const ghostSuffix = useMemo(
-    () => resolveGhostSuffix(prompt, commandHistory, Math.max(0, viewportWidth - 6)),
-    [commandHistory, prompt, viewportWidth]
+    () => promptCursor === prompt.length ? resolveGhostSuffix(prompt, commandHistory, promptEditorWidth) : "",
+    [commandHistory, prompt, promptCursor, promptEditorWidth]
+  );
+  const visiblePromptLines = checkpointWaiting ? 2 : promptVisibleLineCount;
+  const promptView = useMemo(
+    () => buildPromptView(prompt, promptCursor, promptEditorWidth, visiblePromptLines, ghostSuffix),
+    [ghostSuffix, prompt, promptCursor, promptEditorWidth, visiblePromptLines]
   );
   const isLiveRunInFlight = useMemo(() => {
     if (!run) return false;
@@ -463,6 +479,15 @@ function GemApp() {
       }
     }
 
+    if (promptView.totalLines > 1 && (key.upArrow || key.downArrow)) {
+      setPromptBuffer(movePromptCursorVertical(
+        { text: prompt, cursor: promptCursor },
+        promptEditorWidth,
+        key.upArrow ? "previous" : "next"
+      ));
+      return;
+    }
+
     // Scroll the bounded transcript pane whenever visible content exceeds it.
     if (displayMode === "live" && canScrollPanel) {
       if (key.upArrow) { setScrollTop((prev) => Math.max(0, prev - 1)); return; }
@@ -475,7 +500,7 @@ function GemApp() {
       const next = resolveCommandHistoryMove(commandHistory, historyCursor, historyDraftRef.current, prompt, "previous");
       historyDraftRef.current = next.draft;
       setHistoryCursor(next.cursor);
-      setPrompt(next.prompt);
+      setPromptBuffer({ text: next.prompt, cursor: next.prompt.length });
       return;
     }
 
@@ -483,14 +508,24 @@ function GemApp() {
       const next = resolveCommandHistoryMove(commandHistory, historyCursor, historyDraftRef.current, prompt, "next");
       historyDraftRef.current = next.draft;
       setHistoryCursor(next.cursor);
-      setPrompt(next.prompt);
+      setPromptBuffer({ text: next.prompt, cursor: next.prompt.length });
       return;
     }
 
     if (key.rightArrow && ghostSuffix) {
-      setPrompt((current) => current + ghostSuffix);
+      setPromptBuffer(insertPromptText({ text: prompt, cursor: promptCursor }, ghostSuffix));
       setHistoryCursor(null);
       historyDraftRef.current = "";
+      return;
+    }
+
+    if (key.leftArrow) {
+      setPromptBuffer(movePromptCursorHorizontal({ text: prompt, cursor: promptCursor }, "previous"));
+      return;
+    }
+
+    if (key.rightArrow) {
+      setPromptBuffer(movePromptCursorHorizontal({ text: prompt, cursor: promptCursor }, "next"));
       return;
     }
 
@@ -505,6 +540,13 @@ function GemApp() {
     if (displayMode === "live" && key.tab && (outputLines.length > 0 || eventLines.length > 0)) {
       setShowEvents((prev) => !prev);
       setScrollTop(0);
+      return;
+    }
+
+    if (!key.ctrl && input.length > 1 && /[\r\n]/.test(input)) {
+      setHistoryCursor(null);
+      historyDraftRef.current = "";
+      setPromptBuffer(insertPromptText({ text: prompt, cursor: promptCursor }, input));
       return;
     }
 
@@ -530,21 +572,37 @@ function GemApp() {
       } else {
         void startRun(command);
       }
-      setPrompt("");
+      setPromptBuffer({ text: "", cursor: 0 });
       return;
     }
-    if (key.backspace || key.delete) {
+    if (key.return) {
+      return;
+    }
+    if (key.backspace) {
       setHistoryCursor(null);
       historyDraftRef.current = "";
-      setPrompt((prev) => prev.slice(0, -1));
+      setPromptBuffer(deletePromptBackward({ text: prompt, cursor: promptCursor }));
+      return;
+    }
+    if (key.delete) {
+      setHistoryCursor(null);
+      historyDraftRef.current = "";
+      setPromptBuffer(deletePromptForward({ text: prompt, cursor: promptCursor }));
       return;
     }
     if (!key.ctrl && input) {
+      const normalized = normalizePromptInput(input);
+      if (!normalized) return;
       setHistoryCursor(null);
       historyDraftRef.current = "";
-      setPrompt((prev) => prev + input);
+      setPromptBuffer(insertPromptText({ text: prompt, cursor: promptCursor }, normalized));
     }
   }, { isActive: inputActive });
+
+  function setPromptBuffer(next: PromptBufferState) {
+    setPrompt(next.text);
+    setPromptCursor(next.cursor);
+  }
 
   function applySessionState(state: UiSessionState) {
     setSession(state.current_session);
@@ -902,17 +960,26 @@ function GemApp() {
         ) : (
           <Text dimColor>
             {displayMode === "runs-list" ? "History" : displayMode === "review" ? "Review" : "Prompt"}
+            {promptView.totalLines > visiblePromptLines
+              ? ` · lines ${promptView.cursorLine + 1}/${promptView.totalLines}`
+              : ""}
           </Text>
         )}
-        <Text wrap="truncate-end">
-          {"> "}
-          {prompt}
-          {ghostSuffix ? <Text dimColor>{ghostSuffix}</Text> : null}
-        </Text>
+        {promptView.lines.map((line, index) => (
+          <Text key={`prompt-line-${index}`} wrap="truncate-end">
+            {index === 0 ? "> " : "  "}
+            {index === 0 && promptView.hiddenBefore > 0 ? <Text dimColor>↑ </Text> : null}
+            {line.beforeCursor}
+            {line.cursorText ? <Text inverse>{line.cursorText}</Text> : null}
+            {line.afterCursor}
+            {line.ghostSuffix ? <Text dimColor>{line.ghostSuffix}</Text> : null}
+            {index === promptView.lines.length - 1 && promptView.hiddenAfter > 0 ? <Text dimColor> ↓</Text> : null}
+          </Text>
+        ))}
       </Box>
 
-      <Box paddingX={1}>
-        <Text dimColor wrap="truncate-end">
+      <Box paddingX={1} backgroundColor="white">
+        <Text color="black" wrap="truncate-end">
           {`${statusMetrics.model} | ${statusMetrics.elapsed} | tokens:${statusMetrics.tokens} | cost:${statusMetrics.cost} | `}
           {displayMode === "runs-list"
             ? "↑↓/j/k select · Enter review · Tab/Esc live"
@@ -926,6 +993,8 @@ function GemApp() {
               ? canScrollPanel
                 ? `↑↓/PgUp/PgDn scroll · /stage release · Tab unpin · pinned: ${pinnedStage.label}`
                 : `/stage release · Tab unpin · pinned: ${pinnedStage.label}`
+              : prompt
+                ? `prompt: ←→ cursor · ↑↓ lines · Ctrl+P/Ctrl+N history · Enter submit`
               : canScrollPanel
                 ? `↑↓/PgUp/PgDn scroll · tab: ${showEvents ? "output" : "events"} · /session <name>`
                 : `mode:auto | session:${session} | sessions:${sessions.length} | Ctrl+P/Ctrl+N history | /session <name>${!run ? " · [/runs for history]" : ""}${stages.length > 0 ? " · /stage <key>" : ""}${stages.length > 1 ? " · /nav browse" : ""}`}

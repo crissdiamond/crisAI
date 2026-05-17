@@ -177,7 +177,10 @@ continue, redirect, and stop actions directly. The Ink client accepts `/session
 `Ctrl+P` and `Ctrl+N` command recall, slash-command ghost suffix suggestions
 accepted with Right arrow, `/runs` to review a bounded list of completed or
 failed runs in the current session, and `/prev` or `/prev N` to open read-only
-historical run snapshots.
+historical run snapshots. Its prompt panel is a fixed-height multiline editor:
+long prompts wrap inside the prompt area, pasted multiline text is normalized
+for terminal display, Left/Right moves the cursor, and Up/Down moves through
+wrapped prompt lines when the prompt spans multiple visible lines.
 
 When the FastAPI runtime is protected by a static bearer token, set
 `CRISAI_API_KEY` in `.env`. The shared TypeScript client sends the token as an

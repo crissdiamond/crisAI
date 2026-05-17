@@ -40,7 +40,11 @@ Current status:
   `/redirect <guidance>`, `/stop`). It renders streamed `stage_delta` output in
   the main pane while a run is active and keeps an in-session command history
   available with `Ctrl+P` and `Ctrl+N`. Slash-command history can show a dim
-  ghost suffix in the prompt; Right arrow accepts the suggestion.
+  ghost suffix in the prompt; Right arrow accepts the suggestion. The prompt
+  panel is a fixed-height multiline editor: long prompts wrap inside the panel,
+  pasted multiline text is normalized for terminal display, Left/Right moves the
+  cursor, and Up/Down moves through wrapped prompt lines when the prompt spans
+  multiple visible lines.
   The stage sidebar uses a terminal-relative width with minimum and maximum
   bounds, and renders compact status items from the shared theme palette so
   running, completed, skipped, failed, and pending stages are easy to scan. The

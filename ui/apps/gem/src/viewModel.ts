@@ -13,7 +13,8 @@ export const minimumGemWidth = 80;
 export const minimumGemHeight = 24;
 export const minimumStageSidebarWidth = 20;
 export const maximumStageSidebarWidth = 34;
-export const promptPanelHeight = 5;
+export const promptPanelHeight = 7;
+export const promptVisibleLineCount = 4;
 
 export type InkColorName =
   | "black"
@@ -63,6 +64,32 @@ export type CommandHistoryResult = {
   prompt: string;
   cursor: number | null;
   draft: string;
+};
+
+export type PromptBufferState = {
+  text: string;
+  cursor: number;
+};
+
+export type PromptVisualLine = {
+  text: string;
+  start: number;
+  end: number;
+};
+
+export type PromptRenderLine = {
+  beforeCursor: string;
+  cursorText: string;
+  afterCursor: string;
+  ghostSuffix: string;
+};
+
+export type PromptView = {
+  lines: PromptRenderLine[];
+  cursorLine: number;
+  totalLines: number;
+  hiddenBefore: number;
+  hiddenAfter: number;
 };
 
 export const defaultGemTerminalTheme: GemTerminalTheme = {
@@ -245,6 +272,136 @@ export function resolveGhostSuffix(prompt: string, history: string[], usableWidt
   return match.slice(prompt.length, prompt.length + maxSuffixLength);
 }
 
+export function normalizePromptInput(input: string): string {
+  return input
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\t/g, "  ")
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+}
+
+export function insertPromptText(state: PromptBufferState, input: string): PromptBufferState {
+  const text = normalizePromptInput(input);
+  const cursor = clampPromptCursor(state.cursor, state.text);
+  const nextText = `${state.text.slice(0, cursor)}${text}${state.text.slice(cursor)}`;
+  return {
+    text: nextText,
+    cursor: cursor + text.length
+  };
+}
+
+export function deletePromptBackward(state: PromptBufferState): PromptBufferState {
+  const cursor = clampPromptCursor(state.cursor, state.text);
+  if (cursor <= 0) return { text: state.text, cursor };
+  return {
+    text: `${state.text.slice(0, cursor - 1)}${state.text.slice(cursor)}`,
+    cursor: cursor - 1
+  };
+}
+
+export function deletePromptForward(state: PromptBufferState): PromptBufferState {
+  const cursor = clampPromptCursor(state.cursor, state.text);
+  if (cursor >= state.text.length) return { text: state.text, cursor };
+  return {
+    text: `${state.text.slice(0, cursor)}${state.text.slice(cursor + 1)}`,
+    cursor
+  };
+}
+
+export function movePromptCursorHorizontal(state: PromptBufferState, direction: NavDirection): PromptBufferState {
+  const cursor = clampPromptCursor(state.cursor, state.text);
+  return {
+    text: state.text,
+    cursor: direction === "previous" ? Math.max(0, cursor - 1) : Math.min(state.text.length, cursor + 1)
+  };
+}
+
+export function promptVisualLines(text: string, width: number): PromptVisualLine[] {
+  const usableWidth = Math.max(1, Math.floor(width));
+  const lines: PromptVisualLine[] = [];
+  let offset = 0;
+  const logicalLines = text.split("\n");
+  logicalLines.forEach((logicalLine, logicalIndex) => {
+    if (logicalLine.length === 0) {
+      lines.push({ text: "", start: offset, end: offset });
+    } else {
+      let localStart = 0;
+      while (localStart < logicalLine.length) {
+        const localEnd = Math.min(logicalLine.length, localStart + usableWidth);
+        lines.push({
+          text: logicalLine.slice(localStart, localEnd),
+          start: offset + localStart,
+          end: offset + localEnd
+        });
+        localStart = localEnd;
+      }
+    }
+    offset += logicalLine.length;
+    if (logicalIndex < logicalLines.length - 1) offset += 1;
+  });
+  return lines.length > 0 ? lines : [{ text: "", start: 0, end: 0 }];
+}
+
+export function promptCursorLineIndex(lines: PromptVisualLine[], cursor: number): number {
+  const boundedCursor = Math.max(0, cursor);
+  const exact = lines.findIndex((line) => boundedCursor >= line.start && boundedCursor <= line.end);
+  return exact >= 0 ? exact : Math.max(0, lines.length - 1);
+}
+
+export function movePromptCursorVertical(
+  state: PromptBufferState,
+  width: number,
+  direction: NavDirection
+): PromptBufferState {
+  const cursor = clampPromptCursor(state.cursor, state.text);
+  const lines = promptVisualLines(state.text, width);
+  const currentIndex = promptCursorLineIndex(lines, cursor);
+  const targetIndex = direction === "previous"
+    ? Math.max(0, currentIndex - 1)
+    : Math.min(lines.length - 1, currentIndex + 1);
+  const currentLine = lines[currentIndex] ?? lines[0];
+  const targetLine = lines[targetIndex] ?? currentLine;
+  const column = Math.max(0, cursor - currentLine.start);
+  return {
+    text: state.text,
+    cursor: Math.min(targetLine.end, targetLine.start + column)
+  };
+}
+
+export function buildPromptView(
+  text: string,
+  cursor: number,
+  width: number,
+  visibleCount = promptVisibleLineCount,
+  ghostSuffix = ""
+): PromptView {
+  const lines = promptVisualLines(text, width);
+  const boundedCursor = clampPromptCursor(cursor, text);
+  const cursorLine = promptCursorLineIndex(lines, boundedCursor);
+  const visibleLines = Math.max(1, Math.floor(visibleCount));
+  const viewportStart = Math.min(
+    Math.max(0, cursorLine - visibleLines + 1),
+    Math.max(0, lines.length - visibleLines)
+  );
+  const visible = lines.slice(viewportStart, viewportStart + visibleLines);
+  return {
+    lines: visible.map((line, index) => promptRenderLine(
+      line,
+      boundedCursor,
+      ghostSuffix,
+      viewportStart + index === cursorLine
+    )),
+    cursorLine,
+    totalLines: lines.length,
+    hiddenBefore: viewportStart,
+    hiddenAfter: Math.max(0, lines.length - viewportStart - visible.length)
+  };
+}
+
+export function clampPromptCursor(cursor: number, text: string): number {
+  return Math.min(Math.max(0, Math.floor(cursor)), text.length);
+}
+
 export function formatRunSummaryTimestamp(value: string): string {
   if (!value) return "";
   const parsed = new Date(value);
@@ -408,4 +565,27 @@ function colorNameForToken(value: string | undefined, fallback: InkColorName | u
   if (normalized.includes("fafafa") || normalized.includes("ffffff")) return "white";
   if (normalized.includes("1f1f2e") || normalized.includes("1f102f") || normalized.includes("361a54")) return "blue";
   return fallback ?? "white";
+}
+
+function promptRenderLine(
+  line: PromptVisualLine,
+  cursor: number,
+  ghostSuffix: string,
+  isCursorLine = true
+): PromptRenderLine {
+  if (!isCursorLine) {
+    return {
+      beforeCursor: line.text,
+      cursorText: "",
+      afterCursor: "",
+      ghostSuffix: ""
+    };
+  }
+  const column = Math.min(line.text.length, Math.max(0, cursor - line.start));
+  return {
+    beforeCursor: line.text.slice(0, column),
+    cursorText: line.text[column] ?? " ",
+    afterCursor: line.text.slice(column + (line.text[column] ? 1 : 0)),
+    ghostSuffix: cursor === line.end ? ghostSuffix : ""
+  };
 }
