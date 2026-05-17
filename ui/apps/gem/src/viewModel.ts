@@ -48,6 +48,8 @@ export type PanelLinesInput = {
   eventLines: string[];
 };
 
+export type NavDirection = "previous" | "next";
+
 export const defaultGemTerminalTheme: GemTerminalTheme = {
   accent: "magenta",
   border: "blue",
@@ -161,6 +163,30 @@ export function pinnedStageContent(stages: UiStageSummary[], selectedStage: stri
   if (!selectedStage) return "";
   const pinnedStage = stages.find((stage) => stage.key === selectedStage);
   return pinnedStage?.event?.content || pinnedStage?.summary || "";
+}
+
+export function resolveNavCursorMove(
+  visibleStages: UiStageSummary[],
+  currentKey: string | null,
+  direction: NavDirection
+): string | null {
+  if (visibleStages.length === 0) return null;
+  const currentIndex = visibleStages.findIndex((stage) => stage.key === currentKey);
+  if (currentIndex === -1) {
+    return direction === "previous" ? visibleStages.at(-1)?.key ?? null : visibleStages[0]?.key ?? null;
+  }
+  const nextIndex = direction === "previous"
+    ? Math.max(0, currentIndex - 1)
+    : Math.min(visibleStages.length - 1, currentIndex + 1);
+  return visibleStages[nextIndex]?.key ?? null;
+}
+
+export function resolveNavCursorAfterPrune(visibleStages: UiStageSummary[], previousIndex: number | null): string | null {
+  if (visibleStages.length === 0) return null;
+  const fallbackIndex = previousIndex === null
+    ? visibleStages.length - 1
+    : Math.min(Math.max(previousIndex, 0), visibleStages.length - 1);
+  return visibleStages[fallbackIndex]?.key ?? null;
 }
 
 export function resolvePanelLines({

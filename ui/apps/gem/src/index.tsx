@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import chalk from "chalk";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { EventSource } from "eventsource";
 import { Box, render, Text, useInput, useStdin, useStdout } from "ink";
 import {
@@ -28,7 +28,9 @@ import {
   minimumGemWidth,
   pinnedStageContent,
   promptPanelHeight,
+  resolveNavCursorAfterPrune,
   resolveInputActive,
+  resolveNavCursorMove,
   resolveOutputPanelWidth,
   resolvePanelLines,
   resolvePanelContentHeight,
@@ -247,24 +249,28 @@ function GemApp() {
   const [scrollTop, setScrollTop] = useState(0);
   const [showEvents, setShowEvents] = useState(false);
   const [selectedStage, setSelectedStage] = useState<string | null>(null);
+  const [navMode, setNavMode] = useState(false);
+  const [navFocusKey, setNavFocusKey] = useState<string | null>(null);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyCursor, setHistoryCursor] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const navFocusIndexRef = useRef<number | null>(null);
 
   const status = useMemo(() => events.at(-1)?.status ?? run?.status ?? "idle", [events, run]);
   const statusMetrics = useMemo(() => buildStatusMetrics(events, now), [events, now]);
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
   const visibleStages = useMemo(() => sidebarStages(stages), [stages]);
+  const effectiveSelectedKey = navMode ? navFocusKey : selectedStage;
   const pinnedStage = useMemo(
-    () => stages.find((stage) => stage.key === selectedStage) ?? null,
-    [selectedStage, stages]
+    () => stages.find((stage) => stage.key === effectiveSelectedKey) ?? null,
+    [effectiveSelectedKey, stages]
   );
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
   const finalLines = useMemo(() => renderMarkdownLines(finalContent, outputPanelWidth), [finalContent, outputPanelWidth]);
   const pinnedStageLines = useMemo(
-    () => renderMarkdownLines(pinnedStageContent(stages, selectedStage), outputPanelWidth),
-    [outputPanelWidth, selectedStage, stages]
+    () => renderMarkdownLines(pinnedStageContent(stages, effectiveSelectedKey), outputPanelWidth),
+    [effectiveSelectedKey, outputPanelWidth, stages]
   );
   const liveStageEvent = useMemo(() => latestLiveStageEvent(events), [events]);
   const liveLines = useMemo(
@@ -278,7 +284,7 @@ function GemApp() {
   const outputLines = finalLines.length > 0 ? finalLines : liveLines;
   const panelLines = resolvePanelLines({
     showEvents,
-    selectedStage,
+    selectedStage: effectiveSelectedKey,
     pinnedStageLines,
     outputLines,
     eventLines
@@ -286,7 +292,7 @@ function GemApp() {
   const contentH = resolvePanelContentHeight(transcriptHeight);
   const maxScroll = Math.max(0, panelLines.length - contentH);
   const canScrollPanel = panelLines.length > contentH;
-  const isLiveOutput = selectedStage === null && finalLines.length === 0 && liveLines.length > 0;
+  const isLiveOutput = !navMode && selectedStage === null && finalLines.length === 0 && liveLines.length > 0;
 
   React.useEffect(() => {
     runtime
@@ -326,7 +332,61 @@ function GemApp() {
     setScrollTop(0);
   }, [selectedStage]);
 
+  React.useEffect(() => {
+    if (!navMode) return;
+    const currentIndex = visibleStages.findIndex((stage) => stage.key === navFocusKey);
+    if (currentIndex >= 0) {
+      navFocusIndexRef.current = currentIndex;
+      return;
+    }
+    if (visibleStages.length === 0) {
+      setNavMode(false);
+      setNavFocusKey(null);
+      navFocusIndexRef.current = null;
+      return;
+    }
+    setNavFocusKey(resolveNavCursorAfterPrune(visibleStages, navFocusIndexRef.current));
+  }, [navFocusKey, navMode, visibleStages]);
+
+  React.useEffect(() => {
+    setScrollTop(0);
+  }, [navMode, navFocusKey]);
+
   useInput((input, key) => {
+    if (navMode) {
+      if (key.upArrow || input === "k") {
+        setNavFocusKey((current) => resolveNavCursorMove(visibleStages, current, "previous"));
+        setScrollTop(0);
+        return;
+      }
+      if (key.downArrow || input === "j") {
+        setNavFocusKey((current) => resolveNavCursorMove(visibleStages, current, "next"));
+        setScrollTop(0);
+        return;
+      }
+      if (key.pageUp && canScrollPanel) {
+        setScrollTop((prev) => Math.max(0, prev - Math.max(1, contentH - 1)));
+        return;
+      }
+      if (key.pageDown && canScrollPanel) {
+        setScrollTop((prev) => Math.min(maxScroll, prev + Math.max(1, contentH - 1)));
+        return;
+      }
+      if (key.tab || key.escape) {
+        exitNavMode();
+        return;
+      }
+      if (input === "l" && !prompt.trim()) {
+        releaseStagePin();
+        exitNavMode();
+        return;
+      }
+      if (key.return && !prompt.trim()) {
+        pinNavFocus();
+        return;
+      }
+    }
+
     // Scroll the bounded transcript pane whenever visible content exceeds it.
     if (canScrollPanel) {
       if (key.upArrow) { setScrollTop((prev) => Math.max(0, prev - 1)); return; }
@@ -374,6 +434,8 @@ function GemApp() {
       setHistoryCursor(null);
       if (checkpointWaiting && command.startsWith("/")) {
         void handleCheckpointCommand(command);
+      } else if (command === "/nav" || command.startsWith("/nav ")) {
+        handleNavCommand(command);
       } else if (command === "/stage" || command.startsWith("/stage ")) {
         handleStageCommand(command);
       } else if (command === "/sessions" || command.startsWith("/session ")) {
@@ -408,6 +470,9 @@ function GemApp() {
       setScrollTop(0);
       setShowEvents(false);
       setSelectedStage(null);
+      setNavMode(false);
+      setNavFocusKey(null);
+      navFocusIndexRef.current = null;
       const started = await runtime.startRun({ message, mode: "auto", session });
       setRun(started);
       setEvents(started.events);
@@ -457,10 +522,7 @@ function GemApp() {
     setNotice("");
     const requested = command.replace(/^\/stage\s*/, "").trim();
     if (!requested || requested === "live" || requested === "release") {
-      setSelectedStage(null);
-      setShowEvents(false);
-      setScrollTop(0);
-      setNotice("stage view released");
+      releaseStagePin();
       return;
     }
 
@@ -471,9 +533,69 @@ function GemApp() {
     }
 
     setSelectedStage(result.stage.key);
+    setNavMode(false);
+    setNavFocusKey(null);
     setShowEvents(false);
     setScrollTop(0);
     setNotice(`pinned: ${result.stage.label}`);
+  }
+
+  function handleNavCommand(command: string) {
+    setError("");
+    setNotice("");
+    const requested = command.replace(/^\/nav\s*/, "").trim();
+    if (requested) {
+      setError("Usage: /nav.");
+      return;
+    }
+    if (navMode) {
+      exitNavMode();
+      return;
+    }
+    if (visibleStages.length === 0) {
+      setError("No stages to navigate.");
+      return;
+    }
+    const currentVisiblePin = selectedStage !== null && visibleStages.some((stage) => stage.key === selectedStage)
+      ? selectedStage
+      : null;
+    const nextFocus = currentVisiblePin ?? visibleStages.at(-1)?.key ?? null;
+    setNavFocusKey(nextFocus);
+    navFocusIndexRef.current = visibleStages.findIndex((stage) => stage.key === nextFocus);
+    setNavMode(true);
+    setShowEvents(false);
+    setScrollTop(0);
+  }
+
+  function releaseStagePin() {
+    setSelectedStage(null);
+    setNavMode(false);
+    setNavFocusKey(null);
+    navFocusIndexRef.current = null;
+    setShowEvents(false);
+    setScrollTop(0);
+    setNotice("stage view released");
+  }
+
+  function exitNavMode() {
+    setNavMode(false);
+    setNavFocusKey(null);
+    navFocusIndexRef.current = null;
+    setShowEvents(false);
+    setScrollTop(0);
+  }
+
+  function pinNavFocus() {
+    if (navFocusKey === null) return;
+    const stage = stages.find((item) => item.key === navFocusKey);
+    if (!stage) return;
+    setSelectedStage(stage.key);
+    setNavMode(false);
+    setNavFocusKey(null);
+    navFocusIndexRef.current = null;
+    setShowEvents(false);
+    setScrollTop(0);
+    setNotice(`pinned: ${stage.label}`);
   }
 
   async function handleCheckpointCommand(command: string) {
@@ -509,7 +631,11 @@ function GemApp() {
         <Text> | {status}</Text>
         <Text> | {session}</Text>
         {checkpointWaiting ? <Text color={terminalTheme.checkpoint.label}> | decision needed</Text> : null}
-        {pinnedStage ? (
+        {navMode && pinnedStage ? (
+          <Text color={terminalTheme.border} wrap="truncate-end">
+            {` | nav: ${truncateStageLabel(pinnedStage.label, 16)}`}
+          </Text>
+        ) : pinnedStage ? (
           <Text color={terminalTheme.border} wrap="truncate-end">
             {` | pinned: ${truncateStageLabel(pinnedStage.label, 16)}`}
           </Text>
@@ -527,7 +653,7 @@ function GemApp() {
               stage={stage}
               sidebarWidth={stageSidebarWidth}
               theme={terminalTheme}
-              selected={stage.key === selectedStage}
+              selected={stage.key === effectiveSelectedKey}
             />
           ))}
         </Box>
@@ -568,13 +694,15 @@ function GemApp() {
           {`${statusMetrics.model} | ${statusMetrics.elapsed} | tokens:${statusMetrics.tokens} | cost:${statusMetrics.cost} | `}
           {checkpointWaiting
             ? "decision: /continue use sources | /stop end run | /redirect refine"
+            : navMode
+              ? "↑↓ stages · Enter pin · l release · Tab/Esc exit · PgUp/PgDn scroll content"
             : pinnedStage
               ? canScrollPanel
                 ? `↑↓/PgUp/PgDn scroll · /stage release · Tab unpin · pinned: ${pinnedStage.label}`
                 : `/stage release · Tab unpin · pinned: ${pinnedStage.label}`
               : canScrollPanel
                 ? `↑↓/PgUp/PgDn scroll · tab: ${showEvents ? "output" : "events"} · /session <name>`
-                : `mode:auto | session:${session} | sessions:${sessions.length} | ↑↓ history | /session <name>${stages.length > 0 ? " · /stage <key>" : ""}`}
+                : `mode:auto | session:${session} | sessions:${sessions.length} | ↑↓ history | /session <name>${stages.length > 0 ? " · /stage <key>" : ""}${stages.length > 1 ? " · /nav browse" : ""}`}
         </Text>
       </Box>
     </Box>

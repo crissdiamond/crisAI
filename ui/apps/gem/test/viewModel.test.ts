@@ -14,6 +14,8 @@ import {
   minimumStageSidebarWidth,
   pinnedStageContent,
   resolveInputActive,
+  resolveNavCursorAfterPrune,
+  resolveNavCursorMove,
   resolveOutputPanelWidth,
   resolvePanelLines,
   resolvePanelContentHeight,
@@ -194,6 +196,35 @@ test("panel lines keep selected stage pinned while live output changes", () => {
   assert.deepEqual(selected, ["retrieval output"]);
   assert.deepEqual(released, ["new live delta"]);
   assert.deepEqual(events, ["event output"]);
+});
+
+test("nav cursor movement clamps and recovers when current key is missing", () => {
+  const stages: UiStageSummary[] = [
+    { key: "one", label: "One", status: "complete", summary: "" },
+    { key: "two", label: "Two", status: "running", summary: "" },
+    { key: "three", label: "Three", status: "pending", summary: "" }
+  ];
+
+  assert.equal(resolveNavCursorMove(stages, "one", "previous"), "one");
+  assert.equal(resolveNavCursorMove(stages, "three", "next"), "three");
+  assert.equal(resolveNavCursorMove(stages, "two", "previous"), "one");
+  assert.equal(resolveNavCursorMove(stages, "two", "next"), "three");
+  assert.equal(resolveNavCursorMove(stages, "missing", "next"), "one");
+  assert.equal(resolveNavCursorMove(stages, "missing", "previous"), "three");
+  assert.equal(resolveNavCursorMove([], "missing", "next"), null);
+});
+
+test("nav cursor prune recovery keeps prior index proximity", () => {
+  const stages: UiStageSummary[] = [
+    { key: "one", label: "One", status: "complete", summary: "" },
+    { key: "three", label: "Three", status: "pending", summary: "" }
+  ];
+
+  assert.equal(resolveNavCursorAfterPrune(stages, 1), "three");
+  assert.equal(resolveNavCursorAfterPrune(stages, 99), "three");
+  assert.equal(resolveNavCursorAfterPrune(stages, -1), "one");
+  assert.equal(resolveNavCursorAfterPrune(stages, null), "three");
+  assert.equal(resolveNavCursorAfterPrune([], 1), null);
 });
 
 test("checkpoint copy is phrased as a user decision with consequences", () => {

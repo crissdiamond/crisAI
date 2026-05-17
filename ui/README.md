@@ -48,8 +48,10 @@ Current status:
   Gem can pin the output pane to a previous stage with `/stage <key>` or
   `/stage N`, where `N` is the visible sidebar position 1-9. `/stage`,
   `/stage live`, and `/stage release` release the pin and return to live/final
-  output. Tab also releases a pinned stage before resuming its normal
-  output/events toggle.
+  output. `/nav` opens stage navigation mode for keyboard browsing: up/down or
+  `j`/`k` moves the stage cursor, Enter pins the focused stage, Tab or Esc exits
+  navigation mode, and `l` releases the pin. Tab also releases a pinned stage
+  before resuming its normal output/events toggle.
   Mouse selection is deferred because Ink core does not provide reliable click
   handling across the terminal configurations crisAI supports.
   The bottom status bar shows the selected model when the runtime exposes it,
