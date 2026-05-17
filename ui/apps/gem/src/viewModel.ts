@@ -1,4 +1,4 @@
-import type { UiEvent, UiStageStatus } from "@crisai/contracts";
+import type { UiEvent, UiStageStatus, UiStageSummary } from "@crisai/contracts";
 
 export const fallbackGemWidth = 132;
 export const fallbackGemHeight = 40;
@@ -28,6 +28,24 @@ export type GemTerminalTheme = {
     label: InkColorName;
   };
   error: InkColorName;
+};
+
+export type StagePinResult =
+  | {
+      ok: true;
+      stage: UiStageSummary;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+export type PanelLinesInput = {
+  showEvents: boolean;
+  selectedStage: string | null;
+  pinnedStageLines: string[];
+  outputLines: string[];
+  eventLines: string[];
 };
 
 export const defaultGemTerminalTheme: GemTerminalTheme = {
@@ -108,6 +126,55 @@ export function truncateStageLabel(label: string, sidebarWidth: number): string 
   const maxLabelLength = Math.max(6, sidebarWidth - 9);
   if (label.length <= maxLabelLength) return label;
   return `${label.slice(0, Math.max(1, maxLabelLength - 1))}…`;
+}
+
+export function sidebarStages(stages: UiStageSummary[]): UiStageSummary[] {
+  return stages.slice(-12);
+}
+
+export function findStagePinTarget(stages: UiStageSummary[], input: string): StagePinResult {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { ok: false, message: "No stage specified." };
+  }
+
+  const position = Number(trimmed);
+  if (/^\d+$/.test(trimmed)) {
+    if (!Number.isInteger(position) || position < 1 || position > 9) {
+      return { ok: false, message: `No stage at position ${trimmed}.` };
+    }
+    const stage = sidebarStages(stages)[position - 1];
+    return stage ? { ok: true, stage } : { ok: false, message: `No stage at position ${position}.` };
+  }
+
+  const exact = stages.find((stage) => stage.key === trimmed);
+  if (exact) return { ok: true, stage: exact };
+
+  const normalized = trimmed.toLowerCase();
+  const labelMatch = stages.find((stage) => stage.label.toLowerCase().includes(normalized));
+  if (labelMatch) return { ok: true, stage: labelMatch };
+
+  return { ok: false, message: `No stage: ${trimmed}.` };
+}
+
+export function pinnedStageContent(stages: UiStageSummary[], selectedStage: string | null): string {
+  if (!selectedStage) return "";
+  const pinnedStage = stages.find((stage) => stage.key === selectedStage);
+  return pinnedStage?.event?.content || pinnedStage?.summary || "";
+}
+
+export function resolvePanelLines({
+  showEvents,
+  selectedStage,
+  pinnedStageLines,
+  outputLines,
+  eventLines
+}: PanelLinesInput): string[] {
+  if (showEvents) return eventLines;
+  if (selectedStage !== null) {
+    return pinnedStageLines.length > 0 ? pinnedStageLines : ["No output for selected stage yet."];
+  }
+  return outputLines.length > 0 ? outputLines : eventLines;
 }
 
 export function stageVisual(status: UiStageStatus, theme: GemTerminalTheme) {

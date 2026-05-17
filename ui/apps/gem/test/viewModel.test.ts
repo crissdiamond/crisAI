@@ -6,23 +6,27 @@ import {
   clampScrollTop,
   fallbackGemHeight,
   fallbackGemWidth,
+  findStagePinTarget,
   gemTerminalThemeFromPalette,
   maximumStageSidebarWidth,
   minimumGemHeight,
   minimumGemWidth,
   minimumStageSidebarWidth,
+  pinnedStageContent,
   resolveInputActive,
   resolveOutputPanelWidth,
+  resolvePanelLines,
   resolvePanelContentHeight,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
+  sidebarStages,
   stageVisual,
   truncateStageLabel,
   wrapPlainText,
   type GemTerminalTheme
 } from "../src/viewModel.js";
-import type { UiEvent } from "@crisai/contracts";
+import type { UiEvent, UiStageSummary } from "@crisai/contracts";
 
 test("Gem viewport sizing prefers valid pins and otherwise uses terminal bounds", () => {
   assert.equal(resolveViewportDimension("100", 120, fallbackGemWidth, minimumGemWidth), 100);
@@ -99,6 +103,97 @@ test("event lines keep informational notices separate from errors", () => {
 
   assert.deepEqual(lines, ["Info: sessions: default,", "draft"]);
   assert(!lines.join(" ").includes("Error:"));
+});
+
+test("stage pin targets resolve by sidebar position, exact key, and label substring", () => {
+  const stages = Array.from({ length: 13 }, (_, index): UiStageSummary => ({
+    key: `stage_${index + 1}`,
+    label: `Stage ${index + 1}`,
+    status: "pending",
+    summary: `summary ${index + 1}`
+  }));
+
+  assert.equal(sidebarStages(stages)[0]?.key, "stage_2");
+  assert.deepEqual(findStagePinTarget(stages, "1"), {
+    ok: true,
+    stage: stages[1]
+  });
+  assert.deepEqual(findStagePinTarget(stages, "stage_1"), {
+    ok: true,
+    stage: stages[0]
+  });
+  assert.deepEqual(findStagePinTarget(stages, "Stage 13"), {
+    ok: true,
+    stage: stages[12]
+  });
+  assert.deepEqual(findStagePinTarget(stages, "9"), {
+    ok: true,
+    stage: stages[9]
+  });
+  assert.deepEqual(findStagePinTarget(stages, "missing"), {
+    ok: false,
+    message: "No stage: missing."
+  });
+  assert.deepEqual(findStagePinTarget(stages, "0"), {
+    ok: false,
+    message: "No stage at position 0."
+  });
+});
+
+test("pinned stage content prefers event content and falls back to summary", () => {
+  const event: UiEvent = {
+    schema_version: "ui_event_v1",
+    event_type: "stage_output",
+    run_id: "run-1",
+    timestamp: "2026-05-17T12:00:00Z",
+    session: "default",
+    status: "running",
+    title: "Stage output",
+    summary: "event summary",
+    content: "event content",
+    verbose_content: "",
+    mode: "auto",
+    agent_id: "summary",
+    stage: "summary",
+    metadata: {}
+  };
+  const stages: UiStageSummary[] = [
+    { key: "retrieval", label: "Retrieval", status: "complete", summary: "retrieval summary" },
+    { key: "summary", label: "Summary", status: "complete", summary: "summary fallback", event }
+  ];
+
+  assert.equal(pinnedStageContent(stages, "summary"), "event content");
+  assert.equal(pinnedStageContent(stages, "retrieval"), "retrieval summary");
+  assert.equal(pinnedStageContent(stages, "missing"), "");
+  assert.equal(pinnedStageContent(stages, null), "");
+});
+
+test("panel lines keep selected stage pinned while live output changes", () => {
+  const selected = resolvePanelLines({
+    showEvents: false,
+    selectedStage: "retrieval",
+    pinnedStageLines: ["retrieval output"],
+    outputLines: ["new live delta"],
+    eventLines: ["event output"]
+  });
+  const released = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    pinnedStageLines: ["retrieval output"],
+    outputLines: ["new live delta"],
+    eventLines: ["event output"]
+  });
+  const events = resolvePanelLines({
+    showEvents: true,
+    selectedStage: "retrieval",
+    pinnedStageLines: ["retrieval output"],
+    outputLines: ["new live delta"],
+    eventLines: ["event output"]
+  });
+
+  assert.deepEqual(selected, ["retrieval output"]);
+  assert.deepEqual(released, ["new live delta"]);
+  assert.deepEqual(events, ["event output"]);
 });
 
 test("checkpoint copy is phrased as a user decision with consequences", () => {

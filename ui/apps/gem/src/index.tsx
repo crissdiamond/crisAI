@@ -22,16 +22,20 @@ import {
   defaultGemTerminalTheme,
   fallbackGemHeight,
   fallbackGemWidth,
+  findStagePinTarget,
   gemTerminalThemeFromPalette,
   minimumGemHeight,
   minimumGemWidth,
+  pinnedStageContent,
   promptPanelHeight,
   resolveInputActive,
   resolveOutputPanelWidth,
+  resolvePanelLines,
   resolvePanelContentHeight,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
+  sidebarStages,
   stageVisual,
   truncateStageLabel,
   wrapPlainText,
@@ -186,11 +190,13 @@ function ScrollPane({
 function StageItem({
   stage,
   sidebarWidth,
-  theme
+  theme,
+  selected
 }: {
   stage: UiStageSummary;
   sidebarWidth: number;
   theme: GemTerminalTheme;
+  selected: boolean;
 }) {
   const visual = stageVisual(stage.status, theme);
   const shortLabel = truncateStageLabel(stage.label, sidebarWidth);
@@ -200,6 +206,7 @@ function StageItem({
       bold={visual.bold}
       color={visual.color}
       dimColor={visual.dimColor}
+      inverse={selected}
       wrap="truncate-end"
     >
       [{visual.icon} {shortLabel}]
@@ -239,6 +246,7 @@ function GemApp() {
   const [sessions, setSessions] = useState<string[]>(["default"]);
   const [scrollTop, setScrollTop] = useState(0);
   const [showEvents, setShowEvents] = useState(false);
+  const [selectedStage, setSelectedStage] = useState<string | null>(null);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyCursor, setHistoryCursor] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -246,9 +254,18 @@ function GemApp() {
   const status = useMemo(() => events.at(-1)?.status ?? run?.status ?? "idle", [events, run]);
   const statusMetrics = useMemo(() => buildStatusMetrics(events, now), [events, now]);
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
+  const visibleStages = useMemo(() => sidebarStages(stages), [stages]);
+  const pinnedStage = useMemo(
+    () => stages.find((stage) => stage.key === selectedStage) ?? null,
+    [selectedStage, stages]
+  );
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
   const finalLines = useMemo(() => renderMarkdownLines(finalContent, outputPanelWidth), [finalContent, outputPanelWidth]);
+  const pinnedStageLines = useMemo(
+    () => renderMarkdownLines(pinnedStageContent(stages, selectedStage), outputPanelWidth),
+    [outputPanelWidth, selectedStage, stages]
+  );
   const liveStageEvent = useMemo(() => latestLiveStageEvent(events), [events]);
   const liveLines = useMemo(
     () => renderMarkdownLines(liveStageEvent?.content ?? "", outputPanelWidth),
@@ -259,11 +276,17 @@ function GemApp() {
     [events, error, notice, outputPanelWidth]
   );
   const outputLines = finalLines.length > 0 ? finalLines : liveLines;
-  const panelLines = showEvents ? eventLines : outputLines.length > 0 ? outputLines : eventLines;
+  const panelLines = resolvePanelLines({
+    showEvents,
+    selectedStage,
+    pinnedStageLines,
+    outputLines,
+    eventLines
+  });
   const contentH = resolvePanelContentHeight(transcriptHeight);
   const maxScroll = Math.max(0, panelLines.length - contentH);
   const canScrollPanel = panelLines.length > contentH;
-  const isLiveOutput = finalLines.length === 0 && liveLines.length > 0;
+  const isLiveOutput = selectedStage === null && finalLines.length === 0 && liveLines.length > 0;
 
   React.useEffect(() => {
     runtime
@@ -293,6 +316,16 @@ function GemApp() {
     setScrollTop((current) => clampScrollTop(current, panelLines.length, contentH));
   }, [panelLines.length, contentH]);
 
+  React.useEffect(() => {
+    if (selectedStage !== null && !stages.some((stage) => stage.key === selectedStage)) {
+      setSelectedStage(null);
+    }
+  }, [selectedStage, stages]);
+
+  React.useEffect(() => {
+    setScrollTop(0);
+  }, [selectedStage]);
+
   useInput((input, key) => {
     // Scroll the bounded transcript pane whenever visible content exceeds it.
     if (canScrollPanel) {
@@ -321,6 +354,14 @@ function GemApp() {
       }
     }
 
+    if (key.tab && selectedStage !== null) {
+      setSelectedStage(null);
+      setShowEvents(false);
+      setNotice("stage view released");
+      setScrollTop(0);
+      return;
+    }
+
     if (key.tab && (outputLines.length > 0 || eventLines.length > 0)) {
       setShowEvents((prev) => !prev);
       setScrollTop(0);
@@ -333,6 +374,8 @@ function GemApp() {
       setHistoryCursor(null);
       if (checkpointWaiting && command.startsWith("/")) {
         void handleCheckpointCommand(command);
+      } else if (command === "/stage" || command.startsWith("/stage ")) {
+        handleStageCommand(command);
       } else if (command === "/sessions" || command.startsWith("/session ")) {
         void handleSessionCommand(command);
       } else {
@@ -364,6 +407,7 @@ function GemApp() {
       setEvents([]);
       setScrollTop(0);
       setShowEvents(false);
+      setSelectedStage(null);
       const started = await runtime.startRun({ message, mode: "auto", session });
       setRun(started);
       setEvents(started.events);
@@ -408,6 +452,30 @@ function GemApp() {
     }
   }
 
+  function handleStageCommand(command: string) {
+    setError("");
+    setNotice("");
+    const requested = command.replace(/^\/stage\s*/, "").trim();
+    if (!requested || requested === "live" || requested === "release") {
+      setSelectedStage(null);
+      setShowEvents(false);
+      setScrollTop(0);
+      setNotice("stage view released");
+      return;
+    }
+
+    const result = findStagePinTarget(stages, requested);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+
+    setSelectedStage(result.stage.key);
+    setShowEvents(false);
+    setScrollTop(0);
+    setNotice(`pinned: ${result.stage.label}`);
+  }
+
   async function handleCheckpointCommand(command: string) {
     try {
       setError("");
@@ -441,7 +509,11 @@ function GemApp() {
         <Text> | {status}</Text>
         <Text> | {session}</Text>
         {checkpointWaiting ? <Text color={terminalTheme.checkpoint.label}> | decision needed</Text> : null}
-        {isLiveOutput ? <Text color={terminalTheme.stage.running}> | streaming</Text> : null}
+        {pinnedStage ? (
+          <Text color={terminalTheme.border} wrap="truncate-end">
+            {` | pinned: ${truncateStageLabel(pinnedStage.label, 16)}`}
+          </Text>
+        ) : isLiveOutput ? <Text color={terminalTheme.stage.running}> | streaming</Text> : null}
         <Text dimColor wrap="truncate-end">{showEvents ? " | tab: output" : " | tab: events"}</Text>
       </Box>
 
@@ -449,12 +521,13 @@ function GemApp() {
         <Box width={stageSidebarWidth} borderStyle="single" borderColor={terminalTheme.border} paddingX={1} flexDirection="column">
           <Text bold>Stages</Text>
           {stages.length === 0 ? <Text dimColor>No stages yet.</Text> : null}
-          {stages.slice(-12).map((stage, index) => (
+          {visibleStages.map((stage, index) => (
             <StageItem
               key={`${stage.key}-${index}`}
               stage={stage}
               sidebarWidth={stageSidebarWidth}
               theme={terminalTheme}
+              selected={stage.key === selectedStage}
             />
           ))}
         </Box>
@@ -495,9 +568,13 @@ function GemApp() {
           {`${statusMetrics.model} | ${statusMetrics.elapsed} | tokens:${statusMetrics.tokens} | cost:${statusMetrics.cost} | `}
           {checkpointWaiting
             ? "decision: /continue use sources | /stop end run | /redirect refine"
-            : canScrollPanel
-              ? `↑↓/PgUp/PgDn scroll · tab: ${showEvents ? "output" : "events"} · /session <name>`
-              : `mode:auto | session:${session} | sessions:${sessions.length} | ↑↓ history | /session <name>`}
+            : pinnedStage
+              ? canScrollPanel
+                ? `↑↓/PgUp/PgDn scroll · /stage release · Tab unpin · pinned: ${pinnedStage.label}`
+                : `/stage release · Tab unpin · pinned: ${pinnedStage.label}`
+              : canScrollPanel
+                ? `↑↓/PgUp/PgDn scroll · tab: ${showEvents ? "output" : "events"} · /session <name>`
+                : `mode:auto | session:${session} | sessions:${sessions.length} | ↑↓ history | /session <name>${stages.length > 0 ? " · /stage <key>" : ""}`}
         </Text>
       </Box>
     </Box>
