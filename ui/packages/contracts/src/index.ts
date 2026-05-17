@@ -99,6 +99,23 @@ export type UiWorkspaceSaveResult = {
   saved: boolean;
 };
 
+export type UiWorkspaceUploadTarget = "task_inputs" | "knowledge_intake";
+
+export type UiWorkspaceUploadRequest = {
+  target: UiWorkspaceUploadTarget;
+  session?: string;
+  filename: string;
+  content_base64: string;
+};
+
+export type UiWorkspaceUploadResult = {
+  path: string;
+  filename: string;
+  size: number;
+  target: string;
+  uploaded: boolean;
+};
+
 export type UiExpectedStage = {
   key?: string;
   label?: string;
@@ -335,6 +352,15 @@ export class CrisaiRuntimeClient {
       method: "POST",
       headers: this.requestHeaders({ json: true }),
       body: JSON.stringify({ path, content })
+    });
+    return this.readJson(response);
+  }
+
+  async uploadWorkspaceFile(request: UiWorkspaceUploadRequest): Promise<UiWorkspaceUploadResult> {
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/upload`, {
+      method: "POST",
+      headers: this.requestHeaders({ json: true }),
+      body: JSON.stringify(request)
     });
     return this.readJson(response);
   }

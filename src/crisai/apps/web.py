@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import os
+import re
 import secrets
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -63,6 +66,25 @@ app = FastAPI(title="crisAI Web", lifespan=_lifespan)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
 _UI_DIR = Path(__file__).parent / "ui"
 _MAX_COMPLETED_JOBS = 20
+_MAX_WORKSPACE_UPLOAD_BYTES = 25 * 1024 * 1024
+_UPLOAD_SUFFIXES = frozenset({
+    ".csv",
+    ".docx",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".json",
+    ".md",
+    ".mmd",
+    ".pdf",
+    ".png",
+    ".pptx",
+    ".txt",
+    ".webp",
+    ".xlsx",
+    ".yaml",
+    ".yml",
+})
 
 # Paths that always bypass auth (static assets served to the browser on load).
 _AUTH_PUBLIC_PATHS: frozenset[str] = frozenset({"/", "/app.js", "/styles.css"})
@@ -119,6 +141,15 @@ class WorkspaceFileSaveRequest(BaseModel):
 
     path: str = Field(min_length=1)
     content: str = Field(default="")
+
+
+class WorkspaceUploadRequest(BaseModel):
+    """Represent a web request to upload a source file into the workspace."""
+
+    target: str = Field(default="task_inputs")
+    session: str = Field(default="default")
+    filename: str = Field(min_length=1)
+    content_base64: str = Field(min_length=1)
 
 
 def _trace_file_path() -> Path:
@@ -486,6 +517,71 @@ def _assert_editable_workspace_file(path: Path) -> None:
         raise HTTPException(status_code=403, detail="File is outside editable workspace areas.")
     if path.suffix.lower() not in {".md", ".txt", ".mmd", ".json", ".yaml", ".yml"}:
         raise HTTPException(status_code=403, detail="This file type is not editable in the web UI.")
+
+
+def _safe_upload_filename(filename: str) -> str:
+    """Return a bounded filename safe for workspace upload paths."""
+    name = Path(filename).name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Upload filename is required.")
+    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", name).strip(" .")
+    if not safe:
+        raise HTTPException(status_code=422, detail="Upload filename has no usable characters.")
+    suffix = Path(safe).suffix.lower()
+    if suffix not in _UPLOAD_SUFFIXES:
+        raise HTTPException(status_code=403, detail=f"Upload file type is not allowed: {suffix or '<none>'}.")
+    if len(safe) <= 180:
+        return safe
+    stem = Path(safe).stem[: max(1, 180 - len(suffix))]
+    return f"{stem}{suffix}"
+
+
+def _upload_target_dir(payload: WorkspaceUploadRequest) -> Path:
+    """Resolve the upload target directory within the configured workspace."""
+    roots = _browser_roots()
+    if payload.target == "task_inputs":
+        session_name = sanitize_session_name(payload.session)
+        return _safe_workspace_path(f"{roots['tasks']}/{session_name}/inputs")
+    if payload.target == "knowledge_intake":
+        return _safe_workspace_path(f"{roots['knowledge']}/intake")
+    raise HTTPException(status_code=422, detail="Upload target must be task_inputs or knowledge_intake.")
+
+
+def _dedupe_upload_path(directory: Path, filename: str) -> Path:
+    """Return a non-existing path by adding a numeric suffix when needed."""
+    candidate = directory / filename
+    if not candidate.exists():
+        return candidate
+    path = Path(filename)
+    stem = path.stem
+    suffix = path.suffix
+    for index in range(1, 1000):
+        candidate = directory / f"{stem}-{index}{suffix}"
+        if not candidate.exists():
+            return candidate
+    raise HTTPException(status_code=409, detail="Too many uploaded files with the same name.")
+
+
+def upload_workspace_file(payload: WorkspaceUploadRequest) -> dict[str, Any]:
+    """Save one uploaded source file into a bounded workspace location."""
+    filename = _safe_upload_filename(payload.filename)
+    try:
+        content = base64.b64decode(payload.content_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Upload content must be valid base64.") from exc
+    if len(content) > _MAX_WORKSPACE_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Uploaded file exceeds the maximum allowed size.")
+    directory = _upload_target_dir(payload)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = _dedupe_upload_path(directory, filename)
+    path.write_bytes(content)
+    return {
+        "path": path.relative_to(_workspace_root()).as_posix(),
+        "filename": path.name,
+        "size": len(content),
+        "target": payload.target,
+        "uploaded": True,
+    }
 
 
 def _workspace_tree(base: Path) -> list[dict[str, Any]]:
@@ -1001,6 +1097,12 @@ async def api_v1_save_workspace_file(payload: WorkspaceFileSaveRequest) -> dict[
     return save_workspace_file(payload)
 
 
+@app.post("/api/v1/workspace/upload")
+async def api_v1_upload_workspace_file(payload: WorkspaceUploadRequest) -> dict[str, Any]:
+    """Upload one source file through the shared UI API."""
+    return upload_workspace_file(payload)
+
+
 @app.get("/api/config")
 async def app_config() -> dict[str, Any]:
     """Return user-facing web defaults."""
@@ -1095,6 +1197,12 @@ def save_workspace_file(payload: WorkspaceFileSaveRequest) -> dict[str, Any]:
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_text(payload.content, encoding="utf-8")
     return {"path": file_path.relative_to(_workspace_root()).as_posix(), "saved": True}
+
+
+@app.post("/api/workspace/upload")
+def save_workspace_upload(payload: WorkspaceUploadRequest) -> dict[str, Any]:
+    """Upload one source file into a task input or knowledge intake area."""
+    return upload_workspace_file(payload)
 
 
 def main() -> None:

@@ -7,6 +7,7 @@ endpoints. Agent execution is stubbed so no real LLM calls are made.
 from __future__ import annotations
 
 import asyncio
+import base64
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -487,6 +488,60 @@ def test_api_v1_workspace_read_and_save(
     assert save_resp.status_code == 200
     assert save_resp.json()["saved"] is True
     assert path.read_text(encoding="utf-8") == "# Updated\n"
+
+
+def test_api_v1_workspace_upload_task_inputs_dedupes_names(
+    client: _ASGITestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared UI upload stores files in the active task input folder."""
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+    payload = {
+        "target": "task_inputs",
+        "session": "demo task",
+        "filename": "Deck.pptx",
+        "content_base64": base64.b64encode(b"deck").decode("ascii"),
+    }
+
+    first_resp = client.post("/api/v1/workspace/upload", json=payload)
+    second_resp = client.post("/api/v1/workspace/upload", json=payload)
+
+    assert first_resp.status_code == 200
+    assert first_resp.json()["path"] == "tasks/demo_task/inputs/Deck.pptx"
+    assert second_resp.status_code == 200
+    assert second_resp.json()["path"] == "tasks/demo_task/inputs/Deck-1.pptx"
+    assert (workspace / "tasks/demo_task/inputs/Deck.pptx").read_bytes() == b"deck"
+    assert (workspace / "tasks/demo_task/inputs/Deck-1.pptx").read_bytes() == b"deck"
+
+
+def test_api_v1_workspace_upload_rejects_disallowed_suffix(
+    client: _ASGITestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared UI upload rejects executable or unknown source file types."""
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+
+    resp = client.post(
+        "/api/v1/workspace/upload",
+        json={
+            "target": "task_inputs",
+            "session": "demo",
+            "filename": "run.exe",
+            "content_base64": base64.b64encode(b"not really").decode("ascii"),
+        },
+    )
+
+    assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------

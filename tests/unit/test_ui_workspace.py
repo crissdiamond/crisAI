@@ -41,6 +41,8 @@ def test_contract_client_targets_v1_runtime_api() -> None:
     assert "createSession" in client_source
     assert "getWorkspaceTree" in client_source
     assert "saveWorkspaceFile" in client_source
+    assert "uploadWorkspaceFile" in client_source
+    assert "/api/v1/workspace/upload" in client_source
     assert "apiToken" in client_source
     assert "setApiToken" in client_source
     assert "authorization" in client_source
@@ -62,6 +64,9 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "HistoryPanel" in web_source
     assert "WorkspaceBrowser" in web_source
     assert "runtime.getWorkspaceTree" in web_source
+    assert "runtime.uploadWorkspaceFile" in web_source
+    assert "workspace-upload" in web_source
+    assert "fileToBase64" in web_source
     assert "VITE_CRISAI_API_KEY" in web_source
     assert "localStorage.getItem(apiKeyStorageKey)" in web_source
     assert "runtime.setApiToken" in web_source

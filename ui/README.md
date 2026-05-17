@@ -16,6 +16,7 @@ workspace access, and MCP tools. UI clients consume the local FastAPI v1 contrac
 - `GET /api/v1/workspace/tree/{root_name}`
 - `GET /api/v1/workspace/file`
 - `POST /api/v1/workspace/file`
+- `POST /api/v1/workspace/upload`
 - `GET /api/v1/ui/theme`
 
 Current status:
@@ -27,7 +28,8 @@ Current status:
 - `apps/web` is a React scaffold that can start runs, consume SSE events,
   apply registry-backed theme tokens, render expected stages, select/create
   sessions, show recent session history, browse/read/save editable workspace
-  files, and submit retrieval checkpoint decisions.
+  files, upload source documents to task inputs or knowledge intake, and submit
+  retrieval checkpoint decisions.
 - `apps/gem` is an Ink scaffold that uses the same contract, stage derivation,
   session APIs, and checkpoint commands (`/continue`, `/redirect <guidance>`,
   `/stop`).

@@ -187,7 +187,8 @@ shared `/api/v1` runtime, session, workspace, and theme contracts exposed by
 token, set `CRISAI_API_KEY` in `.env`. The `./start web-react` launcher maps it
 to `VITE_CRISAI_API_KEY` for Vite, and `./start gem-ink` passes it to Ink Gem.
 The launcher also maps `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` for
-local `.env` convenience.
+local `.env` convenience. React web can also upload local source documents into
+the current task inputs folder or the knowledge intake area for later retrieval.
 
 ## First Commands
 

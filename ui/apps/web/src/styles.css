@@ -263,13 +263,16 @@ pre {
   color: var(--color-primary-dark);
 }
 
-.workspace-controls {
+.workspace-controls,
+.workspace-upload {
   display: flex;
   flex-wrap: wrap;
+  align-items: end;
   gap: 12px;
 }
 
-.workspace-controls label {
+.workspace-controls label,
+.workspace-upload label {
   display: grid;
   gap: 4px;
 }

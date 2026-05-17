@@ -12,7 +12,8 @@ import {
   type UiRunState,
   type UiSessionState,
   type UiStageSummary,
-  type UiWorkspaceFileRecord
+  type UiWorkspaceFileRecord,
+  type UiWorkspaceUploadTarget
 } from "@crisai/contracts";
 import "./styles.css";
 
@@ -234,7 +235,7 @@ function App() {
         <HistoryPanel history={history} memorySummary={memorySummary} />
       </section>
 
-      <WorkspaceBrowser />
+      <WorkspaceBrowser session={session} />
     </main>
   );
 }
@@ -272,7 +273,7 @@ function HistoryPanel({ history, memorySummary }: { history: UiHistoryEntry[]; m
   );
 }
 
-function WorkspaceBrowser() {
+function WorkspaceBrowser({ session }: { session: string }) {
   const [roots, setRoots] = useState<Record<string, string>>({});
   const [rootName, setRootName] = useState("knowledge");
   const [files, setFiles] = useState<UiWorkspaceFileRecord[]>([]);
@@ -280,6 +281,8 @@ function WorkspaceBrowser() {
   const [selectedPath, setSelectedPath] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState("Workspace ready.");
+  const [uploadTarget, setUploadTarget] = useState<UiWorkspaceUploadTarget>("task_inputs");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   useEffect(() => {
     runtime
@@ -317,6 +320,21 @@ function WorkspaceBrowser() {
     setSelectedPath(result.path);
   }
 
+  async function uploadSelectedFile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!uploadFile) return;
+    const contentBase64 = await fileToBase64(uploadFile);
+    const result = await runtime.uploadWorkspaceFile({
+      target: uploadTarget,
+      session,
+      filename: uploadFile.name,
+      content_base64: contentBase64
+    });
+    setStatus(`Uploaded ${result.path}.`);
+    setUploadFile(null);
+    await loadTree(uploadTarget === "task_inputs" ? "tasks" : "knowledge");
+  }
+
   const visibleFiles = files.filter((file) => file.path.toLowerCase().includes(filter.toLowerCase()));
 
   return (
@@ -339,6 +357,23 @@ function WorkspaceBrowser() {
           <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Find files" />
         </label>
       </div>
+      <form className="workspace-upload" onSubmit={uploadSelectedFile}>
+        <label>
+          Upload target
+          <select
+            value={uploadTarget}
+            onChange={(event) => setUploadTarget(event.target.value as UiWorkspaceUploadTarget)}
+          >
+            <option value="task_inputs">Current task inputs</option>
+            <option value="knowledge_intake">Knowledge intake</option>
+          </select>
+        </label>
+        <label>
+          Source file
+          <input type="file" onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} />
+        </label>
+        <button type="submit" disabled={!uploadFile}>Upload</button>
+      </form>
       <div className="workspace-editor-grid">
         <div className="workspace-files">
           {visibleFiles.length === 0 ? <p>No files found.</p> : null}
@@ -368,6 +403,17 @@ function WorkspaceBrowser() {
       </div>
     </section>
   );
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(index, index + chunkSize));
+  }
+  return btoa(binary);
 }
 
 function Transcript({

@@ -167,6 +167,7 @@ web app and Ink Gem client:
 - `GET /api/v1/workspace/tree/{root_name}`
 - `GET /api/v1/workspace/file`
 - `POST /api/v1/workspace/file`
+- `POST /api/v1/workspace/upload`
 - `GET /api/v1/ui/theme`
 
 The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
@@ -195,10 +196,11 @@ launch helpers are:
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show
-recent session history, browse/read/save editable workspace files, and expose
-retrieval checkpoint continue, redirect, and stop actions directly. The Ink
-client accepts `/session <name>` and `/sessions` for session control, plus
-`/continue`, `/redirect <guidance>`, and `/stop` while a checkpoint is waiting.
+recent session history, browse/read/save editable workspace files, upload source
+documents to task inputs or knowledge intake, and expose retrieval checkpoint
+continue, redirect, and stop actions directly. The Ink client accepts `/session
+<name>` and `/sessions` for session control, plus `/continue`, `/redirect
+<guidance>`, and `/stop` while a checkpoint is waiting.
 When the FastAPI runtime is protected by a static bearer token, set
 `CRISAI_API_KEY` in `.env`. The shared TypeScript client sends the token as an
 `Authorization` header for normal requests and switches SSE from native
@@ -781,7 +783,7 @@ workspace/inputs/strategy.md
 
 Agents should work with paths relative to the workspace root.
 
-The web app exposes `Knowledge`, `Tasks`, and `Staging` browser panes with read/edit support for text-based workspace files. It is intended for quick Markdown edits and review, not as a replacement for a governed document management system.
+The web app exposes `Knowledge`, `Tasks`, and `Staging` browser panes with read/edit support for text-based workspace files. React web can upload common document, image, spreadsheet, and text source files to `workspace/tasks/<task>/inputs/` or `workspace/knowledge/intake/`. It is intended for quick source intake, Markdown edits, and review, not as a replacement for a governed document management system.
 
 ---
 

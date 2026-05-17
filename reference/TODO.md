@@ -86,7 +86,6 @@ The main product gaps are:
 | TODO-002 | P0 | todo | Streaming stage output | Streaming is the largest interactive UX improvement that does not require changing pipeline semantics. Users can see progress and abort earlier. | CLI streams per-stage output without exposing machine evidence JSON. Trace output remains complete. Web streaming is either implemented or tracked separately. |
 | TODO-003 | P0 | todo | Persistent retrieval cache | Repeated source reads during iterative tasks waste time and tokens. Evidence bundles can be reused when the query and source revision are unchanged. | Evidence bundles are cached by query fingerprint, source identity, and source revision/hash. Cache hits are visible in trace metadata. Stale entries are invalidated using provider revision metadata where available, such as ETag, source version, Graph `lastModifiedDateTime`, content hash, or configurable TTL expiry. |
 | TODO-026 | P0 | todo | Product and repository rename | `crisAI` was the prototype name. Before broader team adoption, the project should use a professional product, repository, package, CLI, docs, log, and MCP identity such as `Architecture Assistant`, `architecture-assistant`, `architecture_assistant`, and `arch-assistant`. Doing this early avoids team-facing churn later. | Rename the GitHub repository, Python package, CLI entry point, docs, UI labels, MCP server names, log labels, and setup instructions. Decide explicitly whether to keep a temporary `crisai` compatibility alias or remove it for a clean first team clone. Full test suite, doctor, packaging, and install-from-clone flow pass under the new name. |
-| TODO-041 | P0 | todo | API authentication and authorisation guard | The FastAPI boundary has zero authentication. Any deployment beyond a single user's localhost exposes all endpoints — including `/api/run` and `/api/v1/runs` which trigger LLM spend — to unauthenticated callers. VISION Principle 8 requires authenticated and authorised access before any network deployment. | All execution endpoints (`/api/run`, `/api/run/start`, `/api/v1/runs`, checkpoint, SSE stream) and workspace write endpoints require a valid bearer token or API key checked via a FastAPI `Depends` guard. The auth scheme is configurable (env-var token for single-user, extensible to multi-user RBAC). Unauthenticated requests return 401. Static asset and health endpoints are explicitly excluded. Tests cover authenticated and unauthenticated paths. Doctor validates that a non-empty auth secret is configured. |
 | TODO-042 | P1 | todo | Rate limiting on execution endpoints | `/api/run` and `/api/v1/runs` trigger LLM calls with no request-rate guard. A misconfigured client or accidental loop could exhaust the model provider budget before the user notices. VISION Principle 8 requires token spend to be rate-guarded. | Execution endpoints enforce a configurable per-key or per-IP rate limit (e.g. N requests per minute). Limit breach returns 429 with a `Retry-After` header. Limits are configured via registry or env var. Tests cover limit enforcement and bypass attempts. |
 | TODO-043 | P1 | todo | CI security scanning | The CI workflow runs linting, type checks, and tests but has no security scans. Dependency vulnerabilities, SAST issues, and accidental secret commits are not detected in CI. | Add `bandit` (Python SAST), `pip-audit` (dependency vulnerability check), and `gitleaks` or `detect-secrets` (secret scanning) as CI steps. Failures block merge. Configuration excludes known false positives. |
 | TODO-028 | P0 | todo | Block agent access to local auth and secret folders | MCP agents can read workspace files, while Microsoft Graph token caches and other sensitive runtime files live under local workspace/auth paths. Before team/shared-machine use, auth caches and secrets must be outside the readable agent surface. | Workspace, document, vision, export, and web file APIs deny read/list/search/edit access to `.auth`, `.tokens`, `.secrets`, logs, hidden runtime folders, and configured secret/cache paths. Tests cover traversal, direct reads, listing, search, and symlink-like edge cases where applicable. Doctor reports unsafe configured token/cache paths. |
@@ -131,61 +130,56 @@ The main product gaps are:
 1. Implement `TODO-036` next because retrieval checkpointing now protects the
    post-retrieval decision point, while routing transparency is still needed to
    show the inferred task contract before agents start spending tokens.
-2. Implement `TODO-041` before any non-localhost deployment or shared use.
-   Adding an API authentication guard is the single most important security step:
-   it makes all execution endpoints and workspace writes inaccessible without a
-   valid token. This should be a prerequisite for handing the tool to any second
-   user, even on the same machine.
-3. Implement `TODO-028` and `TODO-029` alongside or immediately after `TODO-041`,
-   because auth caches and secrets must not be readable by agents or other local
-   users regardless of whether the API boundary is authenticated.
-4. Implement `TODO-026` before broader team onboarding, because renaming after
+2. Implement `TODO-028` and `TODO-029` now that the API boundary is authenticated
+   (`TODO-041` done): auth caches and secrets must not be readable by agents or
+   other local users regardless of whether the API boundary is protected.
+3. Implement `TODO-026` before broader team onboarding, because renaming after
    users clone and configure the tool will create avoidable churn.
-5. Implement `TODO-037` alongside or immediately after `TODO-026`. A renamed
+4. Implement `TODO-037` alongside or immediately after `TODO-026`. A renamed
    product needs a clear setup path or team adoption remains friction-heavy
    regardless of the product name.
-6. Implement `TODO-030` and `TODO-031` before adding more protected source
+5. Implement `TODO-030` and `TODO-031` before adding more protected source
    connectors or enabling remote/custom MCPs for other users.
-7. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
+6. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
    Once auth is in place, rate-guarding the execution endpoints prevents token
    exhaustion from misconfigured clients or loops.
-8. Implement `TODO-043` (CI security scanning) as a one-time workflow change.
+7. Implement `TODO-043` (CI security scanning) as a one-time workflow change.
    Add bandit, pip-audit, and secret scanning to CI so vulnerabilities and
    accidentally staged secrets are caught at merge time, not after deployment.
-9. Implement `TODO-005` next, before the source connector engineering track.
+8. Implement `TODO-005` next, before the source connector engineering track.
    VISION near-term direction places cost tracking at #4, before authenticated
    website MCP. Measuring cost early lets model pairing and pipeline decisions
    be informed by real usage data.
-10. Implement `TODO-002` next because it improves perceived performance and gives
-    users earlier visibility into long-running stages.
-11. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
+9. Implement `TODO-002` next because it improves perceived performance and gives
+   users earlier visibility into long-running stages.
+10. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
     can participate in the same confirmation flow.
-12. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+11. Implement `TODO-017` (source connector capability contract) before `TODO-004`
     and `TODO-012`. Both new source adapters should be built against the contract
     from the start rather than retrofitted later.
-13. Implement `TODO-004` after the capability contract is in place. It creates
+12. Implement `TODO-004` after the capability contract is in place. It creates
     the secure generic pattern for OAuth-protected web sources before site-specific
     adapters proliferate.
-14. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
+13. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
     full web rebuild, because upload and structured editing are contained
     high-value features for non-technical architecture users.
     **Note:** design `TODO-024` and `TODO-025` with the future web architecture
     (`TODO-019`) in mind. If the scope cannot be carried forward with minimal rework
     when the rebuild happens, consider advancing `TODO-019` to a design phase first
     to avoid duplicating effort.
-15. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+14. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
     enterprise architecture quality track.
-16. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
+15. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
     assurance automation. The roles directory and assurance operating model
     define who can review, who can approve, which artefacts require sign-off,
     and how asynchronous document movement should be audited.
-17. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
+16. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
     Dynamic model selection and API fallback should be built together so model
     choices and failure behaviour are governed by the same registry policy.
-18. Implement `TODO-040` before any deeper web/Gem UX work. The new surfaces
+17. Implement `TODO-040` before any deeper web/Gem UX work. The new surfaces
     should consume the shared event contract instead of adding more behaviour
     to the legacy static web app or Textual scaffold.
-19. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+18. Treat `TODO-019` as the final alignment step for CLI workflow changes that
     affect user-visible execution semantics.
 
 ## Done
@@ -195,3 +189,4 @@ Completed items should move here with the merge commit or PR reference.
 | ID | Item | Reference |
 |---|---|---|
 | TODO-001 | Human checkpoint after retrieval | `b1959b9 feat(pipeline): add retrieval checkpoint` |
+| TODO-041 | API authentication and authorisation guard (Phase 1 — static bearer token) | `2ea5457 feat(security): add Bearer token auth guard`, `800e2d7 fix(security): harden api bearer comparison` |
