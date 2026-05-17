@@ -185,6 +185,41 @@ registry drives the behaviour of both the runtime and the source adapters, so
 tuning routing, agents, models, or source capabilities remains a configuration
 change rather than a code change.
 
+## Technology Decisions
+
+The choices below are deliberate. Do not propose alternatives without strong
+justification — they were selected for architectural coherence, not convenience.
+
+- **Runtime — Python**: All agent orchestration, pipeline execution, routing,
+  registry loading, and MCP adapter code is Python. The runtime evolves
+  independently of the experience layer.
+- **API boundary — FastAPI (REST + SSE)**: The single integration point between
+  any experience surface and the Python runtime. New surfaces connect here; they
+  do not reach into the runtime or adapters directly.
+- **Experience layer — TypeScript**: The target surfaces are React (web), Ink
+  (CLI, planned), and React Native (mobile, planned). Shared API call logic and
+  component model reduce duplication across surfaces. The current CLI is
+  Python/Typer and the current web front end is static HTML/CSS/JS served by
+  FastAPI — both are migration targets, not the target architecture.
+- **Source adapters — MCP over stdio**: Each source category (workspace,
+  documents, Microsoft 365, authenticated web) has its own MCP server. The
+  runtime issues tool calls; adapters are stateless and independently
+  deployable. Do not route source access through HTTP endpoints or direct
+  library calls.
+- **Configuration — YAML registry**: Agent definitions, model assignments,
+  semantic vocabulary, intent routing, and source adapter configuration all
+  live in YAML under `registry/`. Behaviour changes are registry edits, not
+  code changes. Do not hardcode routing terms, intent patterns, or agent
+  parameters in Python source.
+- **Artefact format — Markdown + Mermaid**: All generated architecture artefacts
+  are authored and stored as Markdown with embedded Mermaid diagrams. DOCX,
+  PPTX, PDF, and image formats are export outputs generated from reviewed
+  Markdown, not source formats.
+- **LLM access — Anthropic SDK**: The runtime communicates with language models
+  through the Anthropic SDK. Each agent is assigned a Claude model via the
+  registry. Do not introduce alternative LLM providers or SDKs without
+  discussing the impact on the registry model and cost observability.
+
 ## Near-Term Direction
 
 The near-term focus should be pipeline trust and UX:
