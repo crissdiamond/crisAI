@@ -136,6 +136,55 @@ crisAI should evolve around these stable building blocks:
 - **CLI and web surfaces** that expose the same routing, stage, checkpoint, and
   trace semantics.
 
+The diagram below shows how these building blocks relate and where the key
+architectural boundary sits.
+
+```mermaid
+flowchart TD
+    subgraph XP["Experience Layer — TypeScript"]
+        direction LR
+        CLI["Ink CLI"]
+        WEB["React Web"]
+        MOB["React Native\n(planned)"]
+    end
+
+    BOUNDARY(["FastAPI · REST + SSE\n— single API boundary —"])
+
+    subgraph RT["Python Runtime"]
+        ROUTE["Router\n& Task Contracts"]
+        PIPE["Pipelines\nsingle · pipeline · peer"]
+        AG["Agent Orchestration\n13 specialist agents"]
+        MEM["Session Memory\n& Evidence Contracts"]
+        ROUTE --> PIPE --> AG
+        AG <--> MEM
+    end
+
+    subgraph MCPL["MCP Source Adapters — stdio"]
+        direction LR
+        WS["Workspace"]
+        DOC["Documents\nDiagrams · Vision · Export"]
+        MS["Microsoft 365\nSharePoint · Intranet"]
+        EXT["Authenticated Web\nData Catalogue\n(planned)"]
+    end
+
+    REG[/"Registry — YAML\nagents · models · servers\nsemantic catalog · graph · policies"/]
+
+    CLI -->|"REST / SSE"| BOUNDARY
+    WEB -->|"REST / SSE"| BOUNDARY
+    MOB -->|"REST / SSE"| BOUNDARY
+    BOUNDARY --> ROUTE
+    AG -->|"tool calls"| MCPL
+    REG -.->|"configures"| RT
+    REG -.->|"configures"| MCPL
+```
+
+The experience layer and the Python runtime evolve independently. Any new client
+surface — a VS Code extension, a Teams bot, a CI integration — connects via the
+same FastAPI boundary without touching the runtime or the MCP adapters. The
+registry drives the behaviour of both the runtime and the source adapters, so
+tuning routing, agents, models, or source capabilities remains a configuration
+change rather than a code change.
+
 ## Near-Term Direction
 
 The near-term focus should be pipeline trust and UX:
