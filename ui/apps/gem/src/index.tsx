@@ -15,8 +15,10 @@ import {
   type UiStageSummary
 } from "@crisai/contracts";
 
+const runtimeBaseUrl = process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000";
+
 const runtime = new CrisaiRuntimeClient({
-  baseUrl: process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000",
+  baseUrl: runtimeBaseUrl,
   apiToken: process.env.CRISAI_API_KEY ?? process.env.CRISAI_API_TOKEN,
   eventSourceFactory: (url) => new EventSource(url) as unknown as globalThis.EventSource
 });
@@ -48,7 +50,7 @@ function GemApp() {
     runtime
       .listSessions()
       .then(applySessionState)
-      .catch((reason: unknown) => setError(String(reason)));
+      .catch((reason: unknown) => setError(formatRuntimeError(reason)));
   }, []);
 
   useInput((input, key) => {
@@ -103,7 +105,7 @@ function GemApp() {
         () => setError("Runtime event stream disconnected.")
       );
     } catch (reason) {
-      setError(String(reason));
+      setError(formatRuntimeError(reason));
     }
   }
 
@@ -124,7 +126,7 @@ function GemApp() {
       const state = await runtime.createSession(requested);
       applySessionState(state);
     } catch (reason) {
-      setError(String(reason));
+      setError(formatRuntimeError(reason));
     }
   }
 
@@ -196,6 +198,14 @@ function GemApp() {
       </Box>
     </Box>
   );
+}
+
+function formatRuntimeError(reason: unknown): string {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (message.toLowerCase().includes("fetch failed")) {
+    return `Cannot reach crisAI API at ${runtimeBaseUrl}. Start it in another terminal with './start api' or set CRISAI_RUNTIME_URL.`;
+  }
+  return message;
 }
 
 function StageLine({ stage }: { stage: UiStageSummary }) {

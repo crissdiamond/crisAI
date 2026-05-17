@@ -73,5 +73,7 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "deriveStageSummaries(events" in gem_source
     assert "/redirect <guidance>" in gem_source
     assert "/session <name>" in gem_source
+    assert "formatRuntimeError" in gem_source
+    assert "Start it in another terminal with './start api'" in gem_source
     assert "CRISAI_API_KEY" in gem_source
     assert "CRISAI_API_TOKEN" in gem_source
