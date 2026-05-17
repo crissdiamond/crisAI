@@ -75,14 +75,14 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "VITE_CRISAI_API_KEY" in web_source
     assert "localStorage.getItem(apiKeyStorageKey)" in web_source
     assert "runtime.setApiToken" in web_source
-    assert "deriveStageSummaries(events" in gem_source
+    assert "deriveStageSummaries(activeEvents" in gem_source
     assert "latestLiveStageEvent" in gem_source
     assert "commandHistory" in gem_source
     assert "buildStatusMetrics" in gem_source
     assert "CRISAI_GEM_WIDTH" in gem_source
     assert "CRISAI_GEM_HEIGHT" in gem_source
     assert "gemTerminalThemeFromPalette(palette)" in gem_source
-    assert "buildEventLines(events, error, outputPanelWidth, notice)" in gem_source
+    assert "buildEventLines(activeEvents, error, outputPanelWidth, notice)" in gem_source
     assert "ScrollPane lines={panelLines}" in gem_source
     assert "checkpointDecisionLines().map" in gem_source
     assert "decision needed" in gem_source
