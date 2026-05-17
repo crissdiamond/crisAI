@@ -8,6 +8,7 @@ ASSIGNMENTS="$ROOT_DIR/reference/development/session_assignments.local.yaml"
 DRY_RUN=0
 HEADLESS=0
 EXTRA_ARGS=()
+LAUNCHED_NAMES=()
 
 usage() {
   cat <<'EOF'
@@ -76,6 +77,45 @@ extract_names() {
   sed -n 's/^Names: //p' | tr ' ' '\n' | sed '/^$/d'
 }
 
+name_from_hcom_list() {
+  local tag="$1"
+  local provider="$2"
+  local assigned_csv
+  assigned_csv="$(IFS=,; printf '%s' "${LAUNCHED_NAMES[*]-}")"
+
+  hcom list --json | ASSIGNED_NAMES="$assigned_csv" python -c '
+import json
+import os
+import sys
+
+tag = sys.argv[1]
+provider = sys.argv[2].lower()
+assigned = {name for name in os.environ.get("ASSIGNED_NAMES", "").split(",") if name}
+
+try:
+    agents = json.load(sys.stdin)
+except json.JSONDecodeError:
+    agents = []
+
+matches = []
+for agent in agents:
+    name = agent.get("name", "")
+    if name in assigned:
+        continue
+    if agent.get("tag") != tag:
+        continue
+    if str(agent.get("tool", "")).lower() != provider:
+        continue
+    if str(agent.get("status", "")).lower() in {"inactive", "unknown"}:
+        continue
+    matches.append(agent)
+
+matches.sort(key=lambda item: str(item.get("created_at", "")))
+if matches:
+    print(matches[-1].get("name", ""))
+' "$tag" "$provider"
+}
+
 run_cmd() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf 'DRY RUN:' >&2
@@ -116,6 +156,9 @@ launch_agent() {
   printf '%s\n' "$output" >&2
   local name
   name="$(printf '%s\n' "$output" | extract_names | head -n 1)"
+  if [[ -z "$name" ]]; then
+    name="$(name_from_hcom_list "$tag" "$provider" | head -n 1)"
+  fi
   if [[ -z "$name" ]]; then
     echo "Could not parse hcom launched name for role $role." >&2
     exit 1
@@ -163,24 +206,31 @@ sessions:
 EOF
 
 name="$(launch_agent orchestrator_codex codex crisai-orchestrator . reference/development/roles/orchestrator_codex.md root)"
+LAUNCHED_NAMES+=("$name")
 write_assignment "$name" orchestrator_codex root codex crisai-orchestrator
 
 name="$(launch_agent runtime_codex codex crisai-runtime runtime reference/development/roles/runtime_codex.md runtime)"
+LAUNCHED_NAMES+=("$name")
 write_assignment "$name" runtime_codex runtime codex crisai-runtime
 
 name="$(launch_agent runtime_claude claude crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
+LAUNCHED_NAMES+=("$name")
 write_assignment "$name" runtime_claude runtime claude crisai-runtime
 
 name="$(launch_agent gem_codex codex crisai-gem gem reference/development/roles/gem_codex.md gem)"
+LAUNCHED_NAMES+=("$name")
 write_assignment "$name" gem_codex gem codex crisai-gem
 
 name="$(launch_agent gem_claude claude crisai-gem gem reference/development/roles/gem_claude.md gem)"
+LAUNCHED_NAMES+=("$name")
 write_assignment "$name" gem_claude gem claude crisai-gem
 
 name="$(launch_agent web_codex codex crisai-web web reference/development/roles/web_codex.md web)"
+LAUNCHED_NAMES+=("$name")
 write_assignment "$name" web_codex web codex crisai-web
 
 name="$(launch_agent web_claude claude crisai-web web reference/development/roles/web_claude.md web)"
+LAUNCHED_NAMES+=("$name")
 write_assignment "$name" web_claude web claude crisai-web
 
 echo "hcom team assignment written to $ASSIGNMENTS"
