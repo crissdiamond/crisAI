@@ -40,8 +40,8 @@ foundation:
 
 The main product gaps are:
 
-- pipeline runs now include a retrieval checkpoint, but the initial routing and
-  task-contract decision is not yet shown before agent execution;
+- pipeline runs now include a retrieval checkpoint and expose the initial
+  routing/task-contract decision before agent execution;
 - long stages do not stream output, so users cannot judge progress early;
 - retrieval does not persist validated evidence across iterative runs;
 - the prototype name `crisAI` is not yet aligned with a professional product,
@@ -59,8 +59,8 @@ The main product gaps are:
 - session memory is configurable globally, but not yet by task type, mode, or
   architecture workload profile, which can cause aggressive context collapse on
   extended architecture sessions;
-- the web app can browse and edit workspace files, but users cannot upload
-  source documents directly into a task or intake space;
+- the React web app can browse, edit, and upload workspace files; the legacy
+  static web app still has less capability;
 - the web file editor is Markdown/text-oriented, which is too technical for
   users who want structured editing of architecture artefacts without Markdown
   knowledge;
@@ -103,12 +103,10 @@ The main product gaps are:
 | TODO-012 | P1 | todo | Enterprise data catalogue MCP | Data architecture work needs direct access to glossary terms, data products, schemas, lineage, owners, classifications, and quality metadata. SharePoint documents are not enough. | Add a provider-shaped MCP for at least one catalogue family, preferably Microsoft Purview first, with search/fetch tools, lineage/owner metadata, registry config, evidence source references, and mocked tests. Keep Collibra/Atlan as future adapters. |
 | TODO-017 | P1 | todo | Source connector capability contract | More MCP sources are coming. Agents and router need to know source capabilities without prompt patches or hardcoded assumptions. This is a prerequisite for TODO-004 and TODO-012 to avoid retrofitting the contract after those adapters are built. | Add registry metadata for source capabilities such as search, fetch, list, auth, source type, evidence level, binary support, pagination, and freshness. Retrieval prompts and tests consume this metadata. |
 | TODO-021 | P1 | todo | Document export fidelity | `render_docx_from_markdown` does line-by-line paragraph output. Markdown tables are not rendered as DOCX tables, and non-linear template section mapping (where DOCX heading order differs from Markdown heading order) is not supported. Business-ready documents require both. | Export server maps Markdown tables to native DOCX table objects. Template manifests can declare a section-to-content mapping so source sections fill named template headings in non-document order. Tests cover table round-trip and non-linear mapping. Diagram embedding is tracked separately in TODO-010. |
-| TODO-024 | P1 | todo | Web document upload | Architects often start with local decks, PDFs, spreadsheets, and Word documents. The web app should let users upload those directly into the appropriate workspace task or intake area instead of manually copying files into the repository. | Web UI supports document upload with allowed suffix and size validation, safe path handling, duplicate-name strategy, target selection for current task inputs or `workspace/knowledge/intake/`, and immediate listing in the workspace browser. Uploaded files are readable by document MCP tools. Tests cover API validation, path safety, duplicate handling, and UI flow. |
 | TODO-025 | P1 | todo | Structured web artefact editor | The current web editor exposes raw Markdown, which is efficient for developers but not friendly for architects who want to review and refine HLDs, options papers, decisions, and data architecture artefacts without learning Markdown syntax. | Add a structured editor for supported artefact profiles with section navigation, form-like fields for metadata/front matter, rich text controls for paragraphs and lists, table editing, Mermaid preview/edit affordances, validation feedback, and Markdown round-trip persistence. Raw Markdown remains available as an advanced/source mode. |
 | TODO-033 | P1 | todo | Architecture roles and people directory design | Agents need a reliable, governed source of truth for architecture stakeholders before they can route review, assurance, or sign-off tasks. This should describe roles, functions, scope, architecture area, and contact channels without hardcoding people in prompts. | Design a `reference/`-based people/roles structure with fields for role, function, scope, domain/area, authority level, contact details, preferred channel, escalation path, and ownership boundaries. Include privacy/security guidance, sample entries, validation expectations, and how agents may use the directory. |
 | TODO-034 | P1 | todo | Human assurance and sign-off operating model design | Architecture artefacts such as HLDs, option papers, ADRs, and technical designs need accountable human review and sign-off. The workflow must be designed before adding agents or tools, because it affects governance, document state, auditability, and exception handling. | Produce an ADR/design note defining review states, responsibilities, review gates, artefact types, sign-off criteria, exception paths, audit trail requirements, ownership handoffs, and the difference between AI critique, human assurance, and formal approval. |
 | TODO-035 | P1 | todo | Assurance agents and asynchronous review tooling design | A new agent or set of agents may support review-pack preparation, reviewer routing, submission tracking, reminders, and approval-state updates, but those roles must be narrowly scoped and tied to human accountability. | Design the agent roles, allowed tools, MCP/server needs, state model, document submission flow, shared-location strategy, and failure handling for asynchronous review. Cover SharePoint/Teams first, with provider-neutral extension points for other document stores or workflow systems. No implementation until TODO-033 and TODO-034 are complete. |
-| TODO-036 | P1 | todo | Routing decision transparency | VISION Principle 7 states routing decisions should be visible. Users currently have no confirmation of what task intent, deliverable type, and evidence level the router inferred before a pipeline runs. A misread intent is only discovered after tokens are spent. | At the start of any pipeline or peer run, the inferred task contract (primary intent, deliverable type, evidence level, selected mode) is shown to the user as a one-line summary or brief structured block before the first agent stage executes. The display uses the same registry vocabulary as the semantic graph. CLI and web surfaces both expose this. Tests cover the display path. |
 | TODO-037 | P1 | todo | First-run and team onboarding experience | TODO-026 covers the rename, but there is no item for the practical onboarding path a new team member follows after cloning. Without a clear setup guide and first-run validation, team adoption remains friction-heavy regardless of the product name. | Add a team onboarding guide (README section or separate doc) covering environment prerequisites, `.env` setup, API key configuration, first-run `doctor` output, model provider smoke tests, and a short example run. `doctor` validates all required env variables at startup and emits actionable messages for common setup errors. Tests cover `.env.example` completeness and doctor env-var checks. |
 | TODO-039 | P1 | todo | Configurable Gem themes and templates | Gem should use UCL-aligned defaults, but teams and organisations may need alternate terminal palettes, layout density, and component templates without editing Python code. | Add registry/config-backed Gem theme and layout templates with defaults for UCL dark, UCL light, and high-contrast. `crisai gem` loads the selected template from config, validates required tokens, falls back safely, and documents how teams can customise colours/backgrounds while preserving accessibility. Tests cover template loading, fallback, and token validation. |
 | TODO-040 | P1 | in-progress | React web and Ink Gem on shared UI contract | The shared `ui_event_v1` and `/api/v1/runs` contract plus initial React/Ink scaffolds are in place, but the current web UI is still static JavaScript and Gem is still a Textual scaffold. Both new clients need parity before launch paths switch. | React web and Ink Gem consume `/api/v1/runs`, `/api/v1/runs/{id}`, `/api/v1/runs/{id}/events`, `/api/v1/runs/{id}/checkpoint`, and `/api/v1/ui/theme` with production-quality stage rendering, checkpoint UX, final output, error states, install docs, and CI type checks. Remove the Textual scaffold after Ink parity. |
@@ -127,59 +125,56 @@ The main product gaps are:
 
 ## Recommended Sequencing
 
-1. Implement `TODO-036` next because retrieval checkpointing now protects the
-   post-retrieval decision point, while routing transparency is still needed to
-   show the inferred task contract before agents start spending tokens.
-2. Implement `TODO-028` and `TODO-029` now that the API boundary is authenticated
+1. Implement `TODO-028` and `TODO-029` now that the API boundary is authenticated
    (`TODO-041` done): auth caches and secrets must not be readable by agents or
    other local users regardless of whether the API boundary is protected.
-3. Implement `TODO-026` before broader team onboarding, because renaming after
+2. Implement `TODO-026` before broader team onboarding, because renaming after
    users clone and configure the tool will create avoidable churn.
-4. Implement `TODO-037` alongside or immediately after `TODO-026`. A renamed
+3. Implement `TODO-037` alongside or immediately after `TODO-026`. A renamed
    product needs a clear setup path or team adoption remains friction-heavy
    regardless of the product name.
-5. Implement `TODO-030` and `TODO-031` before adding more protected source
+4. Implement `TODO-030` and `TODO-031` before adding more protected source
    connectors or enabling remote/custom MCPs for other users.
-6. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
+5. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
    Once auth is in place, rate-guarding the execution endpoints prevents token
    exhaustion from misconfigured clients or loops.
-7. Implement `TODO-043` (CI security scanning) as a one-time workflow change.
+6. Implement `TODO-043` (CI security scanning) as a one-time workflow change.
    Add bandit, pip-audit, and secret scanning to CI so vulnerabilities and
    accidentally staged secrets are caught at merge time, not after deployment.
-8. Implement `TODO-005` next, before the source connector engineering track.
+7. Implement `TODO-005` next, before the source connector engineering track.
    VISION near-term direction places cost tracking at #4, before authenticated
    website MCP. Measuring cost early lets model pairing and pipeline decisions
    be informed by real usage data.
-9. Implement `TODO-002` next because it improves perceived performance and gives
+8. Implement `TODO-002` next because it improves perceived performance and gives
    users earlier visibility into long-running stages.
-10. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
+9. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
     can participate in the same confirmation flow.
-11. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+10. Implement `TODO-017` (source connector capability contract) before `TODO-004`
     and `TODO-012`. Both new source adapters should be built against the contract
     from the start rather than retrofitted later.
-12. Implement `TODO-004` after the capability contract is in place. It creates
+11. Implement `TODO-004` after the capability contract is in place. It creates
     the secure generic pattern for OAuth-protected web sources before site-specific
     adapters proliferate.
-13. Implement `TODO-024` and `TODO-025` with the web UX track, ideally before the
-    full web rebuild, because upload and structured editing are contained
-    high-value features for non-technical architecture users.
-    **Note:** design `TODO-024` and `TODO-025` with the future web architecture
+12. Implement `TODO-025` with the web UX track, ideally before the full web
+    rebuild, because structured editing is a contained high-value feature for
+    non-technical architecture users.
+    **Note:** design `TODO-025` with the future web architecture
     (`TODO-019`) in mind. If the scope cannot be carried forward with minimal rework
     when the rebuild happens, consider advancing `TODO-019` to a design phase first
     to avoid duplicating effort.
-14. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+13. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
     enterprise architecture quality track.
-15. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
+14. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
     assurance automation. The roles directory and assurance operating model
     define who can review, who can approve, which artefacts require sign-off,
     and how asynchronous document movement should be audited.
-16. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
+15. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
     Dynamic model selection and API fallback should be built together so model
     choices and failure behaviour are governed by the same registry policy.
-17. Implement `TODO-040` before any deeper web/Gem UX work. The new surfaces
+16. Implement `TODO-040` before any deeper web/Gem UX work. The new surfaces
     should consume the shared event contract instead of adding more behaviour
     to the legacy static web app or Textual scaffold.
-18. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+17. Treat `TODO-019` as the final alignment step for CLI workflow changes that
     affect user-visible execution semantics.
 
 ## Done
@@ -190,3 +185,5 @@ Completed items should move here with the merge commit or PR reference.
 |---|---|---|
 | TODO-001 | Human checkpoint after retrieval | `b1959b9 feat(pipeline): add retrieval checkpoint` |
 | TODO-041 | API authentication and authorisation guard (Phase 1 — static bearer token) | `2ea5457 feat(security): add Bearer token auth guard`, `800e2d7 fix(security): harden api bearer comparison` |
+| TODO-024 | Web document upload | `a2b3f5c docs(todo): mark TODO-041 done and update sequencing` |
+| TODO-036 | Routing decision transparency | `feat(ui): expose request contract before execution` |

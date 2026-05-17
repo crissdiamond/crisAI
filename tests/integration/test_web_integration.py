@@ -16,6 +16,9 @@ import httpx
 import pytest
 
 from crisai.apps.web import RunRequest, app
+from crisai.orchestration.request_contract import infer_request_contract
+
+REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
 
 
 @dataclass
@@ -50,6 +53,14 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _ASGITestClient:
     monkeypatch.setattr("crisai.apps.web._session_name_newest_by_mtime", lambda: None)
     monkeypatch.setattr("crisai.apps.web.configure_logging", lambda *a, **kw: None)
     monkeypatch.setattr("crisai.apps.web.load_settings", lambda: _make_settings(tmp_path))
+    monkeypatch.setattr(
+        "crisai.apps.web._resolve_request_contract",
+        lambda payload, decision: infer_request_contract(
+            payload.message,
+            current_mode=getattr(decision, "mode", "auto"),
+            registry_dir=REGISTRY_DIR,
+        ),
+    )
     return _ASGITestClient()
 
 
@@ -191,6 +202,9 @@ def test_api_v1_run_start_returns_shared_ui_state(
     assert body["events"][0]["schema_version"] == "ui_event_v1"
     assert body["events"][0]["event_type"] == "run_created"
     assert body["events"][1]["event_type"] == "routing_decision"
+    assert body["events"][2]["event_type"] == "task_contract"
+    assert "Intent:" in body["events"][2]["content"]
+    assert "```json" not in body["events"][2]["content"]
 
 
 def test_run_start_rejects_concurrent_run(

@@ -58,6 +58,10 @@ from crisai.cli.status_views import (
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging, get_logger
 from crisai.orchestration.exceptions import WorkflowValidationError
+from crisai.orchestration.request_contract import (
+    infer_request_contract,
+    render_request_contract_brief,
+)
 from crisai.orchestration.retrieval_checkpoint import (
     RetrievalCheckpointDecision,
     RetrievalCheckpointSnapshot,
@@ -360,6 +364,21 @@ def _render_runtime_error(exc: Exception) -> None:
     print_status_message(
         "Unexpected runtime error. Check logs/ (agent_trace.jsonl, crisai.log, *_mcp.log) for details.",
         title="❌ Unexpected error",
+    )
+
+
+def _request_contract_display(user_input: str, decision: RoutingDecision) -> str:
+    """Return the user-facing request contract summary for a routed run."""
+    settings = load_settings()
+    contract = infer_request_contract(
+        user_input,
+        current_mode=str(getattr(decision, "mode", "") or "auto"),
+        registry_dir=Path(settings.registry_dir),
+    )
+    return render_request_contract_brief(
+        contract,
+        selected_mode=str(getattr(decision, "mode", "") or ""),
+        selected_agent=str(getattr(decision, "agent", "") or ""),
     )
 
 
@@ -785,7 +804,6 @@ def _run_classic_chat(
         agent_pinned=True if (agent_id != "orchestrator") else False,
     )
 
-    last_route_line: str | None = None
     prompt_session: PromptSession[str] | None = None
     prompt_session_name: str | None = None
     gemini_display = GeminiChatDisplay() if _chat_uses_fullscreen_experience(state) else None
@@ -861,9 +879,10 @@ def _run_classic_chat(
         decision = _apply_decision_overrides(runtime_user_input, explicit_mode, decision)
 
         current_route_line = route_display(decision)
-        if current_route_line != last_route_line and gemini_display is None:
+        request_contract_line = _request_contract_display(runtime_user_input, decision)
+        if gemini_display is None:
             print_status_message(current_route_line, title="🧭 Routing decision")
-            last_route_line = current_route_line
+            print_status_message(request_contract_line, title="📋 Task contract")
 
         async def _run() -> str:
             return await _run_with_routing(
@@ -890,9 +909,8 @@ def _run_classic_chat(
                 try:
                     with gemini_display.live():
                         gemini_display.update_status(_gemini_status_from_state(state, activity="routing"))
-                        if current_route_line != last_route_line:
-                            print_status_message(current_route_line, title="🧭 Routing decision")
-                            last_route_line = current_route_line
+                        print_status_message(current_route_line, title="🧭 Routing decision")
+                        print_status_message(request_contract_line, title="📋 Task contract")
                         gemini_display.update_status(_gemini_status_from_state(state, activity="working"))
                         with _suppress_console_info_logs():
                             text = _run_async(_run())

@@ -171,9 +171,9 @@ web app and Ink Gem client:
 - `GET /api/v1/ui/theme`
 
 The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
-stage progress, retrieval checkpoints, final answers, and failures. The legacy
-`/api/run/*` endpoints remain available for the current static web interface
-during the migration.
+task-contract transparency, stage progress, retrieval checkpoints, final
+answers, and failures. The legacy `/api/run/*` endpoints remain available for
+the current static web interface during the migration.
 
 The future React and Ink clients are scaffolded in `ui/`:
 
@@ -613,7 +613,7 @@ Its purpose is simple:
 
 ### 9.1 Runtime workflow policy gates
 
-Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, workspace output paths, and resolved session anchors. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations.
+Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, workspace output paths, and resolved session anchors. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations. Classic CLI and the shared v1 UI contract expose a human-readable task contract before agent execution so users can see the inferred intent, deliverable, evidence level, source requirement, and selected workflow before tokens are spent.
 
 After routing selects a mode/agent path, crisAI applies a generic runtime policy layer from `registry/workflow_policy.yaml`:
 

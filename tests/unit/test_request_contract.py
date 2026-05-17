@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from crisai.orchestration.request_contract import infer_request_contract
+from crisai.orchestration.request_contract import (
+    infer_request_contract,
+    render_request_contract_brief,
+)
 
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
 
@@ -46,3 +49,19 @@ def test_request_contract_keeps_pasted_text_summary_source_free() -> None:
     assert contract.is_summary is True
     assert contract.source_required is False
     assert contract.actions == ("summarize",)
+
+
+def test_request_contract_brief_is_human_readable_not_json() -> None:
+    contract = infer_request_contract(
+        "Use the pipeline. Summarise the latest Integration Strategy document from OneDrive.",
+        registry_dir=REGISTRY_DIR,
+    )
+
+    rendered = render_request_contract_brief(contract, selected_mode="pipeline", selected_agent="summary")
+
+    assert "Intent: summarize_source" in rendered
+    assert "Deliverable: document_summary" in rendered
+    assert "Workflow: pipeline" in rendered
+    assert "Agent: summary" in rendered
+    assert "```json" not in rendered
+    assert "schema_version" not in rendered

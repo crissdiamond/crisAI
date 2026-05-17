@@ -163,6 +163,33 @@ def render_request_contract_block(contract: RequestContract) -> str:
     return "```json\n" + contract.to_json() + "\n```"
 
 
+def render_request_contract_brief(
+    contract: RequestContract,
+    *,
+    selected_mode: str | None = None,
+    selected_agent: str | None = None,
+) -> str:
+    """Render a user-facing request contract summary without machine JSON."""
+    task = contract.task_contract
+    source_text = "yes" if contract.source_required else "no"
+    if contract.source_families:
+        source_text = f"{source_text} ({', '.join(contract.source_families)})"
+    lines = [
+        f"Intent: {task.primary_intent}",
+        f"Deliverable: {task.deliverable_type}",
+        f"Evidence required: {contract.required_evidence_level}",
+        f"Source lookup: {source_text}",
+        f"Workflow: {selected_mode or contract.workflow_preference}",
+    ]
+    if selected_agent:
+        lines.append(f"Agent: {selected_agent}")
+    if contract.output_path:
+        lines.append(f"Output path: {contract.output_path}")
+    if contract.actions:
+        lines.append(f"Actions: {', '.join(contract.actions)}")
+    return "\n".join(lines)
+
+
 def _load_catalog(registry_dir: Path | None) -> SemanticCatalog:
     if registry_dir is None:
         return load_semantic_catalog()

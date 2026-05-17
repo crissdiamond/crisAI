@@ -47,6 +47,10 @@ from crisai.cli.session_store import (
 from crisai.config import load_settings
 from crisai.logging_utils import configure_logging
 from crisai.orchestration.exceptions import WorkflowValidationError
+from crisai.orchestration.request_contract import (
+    infer_request_contract,
+    render_request_contract_brief,
+)
 from crisai.orchestration.retrieval_checkpoint import (
     RetrievalCheckpointDecision,
     RetrievalCheckpointSnapshot,
@@ -322,6 +326,17 @@ def _resolve_decision(payload: RunRequest):
     return _apply_decision_overrides(message, explicit_mode, decision)
 
 
+def _resolve_request_contract(payload: RunRequest, decision: Any):
+    """Resolve a user-facing request contract for UI transparency."""
+    message = normalise_legacy_workspace_paths(payload.message)
+    settings = load_settings()
+    return infer_request_contract(
+        message,
+        current_mode=str(getattr(decision, "mode", "") or payload.mode or "auto"),
+        registry_dir=Path(settings.registry_dir),
+    )
+
+
 def _to_http_exception(exc: Exception) -> HTTPException:
     """Map runtime failures to user-facing HTTP errors."""
     message = str(exc).strip() or "Unknown runtime error."
@@ -344,6 +359,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
     trace_path = _trace_file_path()
     before_size = trace_path.stat().st_size if trace_path.exists() else 0
     decision = _resolve_decision(payload)
+    request_contract = _resolve_request_contract(payload, decision)
     session_name = sanitize_session_name(payload.session)
     history = load_history(session_name)
     runtime_message = normalise_legacy_workspace_paths(payload.message)
@@ -373,6 +389,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
 
     return {
         "decision": asdict(decision),
+        "request_contract": request_contract.to_dict(),
         "final_output": sanitize_user_visible_text(final_output),
         "stage_outputs": stage_outputs,
     }
@@ -854,6 +871,7 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="Another run is already in progress.")
 
     decision = _resolve_decision(payload)
+    request_contract = _resolve_request_contract(payload, decision)
     trace_path = _trace_file_path()
     before_size = trace_path.stat().st_size if trace_path.exists() else 0
     job_id = uuid4().hex
@@ -863,6 +881,7 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         "payload": payload,
         "decision": decision,
         "decision_data": asdict(decision),
+        "request_contract": request_contract.to_dict(),
         "before_size": before_size,
         "run_id": None,
         "stage_outputs": [],
@@ -904,12 +923,37 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
             metadata=asdict(decision),
         ),
     )
+    _append_job_event(
+        job_id,
+        make_ui_event(
+            "task_contract",
+            run_id=job_id,
+            session=sanitize_session_name(payload.session),
+            status="running",
+            title="Task contract",
+            summary=(
+                f"{request_contract.primary_intent} -> "
+                f"{request_contract.deliverable_type}; evidence: "
+                f"{request_contract.required_evidence_level}."
+            ),
+            content=render_request_contract_brief(
+                request_contract,
+                selected_mode=str(getattr(decision, "mode", "") or ""),
+                selected_agent=str(getattr(decision, "agent", "") or ""),
+            ),
+            mode=getattr(decision, "mode", None),
+            agent_id=getattr(decision, "agent", None),
+            stage="task_contract",
+            metadata=request_contract.to_dict(),
+        ),
+    )
     _RUN_JOBS[job_id]["task"] = asyncio.create_task(_run_job(job_id, payload, decision))
     _evict_old_jobs()
 
     return {
         "job_id": job_id,
         "decision": asdict(decision),
+        "request_contract": request_contract.to_dict(),
         "expected_tabs": _expected_flow_tabs(decision),
     }
 

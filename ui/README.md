@@ -24,7 +24,8 @@ Current status:
 - `packages/contracts` defines shared TypeScript types and a small runtime API client.
   The client can attach `Authorization: Bearer <token>` to HTTP requests and
   uses a fetch-based SSE reader when a token is configured, because browser
-  `EventSource` cannot send custom headers.
+  `EventSource` cannot send custom headers. Run events include routing decisions
+  and a human-readable task contract before agent execution starts.
 - `apps/web` is a React scaffold that can start runs, consume SSE events,
   apply registry-backed theme tokens, render expected stages, select/create
   sessions, show recent session history, browse/read/save editable workspace
