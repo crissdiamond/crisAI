@@ -16,8 +16,6 @@ from typing import Any
 
 import typer
 from prompt_toolkit import PromptSession
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.history import FileHistory
 
 from crisai.cli.artefact_lifecycle import persist_reusable_deliverable
 from crisai.cli.chat_context import (
@@ -27,23 +25,15 @@ from crisai.cli.chat_context import (
 )
 from crisai.cli.chat_controller import ChatRuntimeState, handle_chat_command
 from crisai.cli.display import (
-    get_bottom_toolbar,
     print_final_answer,
     print_final_recommendation,
     print_status_message,
-    reset_active_display_sink,
-    reset_active_runtime_footer,
     sanitize_user_visible_text,
-    set_active_display_sink,
-    set_active_runtime_footer,
     update_terminal_title,
 )
-from crisai.cli.gem_app import run_gem_app
-from crisai.cli.gemini_chat import GeminiChatDisplay, GeminiChatStatus
 from crisai.cli.session_store import (
     clear_cli_history,
     clear_history,
-    cli_history_file,
     list_task_names,
     load_history,
     save_history,
@@ -397,50 +387,6 @@ def _close_chat_session(state: ChatRuntimeState) -> None:
     print_status_message("Exiting.", title="👋 Session closed")
 
 
-def _chat_uses_fullscreen_experience(state: ChatRuntimeState) -> bool:
-    """Return whether interactive chat should use the persistent live layout."""
-    configured = str(getattr(state.settings.ui, "cli_experience", "classic") or "classic").strip().lower()
-    if configured in {"classic", "rich", "legacy"}:
-        return False
-    if configured not in {"fullscreen", "gemini", "live"}:
-        return False
-    return sys.stdin.isatty() and sys.stdout.isatty()
-
-
-def _gemini_status_from_state(state: ChatRuntimeState, *, activity: str = "idle", stage: str | None = None) -> GeminiChatStatus:
-    """Build the footer state used by the Gemini-style chat display."""
-    return GeminiChatStatus(
-        session=state.current_session,
-        mode=state.current_mode,
-        agent=state.current_agent if state.agent_pinned else "auto",
-        model=state.settings.model.default_model,
-        verbose=state.current_verbose,
-        review=state.current_review,
-        retrieval_checkpoint=state.current_retrieval_checkpoint,
-        mode_pinned=state.mode_pinned,
-        agent_pinned=state.agent_pinned,
-        activity=activity,
-        current_stage=stage,
-    )
-
-
-def _runtime_footer_from_state(state: ChatRuntimeState, *, activity: str = "working") -> str:
-    """Return the status footer shown during classic long-running stages."""
-    return (
-        get_bottom_toolbar(
-            session=state.current_session,
-            mode=state.current_mode,
-            agent=state.current_agent,
-            model=state.settings.model.default_model,
-            verbose=state.current_verbose,
-            review=state.current_review,
-            retrieval_checkpoint=state.current_retrieval_checkpoint,
-            mode_pinned=state.mode_pinned,
-            agent_pinned=state.agent_pinned,
-        )
-        + f"| {activity} "
-    )
-
 
 def _is_benign_ssl_shutdown_context(context: dict[str, Any]) -> bool:
     """Return whether an asyncio loop error context is a benign SSL shutdown noise."""
@@ -775,261 +721,6 @@ def ask(
         update_terminal_title("ready")
         _render_runtime_error(exc)
 
-
-def _run_classic_chat(
-    *,
-    agent_id: str,
-    session: str,
-    pipeline: bool,
-    peer: bool,
-    review: bool,
-    verbose: bool,
-    retrieval_checkpoint: bool,
-    no_retrieval_checkpoint: bool,
-) -> None:
-    """Start the stable classic interactive crisAI chat session."""
-    update_terminal_title("ready")
-    initial_session = _resolve_initial_chat_session(session)
-    checkpoint_override = _resolve_checkpoint_override(retrieval_checkpoint, no_retrieval_checkpoint)
-    checkpoint_default = load_settings().retrieval_checkpoint_enabled if checkpoint_override is None else checkpoint_override
-    state = ChatRuntimeState(
-        current_session=initial_session,
-        history=load_history(initial_session),
-        current_mode="peer" if peer else "pipeline" if pipeline else "single",
-        current_agent=agent_id,
-        current_review=review,
-        current_verbose=verbose,
-        current_retrieval_checkpoint=checkpoint_default,
-        mode_pinned=True if (peer or pipeline) else False,
-        agent_pinned=True if (agent_id != "orchestrator") else False,
-    )
-
-    prompt_session: PromptSession[str] | None = None
-    prompt_session_name: str | None = None
-    gemini_display = GeminiChatDisplay() if _chat_uses_fullscreen_experience(state) else None
-
-    while True:
-        try:
-            update_terminal_title("input")
-            if gemini_display is not None:
-                gemini_display.update_status(_gemini_status_from_state(state, activity="input"))
-            if prompt_session is None or prompt_session_name != state.current_session:
-                prompt_session = PromptSession(
-                    history=FileHistory(str(cli_history_file(state.current_session))),
-                    auto_suggest=AutoSuggestFromHistory(),
-                )
-                prompt_session_name = state.current_session
-            user_input = prompt_session.prompt(
-                "> ",
-                bottom_toolbar=lambda: get_bottom_toolbar(
-                    session=state.current_session,
-                    mode=state.current_mode,
-                    agent=state.current_agent,
-                    model=state.settings.model.default_model,
-                    verbose=state.current_verbose,
-                    review=state.current_review,
-                    retrieval_checkpoint=state.current_retrieval_checkpoint,
-                    mode_pinned=state.mode_pinned,
-                    agent_pinned=state.agent_pinned,
-                ),
-            ).strip()
-            update_terminal_title("working")
-        except (EOFError, KeyboardInterrupt):
-            _close_chat_session(state)
-            break
-
-        if not user_input:
-            continue
-
-        if gemini_display is not None:
-            gemini_display.update_status(_gemini_status_from_state(state, activity="command"))
-        try:
-            if gemini_display is None:
-                handled = handle_chat_command(user_input, state)
-            else:
-                token = set_active_display_sink(gemini_display)
-                try:
-                    with gemini_display.live():
-                        handled = handle_chat_command(user_input, state)
-                        gemini_display.update_status(_gemini_status_from_state(state, activity="idle"))
-                finally:
-                    reset_active_display_sink(token)
-        except EOFError:
-            _close_chat_session(state)
-            break
-
-        if handled:
-            continue
-
-        context_package = build_runtime_context_package(user_input, state.history, session_name=state.current_session)
-        if context_package.drift_nudge:
-            print_status_message(context_package.drift_nudge, title="💡 Session context")
-        chat_input = context_package.prompt
-        runtime_user_input = normalise_legacy_workspace_paths(user_input)
-        explicit_mode = _detect_explicit_mode(runtime_user_input)
-        mode_override = state.current_mode if state.mode_pinned else explicit_mode
-        agent_override = state.current_agent if state.agent_pinned else None
-
-        decision = _resolve_route(
-            runtime_user_input,
-            review_enabled=state.current_review,
-            mode_override=mode_override,
-            agent_override=agent_override,
-        )
-        decision = _apply_decision_overrides(runtime_user_input, explicit_mode, decision)
-
-        current_route_line = route_display(decision)
-        request_contract_line = _request_contract_display(runtime_user_input, decision)
-        if gemini_display is None:
-            print_status_message(current_route_line, title="🧭 Routing decision")
-            print_status_message(request_contract_line, title="📋 Task contract")
-
-        async def _run() -> str:
-            return await _run_with_routing(
-                chat_input,
-                state.current_verbose,
-                state.current_review,
-                decision,
-                user_intent_message=runtime_user_input,
-                session_name=state.current_session,
-                retrieval_checkpoint_enabled=state.current_retrieval_checkpoint,
-                retrieval_checkpoint_handler=_prompt_retrieval_checkpoint,
-            )
-
-        try:
-            if gemini_display is None:
-                footer_token = set_active_runtime_footer(_runtime_footer_from_state(state))
-                try:
-                    with _suppress_console_info_logs():
-                        text = _run_async(_run())
-                finally:
-                    reset_active_runtime_footer(footer_token)
-            else:
-                token = set_active_display_sink(gemini_display)
-                try:
-                    with gemini_display.live():
-                        gemini_display.update_status(_gemini_status_from_state(state, activity="routing"))
-                        print_status_message(current_route_line, title="🧭 Routing decision")
-                        print_status_message(request_contract_line, title="📋 Task contract")
-                        gemini_display.update_status(_gemini_status_from_state(state, activity="working"))
-                        with _suppress_console_info_logs():
-                            text = _run_async(_run())
-                finally:
-                    reset_active_display_sink(token)
-        except Exception as exc:  # noqa: BLE001
-            if gemini_display is None:
-                _render_runtime_error(exc)
-            else:
-                token = set_active_display_sink(gemini_display)
-                try:
-                    with gemini_display.live():
-                        gemini_display.update_status(_gemini_status_from_state(state, activity="error"))
-                        _render_runtime_error(exc)
-                finally:
-                    reset_active_display_sink(token)
-            _persist_failed_chat_turn(state, user_input, exc)
-            continue
-
-        text = persist_reusable_deliverable(
-            session_name=state.current_session,
-            user_input=runtime_user_input,
-            final_output=text,
-            registry_dir=load_settings().registry_dir,
-        )
-        if gemini_display is None:
-            _render_final_output(decision, text)
-        else:
-            token = set_active_display_sink(gemini_display)
-            try:
-                with gemini_display.live():
-                    gemini_display.update_status(_gemini_status_from_state(state, activity="final"))
-                    _render_final_output(decision, text)
-            finally:
-                reset_active_display_sink(token)
-
-        state.history.append(("user", user_input))
-        state.history.append(("assistant", sanitize_user_visible_text(text)))
-        save_history(state.current_session, state.history)
-        update_session_memory(state.current_session, state.history)
-        update_terminal_title("ready")
-        if gemini_display is not None:
-            gemini_display.update_status(_gemini_status_from_state(state, activity="idle"))
-
-
-@app.command()
-def classic(
-    agent_id: str = typer.Option("orchestrator", "--agent"),
-    session: str = typer.Option("default", "--session", "-s", help="Persistent chat session name."),
-    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible retrieval planner / design / review / orchestrator pipeline."),
-    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
-    review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
-    retrieval_checkpoint: bool = typer.Option(
-        False,
-        "--retrieval-checkpoint",
-        help="Enable the retrieval checkpoint for this chat session.",
-    ),
-    no_retrieval_checkpoint: bool = typer.Option(
-        False,
-        "--no-retrieval-checkpoint",
-        help="Disable the retrieval checkpoint for this chat session.",
-    ),
-) -> None:
-    """Start the stable classic crisAI chat experience."""
-    _run_classic_chat(
-        agent_id=agent_id,
-        session=session,
-        pipeline=pipeline,
-        peer=peer,
-        review=review,
-        verbose=verbose,
-        retrieval_checkpoint=retrieval_checkpoint,
-        no_retrieval_checkpoint=no_retrieval_checkpoint,
-    )
-
-
-@app.command()
-def chat(
-    agent_id: str = typer.Option("orchestrator", "--agent"),
-    session: str = typer.Option("default", "--session", "-s", help="Persistent chat session name."),
-    pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible retrieval planner / design / review / orchestrator pipeline."),
-    peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
-    review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
-    retrieval_checkpoint: bool = typer.Option(
-        False,
-        "--retrieval-checkpoint",
-        help="Enable the retrieval checkpoint for this chat session.",
-    ),
-    no_retrieval_checkpoint: bool = typer.Option(
-        False,
-        "--no-retrieval-checkpoint",
-        help="Disable the retrieval checkpoint for this chat session.",
-    ),
-) -> None:
-    """Compatibility alias for ``crisai classic``."""
-    classic(
-        agent_id=agent_id,
-        session=session,
-        pipeline=pipeline,
-        peer=peer,
-        review=review,
-        verbose=verbose,
-        retrieval_checkpoint=retrieval_checkpoint,
-        no_retrieval_checkpoint=no_retrieval_checkpoint,
-    )
-
-
-@app.command()
-def gem() -> None:
-    """Start the future full-screen crisAI Gem terminal UI."""
-    exit_code = run_gem_app()
-    if exit_code != 0:
-        print_status_message(
-            "Gem needs the Textual dependency. Run `pip install -e .` in this environment, or use `crisai classic` for the stable CLI.",
-            title="💎 crisAI Gem",
-        )
-        raise typer.Exit(exit_code)
 
 
 def _run_ui_workspace_script(script: str) -> None:

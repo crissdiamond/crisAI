@@ -163,7 +163,6 @@ class TestLoadSettings:
         settings = load_settings()
         assert settings.retrieval_checkpoint_enabled is True
         assert settings.retrieval_checkpoint_max_redirects == 2
-        assert settings.ui.cli_experience == "classic"
         assert settings.ui.terminal_title_enabled is False
 
     @mock.patch.dict(
@@ -179,12 +178,6 @@ class TestLoadSettings:
         settings = load_settings()
         assert settings.retrieval_checkpoint_enabled is False
         assert settings.retrieval_checkpoint_max_redirects == 3
-
-    @mock.patch.dict("os.environ", {"OPENAI_API_KEY": "test-key", "CRISAI_CLI_EXPERIENCE": "classic"})
-    def test_cli_experience_env_override(self):
-        """CLI experience should respect the environment override."""
-        settings = load_settings()
-        assert settings.ui.cli_experience == "classic"
 
     @mock.patch.dict("os.environ", {"OPENAI_API_KEY": "test-key", "CRISAI_TERMINAL_TITLE_ENABLED": "true"})
     def test_terminal_title_env_override(self):
