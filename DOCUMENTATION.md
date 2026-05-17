@@ -199,6 +199,11 @@ recent session history, browse/read/save editable workspace files, and expose
 retrieval checkpoint continue, redirect, and stop actions directly. The Ink
 client accepts `/session <name>` and `/sessions` for session control, plus
 `/continue`, `/redirect <guidance>`, and `/stop` while a checkpoint is waiting.
+When the FastAPI runtime is protected by a static bearer token, set
+`VITE_CRISAI_API_TOKEN` for the React app and `CRISAI_API_TOKEN` for Ink Gem.
+The shared TypeScript client sends the token as an `Authorization` header for
+normal requests and switches SSE from native `EventSource` to a fetch-based
+reader, because browser `EventSource` cannot attach custom headers.
 
 ---
 

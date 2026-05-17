@@ -17,6 +17,7 @@ import {
 
 const runtime = new CrisaiRuntimeClient({
   baseUrl: process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000",
+  apiToken: process.env.CRISAI_API_TOKEN,
   eventSourceFactory: (url) => new EventSource(url) as unknown as globalThis.EventSource
 });
 

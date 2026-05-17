@@ -129,7 +129,12 @@ export type CheckpointDecision = {
 
 export type CrisaiClientOptions = {
   baseUrl?: string;
+  apiToken?: string;
   eventSourceFactory?: (url: string) => EventSource;
+};
+
+export type UiEventSubscription = {
+  close: () => void;
 };
 
 export const terminalEventTypes: UiEventType[] = ["run_completed", "run_failed"];
@@ -224,17 +229,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export class CrisaiRuntimeClient {
   readonly baseUrl: string;
+  private readonly apiToken?: string;
   private readonly eventSourceFactory?: (url: string) => EventSource;
 
   constructor(options: CrisaiClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? defaultBaseUrl).replace(/\/$/, "");
+    this.apiToken = options.apiToken;
     this.eventSourceFactory = options.eventSourceFactory;
   }
 
   async startRun(request: UiRunRequest): Promise<UiRunState> {
     const response = await fetch(`${this.baseUrl}/api/v1/runs`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.requestHeaders({ json: true }),
       body: JSON.stringify({
         mode: "auto",
         agent: "auto",
@@ -248,14 +255,16 @@ export class CrisaiRuntimeClient {
   }
 
   async getRun(runId: string): Promise<UiRunState> {
-    const response = await fetch(`${this.baseUrl}/api/v1/runs/${encodeURIComponent(runId)}`);
+    const response = await fetch(`${this.baseUrl}/api/v1/runs/${encodeURIComponent(runId)}`, {
+      headers: this.requestHeaders()
+    });
     return this.readJson(response);
   }
 
   async submitCheckpoint(runId: string, decision: CheckpointDecision): Promise<{ status: string; action: string }> {
     const response = await fetch(`${this.baseUrl}/api/v1/runs/${encodeURIComponent(runId)}/checkpoint`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.requestHeaders({ json: true }),
       body: JSON.stringify({
         redirect_instruction: "",
         ...decision
@@ -265,56 +274,71 @@ export class CrisaiRuntimeClient {
   }
 
   async getTheme(): Promise<UiTheme> {
-    const response = await fetch(`${this.baseUrl}/api/v1/ui/theme`);
+    const response = await fetch(`${this.baseUrl}/api/v1/ui/theme`, {
+      headers: this.requestHeaders()
+    });
     return this.readJson(response);
   }
 
   async listSessions(): Promise<UiSessionState> {
-    const response = await fetch(`${this.baseUrl}/api/v1/sessions`);
+    const response = await fetch(`${this.baseUrl}/api/v1/sessions`, {
+      headers: this.requestHeaders()
+    });
     return this.readJson(response);
   }
 
   async createSession(session: string): Promise<UiSessionState> {
     const response = await fetch(`${this.baseUrl}/api/v1/sessions`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.requestHeaders({ json: true }),
       body: JSON.stringify({ session })
     });
     return this.readJson(response);
   }
 
   async getSession(session: string): Promise<UiSessionState> {
-    const response = await fetch(`${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}`);
+    const response = await fetch(`${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}`, {
+      headers: this.requestHeaders()
+    });
     return this.readJson(response);
   }
 
   async getWorkspaceRoots(): Promise<UiWorkspaceRoots> {
-    const response = await fetch(`${this.baseUrl}/api/v1/workspace/roots`);
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/roots`, {
+      headers: this.requestHeaders()
+    });
     return this.readJson(response);
   }
 
   async getWorkspaceTree(rootName: string): Promise<UiWorkspaceTree> {
-    const response = await fetch(`${this.baseUrl}/api/v1/workspace/tree/${encodeURIComponent(rootName)}`);
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/tree/${encodeURIComponent(rootName)}`, {
+      headers: this.requestHeaders()
+    });
     return this.readJson(response);
   }
 
   async getWorkspaceFile(path: string): Promise<UiWorkspaceFile> {
     const query = new URLSearchParams({ path });
-    const response = await fetch(`${this.baseUrl}/api/v1/workspace/file?${query.toString()}`);
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/file?${query.toString()}`, {
+      headers: this.requestHeaders()
+    });
     return this.readJson(response);
   }
 
   async saveWorkspaceFile(path: string, content: string): Promise<UiWorkspaceSaveResult> {
     const response = await fetch(`${this.baseUrl}/api/v1/workspace/file`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.requestHeaders({ json: true }),
       body: JSON.stringify({ path, content })
     });
     return this.readJson(response);
   }
 
-  subscribe(runId: string, onEvent: (event: UiEvent) => void, onError?: (error: Event) => void): EventSource {
+  subscribe(runId: string, onEvent: (event: UiEvent) => void, onError?: (error: Event) => void): UiEventSubscription {
     const url = `${this.baseUrl}/api/v1/runs/${encodeURIComponent(runId)}/events`;
+    if (this.apiToken) {
+      return this.subscribeWithFetch(url, onEvent, onError);
+    }
     const createEventSource = this.eventSourceFactory ?? ((target) => new EventSource(target));
     const source = createEventSource(url);
     const eventTypes: UiEventType[] = [
@@ -341,6 +365,72 @@ export class CrisaiRuntimeClient {
       source.onerror = onError;
     }
     return source;
+  }
+
+  private requestHeaders(options: { json?: boolean } = {}): HeadersInit {
+    const headers: Record<string, string> = {};
+    if (options.json) {
+      headers["content-type"] = "application/json";
+    }
+    if (this.apiToken) {
+      headers.authorization = `Bearer ${this.apiToken}`;
+    }
+    return headers;
+  }
+
+  private subscribeWithFetch(
+    url: string,
+    onEvent: (event: UiEvent) => void,
+    onError?: (error: Event) => void
+  ): UiEventSubscription {
+    const controller = new AbortController();
+    void this.readEventStream(url, controller.signal, onEvent).catch(() => {
+      if (!controller.signal.aborted && onError) {
+        onError(new Event("error"));
+      }
+    });
+    return {
+      close: () => controller.abort()
+    };
+  }
+
+  private async readEventStream(
+    url: string,
+    signal: AbortSignal,
+    onEvent: (event: UiEvent) => void
+  ): Promise<void> {
+    const response = await fetch(url, {
+      headers: this.requestHeaders(),
+      signal
+    });
+    if (!response.ok) {
+      await this.readJson(response);
+      return;
+    }
+    if (!response.body) {
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (!signal.aborted) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split(/\r?\n\r?\n/);
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const data = frame
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trimStart())
+          .join("\n");
+        if (data) {
+          onEvent(JSON.parse(data) as UiEvent);
+        }
+      }
+    }
   }
 
   private async readJson<T>(response: Response): Promise<T> {

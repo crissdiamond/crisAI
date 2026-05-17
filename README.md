@@ -183,7 +183,9 @@ Experimental React and Ink UI scaffolds live under `ui/`. They consume the
 shared `/api/v1` runtime, session, workspace, and theme contracts exposed by
 `./start web`, but they are not yet the default launch path. After
 `npm --prefix ui install`, run them explicitly with `./start web-react` or
-`./start gem-ink`.
+`./start gem-ink`. If the FastAPI runtime is protected with a static bearer
+token, pass it to the React client with `VITE_CRISAI_API_TOKEN` and to Ink Gem
+with `CRISAI_API_TOKEN`.
 
 ## First Commands
 

@@ -21,6 +21,9 @@ workspace access, and MCP tools. UI clients consume the local FastAPI v1 contrac
 Current status:
 
 - `packages/contracts` defines shared TypeScript types and a small runtime API client.
+  The client can attach `Authorization: Bearer <token>` to HTTP requests and
+  uses a fetch-based SSE reader when a token is configured, because browser
+  `EventSource` cannot send custom headers.
 - `apps/web` is a React scaffold that can start runs, consume SSE events,
   apply registry-backed theme tokens, render expected stages, select/create
   sessions, show recent session history, browse/read/save editable workspace
@@ -31,3 +34,10 @@ Current status:
 
 The existing static web app and Textual Gem remain active until these clients
 reach parity.
+
+Auth-aware local development:
+
+- React web reads `VITE_CRISAI_API_TOKEN`.
+- Ink Gem reads `CRISAI_API_TOKEN`.
+- Both still work without a token when the local FastAPI runtime does not
+  require one.
