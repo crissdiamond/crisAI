@@ -565,6 +565,16 @@ def test_api_endpoint_accessible_with_correct_token(
     assert resp.status_code == 200
 
 
+def test_auth_middleware_uses_constant_time_compare() -> None:
+    """Bearer comparison should use constant-time comparison."""
+    import inspect
+
+    from crisai.apps import web as web_mod
+
+    source = inspect.getsource(web_mod._auth_middleware)
+    assert "secrets.compare_digest" in source
+
+
 def test_static_assets_bypass_auth(
     client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import secrets
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -78,7 +79,7 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
     if not api_key or request.url.path in _AUTH_PUBLIC_PATHS:
         return await call_next(request)
     auth = request.headers.get("authorization", "")
-    if not auth.startswith("Bearer ") or auth[len("Bearer "):] != api_key:
+    if not auth.startswith("Bearer ") or not secrets.compare_digest(auth[len("Bearer "):], api_key):
         return Response(
             content='{"detail":"Unauthorized"}',
             status_code=401,
@@ -690,7 +691,7 @@ def _evict_old_jobs(max_completed: int = _MAX_COMPLETED_JOBS) -> None:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index() -> HTMLResponse:
+async def index() -> HTMLResponse:
     """Return the single-page web interface."""
     html = _read_ui_asset("index.html")
     return HTMLResponse(
@@ -704,7 +705,7 @@ def index() -> HTMLResponse:
 
 
 @app.get("/app.js")
-def app_js() -> Response:
+async def app_js() -> Response:
     """Return frontend JavaScript for the web interface."""
     script = _read_ui_asset("app.js")
     return Response(
@@ -719,7 +720,7 @@ def app_js() -> Response:
 
 
 @app.get("/styles.css")
-def styles_css() -> Response:
+async def styles_css() -> Response:
     """Return stylesheet for web interface."""
     css = _read_ui_asset("styles.css").replace(
         "__HISTORY_MAX_LINES__", str(UI_CONFIG.history_max_lines)
