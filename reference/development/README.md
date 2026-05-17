@@ -18,6 +18,24 @@ Codex remains the main implementation agent. Claude agents review, challenge,
 and make small focused patches when requested. The orchestrator owns planning,
 cross-area coordination, final integration, and Git metadata writes.
 
+## Claude Memory MCP
+
+Claude memory MCP is a required part of the development-team operating model.
+It is the shared memory layer for all hcom streams, so agents do not need to
+replay long transcripts or rely only on their current provider session.
+
+Use memory for:
+
+- user goals, constraints, and success criteria;
+- active task assignments and ownership boundaries;
+- design decisions and their rationale;
+- implementation summaries and changed areas;
+- review conclusions, risks, and unresolved blockers.
+
+Do not store secrets, API keys, auth tokens, or private credential material.
+hcom should carry short coordination messages and bundle references; Claude
+memory should carry durable project context.
+
 ## Start Here
 
 - [Operating model](operating_model.md): responsibilities, launch flow,

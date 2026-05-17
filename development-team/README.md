@@ -15,6 +15,24 @@ focused patches inside their assigned area. The Claude memory MCP server is the
 shared durable context layer across agent streams; hcom is used for concise
 coordination and bundles.
 
+## Claude Memory MCP
+
+Claude memory MCP is a required part of this development-team setup. It is the
+shared memory layer for all hcom streams, so agents do not need to replay long
+transcripts or rely only on their current provider session.
+
+Use memory for:
+
+- user goals, constraints, and success criteria;
+- active task assignments and ownership boundaries;
+- design decisions and their rationale;
+- implementation summaries and changed areas;
+- review conclusions, risks, and unresolved blockers.
+
+Do not store secrets, API keys, auth tokens, or private credential material.
+hcom should carry short coordination messages and bundle references; Claude
+memory should carry durable project context.
+
 ## Architecture
 
 ```mermaid
