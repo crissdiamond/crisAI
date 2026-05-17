@@ -94,6 +94,10 @@ export type PromptView = {
 
 export type PromptDeleteDirection = "backward" | "forward";
 
+export type StartupPasteReplayState = {
+  pendingSequence: string | null;
+};
+
 export const defaultGemTerminalTheme: GemTerminalTheme = {
   accent: "magenta",
   border: "blue",
@@ -279,7 +283,43 @@ export function normalizePromptInput(input: string): string {
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .replace(/\t/g, "  ")
+    .replace(/(?:\x1b)?\[(?:200|201)~/g, "")
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+}
+
+export function resolvePromptPasteInput(input: string, rawSequence = ""): string {
+  if (rawSequence.includes("\x1b[200~") || input.startsWith("[200~")) {
+    return rawSequence || `\x1b${input}`;
+  }
+  return input;
+}
+
+export function shouldBufferStartupPaste(rawSequence: string): boolean {
+  return rawSequence.includes("\x1b[200~");
+}
+
+export function bufferStartupPaste(
+  state: StartupPasteReplayState,
+  rawSequence: string
+): StartupPasteReplayState {
+  return shouldBufferStartupPaste(rawSequence) ? { pendingSequence: rawSequence } : state;
+}
+
+export function markStartupPasteHandled(
+  state: StartupPasteReplayState,
+  rawSequence: string
+): StartupPasteReplayState {
+  return state.pendingSequence === rawSequence ? { pendingSequence: null } : state;
+}
+
+export function consumeStartupPasteReplay(state: StartupPasteReplayState): {
+  state: StartupPasteReplayState;
+  sequence: string | null;
+} {
+  return {
+    state: { pendingSequence: null },
+    sequence: state.pendingSequence
+  };
 }
 
 export function insertPromptText(state: PromptBufferState, input: string): PromptBufferState {

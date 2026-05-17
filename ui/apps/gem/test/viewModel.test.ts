@@ -6,6 +6,8 @@ import {
   checkpointDecisionLines,
   clampScrollTop,
   buildPromptView,
+  bufferStartupPaste,
+  consumeStartupPasteReplay,
   deletePromptBackward,
   deletePromptForward,
   fallbackGemHeight,
@@ -14,6 +16,7 @@ import {
   gemTerminalThemeFromPalette,
   insertPromptText,
   maximumStageSidebarWidth,
+  markStartupPasteHandled,
   minimumGemHeight,
   minimumGemWidth,
   minimumStageSidebarWidth,
@@ -34,11 +37,13 @@ import {
   resolvePanelLines,
   resolvePanelContentHeight,
   resolvePromptDeleteDirection,
+  resolvePromptPasteInput,
   resolveRunsListIndex,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
   runSummaryTitle,
+  shouldBufferStartupPaste,
   sidebarStages,
   stageVisual,
   truncateStageLabel,
@@ -383,6 +388,45 @@ test("prompt paste preserves first line and bracketed-paste initial characters",
 
   assert.equal(inserted.text, "prefix First line\nSecond line\nThird line");
   assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("startup paste preserves first line when Ink strips the leading escape", () => {
+  const raw = "\u001b[200~First line\r\nSecond line\u001b[201~";
+  const inkInput = "[200~First line\r\nSecond line\u001b[201~";
+
+  const fromRaw = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(inkInput, raw));
+  const fromFallback = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(inkInput, ""));
+
+  assert.equal(fromRaw.text, "First line\nSecond line");
+  assert.equal(fromFallback.text, "First line\nSecond line");
+  assert.equal(fromRaw.cursor, "First line\nSecond line".length);
+});
+
+test("startup paste replay buffers only raw bracketed paste and cancels on normal handling", () => {
+  const raw = "\u001b[200~First line\r\nSecond line\u001b[201~";
+  const empty = { pendingSequence: null };
+  const buffered = bufferStartupPaste(empty, raw);
+  const normal = bufferStartupPaste(empty, "First line\r\nSecond line");
+  const handled = markStartupPasteHandled(buffered, raw);
+  const replay = consumeStartupPasteReplay(buffered);
+
+  assert.equal(shouldBufferStartupPaste(raw), true);
+  assert.equal(shouldBufferStartupPaste("First line\r\nSecond line"), false);
+  assert.deepEqual(normal, empty);
+  assert.deepEqual(handled, empty);
+  assert.equal(replay.sequence, raw);
+  assert.deepEqual(replay.state, empty);
+});
+
+test("startup paste replay preserves prepared prompt when useInput missed first event", () => {
+  const raw = "\u001b[200~First line\r\nSecond line\u001b[201~";
+  const replay = consumeStartupPasteReplay(bufferStartupPaste({ pendingSequence: null }, raw));
+  assert(replay.sequence !== null);
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, replay.sequence);
+
+  assert.equal(inserted.text, "First line\nSecond line");
+  assert.equal(inserted.cursor, "First line\nSecond line".length);
 });
 
 test("prompt deletion treats terminal DEL backspace as left delete and Delete key as right delete", () => {

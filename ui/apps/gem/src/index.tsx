@@ -21,6 +21,7 @@ import {
   buildEventLines,
   checkpointDecisionLines,
   clampScrollTop,
+  bufferStartupPaste,
   defaultGemTerminalTheme,
   deletePromptBackward,
   deletePromptForward,
@@ -34,6 +35,7 @@ import {
   minimumGemWidth,
   movePromptCursorHorizontal,
   movePromptCursorVertical,
+  markStartupPasteHandled,
   normalizePromptInput,
   pinnedStageContent,
   resolveCommandHistoryMove,
@@ -49,17 +51,20 @@ import {
   resolvePanelLines,
   resolvePanelContentHeight,
   resolvePromptDeleteDirection,
+  resolvePromptPasteInput,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
   runSummaryTitle,
   sidebarStages,
   stageVisual,
+  shouldBufferStartupPaste,
   truncateStageLabel,
   wrapPlainText,
   type DisplayMode,
   type GemTerminalTheme,
-  type PromptBufferState
+  type PromptBufferState,
+  type StartupPasteReplayState
 } from "./viewModel.js";
 
 const runtimeBaseUrl = process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000";
@@ -283,6 +288,10 @@ function GemApp() {
   const navFocusIndexRef = useRef<number | null>(null);
   const historyDraftRef = useRef("");
   const lastInputSequenceRef = useRef("");
+  const promptTextRef = useRef("");
+  const promptCursorRef = useRef(0);
+  const startupPasteReplayRef = useRef<StartupPasteReplayState>({ pendingSequence: null });
+  const startupPasteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeRun = displayMode === "review" ? reviewRun : run;
   const activeEvents = displayMode === "review" ? reviewRun?.events ?? [] : events;
@@ -373,11 +382,31 @@ function GemApp() {
 
   React.useEffect(() => {
     const rememberInputSequence = (data: Buffer | string) => {
-      lastInputSequenceRef.current = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
+      const sequence = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
+      lastInputSequenceRef.current = sequence;
+      if (!shouldBufferStartupPaste(sequence)) return;
+      startupPasteReplayRef.current = bufferStartupPaste(startupPasteReplayRef.current, sequence);
+      if (startupPasteTimerRef.current) {
+        clearTimeout(startupPasteTimerRef.current);
+      }
+      startupPasteTimerRef.current = setTimeout(() => {
+        startupPasteTimerRef.current = null;
+        const pending = startupPasteReplayRef.current.pendingSequence;
+        if (!pending) return;
+        startupPasteReplayRef.current = { pendingSequence: null };
+        setPromptBuffer(insertPromptText(
+          { text: promptTextRef.current, cursor: promptCursorRef.current },
+          pending
+        ));
+      }, 0);
     };
     inputEvents.on("input", rememberInputSequence);
     return () => {
       inputEvents.off("input", rememberInputSequence);
+      if (startupPasteTimerRef.current) {
+        clearTimeout(startupPasteTimerRef.current);
+        startupPasteTimerRef.current = null;
+      }
     };
   }, [inputEvents]);
 
@@ -416,6 +445,11 @@ function GemApp() {
   }, [navMode, navFocusKey]);
 
   useInput((input, key) => {
+    startupPasteReplayRef.current = markStartupPasteHandled(
+      startupPasteReplayRef.current,
+      lastInputSequenceRef.current
+    );
+
     if (navMode) {
       if (key.upArrow || input === "k") {
         setNavFocusKey((current) => resolveNavCursorMove(visibleStages, current, "previous"));
@@ -558,7 +592,10 @@ function GemApp() {
     if (!key.ctrl && input.length > 1 && /[\r\n]/.test(input)) {
       setHistoryCursor(null);
       historyDraftRef.current = "";
-      setPromptBuffer(insertPromptText({ text: prompt, cursor: promptCursor }, input));
+      setPromptBuffer(insertPromptText(
+        { text: prompt, cursor: promptCursor },
+        resolvePromptPasteInput(input, lastInputSequenceRef.current)
+      ));
       return;
     }
 
@@ -611,6 +648,8 @@ function GemApp() {
   }, { isActive: inputActive });
 
   function setPromptBuffer(next: PromptBufferState) {
+    promptTextRef.current = next.text;
+    promptCursorRef.current = next.cursor;
     setPrompt(next.text);
     setPromptCursor(next.cursor);
   }
