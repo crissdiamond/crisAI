@@ -46,10 +46,26 @@ export type UiRunState = {
   session: string;
   status: string;
   decision: Record<string, unknown>;
-  expected_stages: Array<Record<string, unknown>>;
+  expected_stages: UiExpectedStage[];
   events: UiEvent[];
   final_output: string;
   error: string;
+};
+
+export type UiExpectedStage = {
+  key?: string;
+  label?: string;
+  [key: string]: unknown;
+};
+
+export type UiStageStatus = "pending" | "running" | "complete" | "skipped" | "failed";
+
+export type UiStageSummary = {
+  key: string;
+  label: string;
+  status: UiStageStatus;
+  summary: string;
+  event?: UiEvent;
 };
 
 export type UiTheme = {
@@ -69,7 +85,95 @@ export type CrisaiClientOptions = {
   eventSourceFactory?: (url: string) => EventSource;
 };
 
+export const terminalEventTypes: UiEventType[] = ["run_completed", "run_failed"];
+export const checkpointEventTypes: UiEventType[] = ["checkpoint_requested"];
+
 const defaultBaseUrl = "http://127.0.0.1:8000";
+
+export function isTerminalEvent(event: UiEvent): boolean {
+  return terminalEventTypes.includes(event.event_type);
+}
+
+export function isCheckpointWaiting(events: UiEvent[]): boolean {
+  const lastCheckpoint = [...events].reverse().find((event) =>
+    event.event_type === "checkpoint_requested" || event.event_type === "checkpoint_decision"
+  );
+  return lastCheckpoint?.event_type === "checkpoint_requested";
+}
+
+export function deriveStageSummaries(events: UiEvent[], expectedStages: UiExpectedStage[] = []): UiStageSummary[] {
+  const stages = new Map<string, UiStageSummary>();
+  for (const stage of expectedStages) {
+    const key = String(stage.key ?? stage.label ?? "").trim();
+    if (!key) continue;
+    stages.set(key, {
+      key,
+      label: String(stage.label ?? key),
+      status: "pending",
+      summary: ""
+    });
+  }
+
+  for (const event of events) {
+    const key = String(event.agent_id ?? event.stage ?? "").trim();
+    if (!key) continue;
+    const current = stages.get(key) ?? {
+      key,
+      label: key.replaceAll("_", " "),
+      status: "pending" as UiStageStatus,
+      summary: ""
+    };
+    const status = stageStatusFromEvent(event, current.status);
+    stages.set(key, {
+      ...current,
+      status,
+      summary: event.summary || event.content || current.summary,
+      event
+    });
+  }
+
+  return [...stages.values()];
+}
+
+export function latestFinalContent(state: UiRunState | null, events: UiEvent[]): string {
+  const finalEvent = [...events].reverse().find((event) => event.event_type === "final_answer");
+  return finalEvent?.content || state?.final_output || "";
+}
+
+export function resolveThemePalette(theme: UiTheme, preferredTheme?: string): Record<string, string> {
+  const themeName = preferredTheme ?? theme.default_theme ?? Object.keys(theme.themes)[0];
+  return theme.themes[themeName]?.palette ?? {};
+}
+
+export function cssVariablesForSurface(theme: UiTheme, surface: string, preferredTheme?: string): Record<string, string> {
+  const palette = resolveThemePalette(theme, preferredTheme);
+  const surfaceConfig = theme.surfaces[surface] ?? {};
+  const mapping = surfaceConfig.css_variables;
+  if (!isRecord(mapping)) return {};
+  const variables: Record<string, string> = {};
+  for (const [cssName, paletteName] of Object.entries(mapping)) {
+    if (typeof paletteName !== "string") continue;
+    const value = palette[paletteName];
+    if (value) {
+      variables[`--${cssName}`] = value;
+    }
+  }
+  return variables;
+}
+
+function stageStatusFromEvent(event: UiEvent, fallback: UiStageStatus): UiStageStatus {
+  if (event.event_type === "stage_started") return "running";
+  if (event.event_type === "stage_completed" || event.event_type === "stage_output" || event.event_type === "final_answer") {
+    return "complete";
+  }
+  if (event.event_type === "stage_skipped") return "skipped";
+  if (event.event_type === "stage_failed" || event.event_type === "run_failed") return "failed";
+  return fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export class CrisaiRuntimeClient {
   readonly baseUrl: string;

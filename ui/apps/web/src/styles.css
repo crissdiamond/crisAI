@@ -1,6 +1,18 @@
 :root {
-  color: #1f1f2e;
-  background: #1f102f;
+  --color-primary-dark: #361a54;
+  --color-bg: #fafafa;
+  --color-accent-bright: #993bff;
+  --color-accent-mid: #ba82ff;
+  --color-surface-light: #ddbdff;
+  --color-surface-pale: #eedeff;
+  --color-accent-blue: #30d6ff;
+  --color-text: #1f1f2e;
+  --color-border: #c9b7dd;
+  --color-success: #52c152;
+  --color-error: #d50032;
+  --color-warning: #ffca36;
+  color: var(--color-text);
+  background: var(--color-primary-dark);
   font-family: "DM Sans", "Aptos", "Segoe UI", Arial, sans-serif;
 }
 
@@ -29,9 +41,9 @@ textarea {
 .stage-rail,
 .transcript,
 .alert {
-  border: 1px solid #c9b7dd;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #fafafa;
+  background: var(--color-bg);
 }
 
 .topbar {
@@ -44,7 +56,7 @@ textarea {
 .eyebrow,
 .status {
   margin: 0;
-  color: #500778;
+  color: var(--color-primary-dark);
   font-size: 13px;
   font-weight: 600;
 }
@@ -90,9 +102,13 @@ button {
   border: 0;
   border-radius: 4px;
   padding: 0 16px;
-  color: #fafafa;
-  background: #361a54;
+  color: var(--color-bg);
+  background: var(--color-primary-dark);
   font-weight: 700;
+}
+
+button:disabled {
+  opacity: 0.55;
 }
 
 .workspace {
@@ -112,12 +128,32 @@ button {
   display: grid;
   gap: 4px;
   padding: 12px 0;
-  border-bottom: 1px solid #eedeff;
+  border-bottom: 1px solid var(--color-surface-pale);
+}
+
+.stage small {
+  color: var(--color-primary-dark);
+}
+
+.stage-running strong {
+  color: var(--color-accent-bright);
+}
+
+.stage-complete strong {
+  color: var(--color-success);
+}
+
+.stage-skipped strong {
+  color: var(--color-warning);
+}
+
+.stage-failed strong {
+  color: var(--color-error);
 }
 
 .event-card {
   padding: 16px 0;
-  border-bottom: 1px solid #eedeff;
+  border-bottom: 1px solid var(--color-surface-pale);
 }
 
 .event-card header {
@@ -136,13 +172,28 @@ pre {
 }
 
 .checkpoint-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: end;
   gap: 8px;
 }
 
+.checkpoint-actions label {
+  display: grid;
+  gap: 4px;
+}
+
+.checkpoint-actions textarea {
+  min-height: 72px;
+}
+
+.final-card {
+  border-bottom: 0;
+}
+
 .alert {
-  border-color: #d50032;
-  color: #d50032;
+  border-color: var(--color-error);
+  color: var(--color-error);
 }
 
 @media (max-width: 760px) {
@@ -157,5 +208,9 @@ pre {
 
   .stage-rail {
     margin-bottom: 16px;
+  }
+
+  .checkpoint-actions {
+    grid-template-columns: 1fr;
   }
 }

@@ -36,3 +36,17 @@ def test_contract_client_targets_v1_runtime_api() -> None:
     assert "/api/v1/runs" in client_source
     assert "/api/v1/ui/theme" in client_source
     assert "EventSource" in client_source
+
+
+def test_ui_clients_share_stage_theme_and_checkpoint_helpers() -> None:
+    contract_source = (ROOT / "ui/packages/contracts/src/index.ts").read_text(encoding="utf-8")
+    web_source = (ROOT / "ui/apps/web/src/main.tsx").read_text(encoding="utf-8")
+    gem_source = (ROOT / "ui/apps/gem/src/index.tsx").read_text(encoding="utf-8")
+
+    assert "deriveStageSummaries" in contract_source
+    assert "cssVariablesForSurface" in contract_source
+    assert "isCheckpointWaiting" in contract_source
+    assert "deriveStageSummaries(events" in web_source
+    assert "cssVariablesForSurface(theme, \"web\")" in web_source
+    assert "deriveStageSummaries(events" in gem_source
+    assert "/redirect <guidance>" in gem_source

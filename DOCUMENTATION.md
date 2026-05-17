@@ -185,6 +185,11 @@ launch helpers are:
 ./start gem-ink
 ```
 
+Both clients use shared stage derivation and theme tokens from the UI contract
+package. The React client exposes retrieval checkpoint continue, redirect, and
+stop actions directly. The Ink client accepts `/continue`, `/redirect <guidance>`,
+and `/stop` while a checkpoint is waiting.
+
 ---
 
 ## 4. First things to try
