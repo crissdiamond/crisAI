@@ -92,6 +92,8 @@ export type PromptView = {
   hiddenAfter: number;
 };
 
+export type PromptDeleteDirection = "backward" | "forward";
+
 export const defaultGemTerminalTheme: GemTerminalTheme = {
   accent: "magenta",
   border: "blue",
@@ -306,6 +308,16 @@ export function deletePromptForward(state: PromptBufferState): PromptBufferState
     text: `${state.text.slice(0, cursor)}${state.text.slice(cursor + 1)}`,
     cursor
   };
+}
+
+export function resolvePromptDeleteDirection(
+  key: { backspace?: boolean; delete?: boolean },
+  rawSequence = ""
+): PromptDeleteDirection | null {
+  if (key.backspace) return "backward";
+  if (key.delete && rawSequence === "\x7f") return "backward";
+  if (key.delete) return "forward";
+  return null;
 }
 
 export function movePromptCursorHorizontal(state: PromptBufferState, direction: NavDirection): PromptBufferState {

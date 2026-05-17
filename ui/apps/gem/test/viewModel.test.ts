@@ -33,6 +33,7 @@ import {
   resolveOutputPanelWidth,
   resolvePanelLines,
   resolvePanelContentHeight,
+  resolvePromptDeleteDirection,
   resolveRunsListIndex,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
@@ -374,6 +375,22 @@ test("prompt input normalizes pasted text and edits at the cursor", () => {
   assert.deepEqual(deletePromptForward({ text: "abc", cursor: 1 }), { text: "ac", cursor: 1 });
   assert.deepEqual(movePromptCursorHorizontal({ text: "abc", cursor: 0 }, "previous"), { text: "abc", cursor: 0 });
   assert.equal(normalizePromptInput("a\r\nb\rc\td"), "a\nb\nc  d");
+});
+
+test("prompt paste preserves first line and bracketed-paste initial characters", () => {
+  const pasted = "\u001b[200~First line\r\nSecond line\r\nThird line\u001b[201~";
+  const inserted = insertPromptText({ text: "prefix ", cursor: 7 }, pasted);
+
+  assert.equal(inserted.text, "prefix First line\nSecond line\nThird line");
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("prompt deletion treats terminal DEL backspace as left delete and Delete key as right delete", () => {
+  assert.equal(resolvePromptDeleteDirection({ backspace: true }, ""), "backward");
+  assert.equal(resolvePromptDeleteDirection({ delete: true }, "\x7f"), "backward");
+  assert.equal(resolvePromptDeleteDirection({ delete: true }, "\x1b[3~"), "forward");
+  assert.deepEqual(deletePromptBackward({ text: "abcd", cursor: 2 }), { text: "acd", cursor: 1 });
+  assert.deepEqual(deletePromptForward({ text: "abcd", cursor: 2 }), { text: "abd", cursor: 2 });
 });
 
 test("prompt visual lines wrap logical lines and keep cursor visible in a bounded viewport", () => {

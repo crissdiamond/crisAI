@@ -48,6 +48,7 @@ import {
   resolveOutputPanelWidth,
   resolvePanelLines,
   resolvePanelContentHeight,
+  resolvePromptDeleteDirection,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
@@ -237,7 +238,7 @@ function StageItem({
 
 function GemApp() {
   const { stdout } = useStdout();
-  const { isRawModeSupported } = useStdin();
+  const { internal_eventEmitter: inputEvents, isRawModeSupported } = useStdin();
   const inputActive = resolveInputActive(isRawModeSupported);
   const viewportWidth = resolveViewportDimension(
     process.env.CRISAI_GEM_WIDTH,
@@ -281,6 +282,7 @@ function GemApp() {
   const [now, setNow] = useState(() => Date.now());
   const navFocusIndexRef = useRef<number | null>(null);
   const historyDraftRef = useRef("");
+  const lastInputSequenceRef = useRef("");
 
   const activeRun = displayMode === "review" ? reviewRun : run;
   const activeEvents = displayMode === "review" ? reviewRun?.events ?? [] : events;
@@ -368,6 +370,16 @@ function GemApp() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [run, events]);
+
+  React.useEffect(() => {
+    const rememberInputSequence = (data: Buffer | string) => {
+      lastInputSequenceRef.current = Buffer.isBuffer(data) ? data.toString("utf8") : String(data);
+    };
+    inputEvents.on("input", rememberInputSequence);
+    return () => {
+      inputEvents.off("input", rememberInputSequence);
+    };
+  }, [inputEvents]);
 
   React.useEffect(() => {
     setScrollTop((current) => clampScrollTop(current, panelLines.length, contentH));
@@ -578,16 +590,15 @@ function GemApp() {
     if (key.return) {
       return;
     }
-    if (key.backspace) {
+    const deleteDirection = resolvePromptDeleteDirection(key, lastInputSequenceRef.current);
+    if (deleteDirection !== null) {
       setHistoryCursor(null);
       historyDraftRef.current = "";
-      setPromptBuffer(deletePromptBackward({ text: prompt, cursor: promptCursor }));
-      return;
-    }
-    if (key.delete) {
-      setHistoryCursor(null);
-      historyDraftRef.current = "";
-      setPromptBuffer(deletePromptForward({ text: prompt, cursor: promptCursor }));
+      setPromptBuffer(
+        deleteDirection === "backward"
+          ? deletePromptBackward({ text: prompt, cursor: promptCursor })
+          : deletePromptForward({ text: prompt, cursor: promptCursor })
+      );
       return;
     }
     if (!key.ctrl && input) {
