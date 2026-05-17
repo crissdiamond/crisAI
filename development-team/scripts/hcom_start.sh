@@ -113,10 +113,13 @@ default_team_terminal() {
 name_from_hcom_list() {
   local tag="$1"
   local provider="$2"
+  local attempt
   local assigned_csv
   assigned_csv="$(IFS=,; printf '%s' "${LAUNCHED_NAMES[*]-}")"
 
-  hcom list --json | ASSIGNED_NAMES="$assigned_csv" python -c '
+  for attempt in {1..30}; do
+    local name
+    name="$(hcom list --json | ASSIGNED_NAMES="$assigned_csv" python -c '
 import json
 import os
 import sys
@@ -146,7 +149,13 @@ for agent in agents:
 matches.sort(key=lambda item: str(item.get("created_at", "")))
 if matches:
     print(matches[-1].get("name", ""))
-' "$tag" "$provider"
+' "$tag" "$provider")"
+    if [[ -n "$name" ]]; then
+      printf '%s\n' "$name"
+      return 0
+    fi
+    sleep 1
+  done
 }
 
 run_cmd() {
