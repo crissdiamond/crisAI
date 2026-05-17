@@ -17,6 +17,16 @@ The `launch/runtime`, `launch/gem`, and `launch/web` directories are launch
 folders, not source roots. Source code stays in the target repository's normal
 Python and UI locations.
 
+## Launching
+
+Use `scripts/hcom_start.sh` from the team repository. The launcher writes local
+session assignments under the target repository.
+
+In WSL, the launcher opens shells in Windows Terminal when `wt.exe` is
+available, otherwise it falls back to `tmux`. Override this with
+`--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL` when a different hcom
+terminal backend is preferred.
+
 ## Responsibilities
 
 - The orchestrator plans work, assigns tasks, integrates results, runs final

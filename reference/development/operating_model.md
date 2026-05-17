@@ -16,6 +16,16 @@ handles only; stable responsibility comes from the role assigned in
 The top-level `runtime/`, `gem/`, and `web/` directories are launch folders,
 not source roots. Source code stays in the existing Python and UI locations.
 
+## Launching
+
+Use `scripts/hcom_start.sh` from the repo root. The launcher writes local
+session assignments to `reference/development/session_assignments.local.yaml`.
+
+In WSL, the launcher opens shells in Windows Terminal when `wt.exe` is
+available, otherwise it falls back to `tmux`. Override this with
+`--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL` when a different hcom
+terminal backend is preferred.
+
 ## Responsibilities
 
 - The orchestrator plans work, assigns tasks, integrates results, runs final

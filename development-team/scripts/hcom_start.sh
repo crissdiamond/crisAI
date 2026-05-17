@@ -8,12 +8,13 @@ HCOM_STATE_DIR=""
 ASSIGNMENTS=""
 DRY_RUN=0
 HEADLESS=0
+TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
 EXTRA_ARGS=()
 LAUNCHED_NAMES=()
 
 usage() {
   cat <<'EOF'
-Usage: scripts/hcom_start.sh [--target-repo PATH] [--dry-run] [--headless] [-- extra hcom args]
+Usage: scripts/hcom_start.sh [--target-repo PATH] [--dry-run] [--headless] [--terminal PRESET_OR_COMMAND] [-- extra hcom args]
 
 Launches:
   - one Codex orchestrator from the target repo root
@@ -25,6 +26,10 @@ State:
   HCOM_DIR defaults to <target-repo>/.hcom.
   Session assignments default to
   <target-repo>/.hcom-development/session_assignments.local.yaml.
+
+Terminal:
+  HCOM_TEAM_TERMINAL or --terminal controls where hcom opens shells.
+  In WSL, the default is Windows Terminal when wt.exe is available, otherwise tmux.
 EOF
 }
 
@@ -41,6 +46,10 @@ while [[ $# -gt 0 ]]; do
     --headless)
       HEADLESS=1
       shift
+      ;;
+    --terminal)
+      TEAM_TERMINAL="$2"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -85,6 +94,20 @@ EOF
 
 extract_names() {
   sed -n 's/^Names: //p' | tr ' ' '\n' | sed '/^$/d'
+}
+
+default_team_terminal() {
+  if [[ -n "$TEAM_TERMINAL" ]]; then
+    printf '%s\n' "$TEAM_TERMINAL"
+    return 0
+  fi
+  if [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v wt.exe >/dev/null 2>&1; then
+    printf 'wt.exe -w 0 new-tab --title hcom -- wsl.exe -d %s bash {script}\n' "$WSL_DISTRO_NAME"
+    return 0
+  fi
+  if command -v tmux >/dev/null 2>&1; then
+    printf 'tmux\n'
+  fi
 }
 
 name_from_hcom_list() {
@@ -160,6 +183,8 @@ launch_agent() {
   local cmd=(hcom "$provider" --tag "$tag" --dir "$dir" --hcom-prompt "$prompt")
   if [[ "$HEADLESS" -eq 1 ]]; then
     cmd+=(--headless)
+  elif [[ -n "$TEAM_TERMINAL" ]]; then
+    cmd+=(--terminal "$TEAM_TERMINAL")
   fi
   if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
     cmd+=("${EXTRA_ARGS[@]}")
@@ -209,6 +234,7 @@ require_bin claude
 
 export HCOM_DIR="$HCOM_STATE_DIR"
 mkdir -p "$HCOM_DIR" "$(dirname "$ASSIGNMENTS")"
+TEAM_TERMINAL="$(default_team_terminal)"
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
   hcom config name_export HCOM_NAME >/dev/null

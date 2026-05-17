@@ -204,6 +204,10 @@ scripts/hcom_status.sh
 scripts/hcom_stop.sh
 ```
 
+In WSL, the launcher opens hcom shells in Windows Terminal when `wt.exe` is
+available, otherwise it falls back to `tmux`. Override this with
+`--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`.
+
 The top-level `runtime/`, `gem/`, and `web/` folders are hcom launch folders
 only. They do not replace the existing source layout.
 

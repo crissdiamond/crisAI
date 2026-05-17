@@ -1,3 +1,4 @@
 # Copy these entries into the target repo if this package is kept outside it.
 .hcom/
 .hcom-development/
+.claude/

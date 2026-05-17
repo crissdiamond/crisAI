@@ -85,6 +85,14 @@ scripts/hcom_stop.sh --target-repo /path/to/crisAI
 
 If this package lives inside the target repo, `--target-repo` can be omitted.
 
+In WSL, the launcher opens hcom shells in Windows Terminal when `wt.exe` is
+available, otherwise it falls back to `tmux`. Override this with
+`--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`, for example:
+
+```bash
+scripts/hcom_start.sh --target-repo /path/to/crisAI --terminal tmux
+```
+
 ## Local State
 
 The scripts use target-repo local hcom state:

@@ -206,6 +206,14 @@ Both are ignored by git. Stable role definitions live under
 `reference/development/`; the top-level `runtime/`, `gem/`, and `web/` folders
 are hcom launch folders, not source roots.
 
+In WSL, `scripts/hcom_start.sh` opens hcom shells in Windows Terminal when
+`wt.exe` is available, otherwise it falls back to `tmux`. Override this with
+`--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`, for example:
+
+```bash
+scripts/hcom_start.sh --terminal tmux
+```
+
 ## First Commands
 
 Inside the CLI:
