@@ -149,8 +149,9 @@ def _bounded_detail(snapshot: dict[str, Any]) -> dict[str, Any]:
     if not is_safe_run_id(run_id):
         raise ValueError("Invalid run id.")
     status = str(snapshot.get("status") or "")
-    metadata = snapshot.get("metadata") if isinstance(snapshot.get("metadata"), dict) else {}
-    detail = {
+    metadata_value = snapshot.get("metadata")
+    metadata: dict[str, Any] = metadata_value if isinstance(metadata_value, dict) else {}
+    detail: dict[str, Any] = {
         "schema_version": RUN_HISTORY_DETAIL_SCHEMA_VERSION,
         "run_id": run_id,
         "session": session,
@@ -174,7 +175,8 @@ def _bounded_detail(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 def _summary_from_detail(detail: dict[str, Any]) -> dict[str, Any]:
-    metadata = detail.get("metadata") if isinstance(detail.get("metadata"), dict) else {}
+    metadata_value = detail.get("metadata")
+    metadata: dict[str, Any] = metadata_value if isinstance(metadata_value, dict) else {}
     events = _event_list(detail.get("events"))
     final_output = str(detail.get("final_output") or "")
     error = str(detail.get("error") or "")
