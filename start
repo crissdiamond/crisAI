@@ -26,26 +26,37 @@ case "$MODE" in
   cli)
     exec python -m crisai.cli.main classic
     ;;
-  gem)
-    exec python -m crisai.cli.main gem
-    ;;
-  gem-ink)
-    exec python -m crisai.cli.main gem-ink
-    ;;
-  web)
+  api)
+    # FastAPI backend — required before starting web or gem.
     exec crisai-web
     ;;
-  web-react)
+  web)
+    # React web client. Start the API server first: ./start api
     exec python -m crisai.cli.main web-react
     ;;
+  gem)
+    # Ink terminal client. Start the API server first: ./start api
+    exec python -m crisai.cli.main gem-ink
+    ;;
+  gem-textual)
+    # Legacy Textual terminal client.
+    exec python -m crisai.cli.main gem
+    ;;
+  web-legacy)
+    # Legacy static web app (served by the API server). Alias for: ./start api
+    exec crisai-web
+    ;;
   *)
-    echo "Usage: ./start [cli|gem|gem-ink|web|web-react]"
-    echo "Examples:"
-    echo "  ./start cli"
-    echo "  ./start gem"
-    echo "  ./start gem-ink"
-    echo "  ./start web"
-    echo "  ./start web-react"
+    echo "Usage: ./start <command>"
+    echo ""
+    echo "  cli           Classic terminal CLI"
+    echo "  api           FastAPI backend  (start this first for web and gem)"
+    echo "  web           React web client (requires api)"
+    echo "  gem           Ink terminal client (requires api)"
+    echo ""
+    echo "Legacy:"
+    echo "  gem-textual   Textual terminal client"
+    echo "  web-legacy    Static web app (alias for api)"
     exit 2
     ;;
 esac
