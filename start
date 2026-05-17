@@ -20,7 +20,7 @@ if [ -f .env ]; then
   set +a
 fi
 
-MODE="${1:-cli}"
+MODE="${1:-gem}"
 
 case "$MODE" in
   api)
@@ -31,13 +31,9 @@ case "$MODE" in
     # React web client. Start the API server first: ./start api
     exec python -m crisai.cli.main web-react
     ;;
-  gem)
+  cli|gem)
     # Ink terminal client. Start the API server first: ./start api
     exec python -m crisai.cli.main gem-ink
-    ;;
-  web-legacy)
-    # Legacy static web app (served by the API server). Alias for: ./start api
-    exec crisai-web
     ;;
   *)
     echo "Usage: ./start <command>"
@@ -45,9 +41,7 @@ case "$MODE" in
     echo "  api           FastAPI backend  (start this first for web and gem)"
     echo "  web           React web client (requires api)"
     echo "  gem           Ink terminal client (requires api)"
-    echo ""
-    echo "Legacy alias:"
-    echo "  web-legacy    Static web app (alias for api)"
+    echo "  cli           Alias for gem"
     exit 2
     ;;
 esac

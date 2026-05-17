@@ -1,6 +1,6 @@
 # crisAI UI Workspace
 
-This workspace contains the future React web app and Ink Gem terminal app.
+This workspace contains the React web app and Ink Gem terminal app.
 
 The Python runtime remains authoritative for routing, agents, retrieval, sessions,
 workspace access, and MCP tools. UI clients consume the local FastAPI v1 contract:
@@ -43,15 +43,12 @@ Current status:
   telemetry is available. `CRISAI_GEM_WIDTH` and `CRISAI_GEM_HEIGHT` can pin
   the terminal layout size for local testing.
 
-The existing static web app and Textual Gem remain active until these clients
-reach parity.
-
 Auth-aware local development:
 
 - React web reads `VITE_CRISAI_API_KEY` and also provides an in-page API key
   control backed by browser local storage for local development.
 - Ink Gem reads `CRISAI_API_KEY`.
-- `./start web-react` maps `CRISAI_API_KEY` to `VITE_CRISAI_API_KEY` and
+- `./start web` maps `CRISAI_API_KEY` to `VITE_CRISAI_API_KEY` and
   `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` when the Vite-specific
   variables are not already set.
 - `VITE_CRISAI_API_TOKEN` and `CRISAI_API_TOKEN` are accepted as temporary

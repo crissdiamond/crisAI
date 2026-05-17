@@ -211,10 +211,11 @@ npm --prefix ui run build:web
 npm --prefix ui run build:gem
 ```
 
-For a clean-install smoke check, also verify both launch modes:
+For a clean-install smoke check, also verify the supported launch modes:
 
 ```bash
-./start cli
+./start api
+./start gem
 ./start web
 ```
 

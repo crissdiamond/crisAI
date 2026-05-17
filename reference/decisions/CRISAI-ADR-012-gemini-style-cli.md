@@ -1,6 +1,6 @@
 # CRISAI-ADR-012: Gemini-Style Persistent CLI Experience
 
-- `Status`: accepted
+- `Status`: superseded
 - `Date`: 2026-05-16
 
 ## Context
@@ -15,12 +15,15 @@ in progress.
 
 ## Decision
 
-`crisai chat` keeps the classic Rich panel flow as the stable default. A
-Gemini-style display layer is available behind
-`CRISAI_CLI_EXPERIENCE=fullscreen`; it captures routing, status, stage,
-checkpoint, final, and error output into a live transcript with a footer during
-interactive execution, but remains experimental until the chat loop is moved to
-a true full-screen prompt-toolkit application.
+The earlier prompt-toolkit/Rich Gemini-style experiment has been superseded by
+the shared UI runtime contract and the Ink Gem terminal client. The supported
+local interactive path is now:
+
+- `./start api` for the FastAPI runtime
+- `./start gem` for the Ink terminal client
+- `./start web` for the React web client
+
+The removed classic and Textual paths should not receive new UX behaviour.
 
 The display layer is intentionally a UI boundary, not a workflow controller.
 Routing, agents, retrieval, policy checks, and prompt semantics remain owned by
@@ -28,20 +31,18 @@ their existing modules.
 
 ## Consequences
 
-- Stable interactive chat avoids leaking live-render frames into normal
-  scrollback.
-- The experimental display path can continue to evolve without disrupting daily
-  CLI use.
-- `crisai ask`, `doctor`, list commands, and classic chat keep the existing Rich
-  output path.
+- Interactive UX work moves to the shared `/api/v1/runs` event contract and the
+  React/Ink clients.
+- `crisai ask`, `doctor`, and list commands can continue to use the existing
+  Rich output path for non-interactive command output.
 - Stage output and final output continue to use the same sanitisation rules that
   hide machine-readable JSON contracts from user-facing output.
-- Future web alignment should consume the same event/sink pattern rather than
-  scraping terminal output.
+- Future UI alignment should extend the shared event contract rather than
+  scraping terminal output or reviving removed UI surfaces.
 
 ## Related
 
 - `src/crisai/cli/display.py`
-- `src/crisai/cli/gemini_chat.py`
 - `src/crisai/cli/main.py`
-- `CRISAI_CLI_EXPERIENCE`
+- `ui/apps/gem`
+- `ui/apps/web`
