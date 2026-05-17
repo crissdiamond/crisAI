@@ -12,6 +12,10 @@ workspace access, and MCP tools. UI clients consume the local FastAPI v1 contrac
 - `GET /api/v1/sessions`
 - `POST /api/v1/sessions`
 - `GET /api/v1/sessions/{session_name}`
+- `GET /api/v1/workspace/roots`
+- `GET /api/v1/workspace/tree/{root_name}`
+- `GET /api/v1/workspace/file`
+- `POST /api/v1/workspace/file`
 - `GET /api/v1/ui/theme`
 
 Current status:
@@ -19,8 +23,8 @@ Current status:
 - `packages/contracts` defines shared TypeScript types and a small runtime API client.
 - `apps/web` is a React scaffold that can start runs, consume SSE events,
   apply registry-backed theme tokens, render expected stages, select/create
-  sessions, show recent session history, and submit retrieval checkpoint
-  decisions.
+  sessions, show recent session history, browse/read/save editable workspace
+  files, and submit retrieval checkpoint decisions.
 - `apps/gem` is an Ink scaffold that uses the same contract, stage derivation,
   session APIs, and checkpoint commands (`/continue`, `/redirect <guidance>`,
   `/stop`).

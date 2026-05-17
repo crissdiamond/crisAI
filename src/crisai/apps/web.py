@@ -951,6 +951,30 @@ async def api_v1_get_session(session_name: str) -> dict[str, Any]:
     return get_session(session_name)
 
 
+@app.get("/api/v1/workspace/roots")
+async def api_v1_workspace_roots() -> dict[str, Any]:
+    """Return browseable workspace roots through the shared UI API."""
+    return workspace_roots()
+
+
+@app.get("/api/v1/workspace/tree/{root_name}")
+async def api_v1_workspace_tree(root_name: str) -> dict[str, Any]:
+    """Return a workspace tree through the shared UI API."""
+    return workspace_tree(root_name)
+
+
+@app.get("/api/v1/workspace/file")
+async def api_v1_workspace_file(path: str) -> dict[str, Any]:
+    """Read one workspace file through the shared UI API."""
+    return workspace_file(path)
+
+
+@app.post("/api/v1/workspace/file")
+async def api_v1_save_workspace_file(payload: WorkspaceFileSaveRequest) -> dict[str, Any]:
+    """Save one workspace file through the shared UI API."""
+    return save_workspace_file(payload)
+
+
 @app.get("/api/config")
 async def app_config() -> dict[str, Any]:
     """Return user-facing web defaults."""

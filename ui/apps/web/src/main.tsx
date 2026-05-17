@@ -11,7 +11,8 @@ import {
   type UiHistoryEntry,
   type UiRunState,
   type UiSessionState,
-  type UiStageSummary
+  type UiStageSummary,
+  type UiWorkspaceFileRecord
 } from "@crisai/contracts";
 import "./styles.css";
 
@@ -193,6 +194,8 @@ function App() {
         />
         <HistoryPanel history={history} memorySummary={memorySummary} />
       </section>
+
+      <WorkspaceBrowser />
     </main>
   );
 }
@@ -227,6 +230,104 @@ function HistoryPanel({ history, memorySummary }: { history: UiHistoryEntry[]; m
         </article>
       ))}
     </aside>
+  );
+}
+
+function WorkspaceBrowser() {
+  const [roots, setRoots] = useState<Record<string, string>>({});
+  const [rootName, setRootName] = useState("knowledge");
+  const [files, setFiles] = useState<UiWorkspaceFileRecord[]>([]);
+  const [filter, setFilter] = useState("");
+  const [selectedPath, setSelectedPath] = useState("");
+  const [content, setContent] = useState("");
+  const [status, setStatus] = useState("Workspace ready.");
+
+  useEffect(() => {
+    runtime
+      .getWorkspaceRoots()
+      .then((state) => {
+        setRoots(state.roots);
+        const firstRoot = Object.keys(state.roots)[0] ?? "knowledge";
+        setRootName(firstRoot);
+        return loadTree(firstRoot);
+      })
+      .catch((reason: unknown) => setStatus(String(reason)));
+  }, []);
+
+  async function loadTree(nextRoot = rootName) {
+    const tree = await runtime.getWorkspaceTree(nextRoot);
+    setRootName(tree.root);
+    setFiles(tree.files);
+    setSelectedPath("");
+    setContent("");
+    setStatus(`${tree.files.length} files in ${tree.path}.`);
+  }
+
+  async function openFile(path: string) {
+    const file = await runtime.getWorkspaceFile(path);
+    setSelectedPath(file.path);
+    setContent(file.content);
+    setStatus(`Opened ${file.path}.`);
+  }
+
+  async function saveFile() {
+    if (!selectedPath) return;
+    const result = await runtime.saveWorkspaceFile(selectedPath, content);
+    setStatus(result.saved ? `Saved ${result.path}.` : `Save did not complete for ${result.path}.`);
+    await loadTree(rootName);
+    setSelectedPath(result.path);
+  }
+
+  const visibleFiles = files.filter((file) => file.path.toLowerCase().includes(filter.toLowerCase()));
+
+  return (
+    <section className="workspace-browser" aria-label="Workspace browser">
+      <header>
+        <h2>Workspace</h2>
+        <p>{status}</p>
+      </header>
+      <div className="workspace-controls">
+        <label>
+          Space
+          <select value={rootName} onChange={(event) => void loadTree(event.target.value)}>
+            {Object.entries(roots).map(([name, path]) => (
+              <option key={name} value={name}>{name}: {path}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Filter
+          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Find files" />
+        </label>
+      </div>
+      <div className="workspace-editor-grid">
+        <div className="workspace-files">
+          {visibleFiles.length === 0 ? <p>No files found.</p> : null}
+          {visibleFiles.map((file) => (
+            <button
+              key={file.path}
+              type="button"
+              className={file.path === selectedPath ? "selected-file" : ""}
+              disabled={!file.editable}
+              onClick={() => void openFile(file.path)}
+            >
+              <span>{file.name}</span>
+              <small>{file.path}</small>
+            </button>
+          ))}
+        </div>
+        <div className="workspace-editor">
+          <p>{selectedPath || "No file selected."}</p>
+          <textarea
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            disabled={!selectedPath}
+            spellCheck={false}
+          />
+          <button type="button" disabled={!selectedPath} onClick={() => void saveFile()}>Save</button>
+        </div>
+      </div>
+    </section>
   );
 }
 

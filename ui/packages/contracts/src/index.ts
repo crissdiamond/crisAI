@@ -72,6 +72,33 @@ export type UiSessionState = {
   memory?: UiSessionMemory;
 };
 
+export type UiWorkspaceRoots = {
+  roots: Record<string, string>;
+};
+
+export type UiWorkspaceFileRecord = {
+  path: string;
+  name: string;
+  size: number;
+  editable: boolean;
+};
+
+export type UiWorkspaceTree = {
+  root: string;
+  path: string;
+  files: UiWorkspaceFileRecord[];
+};
+
+export type UiWorkspaceFile = {
+  path: string;
+  content: string;
+};
+
+export type UiWorkspaceSaveResult = {
+  path: string;
+  saved: boolean;
+};
+
 export type UiExpectedStage = {
   key?: string;
   label?: string;
@@ -258,6 +285,31 @@ export class CrisaiRuntimeClient {
 
   async getSession(session: string): Promise<UiSessionState> {
     const response = await fetch(`${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}`);
+    return this.readJson(response);
+  }
+
+  async getWorkspaceRoots(): Promise<UiWorkspaceRoots> {
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/roots`);
+    return this.readJson(response);
+  }
+
+  async getWorkspaceTree(rootName: string): Promise<UiWorkspaceTree> {
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/tree/${encodeURIComponent(rootName)}`);
+    return this.readJson(response);
+  }
+
+  async getWorkspaceFile(path: string): Promise<UiWorkspaceFile> {
+    const query = new URLSearchParams({ path });
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/file?${query.toString()}`);
+    return this.readJson(response);
+  }
+
+  async saveWorkspaceFile(path: string, content: string): Promise<UiWorkspaceSaveResult> {
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/file`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path, content })
+    });
     return this.readJson(response);
   }
 

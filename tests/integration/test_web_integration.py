@@ -455,6 +455,39 @@ def test_api_v1_sessions_create_sanitizes_name(client: _ASGITestClient) -> None:
     assert isinstance(body["history"], list)
 
 
+def test_api_v1_workspace_read_and_save(
+    client: _ASGITestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared UI workspace endpoints expose bounded read/save behaviour."""
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    path = workspace / "tasks/demo/artefacts/design.md"
+    path.parent.mkdir(parents=True)
+    path.write_text("# Draft\n", encoding="utf-8")
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+
+    roots_resp = client.get("/api/v1/workspace/roots")
+    tree_resp = client.get("/api/v1/workspace/tree/tasks")
+    file_resp = client.get("/api/v1/workspace/file?path=tasks/demo/artefacts/design.md")
+    save_resp = client.post(
+        "/api/v1/workspace/file",
+        json={"path": "tasks/demo/artefacts/design.md", "content": "# Updated\n"},
+    )
+
+    assert roots_resp.status_code == 200
+    assert roots_resp.json()["roots"]["tasks"] == "tasks"
+    assert tree_resp.status_code == 200
+    assert tree_resp.json()["files"][0]["path"] == "tasks/demo/artefacts/design.md"
+    assert file_resp.status_code == 200
+    assert file_resp.json()["content"] == "# Draft\n"
+    assert save_resp.status_code == 200
+    assert save_resp.json()["saved"] is True
+    assert path.read_text(encoding="utf-8") == "# Updated\n"
+
+
 # ---------------------------------------------------------------------------
 # Eviction does not remove running jobs
 # ---------------------------------------------------------------------------

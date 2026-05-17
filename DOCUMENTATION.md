@@ -163,6 +163,10 @@ web app and Ink Gem client:
 - `GET /api/v1/sessions`
 - `POST /api/v1/sessions`
 - `GET /api/v1/sessions/{session_name}`
+- `GET /api/v1/workspace/roots`
+- `GET /api/v1/workspace/tree/{root_name}`
+- `GET /api/v1/workspace/file`
+- `POST /api/v1/workspace/file`
 - `GET /api/v1/ui/theme`
 
 The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
@@ -191,10 +195,10 @@ launch helpers are:
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show
-recent session history, and expose retrieval checkpoint continue, redirect, and
-stop actions directly. The Ink client accepts `/session <name>` and `/sessions`
-for session control, plus `/continue`, `/redirect <guidance>`, and `/stop` while
-a checkpoint is waiting.
+recent session history, browse/read/save editable workspace files, and expose
+retrieval checkpoint continue, redirect, and stop actions directly. The Ink
+client accepts `/session <name>` and `/sessions` for session control, plus
+`/continue`, `/redirect <guidance>`, and `/stop` while a checkpoint is waiting.
 
 ---
 

@@ -36,8 +36,11 @@ def test_contract_client_targets_v1_runtime_api() -> None:
     assert "/api/v1/runs" in client_source
     assert "/api/v1/ui/theme" in client_source
     assert "/api/v1/sessions" in client_source
+    assert "/api/v1/workspace" in client_source
     assert "listSessions" in client_source
     assert "createSession" in client_source
+    assert "getWorkspaceTree" in client_source
+    assert "saveWorkspaceFile" in client_source
     assert "EventSource" in client_source
 
 
@@ -53,6 +56,8 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "cssVariablesForSurface(theme, \"web\")" in web_source
     assert "runtime.listSessions" in web_source
     assert "HistoryPanel" in web_source
+    assert "WorkspaceBrowser" in web_source
+    assert "runtime.getWorkspaceTree" in web_source
     assert "deriveStageSummaries(events" in gem_source
     assert "/redirect <guidance>" in gem_source
     assert "/session <name>" in gem_source
