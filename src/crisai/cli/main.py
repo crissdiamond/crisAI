@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 import ssl
+import subprocess
 import sys
 from collections.abc import Awaitable
 from contextlib import contextmanager
@@ -71,6 +72,8 @@ from .pipelines import run_peer_pipeline, run_pipeline, run_single
 
 app = typer.Typer(help="crisAI CLI")
 logger = get_logger(__name__)
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_UI_WORKSPACE = _REPO_ROOT / "ui"
 
 
 @app.callback()
@@ -1008,6 +1011,44 @@ def gem() -> None:
             title="💎 crisAI Gem",
         )
         raise typer.Exit(exit_code)
+
+
+def _run_ui_workspace_script(script: str) -> None:
+    """Run an experimental UI workspace npm script with setup guidance."""
+    if not (_UI_WORKSPACE / "package.json").is_file():
+        print_status_message(
+            "The UI workspace is missing. Reinstall or pull the latest repository state.",
+            title="🧪 Experimental UI",
+        )
+        raise typer.Exit(1)
+    if not (_UI_WORKSPACE / "node_modules").is_dir():
+        print_status_message(
+            "Install UI dependencies first with `npm --prefix ui install`, then retry.",
+            title="🧪 Experimental UI",
+        )
+        raise typer.Exit(1)
+    try:
+        result = subprocess.run(["npm", "--prefix", str(_UI_WORKSPACE), "run", script], check=False)
+    except FileNotFoundError as exc:
+        print_status_message(
+            "npm is required for experimental React/Ink UI clients.",
+            title="🧪 Experimental UI",
+        )
+        raise typer.Exit(1) from exc
+    if result.returncode != 0:
+        raise typer.Exit(result.returncode)
+
+
+@app.command("web-react")
+def web_react() -> None:
+    """Start the experimental React web client."""
+    _run_ui_workspace_script("dev:web")
+
+
+@app.command("gem-ink")
+def gem_ink() -> None:
+    """Start the experimental Ink Gem terminal client."""
+    _run_ui_workspace_script("dev:gem")
 
 
 if __name__ == "__main__":

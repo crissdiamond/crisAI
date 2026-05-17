@@ -47,3 +47,35 @@ jobs:
       - name: Run test suite
         run: |
           python -m pytest -q
+
+  ui:
+    name: UI workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "ui/package-lock.json"
+
+      - name: Install UI dependencies
+        run: |
+          npm --prefix ui ci
+
+      - name: Type check UI workspace
+        run: |
+          npm --prefix ui run typecheck
+
+      - name: Build React web client
+        run: |
+          npm --prefix ui run build:web
+
+      - name: Build Ink Gem client
+        run: |
+          npm --prefix ui run build:gem

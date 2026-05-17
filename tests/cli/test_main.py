@@ -339,6 +339,61 @@ def test_gem_command_exits_cleanly_when_app_runs(monkeypatch):
     assert main.gem() is None
 
 
+def test_web_react_command_delegates_to_ui_workspace_script(monkeypatch, tmp_path):
+    calls = []
+    ui_dir = tmp_path / "ui"
+    ui_dir.mkdir()
+    (ui_dir / "package.json").write_text("{}", encoding="utf-8")
+    (ui_dir / "node_modules").mkdir()
+    monkeypatch.setattr(main, "_UI_WORKSPACE", ui_dir)
+    monkeypatch.setattr(
+        main.subprocess,
+        "run",
+        lambda args, check=False: calls.append((args, check)) or SimpleNamespace(returncode=0),
+    )
+
+    main.web_react()
+
+    assert calls == [(["npm", "--prefix", str(ui_dir), "run", "dev:web"], False)]
+
+
+def test_gem_ink_command_delegates_to_ui_workspace_script(monkeypatch, tmp_path):
+    calls = []
+    ui_dir = tmp_path / "ui"
+    ui_dir.mkdir()
+    (ui_dir / "package.json").write_text("{}", encoding="utf-8")
+    (ui_dir / "node_modules").mkdir()
+    monkeypatch.setattr(main, "_UI_WORKSPACE", ui_dir)
+    monkeypatch.setattr(
+        main.subprocess,
+        "run",
+        lambda args, check=False: calls.append((args, check)) or SimpleNamespace(returncode=0),
+    )
+
+    main.gem_ink()
+
+    assert calls == [(["npm", "--prefix", str(ui_dir), "run", "dev:gem"], False)]
+
+
+def test_ui_workspace_script_guides_when_node_modules_missing(monkeypatch, tmp_path):
+    notices = []
+    ui_dir = tmp_path / "ui"
+    ui_dir.mkdir()
+    (ui_dir / "package.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(main, "_UI_WORKSPACE", ui_dir)
+    monkeypatch.setattr(main, "print_status_message", lambda body, title=None: notices.append((title, body)))
+
+    try:
+        main.web_react()
+    except main.typer.Exit as exc:
+        assert exc.exit_code == 1
+    else:
+        raise AssertionError("web_react should exit when UI dependencies are missing")
+
+    assert notices[-1][0] == "🧪 Experimental UI"
+    assert "npm --prefix ui install" in notices[-1][1]
+
+
 def test_run_async_cancels_pending_background_tasks():
     observed: dict[str, bool] = {"cancelled": False}
 

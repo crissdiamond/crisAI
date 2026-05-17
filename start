@@ -29,15 +29,23 @@ case "$MODE" in
   gem)
     exec python -m crisai.cli.main gem
     ;;
+  gem-ink)
+    exec python -m crisai.cli.main gem-ink
+    ;;
   web)
     exec crisai-web
     ;;
+  web-react)
+    exec python -m crisai.cli.main web-react
+    ;;
   *)
-    echo "Usage: ./start [cli|gem|web]"
+    echo "Usage: ./start [cli|gem|gem-ink|web|web-react]"
     echo "Examples:"
     echo "  ./start cli"
     echo "  ./start gem"
+    echo "  ./start gem-ink"
     echo "  ./start web"
+    echo "  ./start web-react"
     exit 2
     ;;
 esac

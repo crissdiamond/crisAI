@@ -177,7 +177,13 @@ npm run dev:gem
 
 These clients are not yet the default launch path. They connect to the local
 Python runtime at `http://127.0.0.1:8000`; start `./start web` first while the
-runtime/API remains hosted by FastAPI.
+runtime/API remains hosted by FastAPI. From the repository root, the equivalent
+launch helpers are:
+
+```bash
+./start web-react
+./start gem-ink
+```
 
 ---
 

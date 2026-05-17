@@ -202,6 +202,15 @@ pytest
 That is the preferred command for checking the full current project state.
 The default pytest configuration includes `--cov=crisai --cov-report=term-missing` and requires total coverage of at least 70%. CI runs the same suite with `pytest-timeout` enabled so hung async or web tests fail within the configured per-test timeout.
 
+The CI workflow also runs the UI workspace checks:
+
+```bash
+npm --prefix ui ci
+npm --prefix ui run typecheck
+npm --prefix ui run build:web
+npm --prefix ui run build:gem
+```
+
 For a clean-install smoke check, also verify both launch modes:
 
 ```bash
