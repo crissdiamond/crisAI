@@ -166,6 +166,14 @@ button:disabled {
   padding: 16px;
 }
 
+.history-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  max-height: 720px;
+  overflow: auto;
+}
+
 .stage {
   display: grid;
   gap: 4px;
@@ -241,8 +249,112 @@ pre {
   border-bottom: 0;
 }
 
-.memory-summary {
-  font-weight: 600;
+.session-context-preview {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-surface-pale);
+}
+
+.panel-heading,
+.recall-result header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-heading {
+  align-items: baseline;
+}
+
+.panel-heading h3,
+.context-section h4 {
+  margin: 0;
+}
+
+.panel-heading span,
+.context-budget,
+.context-status,
+.recall-result small {
+  color: var(--color-primary-dark);
+}
+
+.context-query {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.context-query label {
+  display: grid;
+  gap: 4px;
+}
+
+.context-body {
+  display: grid;
+  gap: 12px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.context-section {
+  display: grid;
+  gap: 8px;
+}
+
+.context-brief,
+.context-field li,
+.recall-result p {
+  overflow-wrap: anywhere;
+}
+
+.context-brief,
+.context-budget,
+.context-status,
+.recall-result p,
+.recall-result small {
+  margin: 0;
+}
+
+.context-field {
+  display: grid;
+  gap: 4px;
+}
+
+.context-field ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.recall-result {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--color-surface-pale);
+}
+
+.matched-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.matched-terms li {
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--color-primary-dark);
+  background: var(--color-surface-light);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.context-error {
+  color: var(--color-error);
 }
 
 .history-entry {
@@ -370,6 +482,15 @@ pre {
 
   .stage-rail {
     margin-bottom: 16px;
+  }
+
+  .history-panel {
+    max-height: none;
+    margin-top: 16px;
+  }
+
+  .context-query {
+    grid-template-columns: 1fr;
   }
 
   .checkpoint-actions {

@@ -238,6 +238,7 @@ These are the best first commands because they show you:
 /session new architecture-v2
 /session compact
 /context show
+/context show integration risks
 /context reset
 /exit
 ```
@@ -316,6 +317,10 @@ CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS=2
 
 Each task session stores raw history, compact memory, deterministic anchors, and task metadata under `workspace/tasks/<task>/.crisai/`. Legacy `workspace/chat_sessions/` files are still read for compatibility. Runtime prompts use the compact memory plus a small relevant recent tail instead of replaying the full session, which reduces repeated context and token waste during multi-step tasks.
 
+For session-scoped runs, crisAI now injects a deterministic baseline brief on every request. The brief contains the active session, task workspace paths, and structured memory fields such as task goal, current state, scope, assumptions, constraints, decisions, source findings, open questions, next actions, and recent outputs. This keeps the durable task purpose visible without replaying the whole transcript.
+
+Agents that need deeper recall can use the read-only `session_memory` MCP server. It is scoped by `CRISAI_SESSION_MEMORY_SESSION` to the active task session and exposes only context/recall tools; it does not write memory or allow sibling-session browsing.
+
 Routing and workflow policy are inferred from the **latest user message**, not from the full history wrapper. Session memory and task workspace paths are supporting context only; they must not turn a follow-up such as “generate an option paper” into a file-write request just because the prompt wrapper mentions `workspace/tasks/<task>/artefacts`. Failed chat turns are still persisted with the error status so task history reflects what happened.
 
 Known source paths in compact memory are normalised to current workspace roots, which avoids stale source paths in follow-up drafts.
@@ -327,6 +332,7 @@ Use one session per task when possible:
 ```text
 /session new integration-summary
 /context show
+/context show integration risks
 /session compact
 /context reset
 ```
@@ -334,8 +340,17 @@ Use one session per task when possible:
 - `/session new <name>` starts a clean task session and creates `workspace/tasks/<name>/`.
 - `/session <name>` switches to an existing task session and loads its raw history.
 - `/session compact` rebuilds compact memory from the raw history.
-- `/context show` previews the compact memory and recent-turn budget that would be supplied to the next request.
+- `/context show` previews the structured baseline context that would be supplied to the next request.
+- `/context show <query>` adds deterministic recall matches with field names, provenance, matched terms, and lexical scores.
 - `/context reset` clears compact memory while keeping raw history intact.
+
+The shared UI API exposes the same payload through:
+
+```http
+GET /api/v1/sessions/{session}/context?query=<optional>&limit=5
+```
+
+The response uses `schema_version: ui_session_context_v1` and includes `baseline_brief`, structured `memory`, recall `budget`, `recall_query`, and `recall_results`. The React web app shows this in the Session context preview, and Gem exposes it with `/context show [query]`.
 
 Session memory defaults are configured in `registry/session_memory.yaml`. Local operators can override those defaults from `.env` without editing registry files:
 

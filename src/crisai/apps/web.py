@@ -32,8 +32,10 @@ from crisai.apps.run_history import (
 from crisai.cli.artefact_lifecycle import persist_reusable_deliverable
 from crisai.cli.chat_context import (
     build_chat_input,
+    build_session_context_package,
     normalise_legacy_workspace_paths,
     render_session_memory,
+    serialize_session_context,
     update_session_memory,
 )
 from crisai.cli.display import render_stage_output_text, sanitize_user_visible_text
@@ -594,6 +596,18 @@ def _serialize_memory(session_name: str) -> dict[str, Any]:
         "known_sources_count": len(memory.known_sources),
         "updated_at": memory.updated_at,
     }
+
+
+def _serialize_session_context(session_name: str, *, query: str = "", limit: int = 5) -> dict[str, Any]:
+    """Return deterministic baseline context plus optional recall for one session."""
+    safe_name = sanitize_session_name(session_name)
+    package = build_session_context_package(
+        safe_name,
+        query=query,
+        limit=limit,
+        registry_dir=load_settings().registry_dir,
+    )
+    return serialize_session_context(package)
 
 
 def _read_ui_theme_config() -> dict[str, Any]:
@@ -1221,6 +1235,18 @@ async def api_v1_create_session(payload: SessionCreateRequest) -> dict[str, Any]
 async def api_v1_get_session(session_name: str) -> dict[str, Any]:
     """Return one session through the shared UI API."""
     return get_session(session_name)
+
+
+@app.get("/api/v1/sessions/{session_name}/context")
+async def api_v1_session_context(
+    session_name: str,
+    query: str = Query(default=""),
+    limit: int = Query(default=5, ge=1, le=20),
+) -> dict[str, Any]:
+    """Return deterministic baseline context and optional recall for one session."""
+    if not is_safe_session_route_value(session_name):
+        raise HTTPException(status_code=404, detail="Session not found.")
+    return _serialize_session_context(session_name, query=query, limit=limit)
 
 
 @app.get("/api/v1/workspace/roots")

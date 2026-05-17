@@ -6,6 +6,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/orchestrator.md
     allowed_servers:
+      - session_memory
       - workspace
       - diagrams
       - documents
@@ -16,6 +17,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/retrieval_planner_agent.md
     allowed_servers:
+      - session_memory
       - workspace_read
       - documents
       - sharepoint_docs
@@ -27,6 +29,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/context_retrieval_agent.md
     allowed_servers:
+      - session_memory
       - workspace_read
       - documents
       - sharepoint_docs
@@ -38,6 +41,7 @@ agents:
     model_ref: deepseek_reasoner
     prompt_file: prompts/context_synthesizer_agent.md
     allowed_servers:
+      - session_memory
       - workspace_read
       - documents
       - intranet
@@ -47,6 +51,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/design_agent.md
     allowed_servers:
+      - session_memory
       - workspace
       - diagrams
 
@@ -55,6 +60,7 @@ agents:
     model_ref: deepseek_reasoner
     prompt_file: prompts/summary_agent.md
     allowed_servers:
+      - session_memory
       - workspace_read
       - documents
       - sharepoint_docs
@@ -66,6 +72,7 @@ agents:
     model_ref: gemini_strong
     prompt_file: prompts/review_agent.md
     allowed_servers:
+      - session_memory
       - workspace_read
       - documents
       - intranet
@@ -88,6 +95,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/publisher.md
     allowed_servers:
+      - session_memory
       - workspace
       - documents
       - diagrams
@@ -98,6 +106,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/document_formatter.md
     allowed_servers:
+      - session_memory
       - workspace
       - documents
       - document_export
@@ -107,6 +116,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/design_author.md
     allowed_servers:
+      - session_memory
       - workspace
       - diagrams
 
@@ -115,6 +125,7 @@ agents:
     model_ref: openai_fast
     prompt_file: prompts/design_challenger.md
     allowed_servers:
+      - session_memory
       - workspace_read
 
   - id: design_refiner
@@ -122,6 +133,7 @@ agents:
     model_ref: deepseek_reasoner
     prompt_file: prompts/design_refiner.md
     allowed_servers:
+      - session_memory
       - workspace
       - diagrams
 
@@ -130,4 +142,5 @@ agents:
     model_ref: gemini_strong
     prompt_file: prompts/judge.md
     allowed_servers:
+      - session_memory
       - workspace_read

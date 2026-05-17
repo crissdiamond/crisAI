@@ -595,6 +595,31 @@ def test_api_v1_session_runs_does_not_mutate_chat_history(
     assert detail_resp.status_code == 200
 
 
+def test_api_v1_session_context_returns_baseline_and_recall(
+    client: _ASGITestClient,
+) -> None:
+    """GET /api/v1/sessions/{name}/context returns baseline context and recall hits."""
+    from crisai.cli.session_store import SessionMemory, save_session_memory
+
+    save_session_memory(
+        "demo",
+        SessionMemory(
+            task_goal="Design certified reporting architecture.",
+            source_findings=["Certified datasets are required by the reporting standard."],
+        ),
+    )
+
+    resp = client.get("/api/v1/sessions/demo/context?query=certified%20datasets")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["schema_version"] == "ui_session_context_v1"
+    assert body["session"] == "demo"
+    assert "Active task context" in body["baseline_brief"]
+    assert body["budget"]["recall_count"] >= 1
+    assert body["recall_results"][0]["provenance"].startswith("memory.")
+
+
 def test_run_status_returns_failed_on_pipeline_error(
     client: _ASGITestClient,
 ) -> None:

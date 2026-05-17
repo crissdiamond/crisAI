@@ -56,6 +56,29 @@ servers:
       mode: none
     risk_level: low
 
+  - id: session_memory
+    name: Session Memory Server
+    description: Read the active session baseline brief and deterministic recall hits.
+    enabled: true
+    transport: stdio
+    command: python
+    args:
+      - src/crisai/servers/session_memory_server.py
+      - .
+    working_directory: .
+    tags: [local, memory, read_only]
+    auth:
+      type: none
+    tools:
+      allow:
+        - get_active_session_name
+        - get_session_context
+        - recall_session_context
+    approval:
+      required_for: []
+      mode: none
+    risk_level: low
+
   - id: diagrams
     name: Diagram Server
     description: Generate and validate Mermaid diagrams for architecture artefacts.

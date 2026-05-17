@@ -240,6 +240,13 @@ def _apply_mcp_env_overrides(environment: Any, overrides: dict[str, str]) -> Non
     current.update(overrides)
 
 
+def _session_memory_env(session_name: str | None) -> dict[str, str]:
+    """Return MCP env that scopes session-memory tools to the active session."""
+    if not session_name:
+        return {}
+    return {"CRISAI_SESSION_MEMORY_SESSION": session_name}
+
+
 def _write_target_subdir_from_contract(contract: RequestContract) -> str | None:
     """Return the subtree to monitor when a contract requires artefact publication."""
     if contract.output_target_subdir:
@@ -571,6 +578,7 @@ async def run_single(
         raise WorkflowValidationError(f"Unknown agent_id: {agent_id}")
 
     environment = create_workflow_environment(settings, model_specs=model_specs)
+    _apply_mcp_env_overrides(environment, _session_memory_env(session_name))
     agent_spec = agent_specs[agent_id]
 
     logger.info("Running single agent request.", extra={"agent_id": agent_id, "run_id": _get_run_id(environment)})
@@ -744,6 +752,7 @@ async def run_pipeline(
         request_contract,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
     )
+    _apply_mcp_env_overrides(environment, _session_memory_env(session_name))
     _apply_mcp_env_overrides(environment, authorization.to_env())
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)
@@ -1160,6 +1169,7 @@ async def run_peer_pipeline(
         request_contract,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
     )
+    _apply_mcp_env_overrides(environment, _session_memory_env(session_name))
     _apply_mcp_env_overrides(environment, authorization.to_env())
     root_dir = Path(getattr(environment, "root_dir", Path.cwd()))
     write_before = snapshot_tree(root_dir, policy.write_target_subdir)

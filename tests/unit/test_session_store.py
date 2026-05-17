@@ -175,8 +175,54 @@ def test_save_and_load_session_memory_round_trip(tmp_path, monkeypatch):
 
     assert loaded.task_goal == "Summarise the Integration Strategy deck."
     assert loaded.current_state == "Summary complete."
+    assert loaded.schema_version == "session_memory_v2"
     assert loaded.known_sources == ["workspace/knowledge/integration.md"]
     assert loaded.updated_at.endswith("Z")
+
+
+def test_load_session_memory_does_not_create_session_dirs(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+
+    loaded = session_store.load_session_memory("missing")
+
+    assert loaded == session_store.SessionMemory()
+    assert not (tmp_path / "tasks" / "missing").exists()
+
+
+def test_load_v1_session_memory_upgrades_to_v2_on_save(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+    path = session_store.session_memory_file("demo")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "session_memory_v1",
+                "task_goal": "Summarise the strategy.",
+                "current_state": "Drafted.",
+                "important_decisions": ["Use option A."],
+                "known_sources": ["knowledge/strategy.md"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = session_store.load_session_memory("demo")
+    session_store.save_session_memory("demo", loaded)
+    saved = json.loads(path.read_text(encoding="utf-8"))
+
+    assert loaded.schema_version == "session_memory_v2"
+    assert loaded.task_goal == "Summarise the strategy."
+    assert saved["schema_version"] == "session_memory_v2"
+    assert saved["scope"] == []
+    assert saved["source_findings"] == []
 
 
 def test_clear_session_memory_rewrites_empty_memory(tmp_path, monkeypatch):
@@ -191,4 +237,4 @@ def test_clear_session_memory_rewrites_empty_memory(tmp_path, monkeypatch):
 
     loaded = session_store.load_session_memory("demo")
     assert loaded.task_goal == ""
-    assert loaded.schema_version == "session_memory_v1"
+    assert loaded.schema_version == "session_memory_v2"

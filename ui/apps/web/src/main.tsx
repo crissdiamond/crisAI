@@ -10,6 +10,8 @@ import {
   type UiEvent,
   type UiHistoryEntry,
   type UiRunState,
+  type UiSessionContext,
+  type UiSessionRecallResult,
   type UiSessionState,
   type UiStageSummary,
   type UiWorkspaceFileRecord,
@@ -32,7 +34,9 @@ function App() {
   const [session, setSession] = useState("default");
   const [sessions, setSessions] = useState<string[]>(["default"]);
   const [history, setHistory] = useState<UiHistoryEntry[]>([]);
-  const [memorySummary, setMemorySummary] = useState("");
+  const [sessionContext, setSessionContext] = useState<UiSessionContext | null>(null);
+  const [sessionContextStatus, setSessionContextStatus] = useState<"idle" | "loading" | "ready" | "empty" | "error">("idle");
+  const [sessionContextError, setSessionContextError] = useState("");
   const [newSessionName, setNewSessionName] = useState("");
   const [mode, setMode] = useState("auto");
   const [verbose, setVerbose] = useState(false);
@@ -92,7 +96,22 @@ function App() {
     setSessions(state.sessions.length > 0 ? state.sessions : [state.current_session]);
     setSession(state.current_session);
     setHistory(state.history);
-    setMemorySummary(state.memory?.summary ?? "");
+    void loadSessionContext(state.current_session);
+  }
+
+  async function loadSessionContext(sessionName = session, query?: string) {
+    setSessionContextStatus("loading");
+    setSessionContextError("");
+    setSessionContext(null);
+    try {
+      const context = await runtime.getSessionContext(sessionName, query, 5);
+      setSessionContext(context);
+      setSessionContextStatus(hasSessionContextContent(context) ? "ready" : "empty");
+    } catch (reason: unknown) {
+      setSessionContext(null);
+      setSessionContextStatus("error");
+      setSessionContextError(reason instanceof Error ? reason.message : String(reason));
+    }
   }
 
   async function selectSession(value: string) {
@@ -234,7 +253,13 @@ function App() {
           onRedirectInstructionChange={setRedirectInstruction}
           onCheckpoint={checkpoint}
         />
-        <HistoryPanel history={history} memorySummary={memorySummary} />
+        <HistoryPanel
+          history={history}
+          sessionContext={sessionContext}
+          contextStatus={sessionContextStatus}
+          contextError={sessionContextError}
+          onRefreshContext={loadSessionContext}
+        />
       </section>
 
       <WorkspaceBrowser session={session} />
@@ -258,12 +283,52 @@ function StageRail({ stages }: { stages: UiStageSummary[] }) {
   );
 }
 
-function HistoryPanel({ history, memorySummary }: { history: UiHistoryEntry[]; memorySummary: string }) {
+function HistoryPanel({
+  history,
+  sessionContext,
+  contextStatus,
+  contextError,
+  onRefreshContext
+}: {
+  history: UiHistoryEntry[];
+  sessionContext: UiSessionContext | null;
+  contextStatus: "idle" | "loading" | "ready" | "empty" | "error";
+  contextError: string;
+  onRefreshContext: (sessionName?: string, query?: string) => Promise<void>;
+}) {
   const recentHistory = history.slice(-6);
+  const [query, setQuery] = useState("");
+  const sessionName = sessionContext?.session;
+
+  function submitContextQuery(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void onRefreshContext(sessionName, query.trim() || undefined);
+  }
+
   return (
     <aside className="history-panel" aria-label="Session history">
       <h2>Session</h2>
-      {memorySummary ? <p className="memory-summary">{memorySummary}</p> : null}
+      <section className="session-context-preview" aria-labelledby="session-context-heading">
+        <div className="panel-heading">
+          <h3 id="session-context-heading">Context preview</h3>
+          <span>{contextStatus === "loading" ? "loading" : sessionContext?.session ?? "current"}</span>
+        </div>
+        <form className="context-query" onSubmit={submitContextQuery}>
+          <label>
+            Recall query
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Optional focus"
+              disabled={contextStatus === "loading"}
+            />
+          </label>
+          <button type="submit" aria-label="Refresh context preview" disabled={contextStatus === "loading"}>
+            Refresh
+          </button>
+        </form>
+        <SessionContextBody context={sessionContext} status={contextStatus} error={contextError} />
+      </section>
       {recentHistory.length === 0 ? <p>No session history yet.</p> : null}
       {recentHistory.map((entry, index) => (
         <article key={`${entry.role}-${index}`} className="history-entry">
@@ -272,6 +337,106 @@ function HistoryPanel({ history, memorySummary }: { history: UiHistoryEntry[]; m
         </article>
       ))}
     </aside>
+  );
+}
+
+function SessionContextBody({
+  context,
+  status,
+  error
+}: {
+  context: UiSessionContext | null;
+  status: "idle" | "loading" | "ready" | "empty" | "error";
+  error: string;
+}) {
+  if (status === "loading") {
+    return <p className="context-status" role="status">Loading session context.</p>;
+  }
+  if (status === "idle") {
+    return <p className="context-status">Context will load with the session.</p>;
+  }
+  if (status === "error") {
+    return <p className="context-status context-error" role="alert">Context unavailable: {error}</p>;
+  }
+  if (!context || status === "empty") {
+    return <p className="context-status">No structured context has been captured for this session yet.</p>;
+  }
+
+  const fields = [
+    ["Task goal", context.memory.task_goal],
+    ["Current state", context.memory.current_state],
+    ["Scope", context.memory.scope],
+    ["Assumptions", context.memory.assumptions],
+    ["Constraints", context.memory.constraints],
+    ["Important decisions", context.memory.important_decisions],
+    ["Rejected options", context.memory.rejected_options],
+    ["Source findings", context.memory.source_findings],
+    ["Known sources", context.memory.known_sources],
+    ["Active artefacts", context.memory.active_artefacts],
+    ["Open questions", context.memory.open_questions],
+    ["Next actions", context.memory.next_actions],
+    ["Last outputs", context.memory.last_outputs],
+    ["Do not repeat", context.memory.do_not_repeat]
+  ].flatMap(([label, value]) => {
+    const items = asStringList(value);
+    return items.length > 0 ? [{ label: String(label), items }] : [];
+  });
+
+  return (
+    <div className="context-body">
+      {context.baseline_brief ? (
+        <section className="context-section">
+          <h4>Baseline brief</h4>
+          <p className="context-brief">{context.baseline_brief}</p>
+        </section>
+      ) : null}
+      {fields.length > 0 ? (
+        <section className="context-section">
+          <h4>Memory fields</h4>
+          {fields.map((field) => (
+            <div key={field.label} className="context-field">
+              <strong>{field.label}</strong>
+              <ul>
+                {field.items.slice(0, 4).map((item, index) => (
+                  <li key={`${field.label}-${index}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      ) : null}
+      <section className="context-section">
+        <h4>Recall</h4>
+        <p className="context-budget">
+          {context.budget.recall_count} recalled, limit {context.budget.recall_limit}
+          {context.budget.truncated ? ", truncated" : ""}
+        </p>
+        {context.recall_results.length === 0 ? <p>No recall matches for this preview.</p> : null}
+        {context.recall_results.map((result, index) => (
+          <RecallResultCard key={`${result.field}-${index}`} result={result} />
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function RecallResultCard({ result }: { result: UiSessionRecallResult }) {
+  return (
+    <article className="recall-result">
+      <header>
+        <strong>{humanizeLabel(result.field)}</strong>
+        <span>score {formatRecallScore(result.score)}</span>
+      </header>
+      <p>{result.content}</p>
+      <small>{result.provenance}</small>
+      {result.matched_terms.length > 0 ? (
+        <ul className="matched-terms" role="list" aria-label="Matched terms">
+          {result.matched_terms.slice(0, 5).map((term) => (
+            <li key={term}>{term}</li>
+          ))}
+        </ul>
+      ) : null}
+    </article>
   );
 }
 
@@ -495,6 +660,46 @@ function latestLiveStageEvent(events: UiEvent[]): UiEvent | null {
   const terminal = [...events].reverse().find((event) => isTerminalEvent(event));
   if (terminal) return null;
   return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
+}
+
+function hasSessionContextContent(context: UiSessionContext): boolean {
+  return Boolean(
+    context.baseline_brief.trim() ||
+      context.recall_results.length > 0 ||
+      asStringList(context.memory.task_goal).length > 0 ||
+      asStringList(context.memory.current_state).length > 0 ||
+      asStringList(context.memory.scope).length > 0 ||
+      asStringList(context.memory.assumptions).length > 0 ||
+      asStringList(context.memory.constraints).length > 0 ||
+      asStringList(context.memory.important_decisions).length > 0 ||
+      asStringList(context.memory.rejected_options).length > 0 ||
+      asStringList(context.memory.source_findings).length > 0 ||
+      asStringList(context.memory.known_sources).length > 0 ||
+      asStringList(context.memory.active_artefacts).length > 0 ||
+      asStringList(context.memory.open_questions).length > 0 ||
+      asStringList(context.memory.next_actions).length > 0 ||
+      asStringList(context.memory.last_outputs).length > 0 ||
+      asStringList(context.memory.do_not_repeat).length > 0
+  );
+}
+
+function asStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  }
+  if (typeof value === "string" && value.trim()) {
+    return [value];
+  }
+  return [];
+}
+
+function humanizeLabel(value: string): string {
+  const label = value.replaceAll("_", " ").trim();
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : "Memory";
+}
+
+function formatRecallScore(score: number): string {
+  return Number.isInteger(score) ? String(score) : score.toFixed(2);
 }
 
 function dedupeEvents(items: UiEvent[]): UiEvent[] {

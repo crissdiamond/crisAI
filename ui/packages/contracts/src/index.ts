@@ -101,10 +101,48 @@ export type UiHistoryEntry = {
 
 export type UiSessionMemory = {
   schema_version?: string;
+  task_goal?: string;
+  current_state?: string;
+  scope?: string[];
+  assumptions?: string[];
+  constraints?: string[];
+  important_decisions?: string[];
+  rejected_options?: string[];
+  source_findings?: string[];
+  known_sources?: string[];
+  active_artefacts?: string[];
+  open_questions?: string[];
+  next_actions?: string[];
+  last_outputs?: string[];
+  do_not_repeat?: string[];
   summary?: string;
   known_sources_count?: number;
   updated_at?: string | null;
   [key: string]: unknown;
+};
+
+export type UiSessionRecallResult = {
+  field: string;
+  content: string;
+  score: number;
+  provenance: string;
+  matched_terms: string[];
+};
+
+export type UiSessionContext = {
+  schema_version: "ui_session_context_v1";
+  session: string;
+  baseline_brief: string;
+  memory: UiSessionMemory;
+  budget: {
+    baseline_chars: number;
+    baseline_char_limit: number;
+    recall_limit: number;
+    recall_count: number;
+    truncated: boolean;
+  };
+  recall_query: string;
+  recall_results: UiSessionRecallResult[];
 };
 
 export type UiSessionState = {
@@ -362,6 +400,21 @@ export class CrisaiRuntimeClient {
 
   async getSession(session: string): Promise<UiSessionState> {
     const response = await fetch(`${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}`, {
+      headers: this.requestHeaders()
+    });
+    return this.readJson(response);
+  }
+
+  async getSessionContext(session: string, query?: string, limit?: number): Promise<UiSessionContext> {
+    const params = new URLSearchParams();
+    if (query) {
+      params.set("query", query);
+    }
+    if (limit !== undefined) {
+      params.set("limit", String(limit));
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    const response = await fetch(`${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}/context${suffix}`, {
       headers: this.requestHeaders()
     });
     return this.readJson(response);

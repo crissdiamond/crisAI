@@ -11,7 +11,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 - React web and Ink Gem terminal surfaces for the same routed workflows.
 - Shared UI event contracts for routing, task contracts, streamed stage deltas, checkpoints, final answers, and run state.
 - Specialist agents with separate responsibilities and configurable model assignment.
-- Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
+- Local workspace, document, diagram, vision, SharePoint document, scoped intranet content, and read-only session memory MCP servers.
 - Native DOCX/PPTX export from reviewed Markdown task artefacts via template manifests.
 - Three workflow modes: `single`, `pipeline`, and `peer`.
 - Task contracts that preserve the user’s main ask across retrieval, summary, design, review, and final stages.
@@ -255,7 +255,7 @@ The registry is the main control plane:
 - `registry/servers.yaml`: MCP server definitions and allowed tools.
 - `registry/workflow_policy.yaml`: runtime hard gates.
 - `registry/workspace_spaces.yaml`: workspace roots, named knowledge corpora, task artefact folders, promotion roots, and architecture vocabulary.
-- `registry/session_memory.yaml`: compact session memory defaults, with `.env` overrides via `CRISAI_SESSION_MEMORY_*`.
+- `registry/session_memory.yaml`: compact session memory defaults and deterministic session context budgets, with `.env` overrides via `CRISAI_SESSION_MEMORY_*`.
 - `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, retrieval source-fit constraints, and generic session-anchor vocabulary used to preserve user-visible labels across follow-up turns.
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
 

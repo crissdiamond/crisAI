@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/ui_session_context_v1.schema.json",
+  "title": "crisAI UI Session Context",
+  "type": "object",
+  "required": ["schema_version", "session", "baseline_brief", "memory", "budget", "recall_query", "recall_results"],
+  "properties": {
+    "schema_version": { "const": "ui_session_context_v1" },
+    "session": { "type": "string", "minLength": 1 },
+    "baseline_brief": { "type": "string" },
+    "memory": { "type": "object" },
+    "budget": {
+      "type": "object",
+      "required": ["baseline_chars", "baseline_char_limit", "recall_limit", "recall_count", "truncated"],
+      "properties": {
+        "baseline_chars": { "type": "integer", "minimum": 0 },
+        "baseline_char_limit": { "type": "integer", "minimum": 1 },
+        "recall_limit": { "type": "integer", "minimum": 1 },
+        "recall_count": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "recall_query": { "type": "string" },
+    "recall_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "content", "score", "provenance", "matched_terms"],
+        "properties": {
+          "field": { "type": "string", "minLength": 1 },
+          "content": { "type": "string" },
+          "score": { "type": "number" },
+          "provenance": { "type": "string" },
+          "matched_terms": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

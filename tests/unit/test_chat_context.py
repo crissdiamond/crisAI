@@ -43,6 +43,23 @@ def test_build_chat_input_returns_plain_input_without_history():
     assert chat_context.build_chat_input("hello", []) == "hello"
 
 
+def test_build_chat_input_wraps_session_baseline_without_history(monkeypatch):
+    captured = {}
+
+    def fake_render_cli_text(template: str, **kwargs):
+        captured["template"] = template
+        captured["kwargs"] = kwargs
+        return "wrapped"
+
+    monkeypatch.setattr(chat_context, "render_cli_text", fake_render_cli_text)
+
+    result = chat_context.build_runtime_context_package("hello", [], session_name="demo")
+
+    assert result.prompt == "wrapped"
+    assert "Active task context:" in captured["kwargs"]["transcript"]
+    assert "workspace/tasks/demo" in captured["kwargs"]["transcript"]
+
+
 def test_build_chat_input_normalises_legacy_context_path_without_history():
     assert chat_context.build_chat_input("Read workspace/context/templates/hld.md", []) == (
         "Read workspace/knowledge/templates/hld.md"
@@ -72,7 +89,7 @@ def test_build_chat_input_wraps_compact_memory_and_relevant_tail(monkeypatch):
     assert captured["template"] == "chat/history_wrapper.md"
     assert captured["kwargs"]["user_input"] == "Integration Strategy latest summary"
     transcript = captured["kwargs"]["transcript"]
-    assert "Compact session memory:" in transcript
+    assert "Task goal:" in transcript
     assert "Known sources:" in transcript
     assert "knowledge/integration-strategy.md" in transcript
     assert "Relevant recent turns:" in transcript
@@ -109,6 +126,42 @@ def test_compact_memory_canonicalizes_workspace_prefix_sources():
     assert "knowledge/patterns/reporting-patterns.txt" in memory.known_sources
 
 
+def test_compact_memory_extracts_v2_structured_fields():
+    history = [
+        ("user", "Build a reporting architecture. Must stay local. Assume Power BI is retained."),
+        (
+            "assistant",
+            "Recommended approach should use semantic models. Rejected option: direct Excel extracts. "
+            "Source finding: reporting standard requires certified datasets. Next action: draft the artefact.",
+        ),
+    ]
+
+    memory = chat_context.compact_session_memory(history)
+
+    assert memory.schema_version == "session_memory_v2"
+    assert memory.scope
+    assert any("Power BI" in item for item in memory.assumptions)
+    assert any("Must stay local" in item for item in memory.constraints)
+    assert any("Rejected option" in item for item in memory.rejected_options)
+    assert any("Source finding" in item for item in memory.source_findings)
+    assert any("Next action" in item for item in memory.next_actions)
+
+
+def test_compact_memory_preserves_initial_task_goal_across_followups():
+    history = [
+        ("user", "Create an enterprise reporting architecture options paper for finance leadership."),
+        ("assistant", "Drafted the initial options paper and recommended option 2."),
+        ("user", "Add a risk section."),
+        ("assistant", "Added delivery and data quality risks."),
+        ("user", "Update option 2 with the governance caveat."),
+    ]
+
+    memory = chat_context.compact_session_memory(history)
+
+    assert memory.task_goal == "Create an enterprise reporting architecture options paper for finance leadership."
+    assert "Update option 2" in memory.scope[0]
+
+
 def test_compact_memory_ignores_runtime_failure_notes():
     history = [
         ("user", "Create a Power BI recommendation."),
@@ -135,6 +188,44 @@ def test_runtime_context_package_flags_task_drift():
 
     assert package.drift_nudge
     assert package.included_recent_entries <= 4
+
+
+def test_recall_session_memory_scores_with_provenance(monkeypatch):
+    memory = chat_context.SessionMemory(
+        task_goal="Design reporting architecture.",
+        important_decisions=["Use certified semantic models for reporting."],
+        source_findings=["Reporting standard requires certified datasets."],
+    )
+    monkeypatch.setattr(chat_context, "load_history_for_recall", lambda _: [])
+
+    results = chat_context.recall_session_memory(
+        "demo",
+        "certified reporting datasets",
+        memory=memory,
+        registry_dir=None,
+    )
+
+    assert results
+    assert results[0].score > 0
+    assert results[0].provenance.startswith("memory.")
+    assert "reporting" in results[0].matched_terms
+
+
+def test_build_session_context_package_serializes_recall(monkeypatch):
+    monkeypatch.setattr(
+        chat_context,
+        "load_session_memory",
+        lambda _: chat_context.SessionMemory(task_goal="Review integration design."),
+    )
+    monkeypatch.setattr(chat_context, "load_history_for_recall", lambda _: [])
+
+    package = chat_context.build_session_context_package("demo", query="integration", registry_dir=None)
+    payload = chat_context.serialize_session_context(package)
+
+    assert payload["schema_version"] == "ui_session_context_v1"
+    assert payload["session"] == "demo"
+    assert "Active task context" in payload["baseline_brief"]
+    assert payload["budget"]["baseline_chars"] == len(payload["baseline_brief"])
 
 
 def test_session_memory_config_env_overrides_registry(tmp_path, monkeypatch):

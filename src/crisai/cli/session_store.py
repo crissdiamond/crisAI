@@ -22,12 +22,19 @@ def _workspace_spaces():
 class SessionMemory:
     """Compact task memory persisted beside raw chat history."""
 
-    schema_version: str = "session_memory_v1"
+    schema_version: str = "session_memory_v2"
     task_goal: str = ""
     current_state: str = ""
+    scope: list[str] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
+    constraints: list[str] = field(default_factory=list)
     important_decisions: list[str] = field(default_factory=list)
+    rejected_options: list[str] = field(default_factory=list)
+    source_findings: list[str] = field(default_factory=list)
     known_sources: list[str] = field(default_factory=list)
+    active_artefacts: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
+    next_actions: list[str] = field(default_factory=list)
     last_outputs: list[str] = field(default_factory=list)
     do_not_repeat: list[str] = field(default_factory=list)
     updated_at: str = ""
@@ -36,12 +43,19 @@ class SessionMemory:
     def from_dict(cls, payload: dict[str, Any]) -> SessionMemory:
         """Build memory from persisted JSON, tolerating missing fields."""
         return cls(
-            schema_version=str(payload.get("schema_version") or "session_memory_v1"),
+            schema_version="session_memory_v2",
             task_goal=str(payload.get("task_goal") or ""),
             current_state=str(payload.get("current_state") or ""),
+            scope=_string_list(payload.get("scope")),
+            assumptions=_string_list(payload.get("assumptions")),
+            constraints=_string_list(payload.get("constraints")),
             important_decisions=_string_list(payload.get("important_decisions")),
+            rejected_options=_string_list(payload.get("rejected_options")),
+            source_findings=_string_list(payload.get("source_findings")),
             known_sources=_string_list(payload.get("known_sources")),
+            active_artefacts=_string_list(payload.get("active_artefacts")),
             open_questions=_string_list(payload.get("open_questions")),
+            next_actions=_string_list(payload.get("next_actions")),
             last_outputs=_string_list(payload.get("last_outputs")),
             do_not_repeat=_string_list(payload.get("do_not_repeat")),
             updated_at=str(payload.get("updated_at") or ""),
@@ -106,6 +120,13 @@ def task_metadata_dir(session_name: str) -> Path:
     return path
 
 
+def task_metadata_path(session_name: str) -> Path:
+    """Return the task metadata folder path without creating it."""
+    settings = load_settings()
+    spaces = _workspace_spaces()
+    return settings.workspace_dir / spaces.tasks_root / sanitize_session_name(session_name) / ".crisai"
+
+
 def task_manifest_file(session_name: str) -> Path:
     """Return the task manifest path."""
     return task_metadata_dir(session_name) / "task.json"
@@ -128,9 +149,20 @@ def legacy_session_file(session_name: str) -> Path:
     return session_dir() / f"{sanitize_session_name(session_name)}.json"
 
 
+def legacy_session_path(session_name: str) -> Path:
+    """Build the pre-task session history path without creating directories."""
+    settings = load_settings()
+    return settings.workspace_dir / "chat_sessions" / f"{sanitize_session_name(session_name)}.json"
+
+
 def session_memory_file(session_name: str) -> Path:
     """Build the compact-memory path for a named session."""
     return task_metadata_dir(session_name) / "memory.json"
+
+
+def session_memory_path(session_name: str) -> Path:
+    """Build the compact-memory path without creating directories."""
+    return task_metadata_path(session_name) / "memory.json"
 
 
 def session_anchors_file(session_name: str) -> Path:
@@ -143,14 +175,20 @@ def legacy_session_memory_file(session_name: str) -> Path:
     return session_dir() / f"{sanitize_session_name(session_name)}.memory.json"
 
 
+def legacy_session_memory_path(session_name: str) -> Path:
+    """Build the pre-task compact-memory path without creating directories."""
+    settings = load_settings()
+    return settings.workspace_dir / "chat_sessions" / f"{sanitize_session_name(session_name)}.memory.json"
+
+
 def load_history(session_name: str) -> list[HistoryEntry]:
     """Loads persisted history for a session.
 
     Invalid or unreadable files fall back to an empty history.
     """
-    path = session_file(session_name)
+    path = task_metadata_path(session_name) / "history.json"
     if not path.exists():
-        legacy = legacy_session_file(session_name)
+        legacy = legacy_session_path(session_name)
         if legacy.exists():
             path = legacy
     if not path.exists():
@@ -186,9 +224,9 @@ def save_history(session_name: str, history: list[HistoryEntry]) -> None:
 
 def load_session_memory(session_name: str) -> SessionMemory:
     """Load compact memory for a session, returning empty memory on failure."""
-    path = session_memory_file(session_name)
+    path = session_memory_path(session_name)
     if not path.exists():
-        legacy = legacy_session_memory_file(session_name)
+        legacy = legacy_session_memory_path(session_name)
         if legacy.exists():
             path = legacy
     if not path.exists():

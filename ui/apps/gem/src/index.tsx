@@ -13,12 +13,14 @@ import {
   type UiRunDetail,
   type UiRunState,
   type UiRunSummary,
+  type UiSessionContext,
   type UiSessionState,
   type UiStageSummary
 } from "@crisai/contracts";
 import {
   buildRunListLines,
   buildEventLines,
+  buildSessionContextPreviewLines,
   checkpointDecisionLines,
   clampScrollTop,
   bufferStartupPaste,
@@ -31,6 +33,7 @@ import {
   buildPromptView,
   gemTerminalThemeFromPalette,
   insertPromptText,
+  parseContextCommand,
   minimumGemHeight,
   minimumGemWidth,
   movePromptCursorHorizontal,
@@ -284,6 +287,9 @@ function GemApp() {
   const [runHistoryFailure, setRunHistoryFailure] = useState("");
   const [selectedRunIndex, setSelectedRunIndex] = useState(0);
   const [reviewRun, setReviewRun] = useState<UiRunDetail | null>(null);
+  const [sessionContext, setSessionContext] = useState<UiSessionContext | null>(null);
+  const [contextLoading, setContextLoading] = useState(false);
+  const [contextFailure, setContextFailure] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const navFocusIndexRef = useRef<number | null>(null);
   const historyDraftRef = useRef("");
@@ -336,7 +342,18 @@ function GemApp() {
     () => buildRunListLines(runHistory, selectedRunIndex, outputPanelWidth, runHistoryLoading, runHistoryFailure),
     [outputPanelWidth, runHistory, runHistoryFailure, runHistoryLoading, selectedRunIndex]
   );
-  const panelLines = displayMode === "runs-list" ? runListLines : livePanelLines;
+  const contextLines = useMemo(
+    () => contextLoading
+      ? ["Loading session context..."]
+      : contextFailure
+      ? wrapPlainText(`Could not load session context: ${contextFailure}`, outputPanelWidth)
+      : sessionContext
+      ? buildSessionContextPreviewLines(sessionContext, { width: outputPanelWidth, maxRecallResults: 3 })
+      : livePanelLines,
+    [contextFailure, contextLoading, livePanelLines, outputPanelWidth, sessionContext]
+  );
+  const contextPanelActive = sessionContext !== null || contextLoading || Boolean(contextFailure);
+  const panelLines = displayMode === "runs-list" ? runListLines : contextPanelActive ? contextLines : livePanelLines;
   const contentH = resolvePanelContentHeight(transcriptHeight);
   const maxScroll = Math.max(0, panelLines.length - contentH);
   const canScrollPanel = panelLines.length > contentH;
@@ -525,6 +542,11 @@ function GemApp() {
       }
     }
 
+    if (displayMode === "live" && contextPanelActive && (key.tab || key.escape)) {
+      enterLiveMode("context closed");
+      return;
+    }
+
     if (promptView.totalLines > 1 && (key.upArrow || key.downArrow)) {
       setPromptBuffer(movePromptCursorVertical(
         { text: prompt, cursor: promptCursor },
@@ -610,6 +632,8 @@ function GemApp() {
         setNotice("Checkpoint commands are unavailable while reviewing history.");
       } else if (command === "/runs") {
         void handleRunsCommand();
+      } else if (command === "/context" || command.startsWith("/context ")) {
+        void handleContextCommand(command);
       } else if (command === "/prev" || command.startsWith("/prev ")) {
         void handlePrevCommand(command);
       } else if (command === "/nav" || command.startsWith("/nav ")) {
@@ -663,6 +687,9 @@ function GemApp() {
     try {
       setError("");
       setNotice("");
+      setSessionContext(null);
+      setContextFailure("");
+      setContextLoading(false);
       setDisplayMode("live");
       setReviewRun(null);
       setRunHistoryFailure("");
@@ -701,6 +728,9 @@ function GemApp() {
   async function handleRunsCommand() {
     setError("");
     setNotice("");
+    setSessionContext(null);
+    setContextFailure("");
+    setContextLoading(false);
     setDisplayMode("runs-list");
     setReviewRun(null);
     setRunHistoryLoading(true);
@@ -751,6 +781,33 @@ function GemApp() {
     }
   }
 
+  async function handleContextCommand(command: string) {
+    setError("");
+    setNotice("");
+    const parsed = parseContextCommand(command);
+    if (!parsed.ok) {
+      setNotice(parsed.message);
+      return;
+    }
+    const query = parsed.query;
+    setContextLoading(true);
+    setContextFailure("");
+    setSessionContext(null);
+    setShowEvents(false);
+    setSelectedStage(null);
+    resetStageNavigation();
+    setScrollTop(0);
+    try {
+      const context = await runtime.getSessionContext(session, query || undefined, 5);
+      setSessionContext(context);
+      setNotice(query ? `context: ${query}` : "context shown");
+    } catch (reason) {
+      setContextFailure(formatRuntimeError(reason));
+    } finally {
+      setContextLoading(false);
+    }
+  }
+
   async function openSelectedRunReview() {
     const selected = runHistory[selectedRunIndex];
     if (!selected || runHistoryLoading || runHistoryFailure) return;
@@ -762,6 +819,7 @@ function GemApp() {
       setError("");
       setNotice("Loading run...");
       const detail = await runtime.getSessionRun(summary.session, summary.run_id);
+      clearContextPreview();
       setReviewRun(detail);
       setDisplayMode("review");
       setRunHistoryFailure("");
@@ -779,6 +837,7 @@ function GemApp() {
     try {
       setError("");
       setNotice("");
+      clearContextPreview();
       if (command === "/sessions") {
         const state = await runtime.listSessions();
         applySessionState(state);
@@ -797,6 +856,7 @@ function GemApp() {
   function handleStageCommand(command: string) {
     setError("");
     setNotice("");
+    clearContextPreview();
     const requested = command.replace(/^\/stage\s*/, "").trim();
     if (!requested || requested === "live" || requested === "release") {
       releaseStagePin();
@@ -820,6 +880,7 @@ function GemApp() {
   function handleNavCommand(command: string) {
     setError("");
     setNotice("");
+    clearContextPreview();
     const requested = command.replace(/^\/nav\s*/, "").trim();
     if (requested) {
       setError("Usage: /nav.");
@@ -874,6 +935,7 @@ function GemApp() {
   function enterLiveMode(message = "") {
     setDisplayMode("live");
     setReviewRun(null);
+    clearContextPreview();
     setRunHistoryFailure("");
     resetStageNavigation();
     setSelectedStage(null);
@@ -886,6 +948,12 @@ function GemApp() {
     setNavMode(false);
     setNavFocusKey(null);
     navFocusIndexRef.current = null;
+  }
+
+  function clearContextPreview() {
+    setSessionContext(null);
+    setContextFailure("");
+    setContextLoading(false);
   }
 
   async function handleCheckpointCommand(command: string) {
@@ -950,6 +1018,7 @@ function GemApp() {
             {` | reviewing: ${truncateStageLabel(reviewTitle(reviewRun), 24)}`}
           </Text>
         ) : null}
+        {displayMode === "live" && contextPanelActive ? <Text color={terminalTheme.border}> | context</Text> : null}
         {checkpointWaiting ? <Text color={terminalTheme.checkpoint.label}> | decision needed</Text> : null}
         {navMode && pinnedStage ? (
           <Text color={terminalTheme.border} wrap="truncate-end">
@@ -1037,6 +1106,8 @@ function GemApp() {
             ? `${canScrollPanel ? "↑↓/PgUp/PgDn scroll · " : ""}reviewing: ${reviewTitle(reviewRun)} · /stage and /nav use historical stages · Tab/Esc live`
             : checkpointWaiting
             ? "decision: /continue use sources | /stop end run | /redirect refine"
+            : contextPanelActive
+            ? `${canScrollPanel ? "↑↓/PgUp/PgDn scroll · " : ""}/context show <query> refresh · Enter prompt returns to live output`
             : navMode
               ? "↑↓ stages · Enter pin · l release · Tab/Esc exit · PgUp/PgDn scroll content"
             : pinnedStage
@@ -1047,7 +1118,7 @@ function GemApp() {
                 ? `prompt: ←→ cursor · ↑↓ lines · Ctrl+P/Ctrl+N history · Enter submit`
               : canScrollPanel
                 ? `↑↓/PgUp/PgDn scroll · tab: ${showEvents ? "output" : "events"} · /session <name>`
-                : `mode:auto | session:${session} | sessions:${sessions.length} | Ctrl+P/Ctrl+N history | /session <name>${!run ? " · [/runs for history]" : ""}${stages.length > 0 ? " · /stage <key>" : ""}${stages.length > 1 ? " · /nav browse" : ""}`}
+                : `mode:auto | session:${session} | sessions:${sessions.length} | Ctrl+P/Ctrl+N history | /context show | /session <name>${!run ? " · [/runs for history]" : ""}${stages.length > 0 ? " · /stage <key>" : ""}${stages.length > 1 ? " · /nav browse" : ""}`}
         </Text>
       </Box>
     </Box>

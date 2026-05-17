@@ -3,6 +3,7 @@ import {
   isTerminalEvent,
   type UiEvent,
   type UiRunSummary,
+  type UiSessionContext,
   type UiStageStatus,
   type UiStageSummary
 } from "@crisai/contracts";
@@ -97,6 +98,21 @@ export type PromptDeleteDirection = "backward" | "forward";
 export type StartupPasteReplayState = {
   pendingSequence: string | null;
 };
+
+export type SessionContextPreviewOptions = {
+  width: number;
+  maxRecallResults?: number;
+};
+
+export type ContextCommandParseResult =
+  | {
+      ok: true;
+      query: string;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
 
 export const defaultGemTerminalTheme: GemTerminalTheme = {
   accent: "magenta",
@@ -225,6 +241,66 @@ export function buildRunListLines(
   const help = "Enter review · ↑↓/j/k select · Tab/Esc live";
   lines.push(help.length > width ? `${help.slice(0, Math.max(1, width - 1))}…` : help);
   return lines;
+}
+
+export function parseContextCommand(command: string): ContextCommandParseResult {
+  const requested = command.replace(/^\/context\b\s*/, "").trim();
+  if (!requested) {
+    return { ok: false, message: "Usage: /context show [query]." };
+  }
+  if (requested === "show") {
+    return { ok: true, query: "" };
+  }
+  if (requested.startsWith("show ")) {
+    return { ok: true, query: requested.slice(5).trim() };
+  }
+  return { ok: false, message: "Usage: /context show [query]." };
+}
+
+export function buildSessionContextPreviewLines(
+  context: UiSessionContext,
+  options: SessionContextPreviewOptions
+): string[] {
+  const width = Math.max(8, Math.floor(options.width));
+  const maxRecallResults = Math.max(0, Math.floor(options.maxRecallResults ?? 3));
+  let hasPreviewContent = context.session.trim().length > 0;
+  const lines: string[] = [
+    ...wrapPlainText(`Context preview: ${context.session}`, width),
+    ...wrapPlainText(
+      `Budget: ${context.budget.baseline_chars}/${context.budget.baseline_char_limit} chars · recall ${context.budget.recall_count}/${context.budget.recall_limit}${context.budget.truncated ? " · truncated" : ""}`,
+      width
+    )
+  ];
+
+  if (context.baseline_brief.trim()) {
+    hasPreviewContent = true;
+    lines.push("");
+    lines.push("Baseline brief");
+    lines.push(...wrapPlainText(context.baseline_brief.trim(), width));
+  }
+
+  const memoryLines = sessionMemoryPreviewLines(context.memory);
+  if (memoryLines.length > 0) {
+    hasPreviewContent = true;
+    lines.push("");
+    lines.push("Memory fields");
+    lines.push(...memoryLines.flatMap((line) => wrapPlainText(line, width)));
+  }
+
+  const recallResults = context.recall_results.slice(0, maxRecallResults);
+  if (recallResults.length > 0) {
+    hasPreviewContent = true;
+    lines.push("");
+    lines.push(context.recall_query ? `Recall: ${context.recall_query}` : "Recall");
+    recallResults.forEach((result, index) => {
+      const provenance = result.provenance ? ` · ${result.provenance}` : "";
+      const score = Number.isFinite(result.score) ? ` · score ${formatRecallScore(result.score)}` : "";
+      lines.push(...wrapPlainText(`${index + 1}. ${result.field}${provenance}${score}`, width));
+      lines.push(...wrapPlainText(result.content, Math.max(8, width - 3)).map((line) => `   ${line}`));
+    });
+  }
+
+  return hasPreviewContent ? lines : ["No session context yet."];
 }
 
 export function resolveCommandHistoryMove(
@@ -617,6 +693,36 @@ function colorNameForToken(value: string | undefined, fallback: InkColorName | u
   if (normalized.includes("fafafa") || normalized.includes("ffffff")) return "white";
   if (normalized.includes("1f1f2e") || normalized.includes("1f102f") || normalized.includes("361a54")) return "blue";
   return fallback ?? "white";
+}
+
+function sessionMemoryPreviewLines(memory: UiSessionContext["memory"]): string[] {
+  const sections: Array<[string, unknown]> = [
+    ["Goal", memory.task_goal ?? memory.summary],
+    ["State", memory.current_state],
+    ["Next", memory.next_actions],
+    ["Open", memory.open_questions],
+    ["Decisions", memory.important_decisions],
+    ["Sources", memory.known_sources]
+  ];
+  const lines: string[] = [];
+  for (const [label, value] of sections) {
+    const preview = previewMemoryValue(value);
+    if (preview) lines.push(`${label}: ${preview}`);
+  }
+  return lines;
+}
+
+function previewMemoryValue(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (!Array.isArray(value)) return "";
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .slice(0, 3)
+    .join("; ");
+}
+
+function formatRecallScore(score: number): string {
+  return Number.isInteger(score) ? String(score) : score.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function promptRenderLine(

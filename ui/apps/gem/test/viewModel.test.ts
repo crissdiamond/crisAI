@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildRunListLines,
   buildEventLines,
+  buildSessionContextPreviewLines,
   checkpointDecisionLines,
   clampScrollTop,
   buildPromptView,
@@ -23,6 +24,7 @@ import {
   movePromptCursorHorizontal,
   movePromptCursorVertical,
   normalizePromptInput,
+  parseContextCommand,
   pinnedStageContent,
   promptVisibleLineCount,
   promptVisualLines,
@@ -50,7 +52,7 @@ import {
   wrapPlainText,
   type GemTerminalTheme
 } from "../src/viewModel.js";
-import type { UiEvent, UiRunSummary, UiStageSummary } from "@crisai/contracts";
+import type { UiEvent, UiRunSummary, UiSessionContext, UiStageSummary } from "@crisai/contracts";
 
 function uiEvent(overrides: Partial<UiEvent>): UiEvent {
   return {
@@ -90,6 +92,40 @@ function runSummary(overrides: Partial<UiRunSummary> = {}): UiRunSummary {
     final_answer_length: 42,
     error: "",
     display_order: 1,
+    ...overrides
+  };
+}
+
+function sessionContext(overrides: Partial<UiSessionContext> = {}): UiSessionContext {
+  return {
+    schema_version: "ui_session_context_v1",
+    session: "default",
+    baseline_brief: "The user is preparing a platform architecture note with several open integration decisions.",
+    memory: {
+      task_goal: "Draft the architecture note.",
+      current_state: "Reviewing source material.",
+      next_actions: ["Compare options", "Write decision summary"],
+      open_questions: ["Which integration pattern is preferred?"],
+      important_decisions: ["Use session-scoped memory only"],
+      known_sources: ["standards.md"]
+    },
+    budget: {
+      baseline_chars: 120,
+      baseline_char_limit: 500,
+      recall_limit: 5,
+      recall_count: 1,
+      truncated: false
+    },
+    recall_query: "integration",
+    recall_results: [
+      {
+        field: "important_decisions",
+        content: "Prefer event-driven integration for asynchronous updates.",
+        score: 0.82,
+        provenance: "session_memory",
+        matched_terms: ["integration"]
+      }
+    ],
     ...overrides
   };
 }
@@ -342,6 +378,58 @@ test("run list navigation clamps within available history rows", () => {
   assert.equal(resolveRunsListIndex(0, 3, "previous"), 0);
   assert.equal(resolveRunsListIndex(1, 3, "next"), 2);
   assert.equal(resolveRunsListIndex(2, 3, "next"), 2);
+});
+
+test("context command parser accepts show with optional query and rejects raw context access", () => {
+  assert.deepEqual(parseContextCommand("/context show"), { ok: true, query: "" });
+  assert.deepEqual(parseContextCommand("/context show integration risk"), {
+    ok: true,
+    query: "integration risk"
+  });
+  assert.deepEqual(parseContextCommand("/context"), {
+    ok: false,
+    message: "Usage: /context show [query]."
+  });
+  assert.deepEqual(parseContextCommand("/context raw"), {
+    ok: false,
+    message: "Usage: /context show [query]."
+  });
+});
+
+test("session context preview renders bounded human-readable context without raw JSON", () => {
+  const lines = buildSessionContextPreviewLines(sessionContext(), { width: 36, maxRecallResults: 1 });
+  const normalLines = buildSessionContextPreviewLines(sessionContext(), { width: 72, maxRecallResults: 1 });
+  const rendered = lines.join("\n");
+
+  assert(lines.some((line) => line.includes("Context preview: default")));
+  assert(lines.includes("Baseline brief"));
+  assert(lines.includes("Memory fields"));
+  assert(lines.some((line) => line.includes("Recall: integration")));
+  assert(lines.some((line) => line.includes("score 0.82")));
+  assert(lines.every((line) => line.length <= 36));
+  assert(normalLines.every((line) => line.length <= 72));
+  assert(!rendered.includes("{"));
+  assert(!rendered.includes("schema_version"));
+  assert(!rendered.includes("recall_results"));
+});
+
+test("session context preview exposes empty context as a quiet notice", () => {
+  const lines = buildSessionContextPreviewLines(sessionContext({
+    session: "",
+    baseline_brief: "",
+    memory: {},
+    budget: {
+      baseline_chars: 0,
+      baseline_char_limit: 500,
+      recall_limit: 5,
+      recall_count: 0,
+      truncated: false
+    },
+    recall_query: "",
+    recall_results: []
+  }), { width: 36 });
+
+  assert.deepEqual(lines, ["No session context yet."]);
 });
 
 test("run summary title falls back from message summary to final answer then run id", () => {
