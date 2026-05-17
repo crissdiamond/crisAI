@@ -120,7 +120,7 @@ First-time setup (full step-by-step, including `.env`, is in the repository **RE
 
 On **Debian / Ubuntu**, if `python3 -m venv` fails with a message about **`ensurepip`** or **`python3.x-venv` missing**, install the OS **`venv`** package for your Python version (e.g. `sudo apt install python3-venv` or `python3.12-venv`).
 
-You can also use **`scripts/bootstrap.sh`**, which creates `.venv` if needed and runs `pip install -r requirements.txt`.
+You can also use **`scripts/bootstrap.sh`**, which creates `.venv` if needed, runs `pip install -r requirements.txt`, installs UI workspace dependencies with `npm --prefix ui install` when npm is available, and creates `.env` from `.env.example` when missing.
 
 ---
 
@@ -582,7 +582,7 @@ Its purpose is simple:
 
 ### 9.1 Runtime workflow policy gates
 
-Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, workspace output paths, and resolved session anchors. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations. Classic CLI and the shared v1 UI contract expose a human-readable task contract before agent execution so users can see the inferred intent, deliverable, evidence level, source requirement, and selected workflow before tokens are spent.
+Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, workspace output paths, and resolved session anchors. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations. The shared v1 UI contract exposes a human-readable task contract before agent execution so users can see the inferred intent, deliverable, evidence level, source requirement, and selected workflow before tokens are spent.
 
 After routing selects a mode/agent path, crisAI applies a generic runtime policy layer from `registry/workflow_policy.yaml`:
 

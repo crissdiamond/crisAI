@@ -8,7 +8,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 
 ## What It Provides
 
-- Classic CLI, Web, and Gem terminal surfaces for the same routed workflows.
+- React web and Ink Gem terminal surfaces for the same routed workflows.
 - Shared UI event contracts for routing, task contracts, streamed stage deltas, checkpoints, final answers, and run state.
 - Specialist agents with separate responsibilities and configurable model assignment.
 - Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
@@ -31,7 +31,7 @@ For the full operator manual, see [DOCUMENTATION.md](DOCUMENTATION.md). For dete
 
 ```mermaid
 flowchart TB
-    User[User] --> Surfaces[Classic CLI / Web / Gem]
+    User[User] --> Surfaces[React Web / Ink Gem]
     Surfaces --> RuntimeAPI[Local Runtime API and UI Event Contract]
     RuntimeAPI --> Router[Router and Chat State]
     Router --> SessionMemory[Compact Session Memory]
@@ -112,6 +112,7 @@ ui/           Future React web and Ink Gem clients plus shared TypeScript UI con
 ## Requirements
 
 - Python 3.10+
+- Node.js and npm for the React web and Ink Gem clients
 - Linux, macOS, or WSL on Windows
 - `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `DEEPSEEK_API_KEY` for the default multi-provider agent registry
 - Optional: Anthropic key when selected in `registry/models.yaml` or a mono-provider example
@@ -126,6 +127,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -e ".[litellm]"
+npm --prefix ui install
 cp .env.example .env
 ```
 
