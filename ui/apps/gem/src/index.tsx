@@ -24,6 +24,7 @@ import {
   checkpointDecisionLines,
   clampScrollTop,
   bufferStartupPaste,
+  contextReviewUnavailableNotice,
   defaultGemTerminalTheme,
   deletePromptBackward,
   deletePromptForward,
@@ -33,6 +34,7 @@ import {
   buildPromptView,
   gemTerminalThemeFromPalette,
   insertPromptText,
+  isContextCommand,
   parseContextCommand,
   minimumGemHeight,
   minimumGemWidth,
@@ -630,9 +632,11 @@ function GemApp() {
         void handleCheckpointCommand(command);
       } else if (displayMode === "review" && isCheckpointCommand(command)) {
         setNotice("Checkpoint commands are unavailable while reviewing history.");
+      } else if (displayMode === "review" && isContextCommand(command)) {
+        setNotice(contextReviewUnavailableNotice);
       } else if (command === "/runs") {
         void handleRunsCommand();
-      } else if (command === "/context" || command.startsWith("/context ")) {
+      } else if (isContextCommand(command)) {
         void handleContextCommand(command);
       } else if (command === "/prev" || command.startsWith("/prev ")) {
         void handlePrevCommand(command);

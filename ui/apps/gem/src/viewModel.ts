@@ -114,6 +114,8 @@ export type ContextCommandParseResult =
       message: string;
     };
 
+export const contextReviewUnavailableNotice = "/context show is unavailable while reviewing history.";
+
 export const defaultGemTerminalTheme: GemTerminalTheme = {
   accent: "magenta",
   border: "blue",
@@ -257,6 +259,10 @@ export function parseContextCommand(command: string): ContextCommandParseResult 
   return { ok: false, message: "Usage: /context show [query]." };
 }
 
+export function isContextCommand(command: string): boolean {
+  return command === "/context" || command.startsWith("/context ");
+}
+
 export function buildSessionContextPreviewLines(
   context: UiSessionContext,
   options: SessionContextPreviewOptions
@@ -291,7 +297,7 @@ export function buildSessionContextPreviewLines(
   if (recallResults.length > 0) {
     hasPreviewContent = true;
     lines.push("");
-    lines.push(context.recall_query ? `Recall: ${context.recall_query}` : "Recall");
+    lines.push(...wrapPlainText(context.recall_query ? `Recall: ${context.recall_query}` : "Recall", width));
     recallResults.forEach((result, index) => {
       const provenance = result.provenance ? ` · ${result.provenance}` : "";
       const score = Number.isFinite(result.score) ? ` · score ${formatRecallScore(result.score)}` : "";

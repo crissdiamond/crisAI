@@ -9,6 +9,7 @@ import {
   buildPromptView,
   bufferStartupPaste,
   consumeStartupPasteReplay,
+  contextReviewUnavailableNotice,
   deletePromptBackward,
   deletePromptForward,
   fallbackGemHeight,
@@ -16,6 +17,7 @@ import {
   findStagePinTarget,
   gemTerminalThemeFromPalette,
   insertPromptText,
+  isContextCommand,
   maximumStageSidebarWidth,
   markStartupPasteHandled,
   minimumGemHeight,
@@ -396,15 +398,24 @@ test("context command parser accepts show with optional query and rejects raw co
   });
 });
 
+test("context command routing supports review-mode guard notices", () => {
+  assert.equal(isContextCommand("/context"), true);
+  assert.equal(isContextCommand("/context show integration"), true);
+  assert.equal(isContextCommand("/contextual"), false);
+  assert.equal(contextReviewUnavailableNotice, "/context show is unavailable while reviewing history.");
+});
+
 test("session context preview renders bounded human-readable context without raw JSON", () => {
-  const lines = buildSessionContextPreviewLines(sessionContext(), { width: 36, maxRecallResults: 1 });
+  const lines = buildSessionContextPreviewLines(sessionContext({
+    recall_query: "integration risk review with a long phrase"
+  }), { width: 36, maxRecallResults: 1 });
   const normalLines = buildSessionContextPreviewLines(sessionContext(), { width: 72, maxRecallResults: 1 });
   const rendered = lines.join("\n");
 
   assert(lines.some((line) => line.includes("Context preview: default")));
   assert(lines.includes("Baseline brief"));
   assert(lines.includes("Memory fields"));
-  assert(lines.some((line) => line.includes("Recall: integration")));
+  assert(lines.some((line) => line.includes("Recall: integration risk review")));
   assert(lines.some((line) => line.includes("score 0.82")));
   assert(lines.every((line) => line.length <= 36));
   assert(normalLines.every((line) => line.length <= 72));
