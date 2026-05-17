@@ -44,6 +44,7 @@ function App() {
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
+  const liveStageEvent = useMemo(() => latestLiveStageEvent(events), [events]);
 
   useEffect(() => {
     applyApiKey(apiKeyInput);
@@ -227,6 +228,7 @@ function App() {
         <Transcript
           events={events}
           finalContent={finalContent}
+          liveStageEvent={liveStageEvent}
           checkpointWaiting={checkpointWaiting}
           redirectInstruction={redirectInstruction}
           onRedirectInstructionChange={setRedirectInstruction}
@@ -419,6 +421,7 @@ async function fileToBase64(file: File): Promise<string> {
 function Transcript({
   events,
   finalContent,
+  liveStageEvent,
   checkpointWaiting,
   redirectInstruction,
   onRedirectInstructionChange,
@@ -426,6 +429,7 @@ function Transcript({
 }: {
   events: UiEvent[];
   finalContent: string;
+  liveStageEvent: UiEvent | null;
   checkpointWaiting: boolean;
   redirectInstruction: string;
   onRedirectInstructionChange: (value: string) => void;
@@ -434,7 +438,16 @@ function Transcript({
   return (
     <section className="transcript" aria-live="polite">
       {events.length === 0 ? <p>No output yet.</p> : null}
-      {events.filter((event) => event.event_type !== "final_answer").map((event, index) => (
+      {liveStageEvent ? (
+        <article className="event-card streaming-card">
+          <header>
+            <h2>{liveStageEvent.title}</h2>
+            <span>streaming</span>
+          </header>
+          <pre>{liveStageEvent.content}</pre>
+        </article>
+      ) : null}
+      {events.filter((event) => event.event_type !== "final_answer" && event.event_type !== "stage_delta").map((event, index) => (
         <article key={`${event.event_type}-${event.timestamp}-${index}`} className="event-card">
           <header>
             <h2>{event.title}</h2>
@@ -476,6 +489,12 @@ function Transcript({
       ) : null}
     </section>
   );
+}
+
+function latestLiveStageEvent(events: UiEvent[]): UiEvent | null {
+  const terminal = [...events].reverse().find((event) => isTerminalEvent(event));
+  if (terminal) return null;
+  return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
 }
 
 function dedupeEvents(items: UiEvent[]): UiEvent[] {

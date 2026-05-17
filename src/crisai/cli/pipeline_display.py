@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import io
 import os
+from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
+from contextvars import ContextVar, Token
 
 from agents import Runner
 
@@ -21,6 +23,8 @@ __all__ = [
     "_resolve_agent_max_turns",
     "_run_agent_silently",
     "_run_agent_with_progress",
+    "reset_stage_stream_callback",
+    "set_stage_stream_callback",
     "print_agent_output",
     "sanitize_user_visible_text",
 ]
@@ -28,6 +32,21 @@ __all__ = [
 logger = get_logger(__name__)
 
 _DEFAULT_AGENT_MAX_TURNS = 30
+StageStreamCallback = Callable[[str, str], None]
+_STAGE_STREAM_CALLBACK: ContextVar[StageStreamCallback | None] = ContextVar(
+    "crisai_stage_stream_callback",
+    default=None,
+)
+
+
+def set_stage_stream_callback(callback: StageStreamCallback) -> Token[StageStreamCallback | None]:
+    """Install a per-task callback for user-visible stage text deltas."""
+    return _STAGE_STREAM_CALLBACK.set(callback)
+
+
+def reset_stage_stream_callback(token: Token[StageStreamCallback | None]) -> None:
+    """Restore the previous stage streaming callback."""
+    _STAGE_STREAM_CALLBACK.reset(token)
 
 
 def _resolve_agent_max_turns() -> int:
@@ -67,9 +86,47 @@ async def _run_agent_silently(agent, prompt: str) -> str:
     return str(result.final_output)
 
 
+def _stream_event_delta(event: object) -> str:
+    """Extract visible assistant text from an Agents SDK stream event."""
+    data = getattr(event, "data", None)
+    event_type = str(getattr(data, "type", ""))
+    if event_type not in {"response.output_text.delta", "response.refusal.delta"}:
+        return ""
+    delta = getattr(data, "delta", "")
+    return delta if isinstance(delta, str) else ""
+
+
+async def _run_agent_streamed_silently(agent_id: str, agent, prompt: str, callback: StageStreamCallback) -> str:
+    """Run an agent with token deltas forwarded to a UI callback."""
+    result = None
+    try:
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            result = Runner.run_streamed(
+                agent,
+                prompt,
+                max_turns=_resolve_agent_max_turns(),
+            )
+            async for event in result.stream_events():
+                delta = _stream_event_delta(event)
+                if not delta:
+                    continue
+                try:
+                    callback(agent_id, delta)
+                except Exception:
+                    logger.debug("Stage stream callback failed; continuing agent run.", exc_info=True)
+    except Exception:
+        logger.exception("Agent execution failed.")
+        raise
+    return str(result.final_output)
+
+
 async def _run_agent_with_progress(agent_id: str, agent, prompt: str, topic: str = "Working...") -> str:
     """Run an agent and render its transient progress box."""
     with AgentDisplayManager(agent_id) as manager:
         manager.update(topic)
-        result = await _run_agent_silently(agent, prompt)
+        callback = _STAGE_STREAM_CALLBACK.get()
+        if callback is None:
+            result = await _run_agent_silently(agent, prompt)
+        else:
+            result = await _run_agent_streamed_silently(agent_id, agent, prompt, callback)
     return result

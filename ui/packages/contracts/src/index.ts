@@ -3,6 +3,7 @@ export type UiEventType =
   | "routing_decision"
   | "task_contract"
   | "stage_started"
+  | "stage_delta"
   | "stage_output"
   | "stage_completed"
   | "stage_skipped"
@@ -231,7 +232,7 @@ export function cssVariablesForSurface(theme: UiTheme, surface: string, preferre
 }
 
 function stageStatusFromEvent(event: UiEvent, fallback: UiStageStatus): UiStageStatus {
-  if (event.event_type === "stage_started") return "running";
+  if (event.event_type === "stage_started" || event.event_type === "stage_delta") return "running";
   if (event.event_type === "stage_completed" || event.event_type === "stage_output" || event.event_type === "final_answer") {
     return "complete";
   }
@@ -377,6 +378,7 @@ export class CrisaiRuntimeClient {
       "routing_decision",
       "task_contract",
       "stage_started",
+      "stage_delta",
       "stage_output",
       "stage_completed",
       "stage_skipped",

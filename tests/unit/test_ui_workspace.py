@@ -56,6 +56,7 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     gem_source = (ROOT / "ui/apps/gem/src/index.tsx").read_text(encoding="utf-8")
 
     assert "deriveStageSummaries" in contract_source
+    assert "stage_delta" in contract_source
     assert "cssVariablesForSurface" in contract_source
     assert "isCheckpointWaiting" in contract_source
     assert "deriveStageSummaries(events" in web_source
@@ -65,6 +66,8 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "WorkspaceBrowser" in web_source
     assert "runtime.getWorkspaceTree" in web_source
     assert "runtime.uploadWorkspaceFile" in web_source
+    assert "latestLiveStageEvent" in web_source
+    assert "streaming-card" in web_source
     assert "workspace-upload" in web_source
     assert "fileToBase64" in web_source
     assert "VITE_CRISAI_API_KEY" in web_source

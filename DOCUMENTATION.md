@@ -171,9 +171,9 @@ web app and Ink Gem client:
 - `GET /api/v1/ui/theme`
 
 The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
-task-contract transparency, stage progress, retrieval checkpoints, final
-answers, and failures. The legacy `/api/run/*` endpoints remain available for
-the current static web interface during the migration.
+task-contract transparency, streamed stage deltas, stage progress, retrieval
+checkpoints, final answers, and failures. The legacy `/api/run/*` endpoints
+remain available for the current static web interface during the migration.
 
 The future React and Ink clients are scaffolded in `ui/`:
 

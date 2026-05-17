@@ -11,6 +11,7 @@ from crisai.apps.web import (
     RunRequest,
     SessionCreateRequest,
     WorkspaceFileSaveRequest,
+    _append_stage_delta_event,
     _collect_stage_outputs,
     _evict_old_jobs,
     _select_latest_run,
@@ -188,6 +189,31 @@ def test_collect_stage_outputs_defaults_to_clean_stage_summary():
     assert result[0]["content"].startswith("**Summary:**")
     assert "Retrieved the deck" in result[0]["content"]
     assert "evidence_bundle_v1" not in result[0]["content"]
+
+
+def test_append_stage_delta_event_coalesces_streaming_updates():
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["job-stream"] = {
+        "status": "running",
+        "current_session": "default",
+        "decision": None,
+        "events": [],
+    }
+
+    _append_stage_delta_event("job-stream", "summary", "short")
+    _append_stage_delta_event(
+        "job-stream",
+        "summary",
+        " output that crosses the streaming threshold with enough text to emit a visible live update in the web client",
+    )
+
+    events = web_mod._RUN_JOBS["job-stream"]["events"]
+    assert len(events) == 1
+    assert events[0]["event_type"] == "stage_delta"
+    assert events[0]["agent_id"] == "summary"
+    assert events[0]["content"].startswith("short output that crosses the streaming threshold")
+    assert events[0]["metadata"]["partial"] is True
 
 
 def test_run_endpoint_returns_execution_payload(monkeypatch):

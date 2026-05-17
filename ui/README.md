@@ -25,7 +25,9 @@ Current status:
   The client can attach `Authorization: Bearer <token>` to HTTP requests and
   uses a fetch-based SSE reader when a token is configured, because browser
   `EventSource` cannot send custom headers. Run events include routing decisions
-  and a human-readable task contract before agent execution starts.
+  and a human-readable task contract before agent execution starts. Stage text
+  deltas are delivered as `stage_delta` events while supported agent runs are in
+  progress.
 - `apps/web` is a React scaffold that can start runs, consume SSE events,
   apply registry-backed theme tokens, render expected stages, select/create
   sessions, show recent session history, browse/read/save editable workspace

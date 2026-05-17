@@ -9,6 +9,7 @@ UiEventType = Literal[
     "routing_decision",
     "task_contract",
     "stage_started",
+    "stage_delta",
     "stage_output",
     "stage_completed",
     "stage_skipped",

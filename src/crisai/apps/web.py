@@ -35,6 +35,10 @@ from crisai.cli.main import (
     _run_async,
     _run_with_routing,
 )
+from crisai.cli.pipeline_display import (
+    reset_stage_stream_callback,
+    set_stage_stream_callback,
+)
 from crisai.cli.session_store import (
     list_task_names,
     load_history,
@@ -218,6 +222,39 @@ def _append_job_event(job_id: str, event: UiEvent) -> None:
     """Append one canonical UI event to a background job."""
     job = _RUN_JOBS[job_id]
     job.setdefault("events", []).append(event.to_dict())
+
+
+def _append_stage_delta_event(job_id: str, agent_id: str, delta: str) -> None:
+    """Append a coalesced streaming text update for one running stage."""
+    if not delta:
+        return
+    job = _RUN_JOBS[job_id]
+    buffers = job.setdefault("stream_buffers", {})
+    emit_sizes = job.setdefault("stream_emit_sizes", {})
+    content = str(buffers.get(agent_id, "")) + delta
+    buffers[agent_id] = content
+    last_size = int(emit_sizes.get(agent_id, 0))
+    if len(content) - last_size < 80 and "\n" not in delta:
+        return
+    emit_sizes[agent_id] = len(content)
+    summary = content.strip().splitlines()[-1] if content.strip() else "Streaming output."
+    _append_job_event(
+        job_id,
+        make_ui_event(
+            "stage_delta",
+            run_id=job_id,
+            session=_job_session(job),
+            status=str(job.get("status") or "running"),
+            title=f"{agent_id.replace('_', ' ').title()} streaming",
+            summary=summary[:240],
+            content=content,
+            verbose_content=content,
+            mode=_job_mode(job),
+            agent_id=agent_id,
+            stage="stream",
+            metadata={"partial": True, "content_length": len(content)},
+        ),
+    )
 
 
 def _job_session(job: dict[str, Any]) -> str:
@@ -717,6 +754,9 @@ def _trace_line_to_stage_output(entry: dict[str, Any], *, verbose: bool = False)
 async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
     """Execute one background run and persist completion state."""
     job = _RUN_JOBS[job_id]
+    stream_token = set_stage_stream_callback(
+        lambda agent_id, delta: _append_stage_delta_event(job_id, agent_id, delta)
+    )
     try:
         session_name = sanitize_session_name(payload.session)
         history = load_history(session_name)
@@ -790,6 +830,8 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
                 mode=_job_mode(job),
             ),
         )
+    finally:
+        reset_stage_stream_callback(stream_token)
 
 
 def _evict_old_jobs(max_completed: int = _MAX_COMPLETED_JOBS) -> None:
@@ -891,6 +933,8 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         "checkpoint_future": None,
         "history": [],
         "current_session": sanitize_session_name(payload.session),
+        "stream_buffers": {},
+        "stream_emit_sizes": {},
         "events": [],
         "event_trace_keys": set(),
         "task": None,

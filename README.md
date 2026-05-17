@@ -9,7 +9,7 @@ Use it to find source material, reason over it, draft architecture or documentat
 ## What It Provides
 
 - Classic CLI, Web, and Gem terminal surfaces for the same routed workflows.
-- Shared UI event contracts for routing, task contracts, stages, checkpoints, final answers, and run state.
+- Shared UI event contracts for routing, task contracts, streamed stage deltas, checkpoints, final answers, and run state.
 - Specialist agents with separate responsibilities and configurable model assignment.
 - Local workspace, document, diagram, vision, SharePoint document, and scoped intranet content MCP servers.
 - Native DOCX/PPTX export from reviewed Markdown task artefacts via template manifests.
