@@ -31,6 +31,12 @@ terminal backend is preferred.
 
 - The orchestrator plans work, assigns tasks, integrates results, runs final
   checks, and creates commits.
+- The orchestrator is not the primary implementation worker for area-owned
+  code. Runtime, Gem, and web implementation belongs to the relevant area Codex
+  agent.
+- The orchestrator may inspect, coordinate, integrate, and make small glue or
+  documentation edits, but should not directly implement area feature work
+  unless delegation is not practical and the exception is explicit.
 - Area Codex agents are primary implementers and local coordinators.
 - Claude area agents challenge, review, and may make small focused patches
   inside their area when useful.
