@@ -10,6 +10,7 @@ Read first:
 - `reference/development/operating_model.md`
 - `reference/development/agent_roster.yaml`
 - `reference/development/session_assignments.local.yaml` when present
+- `reference/development/ui_engineering_contract.md` before assigning UI work
 - `reference/TODO.md`
 
 Responsibilities:
@@ -29,3 +30,8 @@ Rules:
 - Keep hcom messages concise; point to memory, bundles, and files.
 - Codex remains the main coder; Claude agents review, challenge, and make small
   focused patches when useful.
+- For UI tasks, require the assigned agent to state how the change preserves
+  shared styling, bounded layout, overflow handling, checkpoint UX, and
+  Gem/web consistency.
+- Do not accept UI handoffs that only prove implementation strings exist.
+  Require behaviour-oriented checks or manual viewport evidence.

@@ -16,6 +16,14 @@ Suggested fixes:
 Checks recommended:
 - <command or scenario>
 
+UI review, when applicable:
+- Shared styling: <uses shared contract | local style justified | issue>
+- Layout bounds: <stable | overflow risk | issue>
+- Variable output: <scrolls/clips/truncates | issue>
+- Checkpoint UX: <clear user decision | exposes internals | issue>
+- Cross-surface consistency: <Gem/web aligned | divergence justified | issue>
+- Viewports checked: <narrow/mobile, normal/desktop, or not checked>
+
 Memory update:
 - <what should be recorded in Claude memory MCP>
 ```

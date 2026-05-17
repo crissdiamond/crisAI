@@ -9,6 +9,7 @@ Read first:
 - `reference/development/operating_model.md`
 - `reference/development/agent_roster.yaml`
 - `reference/development/session_assignments.local.yaml` when present
+- `reference/development/ui_engineering_contract.md`
 
 Ownership:
 
@@ -16,6 +17,18 @@ Ownership:
 - Gem runtime event consumption, terminal layout, hcom-friendly interaction;
 - `ui/packages/contracts/` only when assigned by the orchestrator;
 - Gem-relevant tests and docs.
+
+UI rules:
+
+- Preserve fixed Gem regions: header, stage rail, output pane, prompt panel, and
+  status bar.
+- All variable output, including stage/event output and errors, must be bounded
+  by scroll, clip, pagination, or truncation.
+- Do not hardcode colours, labels, or visual state semantics when a shared theme
+  or UI contract can own them.
+- Checkpoint states must guide the user through a decision; do not expose them
+  as alarming internal gates.
+- Test or manually verify narrow and normal terminal viewports before handoff.
 
 Pairing:
 

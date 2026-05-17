@@ -37,6 +37,7 @@ terminal backend is preferred.
 - Shared files such as `registry/*`, `prompts/*`, `README.md`,
   `DOCUMENTATION.md`, and `ui/packages/contracts/*` need explicit orchestrator
   ownership for the task.
+- UI work must follow `reference/development/ui_engineering_contract.md`.
 - No agent should revert another agent's edits. If there is a conflict, stop and
   ask the orchestrator.
 
@@ -80,3 +81,18 @@ Do not store secrets, API keys, auth tokens, or private credential material.
   open questions.
 - Keep one improvement active per area unless the orchestrator explicitly splits
   independent work.
+
+## UI Definition Of Done
+
+For Gem, web, or shared UI contract changes:
+
+- shared styles and semantic UI states are used before local hardcoded values;
+- fixed layout regions remain stable during active runs;
+- variable output cannot overflow into prompts, status bars, or neighbouring
+  panels;
+- checkpoint and gate states are presented as user decisions with clear actions,
+  not as internal runtime errors;
+- tests or manual checks cover at least one constrained viewport and one normal
+  viewport;
+- handoff notes describe overflow handling, style contract usage, and residual
+  UX risks.
