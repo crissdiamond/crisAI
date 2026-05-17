@@ -154,6 +154,8 @@ The web server exposes the v1 shared UI runtime API:
 - `GET /api/v1/sessions`
 - `POST /api/v1/sessions`
 - `GET /api/v1/sessions/{session_name}`
+- `GET /api/v1/sessions/{session_name}/runs`
+- `GET /api/v1/sessions/{session_name}/runs/{run_id}`
 - `GET /api/v1/workspace/roots`
 - `GET /api/v1/workspace/tree/{root_name}`
 - `GET /api/v1/workspace/file`
@@ -171,7 +173,11 @@ recent session history, browse/read/save editable workspace files, upload source
 documents to task inputs or knowledge intake, and expose retrieval checkpoint
 continue, redirect, and stop actions directly. The Ink client accepts `/session
 <name>` and `/sessions` for session control, plus `/continue`, `/redirect
-<guidance>`, and `/stop` while a checkpoint is waiting.
+<guidance>`, and `/stop` while a checkpoint is waiting. Gem also supports
+`Ctrl+P` and `Ctrl+N` command recall, slash-command ghost suffix suggestions
+accepted with Right arrow, `/runs` to review a bounded list of completed or
+failed runs in the current session, and `/prev` or `/prev N` to open read-only
+historical run snapshots.
 
 When the FastAPI runtime is protected by a static bearer token, set
 `CRISAI_API_KEY` in `.env`. The shared TypeScript client sends the token as an

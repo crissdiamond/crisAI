@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/ui_run_history_v1.schema.json",
+  "title": "crisAI UI Run History",
+  "type": "object",
+  "required": ["schema_version", "session", "runs"],
+  "properties": {
+    "schema_version": { "const": "ui_run_history_v1" },
+    "session": { "type": "string", "minLength": 1 },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "session",
+          "status",
+          "created_at",
+          "updated_at",
+          "completed_at",
+          "message_summary",
+          "mode",
+          "agent",
+          "expected_stages",
+          "event_count",
+          "stage_count",
+          "final_answer_summary",
+          "final_answer_length",
+          "error",
+          "display_order"
+        ],
+        "properties": {
+          "run_id": { "type": "string", "minLength": 1 },
+          "session": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "minLength": 1 },
+          "created_at": { "type": "string" },
+          "updated_at": { "type": "string" },
+          "completed_at": { "type": "string" },
+          "message_summary": { "type": "string" },
+          "mode": { "type": "string" },
+          "agent": { "type": "string" },
+          "expected_stages": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "event_count": { "type": "integer", "minimum": 0 },
+          "stage_count": { "type": "integer", "minimum": 0 },
+          "final_answer_summary": { "type": "string" },
+          "final_answer_length": { "type": "integer", "minimum": 0 },
+          "error": { "type": "string" },
+          "display_order": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

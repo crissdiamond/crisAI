@@ -1,4 +1,11 @@
-import { isCheckpointWaiting, isTerminalEvent, type UiEvent, type UiStageStatus, type UiStageSummary } from "@crisai/contracts";
+import {
+  isCheckpointWaiting,
+  isTerminalEvent,
+  type UiEvent,
+  type UiRunSummary,
+  type UiStageStatus,
+  type UiStageSummary
+} from "@crisai/contracts";
 
 export const fallbackGemWidth = 132;
 export const fallbackGemHeight = 40;
@@ -49,6 +56,14 @@ export type PanelLinesInput = {
 };
 
 export type NavDirection = "previous" | "next";
+export type DisplayMode = "live" | "runs-list" | "review";
+export type CommandHistoryDirection = "previous" | "next";
+
+export type CommandHistoryResult = {
+  prompt: string;
+  cursor: number | null;
+  draft: string;
+};
 
 export const defaultGemTerminalTheme: GemTerminalTheme = {
   accent: "magenta",
@@ -136,6 +151,109 @@ export function truncateStageLabel(label: string, sidebarWidth: number): string 
 
 export function sidebarStages(stages: UiStageSummary[]): UiStageSummary[] {
   return stages.slice(-12);
+}
+
+export function resolveRunsListIndex(currentIndex: number, runCount: number, direction: NavDirection): number {
+  if (runCount <= 0) return 0;
+  if (direction === "previous") return Math.max(0, currentIndex - 1);
+  return Math.min(runCount - 1, currentIndex + 1);
+}
+
+export function runSummaryTitle(summary: UiRunSummary): string {
+  const label = summary.message_summary || summary.final_answer_summary || summary.run_id;
+  return label.trim() || summary.run_id;
+}
+
+export function buildRunListLines(
+  runs: UiRunSummary[],
+  selectedIndex: number,
+  width: number,
+  loading = false,
+  failure = ""
+): string[] {
+  if (loading) return ["Loading runs..."];
+  if (failure) return ["Could not load runs."];
+  if (runs.length === 0) return ["No previous completed or failed runs."];
+
+  const lines = ["Previous runs"];
+  runs.forEach((run, index) => {
+    const marker = index === selectedIndex ? ">" : " ";
+    const title = runSummaryTitle(run);
+    const suffix = [run.status, formatRunSummaryTimestamp(run.completed_at || run.updated_at || run.created_at)]
+      .filter(Boolean)
+      .join(" · ");
+    const prefix = `${marker} ${run.display_order}. `;
+    const maxTitle = Math.max(8, width - prefix.length - suffix.length - 3);
+    const boundedTitle = title.length > maxTitle ? `${title.slice(0, Math.max(1, maxTitle - 1))}…` : title;
+    const line = `${prefix}${boundedTitle}${suffix ? ` (${suffix})` : ""}`;
+    lines.push(line.length > width ? `${line.slice(0, Math.max(1, width - 1))}…` : line);
+  });
+  lines.push("");
+  const help = "Enter review · ↑↓/j/k select · Tab/Esc live";
+  lines.push(help.length > width ? `${help.slice(0, Math.max(1, width - 1))}…` : help);
+  return lines;
+}
+
+export function resolveCommandHistoryMove(
+  history: string[],
+  cursor: number | null,
+  draft: string,
+  prompt: string,
+  direction: CommandHistoryDirection
+): CommandHistoryResult {
+  if (history.length === 0) {
+    return { prompt, cursor, draft };
+  }
+
+  const liveDraft = cursor === null ? prompt : draft;
+  if (direction === "previous") {
+    const nextCursor = cursor === null ? history.length - 1 : Math.max(0, cursor - 1);
+    return {
+      prompt: history[nextCursor] ?? prompt,
+      cursor: nextCursor,
+      draft: liveDraft
+    };
+  }
+
+  if (cursor === null) {
+    return { prompt, cursor, draft };
+  }
+
+  const nextCursor = cursor + 1;
+  if (nextCursor >= history.length) {
+    return {
+      prompt: liveDraft,
+      cursor: null,
+      draft: liveDraft
+    };
+  }
+
+  return {
+    prompt: history[nextCursor] ?? prompt,
+    cursor: nextCursor,
+    draft: liveDraft
+  };
+}
+
+export function resolveGhostSuffix(prompt: string, history: string[], usableWidth: number): string {
+  if (!prompt || !prompt.startsWith("/")) return "";
+  const match = [...history]
+    .reverse()
+    .find((entry) => entry.startsWith("/") && entry.startsWith(prompt) && entry.length > prompt.length);
+  if (!match) return "";
+  const maxSuffixLength = Math.max(0, Math.floor(usableWidth) - prompt.length);
+  return match.slice(prompt.length, prompt.length + maxSuffixLength);
+}
+
+export function formatRunSummaryTimestamp(value: string): string {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const month = parsed.toLocaleString("en", { month: "short", timeZone: "UTC" });
+  const day = parsed.getUTCDate();
+  const hours = parsed.getUTCHours().toString().padStart(2, "0");
+  const minutes = parsed.getUTCMinutes().toString().padStart(2, "0");
+  return `${month} ${day} ${hours}:${minutes}`;
 }
 
 export function findStagePinTarget(stages: UiStageSummary[], input: string): StagePinResult {

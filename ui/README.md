@@ -12,6 +12,8 @@ workspace access, and MCP tools. UI clients consume the local FastAPI v1 contrac
 - `GET /api/v1/sessions`
 - `POST /api/v1/sessions`
 - `GET /api/v1/sessions/{session_name}`
+- `GET /api/v1/sessions/{session_name}/runs`
+- `GET /api/v1/sessions/{session_name}/runs/{run_id}`
 - `GET /api/v1/workspace/roots`
 - `GET /api/v1/workspace/tree/{root_name}`
 - `GET /api/v1/workspace/file`
@@ -34,10 +36,11 @@ Current status:
   files, upload source documents to task inputs or knowledge intake, and submit
   retrieval checkpoint decisions.
 - `apps/gem` is an Ink scaffold that uses the same contract, stage derivation,
-  session APIs, and checkpoint commands (`/continue`, `/redirect <guidance>`,
-  `/stop`). It renders streamed `stage_delta` output in the main pane while a
-  run is active and keeps an in-session command history available with the up
-  and down arrows when the output pane is not using those keys for scrolling.
+  session APIs, run-history APIs, and checkpoint commands (`/continue`,
+  `/redirect <guidance>`, `/stop`). It renders streamed `stage_delta` output in
+  the main pane while a run is active and keeps an in-session command history
+  available with `Ctrl+P` and `Ctrl+N`. Slash-command history can show a dim
+  ghost suffix in the prompt; Right arrow accepts the suggestion.
   The stage sidebar uses a terminal-relative width with minimum and maximum
   bounds, and renders compact status items from the shared theme palette so
   running, completed, skipped, failed, and pending stages are easy to scan. The
@@ -52,6 +55,12 @@ Current status:
   `j`/`k` moves the stage cursor, Enter pins the focused stage, Tab or Esc exits
   navigation mode, and `l` releases the pin. Tab also releases a pinned stage
   before resuming its normal output/events toggle.
+  `/runs` opens a bounded list of completed or failed runs for the current
+  session. Up/down or `j`/`k` selects a run, Enter opens read-only review, and
+  Tab or Esc returns to live mode. `/prev` opens the most recent completed or
+  failed run, and `/prev N` opens the Nth previous run. In review mode, `/stage`
+  and `/nav` operate on the historical snapshot, while checkpoint commands show
+  informational text and do not call the runtime.
   Mouse selection is deferred because Ink core does not provide reliable click
   handling across the terminal configurations crisAI supports.
   The bottom status bar shows the selected model when the runtime exposes it,

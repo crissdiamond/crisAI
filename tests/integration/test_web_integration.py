@@ -53,6 +53,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _ASGITestClient:
     monkeypatch.setattr("crisai.apps.web._session_name_newest_by_mtime", lambda: None)
     monkeypatch.setattr("crisai.apps.web.configure_logging", lambda *a, **kw: None)
     monkeypatch.setattr("crisai.apps.web.load_settings", lambda: _make_settings(tmp_path))
+    monkeypatch.setattr("crisai.cli.session_store.load_settings", lambda: _make_settings(tmp_path))
+    monkeypatch.setattr("crisai.orchestration.semantic_catalog.load_settings", lambda: _make_settings(tmp_path))
     monkeypatch.setattr(
         "crisai.apps.web._resolve_request_contract",
         lambda payload, decision: infer_request_contract(
@@ -88,7 +90,7 @@ def _make_settings(tmp_path: Path):
     return type("S", (), {
         "workspace_dir": tmp_path / "workspace",
         "log_dir": str(tmp_path / "logs"),
-        "registry_dir": str(tmp_path),
+        "registry_dir": REGISTRY_DIR,
         "retrieval_checkpoint_enabled": True,
         "retrieval_checkpoint_max_redirects": 2,
     })()
@@ -386,6 +388,213 @@ def test_api_v1_run_state_maps_trace_rows_to_ui_events(
     assert "drafted recommendation" in body["events"][0]["content"]
 
 
+def test_api_v1_session_runs_lists_persisted_terminal_runs(
+    client: _ASGITestClient,
+    tmp_path: Path,
+) -> None:
+    """GET /api/v1/sessions/{name}/runs returns persisted summaries after memory eviction."""
+    from crisai.apps import run_history
+    from crisai.apps import web as web_mod
+
+    run_history.persist_run_snapshot(
+        {
+            "schema_version": "ui_run_state_v1",
+            "run_id": "jobhistory",
+            "session": "demo task",
+            "status": "completed",
+            "decision": {"mode": "single", "agent": "design"},
+            "expected_stages": [{"key": "design", "label": "Design"}],
+            "events": [
+                {
+                    "schema_version": "ui_event_v1",
+                    "event_type": "stage_output",
+                    "run_id": "jobhistory",
+                    "timestamp": "2026-05-17T10:00:00Z",
+                    "session": "demo_task",
+                    "status": "completed",
+                    "title": "Design",
+                    "summary": "Drafted",
+                    "content": "Drafted recommendation.",
+                    "verbose_content": "Drafted recommendation.",
+                    "mode": "single",
+                    "agent_id": "design",
+                    "stage": "design",
+                    "metadata": {},
+                }
+            ],
+            "final_output": "Final recommendation\nUse option 1.",
+            "error": "",
+            "metadata": {
+                "created_at": "2026-05-17T09:59:00Z",
+                "updated_at": "2026-05-17T10:01:00Z",
+                "completed_at": "2026-05-17T10:01:00Z",
+                "message_summary": "propose a design",
+                "request_contract": {"primary_intent": "design"},
+            },
+        }
+    )
+    web_mod._RUN_JOBS.clear()
+
+    resp = client.get("/api/v1/sessions/demo%20task/runs")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["schema_version"] == "ui_run_history_v1"
+    assert body["session"] == "demo_task"
+    assert body["runs"][0]["display_order"] == 1
+    assert body["runs"][0]["run_id"] == "jobhistory"
+    assert body["runs"][0]["stage_count"] == 1
+    assert body["runs"][0]["final_answer_summary"] == "Final recommendation"
+
+
+def test_api_v1_session_runs_excludes_in_flight_jobs(client: _ASGITestClient) -> None:
+    """Previous-run history only exposes persisted completed or failed runs."""
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["runningjob"] = {
+        "status": "running",
+        "payload": RunRequest(message="still running"),
+        "decision": _FakeDecision(),
+        "decision_data": {"mode": "single", "agent": "design"},
+        "created_at": "2026-05-17T09:59:00Z",
+        "before_size": 0,
+        "run_id": None,
+        "stage_outputs": [],
+        "events": [],
+        "final_output": "",
+        "error": "",
+        "checkpoint": None,
+        "history": [],
+        "current_session": "demo",
+        "task": None,
+    }
+
+    resp = client.get("/api/v1/sessions/demo/runs")
+
+    assert resp.status_code == 200
+    assert resp.json()["runs"] == []
+
+
+def test_terminal_history_persistence_failure_does_not_change_run_status(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Run history persistence is best-effort and cannot fail a completed run."""
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["jobdone"] = {
+        "status": "completed",
+        "payload": RunRequest(message="done"),
+        "decision": _FakeDecision(),
+        "decision_data": {"mode": "single", "agent": "design"},
+        "created_at": "2026-05-17T09:59:00Z",
+        "before_size": 0,
+        "run_id": None,
+        "stage_outputs": [],
+        "events": [],
+        "final_output": "done",
+        "error": "",
+        "checkpoint": None,
+        "history": [],
+        "current_session": "demo",
+        "task": None,
+    }
+    monkeypatch.setattr("crisai.apps.web.persist_run_snapshot", lambda _: (_ for _ in ()).throw(OSError("disk")))
+
+    web_mod._persist_terminal_run_history("jobdone")
+
+    assert web_mod._RUN_JOBS["jobdone"]["status"] == "completed"
+
+
+def test_api_v1_session_run_detail_returns_persisted_ui_state(
+    client: _ASGITestClient,
+) -> None:
+    """GET /api/v1/sessions/{name}/runs/{id} returns persisted detail state."""
+    from crisai.apps import run_history
+
+    run_history.persist_run_snapshot(
+        {
+            "schema_version": "ui_run_state_v1",
+            "run_id": "jobdetail",
+            "session": "demo",
+            "status": "failed",
+            "decision": {"mode": "pipeline", "agent": "orchestrator"},
+            "expected_stages": [],
+            "events": [],
+            "final_output": "",
+            "error": "pipeline crashed",
+            "metadata": {
+                "created_at": "2026-05-17T09:59:00Z",
+                "updated_at": "2026-05-17T10:01:00Z",
+                "completed_at": "2026-05-17T10:01:00Z",
+                "message_summary": "run a pipeline",
+                "request_contract": {"deliverable_type": "summary"},
+            },
+        }
+    )
+
+    resp = client.get("/api/v1/sessions/demo/runs/jobdetail")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["schema_version"] == "ui_run_state_v1"
+    assert body["status"] == "failed"
+    assert body["error"] == "pipeline crashed"
+    assert body["metadata"]["message_summary"] == "run a pipeline"
+    assert body["metadata"]["request_contract"]["deliverable_type"] == "summary"
+
+
+def test_api_v1_session_run_detail_rejects_unsafe_run_id(client: _ASGITestClient) -> None:
+    """Run detail paths do not accept traversal-like identifiers."""
+    resp = client.get("/api/v1/sessions/demo/runs/job-detail")
+
+    assert resp.status_code == 404
+
+
+def test_api_v1_session_runs_rejects_unsafe_session(client: _ASGITestClient) -> None:
+    """Run history session paths reject traversal-like values."""
+    resp = client.get("/api/v1/sessions/%2E%2E/runs")
+
+    assert resp.status_code == 404
+
+
+def test_api_v1_session_runs_does_not_mutate_chat_history(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Run history reads do not touch chat history load/save helpers."""
+    from crisai.apps import run_history
+
+    run_history.persist_run_snapshot(
+        {
+            "schema_version": "ui_run_state_v1",
+            "run_id": "readonly",
+            "session": "demo",
+            "status": "completed",
+            "decision": {},
+            "expected_stages": [],
+            "events": [],
+            "final_output": "done",
+            "error": "",
+            "metadata": {
+                "created_at": "2026-05-17T09:59:00Z",
+                "updated_at": "2026-05-17T10:01:00Z",
+                "completed_at": "2026-05-17T10:01:00Z",
+                "message_summary": "read only",
+                "request_contract": {},
+            },
+        }
+    )
+    monkeypatch.setattr("crisai.apps.web.load_history", lambda _: pytest.fail("load_history called"))
+    monkeypatch.setattr("crisai.apps.web.save_history", lambda *args: pytest.fail("save_history called"))
+
+    list_resp = client.get("/api/v1/sessions/demo/runs")
+    detail_resp = client.get("/api/v1/sessions/demo/runs/readonly")
+
+    assert list_resp.status_code == 200
+    assert detail_resp.status_code == 200
+
+
 def test_run_status_returns_failed_on_pipeline_error(
     client: _ASGITestClient,
 ) -> None:
@@ -653,5 +862,3 @@ def test_auth_middleware_uses_constant_time_compare() -> None:
 
     source = inspect.getsource(web_mod._auth_middleware)
     assert "secrets.compare_digest" in source
-
-

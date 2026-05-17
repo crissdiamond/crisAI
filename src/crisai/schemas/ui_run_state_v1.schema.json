@@ -29,7 +29,8 @@
       "items": { "$ref": "ui_event_v1.schema.json" }
     },
     "final_output": { "type": "string" },
-    "error": { "type": "string" }
+    "error": { "type": "string" },
+    "metadata": { "type": "object" }
   },
   "additionalProperties": false
 }

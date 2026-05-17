@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildRunListLines,
   buildEventLines,
   checkpointDecisionLines,
   clampScrollTop,
@@ -13,23 +14,28 @@ import {
   minimumGemWidth,
   minimumStageSidebarWidth,
   pinnedStageContent,
+  resolveCommandHistoryMove,
   resolveCheckpointWaiting,
+  formatRunSummaryTimestamp,
+  resolveGhostSuffix,
   resolveInputActive,
   resolveNavCursorAfterPrune,
   resolveNavCursorMove,
   resolveOutputPanelWidth,
   resolvePanelLines,
   resolvePanelContentHeight,
+  resolveRunsListIndex,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
+  runSummaryTitle,
   sidebarStages,
   stageVisual,
   truncateStageLabel,
   wrapPlainText,
   type GemTerminalTheme
 } from "../src/viewModel.js";
-import type { UiEvent, UiStageSummary } from "@crisai/contracts";
+import type { UiEvent, UiRunSummary, UiStageSummary } from "@crisai/contracts";
 
 function uiEvent(overrides: Partial<UiEvent>): UiEvent {
   return {
@@ -47,6 +53,28 @@ function uiEvent(overrides: Partial<UiEvent>): UiEvent {
     agent_id: null,
     stage: null,
     metadata: {},
+    ...overrides
+  };
+}
+
+function runSummary(overrides: Partial<UiRunSummary> = {}): UiRunSummary {
+  return {
+    run_id: "run1",
+    session: "default",
+    status: "completed",
+    created_at: "2026-05-17T12:00:00Z",
+    updated_at: "2026-05-17T12:01:00Z",
+    completed_at: "2026-05-17T12:01:00Z",
+    message_summary: "Summarise platform standards",
+    mode: "auto",
+    agent: "auto",
+    expected_stages: [],
+    event_count: 4,
+    stage_count: 2,
+    final_answer_summary: "Final answer",
+    final_answer_length: 42,
+    error: "",
+    display_order: 1,
     ...overrides
   };
 }
@@ -271,4 +299,61 @@ test("checkpoint copy is phrased as a user decision with consequences", () => {
   assert(lines[1].includes("/redirect <guidance> refine retrieval"));
   assert(lines[1].includes("/stop end run"));
   assert(!lines.join(" ").toLowerCase().includes("requested"));
+});
+
+test("run list lines are bounded and expose loading, failure, and empty states", () => {
+  const long = runSummary({
+    message_summary: "A very long previous run title that must be truncated inside a narrow terminal",
+    display_order: 1
+  });
+  const lines = buildRunListLines([long], 0, 42);
+
+  assert.equal(buildRunListLines([], 0, 42, true)[0], "Loading runs...");
+  assert.equal(buildRunListLines([], 0, 42, false, "failed")[0], "Could not load runs.");
+  assert.equal(buildRunListLines([], 0, 42)[0], "No previous completed or failed runs.");
+  assert(lines.some((line) => line.startsWith("> 1.")));
+  assert(lines.some((line) => line.includes("May 17 12:01")));
+  assert(lines.every((line) => line.length <= 42));
+});
+
+test("run summary timestamps use compact UTC labels and preserve unknown values", () => {
+  assert.equal(formatRunSummaryTimestamp("2026-05-17T12:01:00Z"), "May 17 12:01");
+  assert.equal(formatRunSummaryTimestamp("not-a-date"), "not-a-date");
+  assert.equal(formatRunSummaryTimestamp(""), "");
+});
+
+test("run list navigation clamps within available history rows", () => {
+  assert.equal(resolveRunsListIndex(0, 0, "next"), 0);
+  assert.equal(resolveRunsListIndex(0, 3, "previous"), 0);
+  assert.equal(resolveRunsListIndex(1, 3, "next"), 2);
+  assert.equal(resolveRunsListIndex(2, 3, "next"), 2);
+});
+
+test("run summary title falls back from message summary to final answer then run id", () => {
+  assert.equal(runSummaryTitle(runSummary({ message_summary: "Main ask" })), "Main ask");
+  assert.equal(runSummaryTitle(runSummary({ message_summary: "", final_answer_summary: "Final" })), "Final");
+  assert.equal(runSummaryTitle(runSummary({ message_summary: "", final_answer_summary: "", run_id: "abc" })), "abc");
+});
+
+test("command history recall uses Ctrl-style cycling and restores the live draft", () => {
+  const history = ["/runs", "/prev 2", "draft architecture"];
+  const first = resolveCommandHistoryMove(history, null, "", "/st", "previous");
+  const second = resolveCommandHistoryMove(history, first.cursor, first.draft, first.prompt, "previous");
+  const forward = resolveCommandHistoryMove(history, second.cursor, second.draft, second.prompt, "next");
+  const live = resolveCommandHistoryMove(history, 2, "/st", "draft architecture", "next");
+
+  assert.deepEqual(first, { prompt: "draft architecture", cursor: 2, draft: "/st" });
+  assert.deepEqual(second, { prompt: "/prev 2", cursor: 1, draft: "/st" });
+  assert.deepEqual(forward, { prompt: "draft architecture", cursor: 2, draft: "/st" });
+  assert.deepEqual(live, { prompt: "/st", cursor: null, draft: "/st" });
+});
+
+test("ghost suffix only uses slash-command prefix matches and truncates without mutating prompt", () => {
+  const history = ["normal prompt", "/session design", "/stage retrieval"];
+
+  assert.equal(resolveGhostSuffix("", history, 20), "");
+  assert.equal(resolveGhostSuffix("normal", history, 20), "");
+  assert.equal(resolveGhostSuffix("/s", history, 20), "tage retrieval");
+  assert.equal(resolveGhostSuffix("/stage", history, 8), " r");
+  assert.equal(resolveGhostSuffix("/stage retrieval", history, 30), "");
 });

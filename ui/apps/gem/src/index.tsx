@@ -10,11 +10,14 @@ import {
   latestFinalContent,
   resolveThemePalette,
   type UiEvent,
+  type UiRunDetail,
   type UiRunState,
+  type UiRunSummary,
   type UiSessionState,
   type UiStageSummary
 } from "@crisai/contracts";
 import {
+  buildRunListLines,
   buildEventLines,
   checkpointDecisionLines,
   clampScrollTop,
@@ -26,7 +29,10 @@ import {
   minimumGemHeight,
   minimumGemWidth,
   pinnedStageContent,
+  resolveCommandHistoryMove,
   promptPanelHeight,
+  resolveGhostSuffix,
+  resolveRunsListIndex,
   resolveNavCursorAfterPrune,
   resolveCheckpointWaiting,
   resolveInputActive,
@@ -37,10 +43,12 @@ import {
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
+  runSummaryTitle,
   sidebarStages,
   stageVisual,
   truncateStageLabel,
   wrapPlainText,
+  type DisplayMode,
   type GemTerminalTheme
 } from "./viewModel.js";
 
@@ -253,46 +261,73 @@ function GemApp() {
   const [navFocusKey, setNavFocusKey] = useState<string | null>(null);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyCursor, setHistoryCursor] = useState<number | null>(null);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("live");
+  const [runHistory, setRunHistory] = useState<UiRunSummary[]>([]);
+  const [runHistoryLoading, setRunHistoryLoading] = useState(false);
+  const [runHistoryFailure, setRunHistoryFailure] = useState("");
+  const [selectedRunIndex, setSelectedRunIndex] = useState(0);
+  const [reviewRun, setReviewRun] = useState<UiRunDetail | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const navFocusIndexRef = useRef<number | null>(null);
+  const historyDraftRef = useRef("");
 
-  const status = useMemo(() => events.at(-1)?.status ?? run?.status ?? "idle", [events, run]);
-  const statusMetrics = useMemo(() => buildStatusMetrics(events, now), [events, now]);
-  const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
+  const activeRun = displayMode === "review" ? reviewRun : run;
+  const activeEvents = displayMode === "review" ? reviewRun?.events ?? [] : events;
+  const status = useMemo(
+    () => activeEvents.at(-1)?.status ?? activeRun?.status ?? (displayMode === "runs-list" ? "history" : "idle"),
+    [activeEvents, activeRun, displayMode]
+  );
+  const statusMetrics = useMemo(() => buildStatusMetrics(activeEvents, now), [activeEvents, now]);
+  const stages = useMemo(() => deriveStageSummaries(activeEvents, activeRun?.expected_stages ?? []), [activeEvents, activeRun]);
   const visibleStages = useMemo(() => sidebarStages(stages), [stages]);
   const effectiveSelectedKey = navMode ? navFocusKey : selectedStage;
   const pinnedStage = useMemo(
     () => stages.find((stage) => stage.key === effectiveSelectedKey) ?? null,
     [effectiveSelectedKey, stages]
   );
-  const checkpointWaiting = useMemo(() => resolveCheckpointWaiting(events), [events]);
-  const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
+  const liveCheckpointWaiting = useMemo(() => resolveCheckpointWaiting(events), [events]);
+  const checkpointWaiting = displayMode === "live" ? liveCheckpointWaiting : false;
+  const finalContent = useMemo(() => latestFinalContent(activeRun, activeEvents), [activeRun, activeEvents]);
   const finalLines = useMemo(() => renderMarkdownLines(finalContent, outputPanelWidth), [finalContent, outputPanelWidth]);
   const pinnedStageLines = useMemo(
     () => renderMarkdownLines(pinnedStageContent(stages, effectiveSelectedKey), outputPanelWidth),
     [effectiveSelectedKey, outputPanelWidth, stages]
   );
-  const liveStageEvent = useMemo(() => latestLiveStageEvent(events), [events]);
+  const liveStageEvent = useMemo(() => latestLiveStageEvent(activeEvents), [activeEvents]);
   const liveLines = useMemo(
     () => renderMarkdownLines(liveStageEvent?.content ?? "", outputPanelWidth),
     [liveStageEvent, outputPanelWidth]
   );
   const eventLines = useMemo(
-    () => buildEventLines(events, error, outputPanelWidth, notice),
-    [events, error, notice, outputPanelWidth]
+    () => buildEventLines(activeEvents, error, outputPanelWidth, notice),
+    [activeEvents, error, notice, outputPanelWidth]
   );
   const outputLines = finalLines.length > 0 ? finalLines : liveLines;
-  const panelLines = resolvePanelLines({
+  const livePanelLines = resolvePanelLines({
     showEvents,
     selectedStage: effectiveSelectedKey,
     pinnedStageLines,
     outputLines,
     eventLines
   });
+  const runListLines = useMemo(
+    () => buildRunListLines(runHistory, selectedRunIndex, outputPanelWidth, runHistoryLoading, runHistoryFailure),
+    [outputPanelWidth, runHistory, runHistoryFailure, runHistoryLoading, selectedRunIndex]
+  );
+  const panelLines = displayMode === "runs-list" ? runListLines : livePanelLines;
   const contentH = resolvePanelContentHeight(transcriptHeight);
   const maxScroll = Math.max(0, panelLines.length - contentH);
   const canScrollPanel = panelLines.length > contentH;
-  const isLiveOutput = !navMode && selectedStage === null && finalLines.length === 0 && liveLines.length > 0;
+  const isLiveOutput = displayMode === "live" && !navMode && selectedStage === null && finalLines.length === 0 && liveLines.length > 0;
+  const ghostSuffix = useMemo(
+    () => resolveGhostSuffix(prompt, commandHistory, Math.max(0, viewportWidth - 6)),
+    [commandHistory, prompt, viewportWidth]
+  );
+  const isLiveRunInFlight = useMemo(() => {
+    if (!run) return false;
+    if (events.some(isTerminalEvent)) return false;
+    return run.status !== "completed" && run.status !== "failed";
+  }, [events, run]);
 
   React.useEffect(() => {
     runtime
@@ -387,34 +422,79 @@ function GemApp() {
       }
     }
 
+    if (displayMode === "runs-list") {
+      if (key.upArrow || input === "k") {
+        setSelectedRunIndex((current) => resolveRunsListIndex(current, runHistory.length, "previous"));
+        return;
+      }
+      if (key.downArrow || input === "j") {
+        setSelectedRunIndex((current) => resolveRunsListIndex(current, runHistory.length, "next"));
+        return;
+      }
+      if (key.return) {
+        void openSelectedRunReview();
+        return;
+      }
+      if (key.tab || key.escape) {
+        enterLiveMode("history closed");
+        return;
+      }
+      if (key.pageUp && canScrollPanel) {
+        setScrollTop((prev) => Math.max(0, prev - Math.max(1, contentH - 1)));
+        return;
+      }
+      if (key.pageDown && canScrollPanel) {
+        setScrollTop((prev) => Math.min(maxScroll, prev + Math.max(1, contentH - 1)));
+        return;
+      }
+      return;
+    }
+
+    if (displayMode === "review") {
+      if (key.tab || key.escape) {
+        enterLiveMode("returned to live run");
+        return;
+      }
+      if (canScrollPanel) {
+        if (key.upArrow) { setScrollTop((prev) => Math.max(0, prev - 1)); return; }
+        if (key.downArrow) { setScrollTop((prev) => Math.min(maxScroll, prev + 1)); return; }
+        if (key.pageUp) { setScrollTop((prev) => Math.max(0, prev - Math.max(1, contentH - 1))); return; }
+        if (key.pageDown) { setScrollTop((prev) => Math.min(maxScroll, prev + Math.max(1, contentH - 1))); return; }
+      }
+    }
+
     // Scroll the bounded transcript pane whenever visible content exceeds it.
-    if (canScrollPanel) {
+    if (displayMode === "live" && canScrollPanel) {
       if (key.upArrow) { setScrollTop((prev) => Math.max(0, prev - 1)); return; }
       if (key.downArrow) { setScrollTop((prev) => Math.min(maxScroll, prev + 1)); return; }
       if (key.pageUp) { setScrollTop((prev) => Math.max(0, prev - Math.max(1, contentH - 1))); return; }
       if (key.pageDown) { setScrollTop((prev) => Math.min(maxScroll, prev + Math.max(1, contentH - 1))); return; }
-    } else {
-      if (key.upArrow && commandHistory.length > 0) {
-        const next = historyCursor === null ? commandHistory.length - 1 : Math.max(0, historyCursor - 1);
-        setHistoryCursor(next);
-        setPrompt(commandHistory[next] ?? "");
-        return;
-      }
-      if (key.downArrow && commandHistory.length > 0) {
-        if (historyCursor === null) return;
-        const next = historyCursor + 1;
-        if (next >= commandHistory.length) {
-          setHistoryCursor(null);
-          setPrompt("");
-        } else {
-          setHistoryCursor(next);
-          setPrompt(commandHistory[next] ?? "");
-        }
-        return;
-      }
     }
 
-    if (key.tab && selectedStage !== null) {
+    if (key.ctrl && input === "p") {
+      const next = resolveCommandHistoryMove(commandHistory, historyCursor, historyDraftRef.current, prompt, "previous");
+      historyDraftRef.current = next.draft;
+      setHistoryCursor(next.cursor);
+      setPrompt(next.prompt);
+      return;
+    }
+
+    if (key.ctrl && input === "n") {
+      const next = resolveCommandHistoryMove(commandHistory, historyCursor, historyDraftRef.current, prompt, "next");
+      historyDraftRef.current = next.draft;
+      setHistoryCursor(next.cursor);
+      setPrompt(next.prompt);
+      return;
+    }
+
+    if (key.rightArrow && ghostSuffix) {
+      setPrompt((current) => current + ghostSuffix);
+      setHistoryCursor(null);
+      historyDraftRef.current = "";
+      return;
+    }
+
+    if (displayMode === "live" && key.tab && selectedStage !== null) {
       setSelectedStage(null);
       setShowEvents(false);
       setNotice("stage view released");
@@ -422,7 +502,7 @@ function GemApp() {
       return;
     }
 
-    if (key.tab && (outputLines.length > 0 || eventLines.length > 0)) {
+    if (displayMode === "live" && key.tab && (outputLines.length > 0 || eventLines.length > 0)) {
       setShowEvents((prev) => !prev);
       setScrollTop(0);
       return;
@@ -432,8 +512,15 @@ function GemApp() {
       const command = prompt.trim();
       setCommandHistory((current) => current.at(-1) === command ? current : [...current, command].slice(-100));
       setHistoryCursor(null);
+      historyDraftRef.current = "";
       if (checkpointWaiting && command.startsWith("/")) {
         void handleCheckpointCommand(command);
+      } else if (displayMode === "review" && isCheckpointCommand(command)) {
+        setNotice("Checkpoint commands are unavailable while reviewing history.");
+      } else if (command === "/runs") {
+        void handleRunsCommand();
+      } else if (command === "/prev" || command.startsWith("/prev ")) {
+        void handlePrevCommand(command);
       } else if (command === "/nav" || command.startsWith("/nav ")) {
         handleNavCommand(command);
       } else if (command === "/stage" || command.startsWith("/stage ")) {
@@ -448,11 +535,13 @@ function GemApp() {
     }
     if (key.backspace || key.delete) {
       setHistoryCursor(null);
+      historyDraftRef.current = "";
       setPrompt((prev) => prev.slice(0, -1));
       return;
     }
     if (!key.ctrl && input) {
       setHistoryCursor(null);
+      historyDraftRef.current = "";
       setPrompt((prev) => prev + input);
     }
   }, { isActive: inputActive });
@@ -466,6 +555,9 @@ function GemApp() {
     try {
       setError("");
       setNotice("");
+      setDisplayMode("live");
+      setReviewRun(null);
+      setRunHistoryFailure("");
       setEvents([]);
       setScrollTop(0);
       setShowEvents(false);
@@ -495,6 +587,83 @@ function GemApp() {
       );
     } catch (reason) {
       setError(formatRuntimeError(reason));
+    }
+  }
+
+  async function handleRunsCommand() {
+    setError("");
+    setNotice("");
+    setDisplayMode("runs-list");
+    setReviewRun(null);
+    setRunHistoryLoading(true);
+    setRunHistoryFailure("");
+    setSelectedRunIndex(0);
+    resetStageNavigation();
+    setSelectedStage(null);
+    setShowEvents(false);
+    setScrollTop(0);
+    try {
+      const history = await runtime.listSessionRuns(session, 12);
+      const terminalRuns = history.runs.filter((item) => item.status === "completed" || item.status === "failed");
+      setRunHistory(terminalRuns.slice(0, 12));
+      setSelectedRunIndex(0);
+      setNotice(terminalRuns.length > 0 ? `history: ${terminalRuns.length} runs` : "No previous completed or failed runs.");
+    } catch {
+      setRunHistory([]);
+      setRunHistoryFailure("Could not load runs.");
+      setNotice("Could not load runs.");
+    } finally {
+      setRunHistoryLoading(false);
+    }
+  }
+
+  async function handlePrevCommand(command: string) {
+    setError("");
+    setNotice("");
+    if (isLiveRunInFlight) {
+      setNotice("Previous-run review is available after the active run finishes.");
+      return;
+    }
+    const rawOffset = command.replace(/^\/prev\s*/, "").trim();
+    const offset = rawOffset ? Number(rawOffset) : 1;
+    if (!Number.isInteger(offset) || offset < 1) {
+      setNotice("Usage: /prev or /prev <number>.");
+      return;
+    }
+    try {
+      const history = await runtime.listSessionRuns(session, Math.max(12, offset));
+      const target = history.runs.filter((item) => item.status === "completed" || item.status === "failed")[offset - 1];
+      if (!target) {
+        setNotice(`No previous run at ${offset}.`);
+        return;
+      }
+      await openRunReview(target);
+    } catch {
+      setNotice("Could not load runs.");
+    }
+  }
+
+  async function openSelectedRunReview() {
+    const selected = runHistory[selectedRunIndex];
+    if (!selected || runHistoryLoading || runHistoryFailure) return;
+    await openRunReview(selected);
+  }
+
+  async function openRunReview(summary: UiRunSummary) {
+    try {
+      setError("");
+      setNotice("Loading run...");
+      const detail = await runtime.getSessionRun(summary.session, summary.run_id);
+      setReviewRun(detail);
+      setDisplayMode("review");
+      setRunHistoryFailure("");
+      resetStageNavigation();
+      setSelectedStage(null);
+      setShowEvents(false);
+      setScrollTop(0);
+      setNotice(`reviewing: ${runSummaryTitle(summary)}`);
+    } catch {
+      setNotice("Could not load run.");
     }
   }
 
@@ -569,18 +738,14 @@ function GemApp() {
 
   function releaseStagePin() {
     setSelectedStage(null);
-    setNavMode(false);
-    setNavFocusKey(null);
-    navFocusIndexRef.current = null;
+    resetStageNavigation();
     setShowEvents(false);
     setScrollTop(0);
     setNotice("stage view released");
   }
 
   function exitNavMode() {
-    setNavMode(false);
-    setNavFocusKey(null);
-    navFocusIndexRef.current = null;
+    resetStageNavigation();
     setShowEvents(false);
     setScrollTop(0);
   }
@@ -596,6 +761,23 @@ function GemApp() {
     setShowEvents(false);
     setScrollTop(0);
     setNotice(`pinned: ${stage.label}`);
+  }
+
+  function enterLiveMode(message = "") {
+    setDisplayMode("live");
+    setReviewRun(null);
+    setRunHistoryFailure("");
+    resetStageNavigation();
+    setSelectedStage(null);
+    setShowEvents(false);
+    setScrollTop(0);
+    setNotice(message);
+  }
+
+  function resetStageNavigation() {
+    setNavMode(false);
+    setNavFocusKey(null);
+    navFocusIndexRef.current = null;
   }
 
   async function handleCheckpointCommand(command: string) {
@@ -654,6 +836,12 @@ function GemApp() {
         <Text bold>crisAI Gem</Text>
         <Text> | {status}</Text>
         <Text> | {session}</Text>
+        {displayMode === "runs-list" ? <Text color={terminalTheme.border}> | history</Text> : null}
+        {displayMode === "review" && reviewRun ? (
+          <Text color={terminalTheme.border} wrap="truncate-end">
+            {` | reviewing: ${truncateStageLabel(reviewTitle(reviewRun), 24)}`}
+          </Text>
+        ) : null}
         {checkpointWaiting ? <Text color={terminalTheme.checkpoint.label}> | decision needed</Text> : null}
         {navMode && pinnedStage ? (
           <Text color={terminalTheme.border} wrap="truncate-end">
@@ -664,12 +852,16 @@ function GemApp() {
             {` | pinned: ${truncateStageLabel(pinnedStage.label, 16)}`}
           </Text>
         ) : isLiveOutput ? <Text color={terminalTheme.stage.running}> | streaming</Text> : null}
-        <Text dimColor wrap="truncate-end">{showEvents ? " | tab: output" : " | tab: events"}</Text>
+        <Text dimColor wrap="truncate-end">
+          {displayMode === "runs-list" || displayMode === "review"
+            ? " | Tab/Esc: live"
+            : showEvents ? " | tab: output" : " | tab: events"}
+        </Text>
       </Box>
 
       <Box height={transcriptHeight + 2} flexDirection="row">
         <Box width={stageSidebarWidth} borderStyle="single" borderColor={terminalTheme.border} paddingX={1} flexDirection="column">
-          <Text bold>Stages</Text>
+          <Text bold>{displayMode === "review" ? "Review stages" : "Stages"}</Text>
           {stages.length === 0 ? <Text dimColor>No stages yet.</Text> : null}
           {visibleStages.map((stage, index) => (
             <StageItem
@@ -708,15 +900,25 @@ function GemApp() {
             ))}
           </>
         ) : (
-          <Text dimColor>Prompt</Text>
+          <Text dimColor>
+            {displayMode === "runs-list" ? "History" : displayMode === "review" ? "Review" : "Prompt"}
+          </Text>
         )}
-        <Text wrap="truncate-end">{"> "}{prompt}</Text>
+        <Text wrap="truncate-end">
+          {"> "}
+          {prompt}
+          {ghostSuffix ? <Text dimColor>{ghostSuffix}</Text> : null}
+        </Text>
       </Box>
 
       <Box paddingX={1}>
         <Text dimColor wrap="truncate-end">
           {`${statusMetrics.model} | ${statusMetrics.elapsed} | tokens:${statusMetrics.tokens} | cost:${statusMetrics.cost} | `}
-          {checkpointWaiting
+          {displayMode === "runs-list"
+            ? "↑↓/j/k select · Enter review · Tab/Esc live"
+            : displayMode === "review" && reviewRun
+            ? `${canScrollPanel ? "↑↓/PgUp/PgDn scroll · " : ""}reviewing: ${reviewTitle(reviewRun)} · /stage and /nav use historical stages · Tab/Esc live`
+            : checkpointWaiting
             ? "decision: /continue use sources | /stop end run | /redirect refine"
             : navMode
               ? "↑↓ stages · Enter pin · l release · Tab/Esc exit · PgUp/PgDn scroll content"
@@ -726,7 +928,7 @@ function GemApp() {
                 : `/stage release · Tab unpin · pinned: ${pinnedStage.label}`
               : canScrollPanel
                 ? `↑↓/PgUp/PgDn scroll · tab: ${showEvents ? "output" : "events"} · /session <name>`
-                : `mode:auto | session:${session} | sessions:${sessions.length} | ↑↓ history | /session <name>${stages.length > 0 ? " · /stage <key>" : ""}${stages.length > 1 ? " · /nav browse" : ""}`}
+                : `mode:auto | session:${session} | sessions:${sessions.length} | Ctrl+P/Ctrl+N history | /session <name>${!run ? " · [/runs for history]" : ""}${stages.length > 0 ? " · /stage <key>" : ""}${stages.length > 1 ? " · /nav browse" : ""}`}
         </Text>
       </Box>
     </Box>
@@ -737,6 +939,17 @@ function latestLiveStageEvent(events: UiEvent[]): UiEvent | null {
   const terminal = [...events].reverse().find((event) => isTerminalEvent(event));
   if (terminal) return null;
   return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
+}
+
+function isCheckpointCommand(command: string): boolean {
+  return command === "/continue" || command === "/stop" || command === "/redirect" || command.startsWith("/redirect ");
+}
+
+function reviewTitle(run: UiRunDetail): string {
+  const messageSummary = typeof run.metadata.message_summary === "string" ? run.metadata.message_summary.trim() : "";
+  if (messageSummary) return messageSummary;
+  const finalSummary = run.final_output.trim().split("\n")[0] ?? "";
+  return finalSummary || run.run_id;
 }
 
 function formatRuntimeError(reason: unknown): string {

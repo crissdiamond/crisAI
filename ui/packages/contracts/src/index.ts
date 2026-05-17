@@ -51,6 +51,47 @@ export type UiRunState = {
   events: UiEvent[];
   final_output: string;
   error: string;
+  metadata?: UiRunMetadata;
+};
+
+export type UiRunMetadata = {
+  snapshot_schema_version?: string;
+  created_at?: string;
+  updated_at?: string;
+  completed_at?: string;
+  message_summary?: string;
+  trace_run_id?: string;
+  request_contract?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type UiRunSummary = {
+  run_id: string;
+  session: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  completed_at: string;
+  message_summary: string;
+  mode: string;
+  agent: string;
+  expected_stages: UiExpectedStage[];
+  event_count: number;
+  stage_count: number;
+  final_answer_summary: string;
+  final_answer_length: number;
+  error: string;
+  display_order: number;
+};
+
+export type UiRunHistory = {
+  schema_version: "ui_run_history_v1";
+  session: string;
+  runs: UiRunSummary[];
+};
+
+export type UiRunDetail = UiRunState & {
+  metadata: UiRunMetadata;
 };
 
 export type UiHistoryEntry = {
@@ -323,6 +364,29 @@ export class CrisaiRuntimeClient {
     const response = await fetch(`${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}`, {
       headers: this.requestHeaders()
     });
+    return this.readJson(response);
+  }
+
+  async listSessionRuns(session: string, limit?: number): Promise<UiRunHistory> {
+    const query = new URLSearchParams();
+    if (limit !== undefined) {
+      query.set("limit", String(limit));
+    }
+    const queryString = query.toString();
+    const suffix = queryString ? `?${queryString}` : "";
+    const response = await fetch(`${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}/runs${suffix}`, {
+      headers: this.requestHeaders()
+    });
+    return this.readJson(response);
+  }
+
+  async getSessionRun(session: string, runId: string): Promise<UiRunDetail> {
+    const response = await fetch(
+      `${this.baseUrl}/api/v1/sessions/${encodeURIComponent(session)}/runs/${encodeURIComponent(runId)}`,
+      {
+        headers: this.requestHeaders()
+      }
+    );
     return this.readJson(response);
   }
 

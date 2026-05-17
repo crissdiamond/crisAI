@@ -186,6 +186,10 @@ If the FastAPI runtime is protected with a static bearer token, set
 The launcher also maps `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` for
 local `.env` convenience. React web can also upload local source documents into
 the current task inputs folder or the knowledge intake area for later retrieval.
+Ink Gem keeps command recall on `Ctrl+P` and `Ctrl+N`, can suggest matching
+slash commands as a dim prompt suffix, and supports `/runs`, `/prev`, and
+`/prev N` for read-only review of completed or failed runs in the current
+session.
 
 ## hcom Development Team
 

@@ -15,10 +15,20 @@ from uuid import uuid4
 
 import typer
 import yaml
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from crisai.apps.run_history import (
+    DEFAULT_LIST_LIMIT,
+    MAX_LIST_LIMIT,
+    build_run_history_response,
+    is_safe_run_id,
+    is_safe_session_route_value,
+    load_run_detail,
+    persist_run_snapshot,
+    utc_now_iso,
+)
 from crisai.cli.artefact_lifecycle import persist_reusable_deliverable
 from crisai.cli.chat_context import (
     build_chat_input,
@@ -261,6 +271,11 @@ def _job_mode(job: dict[str, Any]) -> str | None:
     return str(getattr(decision, "mode", "")) or None
 
 
+def _message_summary(message: str) -> str:
+    """Return a compact single-line summary for run history labels."""
+    return " ".join(str(message or "").strip().split())[:160]
+
+
 def _agent_model_metadata(agent_id: str | None) -> dict[str, Any]:
     """Return registry model metadata for an agent when available."""
     if not agent_id:
@@ -365,6 +380,47 @@ def _refresh_job_from_trace(job_id: str) -> None:
         job.setdefault("events", []).append(
             _ui_event_from_stage_entry(job_id=job_id, job=job, stage_entry=stage_entry)
         )
+
+
+def _run_history_snapshot(job_id: str, *, updated_at: str | None = None) -> dict[str, Any]:
+    """Build the persisted run-history snapshot for one job."""
+    job = _RUN_JOBS[job_id]
+    now = updated_at or utc_now_iso()
+    completed_at = now if job.get("status") in {"completed", "failed"} else ""
+    payload = job.get("payload")
+    message = str(getattr(payload, "message", "") or "")
+    return {
+        "schema_version": "ui_run_state_v1",
+        "run_id": job_id,
+        "session": _job_session(job),
+        "status": str(job.get("status") or ""),
+        "decision": job.get("decision_data", {}),
+        "expected_stages": _expected_flow_tabs(job.get("decision")),
+        "events": job.get("events", []),
+        "final_output": job.get("final_output", ""),
+        "error": job.get("error", ""),
+        "metadata": {
+            "snapshot_schema_version": "crisai_run_snapshot_v1",
+            "created_at": str(job.get("created_at") or now),
+            "updated_at": now,
+            "completed_at": completed_at,
+            "message_summary": _message_summary(message),
+            "trace_run_id": str(job.get("run_id") or ""),
+            "request_contract": job.get("request_contract", {}),
+        },
+    }
+
+
+def _persist_terminal_run_history(job_id: str) -> None:
+    """Persist completed or failed run state without affecting live state."""
+    job = _RUN_JOBS.get(job_id)
+    if job is None or job.get("status") not in {"completed", "failed"}:
+        return
+    _refresh_job_from_trace(job_id)
+    try:
+        persist_run_snapshot(_run_history_snapshot(job_id))
+    except Exception:  # noqa: BLE001 - history persistence must not change run outcome.
+        return
 
 
 def _resolve_decision(payload: RunRequest):
@@ -803,6 +859,7 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
         job["final_output"] = sanitize_user_visible_text(final_output)
         job["history"] = _serialize_history(history)
         job["current_session"] = session_name
+        _refresh_job_from_trace(job_id)
         _append_job_event(
             job_id,
             make_ui_event(
@@ -830,9 +887,11 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
                 mode=_job_mode(job),
             ),
         )
+        _persist_terminal_run_history(job_id)
     except Exception as exc:  # noqa: BLE001
         job["status"] = "failed"
         job["error"] = _to_http_exception(exc).detail
+        _refresh_job_from_trace(job_id)
         _append_job_event(
             job_id,
             make_ui_event(
@@ -846,6 +905,7 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
                 mode=_job_mode(job),
             ),
         )
+        _persist_terminal_run_history(job_id)
     finally:
         reset_stage_stream_callback(stream_token)
 
@@ -892,6 +952,7 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
 
     _RUN_JOBS[job_id] = {
         "status": "running",
+        "created_at": utc_now_iso(),
         "payload": payload,
         "decision": decision,
         "decision_data": asdict(decision),
@@ -1087,6 +1148,28 @@ async def api_v1_run_start(payload: RunRequest) -> dict[str, Any]:
 async def api_v1_run_state(job_id: str) -> dict[str, Any]:
     """Return the latest shared UI state for a run."""
     return _run_state(job_id)
+
+
+@app.get("/api/v1/sessions/{session_name}/runs")
+async def api_v1_session_runs(
+    session_name: str,
+    limit: int = Query(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT),
+) -> dict[str, Any]:
+    """Return persisted previous-run summaries for one session."""
+    if not is_safe_session_route_value(session_name):
+        raise HTTPException(status_code=404, detail="Session not found.")
+    return build_run_history_response(session_name, limit=limit)
+
+
+@app.get("/api/v1/sessions/{session_name}/runs/{run_id}")
+async def api_v1_session_run_detail(session_name: str, run_id: str) -> dict[str, Any]:
+    """Return one persisted previous-run detail for a session."""
+    if not is_safe_session_route_value(session_name) or not is_safe_run_id(run_id):
+        raise HTTPException(status_code=404, detail="Run not found.")
+    detail = load_run_detail(session_name, run_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    return detail
 
 
 @app.post("/api/v1/runs/{job_id}/checkpoint")
