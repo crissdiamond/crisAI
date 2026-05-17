@@ -18,6 +18,36 @@ Codex remains the main implementation agent. Claude agents review, challenge,
 and make small focused patches when requested. The orchestrator owns planning,
 cross-area coordination, final integration, and Git metadata writes.
 
+## Architecture At A Glance
+
+```mermaid
+flowchart TB
+    User[User] --> Orchestrator[Codex Orchestrator]
+
+    Orchestrator --> Runtime[Runtime Pair]
+    Orchestrator --> Gem[Gem Pair]
+    Orchestrator --> Web[Web Pair]
+
+    Runtime --> RuntimeCodex[Codex]
+    Runtime --> RuntimeClaude[Claude Review]
+    Gem --> GemCodex[Codex]
+    Gem --> GemClaude[Claude Review]
+    Web --> WebCodex[Codex]
+    Web --> WebClaude[Claude Review]
+
+    Orchestrator --> Git[Git Integration]
+    Orchestrator --> Hcom[hcom Coordination]
+    Runtime --> Hcom
+    Gem --> Hcom
+    Web --> Hcom
+
+    Hcom --> Memory[Claude Memory MCP]
+    Runtime --> Repo[crisAI Repository]
+    Gem --> Repo
+    Web --> Repo
+    Git --> Repo
+```
+
 ## Claude Memory MCP
 
 Claude memory MCP is a required part of the development-team operating model.
