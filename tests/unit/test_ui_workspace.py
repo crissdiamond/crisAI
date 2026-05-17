@@ -78,6 +78,12 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "commandHistory" in gem_source
     assert "buildStatusMetrics" in gem_source
     assert "CRISAI_GEM_WIDTH" in gem_source
+    assert "CRISAI_GEM_HEIGHT" in gem_source
+    assert "resolveViewportDimension" in gem_source
+    assert "stdout?.columns" in gem_source
+    assert "stdout?.rows" in gem_source
+    assert "minimumGemWidth" in gem_source
+    assert "minimumGemHeight" in gem_source
     assert "promptPanelHeight" in gem_source
     assert "tokens:${statusMetrics.tokens}" in gem_source
     assert "event.event_type !== \"stage_delta\"" in gem_source

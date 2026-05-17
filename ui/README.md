@@ -40,8 +40,10 @@ Current status:
   and down arrows when the output pane is not using those keys for scrolling.
   The bottom status bar shows the selected model when the runtime exposes it,
   elapsed execution time, and token/cost placeholders until provider usage
-  telemetry is available. `CRISAI_GEM_WIDTH` and `CRISAI_GEM_HEIGHT` can pin
-  the terminal layout size for local testing.
+  telemetry is available. By default, Gem uses the current terminal columns and
+  rows. `CRISAI_GEM_WIDTH` and `CRISAI_GEM_HEIGHT` can still pin the terminal
+  layout size for local testing; invalid or nonpositive values fall back to the
+  detected terminal size.
 
 Auth-aware local development:
 

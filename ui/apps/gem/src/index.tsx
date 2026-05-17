@@ -17,8 +17,10 @@ import {
 } from "@crisai/contracts";
 
 const runtimeBaseUrl = process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000";
-const gemWidth = Number(process.env.CRISAI_GEM_WIDTH ?? "132");
-const gemHeight = Number(process.env.CRISAI_GEM_HEIGHT ?? "40");
+const fallbackGemWidth = 132;
+const fallbackGemHeight = 40;
+const minimumGemWidth = 80;
+const minimumGemHeight = 24;
 const promptPanelHeight = 5;
 
 const runtime = new CrisaiRuntimeClient({
@@ -154,8 +156,18 @@ function StageLine({ stage }: { stage: UiStageSummary }) {
 
 function GemApp() {
   const { stdout } = useStdout();
-  const viewportWidth = Math.min(gemWidth, stdout?.columns ?? gemWidth);
-  const viewportHeight = Math.min(gemHeight, stdout?.rows ?? gemHeight);
+  const viewportWidth = resolveViewportDimension(
+    process.env.CRISAI_GEM_WIDTH,
+    stdout?.columns,
+    fallbackGemWidth,
+    minimumGemWidth
+  );
+  const viewportHeight = resolveViewportDimension(
+    process.env.CRISAI_GEM_HEIGHT,
+    stdout?.rows,
+    fallbackGemHeight,
+    minimumGemHeight
+  );
   const transcriptHeight = Math.max(8, viewportHeight - 6 - promptPanelHeight);
 
   const [prompt, setPrompt] = useState("");
@@ -485,6 +497,17 @@ function dedupeEvents(items: UiEvent[]): UiEvent[] {
     seen.add(key);
     return true;
   });
+}
+
+function resolveViewportDimension(
+  pinnedValue: string | undefined,
+  terminalValue: number | undefined,
+  fallbackValue: number,
+  minimumValue: number
+): number {
+  const pinned = Number(pinnedValue);
+  const preferred = Number.isFinite(pinned) && pinned > 0 ? pinned : terminalValue ?? fallbackValue;
+  return Math.max(minimumValue, Math.floor(preferred));
 }
 
 render(<GemApp />);
