@@ -161,31 +161,26 @@ LiteLLM-backed Gemini and DeepSeek models.
 
 ## Start
 
+Run the FastAPI backend first, then attach a client:
+
 ```bash
 crisai doctor
-./start cli
+./start api          # FastAPI backend on http://127.0.0.1:8000
+./start gem          # Ink terminal client (separate terminal window)
+# or
+./start web          # React/Vite web client at http://127.0.0.1:5173
 ```
 
-The stable terminal experience is `crisai classic`. The new full-screen TUI
-entrypoint is `crisai gem`; it uses the same UCL palette as the web interface
-and is being built separately with proper terminal layout ownership. The older
-`crisai chat` command remains as a compatibility alias for `crisai classic`.
-
-For the web app:
+For the Ink Gem and React web clients, the UI workspace dependencies must be
+installed once:
 
 ```bash
-./start web
+npm --prefix ui install
 ```
 
-Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
-
-Experimental React and Ink UI scaffolds live under `ui/`. They consume the
-shared `/api/v1` runtime, session, workspace, and theme contracts exposed by
-`./start web`, but they are not yet the default launch path. After
-`npm --prefix ui install`, run them explicitly with `./start web-react` or
-`./start gem-ink`. If the FastAPI runtime is protected with a static bearer
-token, set `CRISAI_API_KEY` in `.env`. The `./start web-react` launcher maps it
-to `VITE_CRISAI_API_KEY` for Vite, and `./start gem-ink` passes it to Ink Gem.
+If the FastAPI runtime is protected with a static bearer token, set
+`CRISAI_API_KEY` in `.env`. The `./start web` launcher maps it to
+`VITE_CRISAI_API_KEY` for Vite, and `./start gem` passes it to Ink Gem.
 The launcher also maps `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` for
 local `.env` convenience. React web can also upload local source documents into
 the current task inputs folder or the knowledge intake area for later retrieval.
@@ -232,12 +227,9 @@ per run with `--no-retrieval-checkpoint`, in chat with
 `/retrieval-checkpoint off`, or by setting
 `CRISAI_RETRIEVAL_CHECKPOINT_ENABLED=false`.
 
-Interactive `crisai chat` defaults to the stable classic Rich panel flow. The
-experimental Gemini-style transcript/footer renderer can be enabled with
-`CRISAI_CLI_EXPERIENCE=fullscreen`, but it remains opt-in until the chat loop is
-moved to a true full-screen terminal application. Terminal-title updates are
-disabled by default; enable them with `CRISAI_TERMINAL_TITLE_ENABLED=true` only
-if your terminal handles OSC title sequences cleanly.
+Terminal-title updates are disabled by default; enable them with
+`CRISAI_TERMINAL_TITLE_ENABLED=true` only if your terminal handles OSC title
+sequences cleanly.
 
 ## Configuration
 

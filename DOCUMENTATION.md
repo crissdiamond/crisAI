@@ -129,32 +129,23 @@ You can also use **`scripts/bootstrap.sh`**, which creates `.venv` if needed and
 From the project root (after `.venv` exists and dependencies are installed):
 
 ```bash
-./start cli
+./start api          # FastAPI backend  (start this first)
+./start gem          # Ink terminal client  (separate terminal window)
+# or
+./start web          # React/Vite web client at http://127.0.0.1:5173
 ```
 
 Recommended startup behaviour:
 - do **not** force `--pipeline` in the launcher
 - let the router decide unless you explicitly pin a mode or agent later
 
-When crisAI opens, you are inside the interactive CLI.
-
-The stable CLI command is `crisai classic`. The existing `crisai chat` command
-is kept as a compatibility alias. The full-screen terminal UI is named
-`crisai gem`; the current implementation is a Textual scaffold, while the next
-Gem implementation will move to Ink and consume the same runtime event contract
-as the web app. Shared UI theme tokens live in `registry/ui.yaml`; surface
-adapters map those tokens into CSS variables or terminal-safe styles.
-
-To run the web interface:
+The Ink Gem and React web clients require the UI workspace dependencies:
 
 ```bash
-./start web
+npm --prefix ui install
 ```
 
-Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
-
-The web server also exposes the v1 shared UI runtime API for the planned React
-web app and Ink Gem client:
+The web server exposes the v1 shared UI runtime API:
 
 - `POST /api/v1/runs`
 - `GET /api/v1/runs/{run_id}`
@@ -172,27 +163,7 @@ web app and Ink Gem client:
 
 The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
 task-contract transparency, streamed stage deltas, stage progress, retrieval
-checkpoints, final answers, and failures. The legacy `/api/run/*` endpoints
-remain available for the current static web interface during the migration.
-
-The future React and Ink clients are scaffolded in `ui/`:
-
-```bash
-cd ui
-npm install
-npm run dev:web
-npm run dev:gem
-```
-
-These clients are not yet the default launch path. They connect to the local
-Python runtime at `http://127.0.0.1:8000`; start `./start web` first while the
-runtime/API remains hosted by FastAPI. From the repository root, the equivalent
-launch helpers are:
-
-```bash
-./start web-react
-./start gem-ink
-```
+checkpoints, final answers, and failures.
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show
@@ -201,13 +172,14 @@ documents to task inputs or knowledge intake, and expose retrieval checkpoint
 continue, redirect, and stop actions directly. The Ink client accepts `/session
 <name>` and `/sessions` for session control, plus `/continue`, `/redirect
 <guidance>`, and `/stop` while a checkpoint is waiting.
+
 When the FastAPI runtime is protected by a static bearer token, set
 `CRISAI_API_KEY` in `.env`. The shared TypeScript client sends the token as an
 `Authorization` header for normal requests and switches SSE from native
 `EventSource` to a fetch-based reader, because browser `EventSource` cannot
-attach custom headers. For local startup through `./start web-react`, the
-launcher maps `CRISAI_API_KEY` to `VITE_CRISAI_API_KEY` for Vite. The same
-mapping exists from `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL`.
+attach custom headers. The `./start web` launcher maps `CRISAI_API_KEY` to
+`VITE_CRISAI_API_KEY` for Vite. The same mapping exists from
+`CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL`.
 
 ---
 
@@ -376,9 +348,6 @@ The default strategy is deterministic, with bounded memory and recent-turn budge
 - `/mode auto` clears the mode pin and returns control to the router
 - `/agent ...` pins the agent
 - `/agent auto` clears the agent pin and returns agent choice to the router
-- interactive `crisai chat` defaults to the stable classic Rich panel flow;
-  the Gemini-style transcript/footer renderer is available as an experimental
-  opt-in with `CRISAI_CLI_EXPERIENCE=fullscreen`
 - `/status` prints the current chat state, including:
   - session
   - routing mode state
