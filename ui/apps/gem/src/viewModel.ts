@@ -1,4 +1,4 @@
-import type { UiEvent, UiStageStatus, UiStageSummary } from "@crisai/contracts";
+import { isCheckpointWaiting, isTerminalEvent, type UiEvent, type UiStageStatus, type UiStageSummary } from "@crisai/contracts";
 
 export const fallbackGemWidth = 132;
 export const fallbackGemHeight = 40;
@@ -114,6 +114,10 @@ export function resolvePanelContentHeight(transcriptHeight: number): number {
 
 export function resolveInputActive(isRawModeSupported: boolean | undefined): boolean {
   return isRawModeSupported === true;
+}
+
+export function resolveCheckpointWaiting(events: UiEvent[]): boolean {
+  return isCheckpointWaiting(events) && !events.some(isTerminalEvent);
 }
 
 export function resolveOutputPanelWidth(viewportWidth: number, stageSidebarWidth: number): number {

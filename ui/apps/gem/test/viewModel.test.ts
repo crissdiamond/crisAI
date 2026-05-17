@@ -13,6 +13,7 @@ import {
   minimumGemWidth,
   minimumStageSidebarWidth,
   pinnedStageContent,
+  resolveCheckpointWaiting,
   resolveInputActive,
   resolveNavCursorAfterPrune,
   resolveNavCursorMove,
@@ -29,6 +30,26 @@ import {
   type GemTerminalTheme
 } from "../src/viewModel.js";
 import type { UiEvent, UiStageSummary } from "@crisai/contracts";
+
+function uiEvent(overrides: Partial<UiEvent>): UiEvent {
+  return {
+    schema_version: "ui_event_v1",
+    event_type: "run_created",
+    run_id: "run-1",
+    timestamp: "2026-05-17T12:00:00Z",
+    session: "default",
+    status: "running",
+    title: "Run created",
+    summary: "",
+    content: "",
+    verbose_content: "",
+    mode: "auto",
+    agent_id: null,
+    stage: null,
+    metadata: {},
+    ...overrides
+  };
+}
 
 test("Gem viewport sizing prefers valid pins and otherwise uses terminal bounds", () => {
   assert.equal(resolveViewportDimension("100", 120, fallbackGemWidth, minimumGemWidth), 100);
@@ -107,6 +128,29 @@ test("event lines keep informational notices separate from errors", () => {
   assert(!lines.join(" ").includes("Error:"));
 });
 
+test("checkpoint waiting clears on decision or terminal event", () => {
+  const requested = uiEvent({
+    event_type: "checkpoint_requested",
+    title: "Checkpoint requested",
+    stage: "retrieval_checkpoint"
+  });
+  const decision = uiEvent({
+    event_type: "checkpoint_decision",
+    title: "Checkpoint decision",
+    stage: "retrieval_checkpoint"
+  });
+  const completed = uiEvent({
+    event_type: "run_completed",
+    status: "completed",
+    title: "Run completed"
+  });
+
+  assert.equal(resolveCheckpointWaiting([]), false);
+  assert.equal(resolveCheckpointWaiting([requested]), true);
+  assert.equal(resolveCheckpointWaiting([requested, decision]), false);
+  assert.equal(resolveCheckpointWaiting([requested, completed]), false);
+});
+
 test("stage pin targets resolve by sidebar position, exact key, and label substring", () => {
   const stages = Array.from({ length: 13 }, (_, index): UiStageSummary => ({
     key: `stage_${index + 1}`,
@@ -143,22 +187,14 @@ test("stage pin targets resolve by sidebar position, exact key, and label substr
 });
 
 test("pinned stage content prefers event content and falls back to summary", () => {
-  const event: UiEvent = {
-    schema_version: "ui_event_v1",
+  const event = uiEvent({
     event_type: "stage_output",
-    run_id: "run-1",
-    timestamp: "2026-05-17T12:00:00Z",
-    session: "default",
-    status: "running",
     title: "Stage output",
     summary: "event summary",
     content: "event content",
-    verbose_content: "",
-    mode: "auto",
     agent_id: "summary",
-    stage: "summary",
-    metadata: {}
-  };
+    stage: "summary"
+  });
   const stages: UiStageSummary[] = [
     { key: "retrieval", label: "Retrieval", status: "complete", summary: "retrieval summary" },
     { key: "summary", label: "Summary", status: "complete", summary: "summary fallback", event }

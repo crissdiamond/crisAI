@@ -6,7 +6,6 @@ import { Box, render, Text, useInput, useStdin, useStdout } from "ink";
 import {
   CrisaiRuntimeClient,
   deriveStageSummaries,
-  isCheckpointWaiting,
   isTerminalEvent,
   latestFinalContent,
   resolveThemePalette,
@@ -29,6 +28,7 @@ import {
   pinnedStageContent,
   promptPanelHeight,
   resolveNavCursorAfterPrune,
+  resolveCheckpointWaiting,
   resolveInputActive,
   resolveNavCursorMove,
   resolveOutputPanelWidth,
@@ -265,7 +265,7 @@ function GemApp() {
     () => stages.find((stage) => stage.key === effectiveSelectedKey) ?? null,
     [effectiveSelectedKey, stages]
   );
-  const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
+  const checkpointWaiting = useMemo(() => resolveCheckpointWaiting(events), [events]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
   const finalLines = useMemo(() => renderMarkdownLines(finalContent, outputPanelWidth), [finalContent, outputPanelWidth]);
   const pinnedStageLines = useMemo(
@@ -605,23 +605,47 @@ function GemApp() {
       if (!run) return;
       if (command === "/continue") {
         await runtime.submitCheckpoint(run.run_id, { action: "continue" });
-        return;
-      }
-      if (command === "/stop") {
+        injectCheckpointDecision("continue");
+      } else if (command === "/stop") {
         await runtime.submitCheckpoint(run.run_id, { action: "stop" });
-        return;
-      }
-      if (command.startsWith("/redirect ")) {
+        injectCheckpointDecision("stop");
+      } else if (command.startsWith("/redirect ")) {
+        const redirectInstruction = command.replace(/^\/redirect\s+/, "");
         await runtime.submitCheckpoint(run.run_id, {
           action: "redirect",
-          redirect_instruction: command.replace(/^\/redirect\s+/, "")
+          redirect_instruction: redirectInstruction
         });
+        injectCheckpointDecision("redirect", redirectInstruction);
+      } else {
+        setError("Checkpoint commands: /continue, /stop, or /redirect <guidance>.");
         return;
       }
-      setError("Checkpoint commands: /continue, /stop, or /redirect <guidance>.");
     } catch (reason) {
       setError(formatRuntimeError(reason));
     }
+  }
+
+  function injectCheckpointDecision(action: "continue" | "stop" | "redirect", redirectInstruction = "") {
+    if (!run) return;
+    setEvents((current) => dedupeEvents([
+      ...current,
+      {
+        schema_version: "ui_event_v1",
+        event_type: "checkpoint_decision",
+        run_id: run.run_id,
+        timestamp: new Date().toISOString(),
+        session: run.session,
+        status: current.at(-1)?.status ?? "running",
+        title: "Decision submitted",
+        summary: `Checkpoint decision: ${action}.`,
+        content: redirectInstruction,
+        verbose_content: "",
+        mode: null,
+        agent_id: "retrieval_checkpoint",
+        stage: "retrieval_checkpoint",
+        metadata: { action, redirect_instruction: redirectInstruction }
+      }
+    ]));
   }
 
   return (
