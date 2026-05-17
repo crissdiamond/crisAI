@@ -15,8 +15,8 @@ def test_ui_workspace_defines_react_and_ink_clients() -> None:
 
     assert package["private"] is True
     assert "apps/*" in package["workspaces"]
-    assert package["scripts"]["dev:web"] == "npm --workspace @crisai/web run dev"
-    assert package["scripts"]["dev:gem"] == "npm --workspace @crisai/gem run dev"
+    assert package["scripts"]["dev:web"] == "npm run build:contracts && npm --workspace @crisai/web run dev"
+    assert package["scripts"]["dev:gem"] == "npm run build:contracts && npm --workspace @crisai/gem run dev"
 
 
 def test_ui_apps_depend_on_shared_contract_package() -> None:

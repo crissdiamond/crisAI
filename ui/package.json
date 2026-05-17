@@ -8,10 +8,10 @@
     "apps/*"
   ],
   "scripts": {
-    "dev:web": "npm --workspace @crisai/web run dev",
+    "dev:web": "npm run build:contracts && npm --workspace @crisai/web run dev",
     "build:contracts": "npm --workspace @crisai/contracts run build",
     "build:web": "npm run build:contracts && npm --workspace @crisai/web run build",
-    "dev:gem": "npm --workspace @crisai/gem run dev",
+    "dev:gem": "npm run build:contracts && npm --workspace @crisai/gem run dev",
     "build:gem": "npm run build:contracts && npm --workspace @crisai/gem run build",
     "typecheck": "tsc -b"
   },
