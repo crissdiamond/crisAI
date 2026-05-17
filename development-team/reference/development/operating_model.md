@@ -1,0 +1,72 @@
+# hcom Development Operating Model
+
+crisAI development can run as a small hcom team coordinated by one top-level
+Codex orchestrator. Random hcom names such as `polo` or `hula` are session
+handles only; stable responsibility comes from the role assigned in
+`session_assignments.local.yaml`.
+
+## Team Shape
+
+- `orchestrator_codex`: runs from the repo root and is the main user-facing
+  coordinator.
+- `runtime_codex` and `runtime_claude`: run from `runtime/`.
+- `gem_codex` and `gem_claude`: run from `gem/`.
+- `web_codex` and `web_claude`: run from `web/`.
+
+The `launch/runtime`, `launch/gem`, and `launch/web` directories are launch
+folders, not source roots. Source code stays in the target repository's normal
+Python and UI locations.
+
+## Responsibilities
+
+- The orchestrator plans work, assigns tasks, integrates results, runs final
+  checks, and creates commits.
+- Area Codex agents are primary implementers and local coordinators.
+- Claude area agents challenge, review, and may make small focused patches
+  inside their area when useful.
+- Shared files such as `registry/*`, `prompts/*`, `README.md`,
+  `DOCUMENTATION.md`, and `ui/packages/contracts/*` need explicit orchestrator
+  ownership for the task.
+- No agent should revert another agent's edits. If there is a conflict, stop and
+  ask the orchestrator.
+
+## Shared Memory
+
+All agents should use the Claude memory MCP server as the durable task context
+layer. hcom messages should stay concise and point to memory entries, bundles,
+or files instead of replaying long context.
+
+Store in memory:
+
+- user goals and success criteria;
+- active task assignments;
+- important design decisions;
+- implementation summaries;
+- review conclusions;
+- unresolved questions and blockers.
+
+Do not store secrets, API keys, auth tokens, or private credential material.
+
+## Normal Flow
+
+1. The user asks the orchestrator for the next task or a specific change.
+2. The orchestrator reads `reference/TODO.md`, current repo state, hcom roster,
+   and relevant memory.
+3. The orchestrator records task intent and assignments in memory.
+4. Area agents receive short hcom requests with scope, paths, expected checks,
+   and memory/bundle references.
+5. Area Codex implements or plans; area Claude reviews or makes small patches
+   when requested.
+6. Area Codex resolves review feedback and records a concise memory update.
+7. The orchestrator integrates, verifies, updates docs if needed, commits, and
+   records the final outcome in memory.
+
+## Communication Rules
+
+- Use hcom threads for task coordination.
+- Use hcom bundles for file/event/transcript-heavy handoffs.
+- Use memory for durable cross-stream context.
+- Lead handoffs with the role, area, task, status, changed files, checks, and
+  open questions.
+- Keep one improvement active per area unless the orchestrator explicitly splits
+  independent work.

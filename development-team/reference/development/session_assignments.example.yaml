@@ -1,0 +1,45 @@
+# Copy to session_assignments.local.yaml or let scripts/hcom_start.sh generate it.
+# Random hcom names are session handles only; role ids below are stable.
+sessions:
+  nemo:
+    role: orchestrator_codex
+    area: root
+    provider: codex
+    tag: crisai-orchestrator
+    status: active
+  polo:
+    role: runtime_codex
+    area: runtime
+    provider: codex
+    tag: crisai-runtime
+    status: active
+  pine:
+    role: runtime_claude
+    area: runtime
+    provider: claude
+    tag: crisai-runtime
+    status: active
+  bolo:
+    role: gem_codex
+    area: gem
+    provider: codex
+    tag: crisai-gem
+    status: active
+  bune:
+    role: gem_claude
+    area: gem
+    provider: claude
+    tag: crisai-gem
+    status: active
+  hula:
+    role: web_codex
+    area: web
+    provider: codex
+    tag: crisai-web
+    status: active
+  hoin:
+    role: web_claude
+    area: web
+    provider: claude
+    tag: crisai-web
+    status: active

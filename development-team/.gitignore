@@ -1,0 +1,5 @@
+.hcom/
+.hcom-development/
+*.log
+*.tmp
+.DS_Store
