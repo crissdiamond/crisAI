@@ -349,12 +349,13 @@ def test_web_react_command_delegates_to_ui_workspace_script(monkeypatch, tmp_pat
     monkeypatch.setattr(
         main.subprocess,
         "run",
-        lambda args, check=False: calls.append((args, check)) or SimpleNamespace(returncode=0),
+        lambda args, check=False, env=None: calls.append((args, check, env)) or SimpleNamespace(returncode=0),
     )
 
     main.web_react()
 
-    assert calls == [(["npm", "--prefix", str(ui_dir), "run", "dev:web"], False)]
+    assert calls[0][0:2] == (["npm", "--prefix", str(ui_dir), "run", "dev:web"], False)
+    assert isinstance(calls[0][2], dict)
 
 
 def test_gem_ink_command_delegates_to_ui_workspace_script(monkeypatch, tmp_path):
@@ -367,12 +368,40 @@ def test_gem_ink_command_delegates_to_ui_workspace_script(monkeypatch, tmp_path)
     monkeypatch.setattr(
         main.subprocess,
         "run",
-        lambda args, check=False: calls.append((args, check)) or SimpleNamespace(returncode=0),
+        lambda args, check=False, env=None: calls.append((args, check, env)) or SimpleNamespace(returncode=0),
     )
 
     main.gem_ink()
 
-    assert calls == [(["npm", "--prefix", str(ui_dir), "run", "dev:gem"], False)]
+    assert calls[0][0:2] == (["npm", "--prefix", str(ui_dir), "run", "dev:gem"], False)
+    assert isinstance(calls[0][2], dict)
+
+
+def test_web_react_command_bridges_runtime_env_for_vite(monkeypatch, tmp_path):
+    calls = []
+    ui_dir = tmp_path / "ui"
+    ui_dir.mkdir()
+    (ui_dir / "package.json").write_text("{}", encoding="utf-8")
+    (ui_dir / "node_modules").mkdir()
+    monkeypatch.setattr(main, "_UI_WORKSPACE", ui_dir)
+    monkeypatch.setenv("CRISAI_API_KEY", "token-123")
+    monkeypatch.setenv("CRISAI_RUNTIME_URL", "http://127.0.0.1:9000")
+    monkeypatch.delenv("CRISAI_API_TOKEN", raising=False)
+    monkeypatch.delenv("VITE_CRISAI_API_KEY", raising=False)
+    monkeypatch.delenv("VITE_CRISAI_API_TOKEN", raising=False)
+    monkeypatch.delenv("VITE_CRISAI_RUNTIME_URL", raising=False)
+    monkeypatch.setattr(
+        main.subprocess,
+        "run",
+        lambda args, check=False, env=None: calls.append((args, check, env)) or SimpleNamespace(returncode=0),
+    )
+
+    main.web_react()
+
+    assert calls[0][0:2] == (["npm", "--prefix", str(ui_dir), "run", "dev:web"], False)
+    assert calls[0][2]["VITE_CRISAI_API_KEY"] == "token-123"
+    assert calls[0][2]["VITE_CRISAI_API_TOKEN"] == "token-123"
+    assert calls[0][2]["VITE_CRISAI_RUNTIME_URL"] == "http://127.0.0.1:9000"
 
 
 def test_ui_workspace_script_guides_when_node_modules_missing(monkeypatch, tmp_path):

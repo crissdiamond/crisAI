@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import ssl
 import subprocess
@@ -1028,7 +1029,11 @@ def _run_ui_workspace_script(script: str) -> None:
         )
         raise typer.Exit(1)
     try:
-        result = subprocess.run(["npm", "--prefix", str(_UI_WORKSPACE), "run", script], check=False)
+        result = subprocess.run(
+            ["npm", "--prefix", str(_UI_WORKSPACE), "run", script],
+            check=False,
+            env=_ui_workspace_env(script),
+        )
     except FileNotFoundError as exc:
         print_status_message(
             "npm is required for experimental React/Ink UI clients.",
@@ -1037,6 +1042,21 @@ def _run_ui_workspace_script(script: str) -> None:
         raise typer.Exit(1) from exc
     if result.returncode != 0:
         raise typer.Exit(result.returncode)
+
+
+def _ui_workspace_env(script: str) -> dict[str, str]:
+    """Return environment variables for experimental TypeScript UI clients."""
+    env = dict(os.environ)
+    if script == "dev:web":
+        api_token = env.get("VITE_CRISAI_API_KEY") or env.get("VITE_CRISAI_API_TOKEN")
+        api_token = api_token or env.get("CRISAI_API_KEY") or env.get("CRISAI_API_TOKEN")
+        runtime_url = env.get("VITE_CRISAI_RUNTIME_URL") or env.get("CRISAI_RUNTIME_URL")
+        if api_token:
+            env["VITE_CRISAI_API_KEY"] = api_token
+            env.setdefault("VITE_CRISAI_API_TOKEN", api_token)
+        if runtime_url:
+            env["VITE_CRISAI_RUNTIME_URL"] = runtime_url
+    return env
 
 
 @app.command("web-react")

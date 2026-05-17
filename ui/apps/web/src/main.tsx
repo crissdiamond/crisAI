@@ -18,7 +18,7 @@ import "./styles.css";
 
 const runtime = new CrisaiRuntimeClient({
   baseUrl: import.meta.env.VITE_CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000",
-  apiToken: import.meta.env.VITE_CRISAI_API_TOKEN
+  apiToken: import.meta.env.VITE_CRISAI_API_KEY ?? import.meta.env.VITE_CRISAI_API_TOKEN
 });
 
 function App() {

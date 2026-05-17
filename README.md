@@ -184,8 +184,10 @@ shared `/api/v1` runtime, session, workspace, and theme contracts exposed by
 `./start web`, but they are not yet the default launch path. After
 `npm --prefix ui install`, run them explicitly with `./start web-react` or
 `./start gem-ink`. If the FastAPI runtime is protected with a static bearer
-token, pass it to the React client with `VITE_CRISAI_API_TOKEN` and to Ink Gem
-with `CRISAI_API_TOKEN`.
+token, set `CRISAI_API_KEY` in `.env`. The `./start web-react` launcher maps it
+to `VITE_CRISAI_API_KEY` for Vite, and `./start gem-ink` passes it to Ink Gem.
+The launcher also maps `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` for
+local `.env` convenience.
 
 ## First Commands
 

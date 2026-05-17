@@ -200,10 +200,12 @@ retrieval checkpoint continue, redirect, and stop actions directly. The Ink
 client accepts `/session <name>` and `/sessions` for session control, plus
 `/continue`, `/redirect <guidance>`, and `/stop` while a checkpoint is waiting.
 When the FastAPI runtime is protected by a static bearer token, set
-`VITE_CRISAI_API_TOKEN` for the React app and `CRISAI_API_TOKEN` for Ink Gem.
-The shared TypeScript client sends the token as an `Authorization` header for
-normal requests and switches SSE from native `EventSource` to a fetch-based
-reader, because browser `EventSource` cannot attach custom headers.
+`CRISAI_API_KEY` in `.env`. The shared TypeScript client sends the token as an
+`Authorization` header for normal requests and switches SSE from native
+`EventSource` to a fetch-based reader, because browser `EventSource` cannot
+attach custom headers. For local startup through `./start web-react`, the
+launcher maps `CRISAI_API_KEY` to `VITE_CRISAI_API_KEY` for Vite. The same
+mapping exists from `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL`.
 
 ---
 

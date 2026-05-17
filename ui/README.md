@@ -37,7 +37,12 @@ reach parity.
 
 Auth-aware local development:
 
-- React web reads `VITE_CRISAI_API_TOKEN`.
-- Ink Gem reads `CRISAI_API_TOKEN`.
+- React web reads `VITE_CRISAI_API_KEY`.
+- Ink Gem reads `CRISAI_API_KEY`.
+- `./start web-react` maps `CRISAI_API_KEY` to `VITE_CRISAI_API_KEY` and
+  `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` when the Vite-specific
+  variables are not already set.
+- `VITE_CRISAI_API_TOKEN` and `CRISAI_API_TOKEN` are accepted as temporary
+  compatibility aliases.
 - Both still work without a token when the local FastAPI runtime does not
   require one.

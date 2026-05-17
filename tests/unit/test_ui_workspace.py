@@ -61,8 +61,9 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "HistoryPanel" in web_source
     assert "WorkspaceBrowser" in web_source
     assert "runtime.getWorkspaceTree" in web_source
-    assert "VITE_CRISAI_API_TOKEN" in web_source
+    assert "VITE_CRISAI_API_KEY" in web_source
     assert "deriveStageSummaries(events" in gem_source
     assert "/redirect <guidance>" in gem_source
     assert "/session <name>" in gem_source
+    assert "CRISAI_API_KEY" in gem_source
     assert "CRISAI_API_TOKEN" in gem_source
