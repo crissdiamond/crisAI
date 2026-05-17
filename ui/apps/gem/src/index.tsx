@@ -2,7 +2,7 @@
 import chalk from "chalk";
 import React, { useMemo, useState } from "react";
 import { EventSource } from "eventsource";
-import { Box, render, Text, useInput, useStdout } from "ink";
+import { Box, render, Text, useInput, useStdin, useStdout } from "ink";
 import {
   CrisaiRuntimeClient,
   deriveStageSummaries,
@@ -15,15 +15,30 @@ import {
   type UiSessionState,
   type UiStageSummary
 } from "@crisai/contracts";
+import {
+  buildEventLines,
+  checkpointDecisionLines,
+  clampScrollTop,
+  defaultGemTerminalTheme,
+  fallbackGemHeight,
+  fallbackGemWidth,
+  gemTerminalThemeFromPalette,
+  minimumGemHeight,
+  minimumGemWidth,
+  promptPanelHeight,
+  resolveInputActive,
+  resolveOutputPanelWidth,
+  resolvePanelContentHeight,
+  resolveStageSidebarWidth,
+  resolveTranscriptHeight,
+  resolveViewportDimension,
+  stageVisual,
+  truncateStageLabel,
+  wrapPlainText,
+  type GemTerminalTheme
+} from "./viewModel.js";
 
 const runtimeBaseUrl = process.env.CRISAI_RUNTIME_URL ?? "http://127.0.0.1:8000";
-const fallbackGemWidth = 132;
-const fallbackGemHeight = 40;
-const minimumGemWidth = 80;
-const minimumGemHeight = 24;
-const minimumStageSidebarWidth = 20;
-const maximumStageSidebarWidth = 34;
-const promptPanelHeight = 5;
 
 const runtime = new CrisaiRuntimeClient({
   baseUrl: runtimeBaseUrl,
@@ -33,7 +48,7 @@ const runtime = new CrisaiRuntimeClient({
 
 // --- Markdown rendering ---
 
-function renderMarkdownLines(text: string): string[] {
+function renderMarkdownLines(text: string, width = 100): string[] {
   if (!text) return [];
   const lines = text.split("\n");
   const result: string[] = [];
@@ -56,13 +71,24 @@ function renderMarkdownLines(text: string): string[] {
     }
 
     if (inCodeBlock) {
-      result.push("  " + chalk.cyan(raw));
+      for (const line of wrapPlainText(raw, Math.max(8, width - 2))) {
+        result.push("  " + chalk.cyan(line));
+      }
       continue;
     }
 
-    if (raw.startsWith("### ")) { result.push(chalk.bold(raw.slice(4))); continue; }
-    if (raw.startsWith("## "))  { result.push(chalk.bold.underline(raw.slice(3))); continue; }
-    if (raw.startsWith("# "))   { result.push(chalk.bold.underline(raw.slice(2))); continue; }
+    if (raw.startsWith("### ")) {
+      result.push(...wrapPlainText(raw.slice(4), width).map((line) => chalk.bold(line)));
+      continue;
+    }
+    if (raw.startsWith("## "))  {
+      result.push(...wrapPlainText(raw.slice(3), width).map((line) => chalk.bold.underline(line)));
+      continue;
+    }
+    if (raw.startsWith("# "))   {
+      result.push(...wrapPlainText(raw.slice(2), width).map((line) => chalk.bold.underline(line)));
+      continue;
+    }
 
     if (/^[-*_]{3,}$/.test(raw.trim())) {
       result.push(chalk.dim("─".repeat(40)));
@@ -70,29 +96,44 @@ function renderMarkdownLines(text: string): string[] {
     }
 
     if (raw.startsWith("> ")) {
-      result.push(chalk.dim("│ ") + chalk.italic(renderInline(raw.slice(2))));
+      for (const line of wrapPlainText(raw.slice(2), Math.max(8, width - 2))) {
+        result.push(chalk.dim("│ ") + chalk.italic(renderInline(line)));
+      }
       continue;
     }
 
     const ulMatch = raw.match(/^(  )?[-*+] (.*)/);
     if (ulMatch) {
       const indent = ulMatch[1] ? "    " : "  ";
-      result.push(indent + chalk.yellow("•") + " " + renderInline(ulMatch[2]));
+      const wrapped = wrapPlainText(ulMatch[2], Math.max(8, width - indent.length - 2));
+      wrapped.forEach((line, index) => {
+        result.push(index === 0
+          ? indent + chalk.yellow("•") + " " + renderInline(line)
+          : `${indent}  ${renderInline(line)}`);
+      });
       continue;
     }
 
     const olMatch = raw.match(/^(\d+)\. (.*)/);
     if (olMatch) {
-      result.push("  " + chalk.yellow(olMatch[1] + ".") + " " + renderInline(olMatch[2]));
+      const prefix = `  ${olMatch[1]}. `;
+      const wrapped = wrapPlainText(olMatch[2], Math.max(8, width - prefix.length));
+      wrapped.forEach((line, index) => {
+        result.push(index === 0
+          ? "  " + chalk.yellow(olMatch[1] + ".") + " " + renderInline(line)
+          : " ".repeat(prefix.length) + renderInline(line));
+      });
       continue;
     }
 
     if (raw.startsWith("    ")) {
-      result.push("  " + chalk.cyan(raw.trimStart()));
+      for (const line of wrapPlainText(raw.trimStart(), Math.max(8, width - 2))) {
+        result.push("  " + chalk.cyan(line));
+      }
       continue;
     }
 
-    result.push(renderInline(raw));
+    result.push(...wrapPlainText(raw, width).map(renderInline));
   }
 
   return result;
@@ -127,7 +168,7 @@ function ScrollPane({
   return (
     <Box flexDirection="column" height={height}>
       {visible.map((line, i) => (
-        <Text key={scrollTop + i}>{line || " "}</Text>
+        <Text key={`line-${scrollTop + i}`}>{line || " "}</Text>
       ))}
       {Array.from({ length: padCount }, (_, i) => (
         <Text key={`pad-${i}`}> </Text>
@@ -142,35 +183,26 @@ function ScrollPane({
   );
 }
 
-function StageItem({ stage, sidebarWidth }: { stage: UiStageSummary; sidebarWidth: number }) {
-  const icon =
-    stage.status === "failed" ? "!" :
-    stage.status === "complete" ? "✓" :
-    stage.status === "running" ? ">" : "·";
-  const color =
-    stage.status === "failed" ? "red" :
-    stage.status === "complete" ? "green" :
-    stage.status === "running" ? "yellow" : undefined;
-  const backgroundColor =
-    stage.status === "failed" ? "red" :
-    stage.status === "complete" ? "green" : undefined;
-  const foregroundColor =
-    stage.status === "failed" ? "white" :
-    stage.status === "complete" ? "black" : color;
-  const maxLabelLength = Math.max(6, sidebarWidth - 9);
-  const shortLabel = stage.label.length > maxLabelLength
-    ? `${stage.label.slice(0, Math.max(1, maxLabelLength - 1))}…`
-    : stage.label;
+function StageItem({
+  stage,
+  sidebarWidth,
+  theme
+}: {
+  stage: UiStageSummary;
+  sidebarWidth: number;
+  theme: GemTerminalTheme;
+}) {
+  const visual = stageVisual(stage.status, theme);
+  const shortLabel = truncateStageLabel(stage.label, sidebarWidth);
 
   return (
     <Text
-      bold={stage.status === "running" || stage.status === "complete"}
-      color={foregroundColor}
-      backgroundColor={backgroundColor}
-      dimColor={stage.status === "pending"}
+      bold={visual.bold}
+      color={visual.color}
+      dimColor={visual.dimColor}
       wrap="truncate-end"
     >
-      [{icon} {shortLabel}]
+      [{visual.icon} {shortLabel}]
     </Text>
   );
 }
@@ -179,6 +211,8 @@ function StageItem({ stage, sidebarWidth }: { stage: UiStageSummary; sidebarWidt
 
 function GemApp() {
   const { stdout } = useStdout();
+  const { isRawModeSupported } = useStdin();
+  const inputActive = resolveInputActive(isRawModeSupported);
   const viewportWidth = resolveViewportDimension(
     process.env.CRISAI_GEM_WIDTH,
     stdout?.columns,
@@ -192,13 +226,15 @@ function GemApp() {
     minimumGemHeight
   );
   const stageSidebarWidth = resolveStageSidebarWidth(viewportWidth);
-  const transcriptHeight = Math.max(8, viewportHeight - 6 - promptPanelHeight);
+  const transcriptHeight = resolveTranscriptHeight(viewportHeight);
+  const outputPanelWidth = resolveOutputPanelWidth(viewportWidth, stageSidebarWidth);
 
   const [prompt, setPrompt] = useState("");
   const [run, setRun] = useState<UiRunState | null>(null);
   const [events, setEvents] = useState<UiEvent[]>([]);
   const [error, setError] = useState("");
-  const [accent, setAccent] = useState("magenta");
+  const [notice, setNotice] = useState("");
+  const [terminalTheme, setTerminalTheme] = useState(defaultGemTerminalTheme);
   const [session, setSession] = useState("default");
   const [sessions, setSessions] = useState<string[]>(["default"]);
   const [scrollTop, setScrollTop] = useState(0);
@@ -212,13 +248,21 @@ function GemApp() {
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
-  const finalLines = useMemo(() => renderMarkdownLines(finalContent), [finalContent]);
+  const finalLines = useMemo(() => renderMarkdownLines(finalContent, outputPanelWidth), [finalContent, outputPanelWidth]);
   const liveStageEvent = useMemo(() => latestLiveStageEvent(events), [events]);
-  const liveLines = useMemo(() => renderMarkdownLines(liveStageEvent?.content ?? ""), [liveStageEvent]);
+  const liveLines = useMemo(
+    () => renderMarkdownLines(liveStageEvent?.content ?? "", outputPanelWidth),
+    [liveStageEvent, outputPanelWidth]
+  );
+  const eventLines = useMemo(
+    () => buildEventLines(events, error, outputPanelWidth, notice),
+    [events, error, notice, outputPanelWidth]
+  );
   const outputLines = finalLines.length > 0 ? finalLines : liveLines;
-  const contentH = Math.max(1, transcriptHeight - 1);
-  const maxScroll = Math.max(0, outputLines.length - contentH);
-  const inScrollMode = outputLines.length > 0 && !showEvents;
+  const panelLines = showEvents ? eventLines : outputLines.length > 0 ? outputLines : eventLines;
+  const contentH = resolvePanelContentHeight(transcriptHeight);
+  const maxScroll = Math.max(0, panelLines.length - contentH);
+  const canScrollPanel = panelLines.length > contentH;
   const isLiveOutput = finalLines.length === 0 && liveLines.length > 0;
 
   React.useEffect(() => {
@@ -226,7 +270,7 @@ function GemApp() {
       .getTheme()
       .then((theme) => {
         const palette = resolveThemePalette(theme);
-        setAccent(palette.accent_bright ? "magenta" : "blue");
+        setTerminalTheme(gemTerminalThemeFromPalette(palette));
       })
       .catch(() => undefined);
   }, []);
@@ -245,9 +289,13 @@ function GemApp() {
     return () => clearInterval(timer);
   }, [run, events]);
 
+  React.useEffect(() => {
+    setScrollTop((current) => clampScrollTop(current, panelLines.length, contentH));
+  }, [panelLines.length, contentH]);
+
   useInput((input, key) => {
-    // Scroll output pane when a streamed or final answer is showing.
-    if (inScrollMode) {
+    // Scroll the bounded transcript pane whenever visible content exceeds it.
+    if (canScrollPanel) {
       if (key.upArrow) { setScrollTop((prev) => Math.max(0, prev - 1)); return; }
       if (key.downArrow) { setScrollTop((prev) => Math.min(maxScroll, prev + 1)); return; }
       if (key.pageUp) { setScrollTop((prev) => Math.max(0, prev - Math.max(1, contentH - 1))); return; }
@@ -273,8 +321,9 @@ function GemApp() {
       }
     }
 
-    if (key.tab && outputLines.length > 0) {
+    if (key.tab && (outputLines.length > 0 || eventLines.length > 0)) {
       setShowEvents((prev) => !prev);
+      setScrollTop(0);
       return;
     }
 
@@ -301,7 +350,7 @@ function GemApp() {
       setHistoryCursor(null);
       setPrompt((prev) => prev + input);
     }
-  });
+  }, { isActive: inputActive });
 
   function applySessionState(state: UiSessionState) {
     setSession(state.current_session);
@@ -311,6 +360,7 @@ function GemApp() {
   async function startRun(message: string) {
     try {
       setError("");
+      setNotice("");
       setEvents([]);
       setScrollTop(0);
       setShowEvents(false);
@@ -342,10 +392,11 @@ function GemApp() {
   async function handleSessionCommand(command: string) {
     try {
       setError("");
+      setNotice("");
       if (command === "/sessions") {
         const state = await runtime.listSessions();
         applySessionState(state);
-        setError(`sessions: ${state.sessions.join(", ")}`);
+        setNotice(`sessions: ${state.sessions.join(", ")}`);
         return;
       }
       const requested = command.replace(/^\/session\s+/, "").trim();
@@ -358,83 +409,80 @@ function GemApp() {
   }
 
   async function handleCheckpointCommand(command: string) {
-    if (!run) return;
-    if (command === "/continue") {
-      await runtime.submitCheckpoint(run.run_id, { action: "continue" });
-      return;
+    try {
+      setError("");
+      setNotice("");
+      if (!run) return;
+      if (command === "/continue") {
+        await runtime.submitCheckpoint(run.run_id, { action: "continue" });
+        return;
+      }
+      if (command === "/stop") {
+        await runtime.submitCheckpoint(run.run_id, { action: "stop" });
+        return;
+      }
+      if (command.startsWith("/redirect ")) {
+        await runtime.submitCheckpoint(run.run_id, {
+          action: "redirect",
+          redirect_instruction: command.replace(/^\/redirect\s+/, "")
+        });
+        return;
+      }
+      setError("Checkpoint commands: /continue, /stop, or /redirect <guidance>.");
+    } catch (reason) {
+      setError(formatRuntimeError(reason));
     }
-    if (command === "/stop") {
-      await runtime.submitCheckpoint(run.run_id, { action: "stop" });
-      return;
-    }
-    if (command.startsWith("/redirect ")) {
-      await runtime.submitCheckpoint(run.run_id, {
-        action: "redirect",
-        redirect_instruction: command.replace(/^\/redirect\s+/, "")
-      });
-      return;
-    }
-    setError("Checkpoint commands: /continue, /stop, or /redirect <guidance>.");
   }
 
   return (
     <Box flexDirection="column" width={viewportWidth} height={viewportHeight}>
-      <Box borderStyle="single" borderColor={accent} paddingX={1}>
+      <Box height={3} borderStyle="single" borderColor={terminalTheme.accent} paddingX={1}>
         <Text bold>crisAI Gem</Text>
         <Text> | {status}</Text>
         <Text> | {session}</Text>
-        {checkpointWaiting ? <Text color="yellow"> | checkpoint</Text> : null}
-        {isLiveOutput ? <Text color="yellow"> | streaming</Text> : null}
-        {inScrollMode ? <Text dimColor> | tab: events</Text> : null}
+        {checkpointWaiting ? <Text color={terminalTheme.checkpoint.label}> | decision needed</Text> : null}
+        {isLiveOutput ? <Text color={terminalTheme.stage.running}> | streaming</Text> : null}
+        <Text dimColor wrap="truncate-end">{showEvents ? " | tab: output" : " | tab: events"}</Text>
       </Box>
 
       <Box height={transcriptHeight + 2} flexDirection="row">
-        <Box width={stageSidebarWidth} borderStyle="single" borderColor="blue" paddingX={1} flexDirection="column">
+        <Box width={stageSidebarWidth} borderStyle="single" borderColor={terminalTheme.border} paddingX={1} flexDirection="column">
           <Text bold>Stages</Text>
           {stages.length === 0 ? <Text dimColor>No stages yet.</Text> : null}
-          {stages.slice(-12).map((stage) => (
-            <StageItem key={stage.key} stage={stage} sidebarWidth={stageSidebarWidth} />
+          {stages.slice(-12).map((stage, index) => (
+            <StageItem
+              key={`${stage.key}-${index}`}
+              stage={stage}
+              sidebarWidth={stageSidebarWidth}
+              theme={terminalTheme}
+            />
           ))}
         </Box>
 
-        <Box flexGrow={1} borderStyle="single" borderColor="white" paddingX={1} flexDirection="column">
-          {inScrollMode ? (
-            <ScrollPane lines={outputLines} height={transcriptHeight} scrollTop={scrollTop} />
-          ) : (
-            <>
-              {events.length === 0 ? <Text dimColor>No output yet.</Text> : null}
-              {events
-                .filter((event) => event.event_type !== "final_answer" && event.event_type !== "stage_delta")
-                .slice(-10)
-                .map((event, index) => (
-                  <Box key={`${event.event_type}-${event.timestamp}-${index}`} flexDirection="column" marginBottom={1}>
-                    <Text bold>{event.title}</Text>
-                    {event.summary ? <Text>{event.summary}</Text> : null}
-                    {event.content ? <Text dimColor>{event.content}</Text> : null}
-                  </Box>
-                ))}
-              {finalLines.length > 0 ? (
-                <Text dimColor>Answer ready — press tab to read</Text>
-              ) : liveLines.length > 0 ? (
-                <Text dimColor>Streaming output — press tab to follow</Text>
-              ) : null}
-              {error ? <Text color="red">{error}</Text> : null}
-            </>
-          )}
+        <Box flexGrow={1} borderStyle="single" borderColor={terminalTheme.outputBorder} paddingX={1} flexDirection="column">
+          <ScrollPane lines={panelLines} height={transcriptHeight} scrollTop={scrollTop} />
         </Box>
       </Box>
 
       <Box
         height={promptPanelHeight}
         borderStyle="single"
-        borderColor={checkpointWaiting ? "yellow" : accent}
+        borderColor={checkpointWaiting ? terminalTheme.checkpoint.border : terminalTheme.accent}
         paddingX={1}
         flexDirection="column"
       >
         {checkpointWaiting ? (
           <>
-            <Text bold color="black" backgroundColor="yellow">CHECKPOINT REQUESTED</Text>
-            <Text color="yellow" wrap="truncate-end">/continue  /redirect &lt;guidance&gt;  /stop</Text>
+            {checkpointDecisionLines().map((line, index) => (
+              <Text
+                key={`checkpoint-decision-${index}`}
+                bold={index === 0}
+                color={terminalTheme.checkpoint.label}
+                wrap="truncate-end"
+              >
+                {line}
+              </Text>
+            ))}
           </>
         ) : (
           <Text dimColor>Prompt</Text>
@@ -446,9 +494,9 @@ function GemApp() {
         <Text dimColor wrap="truncate-end">
           {`${statusMetrics.model} | ${statusMetrics.elapsed} | tokens:${statusMetrics.tokens} | cost:${statusMetrics.cost} | `}
           {checkpointWaiting
-            ? "checkpoint: /continue | /redirect <guidance> | /stop"
-            : inScrollMode
-              ? `↑↓/PgUp/PgDn scroll · tab: events · /session <name>`
+            ? "decision: /continue use sources | /stop end run | /redirect refine"
+            : canScrollPanel
+              ? `↑↓/PgUp/PgDn scroll · tab: ${showEvents ? "output" : "events"} · /session <name>`
               : `mode:auto | session:${session} | sessions:${sessions.length} | ↑↓ history | /session <name>`}
         </Text>
       </Box>
@@ -536,22 +584,6 @@ function dedupeEvents(items: UiEvent[]): UiEvent[] {
     seen.add(key);
     return true;
   });
-}
-
-function resolveViewportDimension(
-  pinnedValue: string | undefined,
-  terminalValue: number | undefined,
-  fallbackValue: number,
-  minimumValue: number
-): number {
-  const pinned = Number(pinnedValue);
-  const preferred = Number.isFinite(pinned) && pinned > 0 ? pinned : terminalValue ?? fallbackValue;
-  return Math.max(minimumValue, Math.floor(preferred));
-}
-
-function resolveStageSidebarWidth(viewportWidth: number): number {
-  const proportionalWidth = Math.floor(viewportWidth * 0.24);
-  return Math.min(maximumStageSidebarWidth, Math.max(minimumStageSidebarWidth, proportionalWidth));
 }
 
 render(<GemApp />);

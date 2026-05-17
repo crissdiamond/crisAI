@@ -28,6 +28,7 @@ def test_ui_apps_depend_on_shared_contract_package() -> None:
     assert "react" in web["dependencies"]
     assert "ink" in gem["dependencies"]
     assert "eventsource" in gem["dependencies"]
+    assert gem["scripts"]["test"] == "tsx --test test/*.test.ts"
 
 
 def test_contract_client_targets_v1_runtime_api() -> None:
@@ -54,6 +55,7 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     contract_source = (ROOT / "ui/packages/contracts/src/index.ts").read_text(encoding="utf-8")
     web_source = (ROOT / "ui/apps/web/src/main.tsx").read_text(encoding="utf-8")
     gem_source = (ROOT / "ui/apps/gem/src/index.tsx").read_text(encoding="utf-8")
+    gem_view_model_source = (ROOT / "ui/apps/gem/src/viewModel.ts").read_text(encoding="utf-8")
 
     assert "deriveStageSummaries" in contract_source
     assert "stage_delta" in contract_source
@@ -79,21 +81,25 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "buildStatusMetrics" in gem_source
     assert "CRISAI_GEM_WIDTH" in gem_source
     assert "CRISAI_GEM_HEIGHT" in gem_source
+    assert "gemTerminalThemeFromPalette(palette)" in gem_source
+    assert "buildEventLines(events, error, outputPanelWidth, notice)" in gem_source
+    assert "ScrollPane lines={panelLines}" in gem_source
+    assert "checkpointDecisionLines().map" in gem_source
+    assert "decision needed" in gem_source
+    assert "Review retrieved sources" in gem_view_model_source
     assert "resolveViewportDimension" in gem_source
     assert "resolveStageSidebarWidth" in gem_source
-    assert "minimumStageSidebarWidth" in gem_source
-    assert "maximumStageSidebarWidth" in gem_source
+    assert "minimumStageSidebarWidth" in gem_view_model_source
+    assert "maximumStageSidebarWidth" in gem_view_model_source
     assert "stageSidebarWidth" in gem_source
     assert "StageItem" in gem_source
-    assert "backgroundColor" in gem_source
-    assert "CHECKPOINT REQUESTED" in gem_source
     assert "stdout?.columns" in gem_source
     assert "stdout?.rows" in gem_source
-    assert "minimumGemWidth" in gem_source
-    assert "minimumGemHeight" in gem_source
+    assert "minimumGemWidth" in gem_view_model_source
+    assert "minimumGemHeight" in gem_view_model_source
     assert "promptPanelHeight" in gem_source
     assert "tokens:${statusMetrics.tokens}" in gem_source
-    assert "event.event_type !== \"stage_delta\"" in gem_source
+    assert "event.event_type !== \"stage_delta\"" in gem_view_model_source
     assert "/redirect <guidance>" in gem_source
     assert "/session <name>" in gem_source
     assert "formatRuntimeError" in gem_source
