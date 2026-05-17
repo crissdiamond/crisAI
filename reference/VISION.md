@@ -197,10 +197,12 @@ justification — they were selected for architectural coherence, not convenienc
   any experience surface and the Python runtime. New surfaces connect here; they
   do not reach into the runtime or adapters directly.
 - **Experience layer — TypeScript**: The target surfaces are React (web), Ink
-  (CLI, planned), and React Native (mobile, planned). Shared API call logic and
-  component model reduce duplication across surfaces. The current CLI is
-  Python/Typer and the current web front end is static HTML/CSS/JS served by
-  FastAPI — both are migration targets, not the target architecture.
+  (CLI), and React Native (mobile, planned). Shared API call logic, event
+  contracts, stage state, checkpoint state, and theme tokens reduce duplication
+  across surfaces. The current stable CLI is Python/Typer and the current stable
+  web front end is static HTML/CSS/JS served by FastAPI. Experimental React and
+  Ink clients now exist under `ui/`, but they remain migration targets until
+  they reach parity with the stable surfaces.
 - **Source adapters — MCP over stdio**: Each source category (workspace,
   documents, Microsoft 365, authenticated web) has its own MCP server. The
   runtime issues tool calls; adapters are stateless and independently
@@ -215,10 +217,14 @@ justification — they were selected for architectural coherence, not convenienc
   are authored and stored as Markdown with embedded Mermaid diagrams. DOCX,
   PPTX, PDF, and image formats are export outputs generated from reviewed
   Markdown, not source formats.
-- **LLM access — Anthropic SDK**: The runtime communicates with language models
-  through the Anthropic SDK. Each agent is assigned a Claude model via the
-  registry. Do not introduce alternative LLM providers or SDKs without
-  discussing the impact on the registry model and cost observability.
+- **LLM access — provider-aware registry resolution**: The runtime uses the
+  OpenAI Agents SDK as the orchestration layer, with LiteLLM-backed model
+  resolution for non-OpenAI providers where needed. Agents are assigned model
+  references through `registry/agents.yaml`, and those references resolve
+  through `registry/models.yaml` to OpenAI, Gemini, DeepSeek, Anthropic, or
+  future providers. Do not introduce provider-specific behaviour outside the
+  registry/model resolver path without discussing the impact on cost
+  observability, fallback behaviour, and per-agent model assignment.
 
 ## Near-Term Direction
 
