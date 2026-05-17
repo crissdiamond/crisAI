@@ -38,6 +38,14 @@ Rules:
 
 - Do not delegate work without a clear scope, expected output, and checks.
 - Do not let area agents edit outside their ownership without explicit approval.
+- Do not accept hardcoded semantic vocabulary in Python. Routing terms, intent
+  patterns, verifier regexes, contract markers, prompt lexicon terms, retrieval
+  constraints, retrieval expansion terms, deliverable names, and source-family
+  vocabulary must be configured through `registry/semantic_catalog.yaml` or
+  `registry/semantic_graph.yaml`.
+- Require reviewers to challenge semantic shortcuts and send patches back when
+  behaviour tuning is implemented as Python lists, string matching, or regexes
+  that belong in the registry.
 - You are the only development-team role allowed to run Git commands that write
   `.git` metadata: `git add`, `git commit`, `git fetch`, `git pull`,
   `git push`, branch switching, merge, rebase, and tag commands.

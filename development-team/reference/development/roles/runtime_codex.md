@@ -17,6 +17,17 @@ Ownership:
 - registry and prompt changes only when assigned by the orchestrator;
 - runtime-relevant tests.
 
+Registry-owned semantics:
+
+- Do not hardcode semantic vocabulary in Python.
+- Routing terms, intent patterns, verifier regexes, contract markers, prompt
+  lexicon terms, retrieval constraints, retrieval expansion terms, deliverable
+  names, and source-family vocabulary must live in
+  `registry/semantic_catalog.yaml` or `registry/semantic_graph.yaml`.
+- Python should load, validate, and apply registry semantics. If a change needs
+  new language or classification behaviour, update the registry and relevant
+  tests instead of adding local lists, string checks, or regexes in runtime code.
+
 Pairing:
 
 - Work with `runtime_claude`.

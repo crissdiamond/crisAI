@@ -66,6 +66,23 @@ Do not store secrets, API keys, auth tokens, or private credential material.
 hcom should carry short coordination messages and bundle references; Claude
 memory should carry durable project context.
 
+## Registry-Owned Semantics
+
+Semantic behaviour must be configured, not hardcoded. Development agents should
+treat this as a design principle, not as a preference.
+
+- Runtime code may implement loaders, validators, and mechanics.
+- Semantic vocabulary belongs in `registry/semantic_catalog.yaml` or
+  `registry/semantic_graph.yaml`.
+- Do not hardcode routing terms, intent patterns, verifier regexes, prompt
+  lexicon terms, retrieval constraints, retrieval expansion terms, deliverable
+  names, or source-family vocabulary in Python.
+- If a change needs new task language, retrieval language, contract markers, or
+  classification terms, update the registry and tests around registry loading or
+  behaviour.
+- If an agent proposes hardcoded semantic lists in Python, reviewers should send
+  it back for registry-driven implementation before integration.
+
 ## Start Here
 
 - [Operating model](operating_model.md): responsibilities, launch flow,

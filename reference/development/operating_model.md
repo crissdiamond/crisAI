@@ -90,6 +90,26 @@ The development team uses a single Git writer model.
   push unless the user has asked for a push or the active task instructions
   clearly include pushing.
 
+## Registry-Owned Semantics
+
+Semantics are product configuration, not implementation shortcuts.
+
+- Runtime code may provide registry loading, validation, and deterministic
+  mechanics, but semantic vocabulary must live in the registry.
+- Keep routing terms, intent patterns, verifier regexes, prompt lexicon terms,
+  retrieval constraints, retrieval expansion terms, deliverable names, and
+  source-family vocabulary out of Python source.
+- Use `registry/semantic_catalog.yaml` for router term lists, peer-verifier
+  regex patterns, peer-contract markers, shared prompt lexicon terms, retrieval
+  source-fit constraints, and generic session-anchor vocabulary.
+- Use `registry/semantic_graph.yaml` for task-intent vertices, deliverable
+  types, source-family vocabulary, source-resolution vocabulary, and
+  deterministic retrieval expansion.
+- Standalone function words belong in `lexicon.function_words`, not scattered
+  across feature-specific vertices or local constants.
+- Any handoff or review that includes hardcoded semantic lists in Python should
+  be treated as incomplete until the behaviour is registry-driven.
+
 ## Shared Memory
 
 All agents should use the Claude memory MCP server as the durable task context
