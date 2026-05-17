@@ -192,43 +192,12 @@ slash commands as a dim prompt suffix, and supports `/runs`, `/prev`, and
 session. The Gem prompt panel is a fixed-height multiline editor for long or
 pasted prompts, with wrapping and cursor movement inside the prompt area.
 
-## hcom Development Team
+## Development Model
 
-For multi-agent development, crisAI includes an hcom operating model with one
-top-level Codex orchestrator and paired Codex/Claude area agents for runtime,
-Gem, and web work.
-
-```bash
-scripts/hcom_start.sh --dry-run   # inspect launch commands
-scripts/hcom_start.sh             # launch the hcom team
-scripts/hcom_start.sh --resume    # resume previous hcom/provider sessions
-scripts/hcom_status.sh            # show local assignments and agent status
-scripts/hcom_stop.sh              # stop crisAI hcom agent tags
-```
-
-The helper scripts use repo-local hcom state in `.hcom/` and write generated
-session mappings to `reference/development/session_assignments.local.yaml`.
-Both are ignored by git. Stable role definitions live under
-`reference/development/`; the top-level `runtime/`, `gem/`, and `web/` folders
-are hcom launch folders, not source roots.
-
-Use `--resume` only when continuing the same development context. The launcher
-resumes a role by `provider_session_id` when present in the assignment file, or
-by the previous hcom session name otherwise. Missing previous sessions fall back
-to fresh launches. Successful launches record provider session UUIDs when hcom
-exposes them.
-
-`scripts/hcom_stop.sh` snapshots the active hcom/provider session IDs before
-stopping the team, so the next `scripts/hcom_start.sh --resume` can restore the
-same agent sessions where the provider still supports resume.
-
-In WSL, `scripts/hcom_start.sh` opens hcom shells in Windows Terminal when
-`wt.exe` is available, otherwise it falls back to `tmux`. Override this with
-`--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`, for example:
-
-```bash
-scripts/hcom_start.sh --terminal tmux
-```
+crisAI is developed with its own optional hcom/Codex/Claude development-team
+workflow. That process is separate from crisAI's runtime multi-agent workflows.
+See [reference/development/README.md](reference/development/README.md) for the
+development operating model.
 
 ## First Commands
 

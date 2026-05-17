@@ -192,50 +192,13 @@ attach custom headers. The `./start web` launcher maps `CRISAI_API_KEY` to
 
 ---
 
-## 3.1 hcom development team
+## 3.1 Development model
 
-crisAI supports an hcom-based development team for repository work. The model is
-documented in `reference/development/operating_model.md` and uses:
-
-- one top-level Codex orchestrator from the repo root;
-- paired Codex/Claude agents for runtime, Gem, and web work;
-- repo-local hcom state in `.hcom/`;
-- local session-name mappings in
-  `reference/development/session_assignments.local.yaml`;
-- the Claude memory MCP server as shared task history across agent streams.
-
-Launch helpers:
-
-```bash
-scripts/hcom_start.sh --dry-run
-scripts/hcom_start.sh
-scripts/hcom_start.sh --resume
-scripts/hcom_status.sh
-scripts/hcom_stop.sh
-```
-
-Use `--resume` only when continuing the same development context. The launcher
-reads the previous assignment file before replacing it and resumes each role by
-`provider_session_id` when present, or by the previous hcom session name
-otherwise. Claude memory remains the durable cross-agent context layer; resumed
-provider sessions are for active-work continuity. Successful launches record
-provider session UUIDs when hcom exposes them.
-
-`scripts/hcom_stop.sh` snapshots active hcom/provider session IDs, transcript
-paths, and stopped status before killing the team tags. The normal continuation
-sequence is:
-
-```bash
-scripts/hcom_stop.sh
-scripts/hcom_start.sh --resume
-```
-
-In WSL, the launcher opens hcom shells in Windows Terminal when `wt.exe` is
-available, otherwise it falls back to `tmux`. Override this with
-`--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`.
-
-The top-level `runtime/`, `gem/`, and `web/` folders are hcom launch folders
-only. They do not replace the existing source layout.
+The hcom/Codex/Claude process used to develop this repository is documented
+separately from this operator manual to avoid confusing it with crisAI's runtime
+multi-agent workflows. See
+`reference/development/README.md` for development-team setup and operating
+rules.
 
 ---
 
