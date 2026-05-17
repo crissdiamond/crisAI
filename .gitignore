@@ -30,6 +30,7 @@ tests/logs/
 .continue/
 .cursor
 .cursor/
+.hcom/
 .idea/
 .vscode/
 .DS_Store
@@ -63,6 +64,7 @@ ui/**/coverage/
 ui/**/*.tsbuildinfo
 
 # crisAI runtime workspace state
+reference/development/session_assignments.local.yaml
 workspace/.cache/
 workspace/.cli_history
 workspace/chat_sessions/

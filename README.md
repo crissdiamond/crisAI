@@ -187,6 +187,25 @@ The launcher also maps `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` for
 local `.env` convenience. React web can also upload local source documents into
 the current task inputs folder or the knowledge intake area for later retrieval.
 
+## hcom Development Team
+
+For multi-agent development, crisAI includes an hcom operating model with one
+top-level Codex orchestrator and paired Codex/Claude area agents for runtime,
+Gem, and web work.
+
+```bash
+scripts/hcom_start.sh --dry-run   # inspect launch commands
+scripts/hcom_start.sh             # launch the hcom team
+scripts/hcom_status.sh            # show local assignments and agent status
+scripts/hcom_stop.sh              # stop crisAI hcom agent tags
+```
+
+The helper scripts use repo-local hcom state in `.hcom/` and write generated
+session mappings to `reference/development/session_assignments.local.yaml`.
+Both are ignored by git. Stable role definitions live under
+`reference/development/`; the top-level `runtime/`, `gem/`, and `web/` folders
+are hcom launch folders, not source roots.
+
 ## First Commands
 
 Inside the CLI:

@@ -15,3 +15,7 @@
 13. Or start the React web UI: `./start web`, then open `http://127.0.0.1:5173`.
 
 Use `pytest` for the network-free regression suite after installing the dev extra. The manual Graph login smoke test remains `python tests/orchestration/test_graph_login.py`.
+
+For hcom-based multi-agent development, run `scripts/hcom_start.sh --dry-run`
+first, then `scripts/hcom_start.sh` when ready. See
+`reference/development/operating_model.md`.

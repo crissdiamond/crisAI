@@ -183,6 +183,32 @@ attach custom headers. The `./start web` launcher maps `CRISAI_API_KEY` to
 
 ---
 
+## 3.1 hcom development team
+
+crisAI supports an hcom-based development team for repository work. The model is
+documented in `reference/development/operating_model.md` and uses:
+
+- one top-level Codex orchestrator from the repo root;
+- paired Codex/Claude agents for runtime, Gem, and web work;
+- repo-local hcom state in `.hcom/`;
+- local session-name mappings in
+  `reference/development/session_assignments.local.yaml`;
+- the Claude memory MCP server as shared task history across agent streams.
+
+Launch helpers:
+
+```bash
+scripts/hcom_start.sh --dry-run
+scripts/hcom_start.sh
+scripts/hcom_status.sh
+scripts/hcom_stop.sh
+```
+
+The top-level `runtime/`, `gem/`, and `web/` folders are hcom launch folders
+only. They do not replace the existing source layout.
+
+---
+
 ## 4. First things to try
 
 Inside the CLI:
