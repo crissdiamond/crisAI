@@ -1,17 +1,49 @@
 # crisAI Setup
 
+## First clone
+
 1. Install uv if needed: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-2. Install the package for the default multi-provider registry: `uv sync --extra litellm`.
-3. For development and tests, install the dev group: `uv sync --extra litellm --group dev`.
-4. Install UI dependencies for Ink Gem and React web: `npm --prefix ui install`.
-5. Copy `.env.example` to `.env` and set `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `DEEPSEEK_API_KEY`.
-6. For a mono-provider setup, copy one of `registry/examples/agents.*.yaml` over `registry/agents.yaml`, then set only that provider's key.
-7. Optional Microsoft Graph: set `MS_TENANT_ID` and `MS_CLIENT_ID`, then run SharePoint or intranet auth status/login tools from crisAI.
-8. Validate local configuration: `uv run crisai doctor`.
-9. Validate artefact profiles: `uv run crisai validate-artefacts`.
-10. Start the FastAPI backend: `./start api`.
-11. Start the Ink terminal client in another terminal: `./start gem`.
-12. Or start the React web UI: `./start web`, then open `http://127.0.0.1:5173`.
+2. Install Node.js/npm if you want to use Ink Gem or React web.
+3. Clone the repository and enter it.
+4. Run `scripts/bootstrap.sh`.
+5. Edit `.env` and set the provider keys required by your selected agent registry.
+6. Validate local configuration: `uv run crisai doctor`.
+7. Validate artefact profiles: `uv run crisai validate-artefacts`.
+8. Start the FastAPI backend: `./start api`.
+9. Start the Ink terminal client in another terminal: `./start gem`.
+10. Or start the React web UI: `./start web`, then open `http://127.0.0.1:5173`.
+
+uv is the supported setup path. It creates and manages the project `.venv`; do
+not create or activate a virtual environment manually. `scripts/bootstrap.sh`
+runs the uv install, installs UI workspace dependencies when npm is available,
+copies `.env.example` to `.env` when missing, and creates the standard workspace
+and log folders.
+
+## Troubleshooting setup manually
+
+Use these commands only when you need to inspect or repair what bootstrap would
+normally do:
+
+```bash
+uv sync --extra litellm
+npm --prefix ui install
+cp .env.example .env
+```
+
+For development and tests, install the dev group:
+
+```bash
+uv sync --extra litellm --group dev
+```
+
+For a mono-provider setup, copy one of `registry/examples/agents.*.yaml` over
+`registry/agents.yaml`, then set only that provider's key. Optional Microsoft
+Graph retrieval also needs `MS_TENANT_ID` and `MS_CLIENT_ID`, followed by the
+SharePoint or intranet auth status/login tools from crisAI.
+
+If `uv run crisai doctor` reports that `.env` is missing placeholders present in
+`.env.example`, add those placeholder keys without overwriting real local
+secrets.
 
 Use `uv run pytest` for the network-free regression suite after installing the
 dev group. The manual Graph login smoke test remains `uv run python

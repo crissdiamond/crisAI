@@ -100,12 +100,24 @@ This allows examples such as:
 
 ### 2.7 Installation and Python environment
 
-crisAI uses **uv** for Python environment and dependency management. uv creates
-and manages the project `.venv`; users should not create, activate, or install
-into it manually. The preferred local interpreter is Python 3.14, pinned by
+crisAI uses **uv** as the supported setup path. uv creates and manages the
+project `.venv`; users should not create, activate, or install into it
+manually. The preferred local interpreter is Python 3.14, pinned by
 `.python-version`, while the package still supports Python 3.10+.
 
-First-time setup (full step-by-step, including `.env`, is in the repository **README**):
+First-time setup (full step-by-step, including `.env`, is in the repository **README** and `runbooks/01-setup.md`):
+
+```bash
+git clone https://github.com/crissdiamond/crisAI
+cd crisAI
+scripts/bootstrap.sh
+```
+
+The bootstrap script handles the project environment: it runs the uv install,
+installs UI workspace dependencies when `npm` is available, creates `.env` from
+`.env.example` when missing, and creates the standard workspace folders.
+
+For troubleshooting, the manual equivalent is:
 
 1. Install uv if needed:
    ```bash
@@ -123,9 +135,9 @@ First-time setup (full step-by-step, including `.env`, is in the repository **RE
 Use `uv python upgrade 3.14` to update the local 3.14 interpreter to the latest
 available patch release.
 
-You can also use **`scripts/bootstrap.sh`**, which runs `uv sync --extra
-litellm`, installs UI workspace dependencies with `npm --prefix ui install` when
-npm is available, and creates `.env` from `.env.example` when missing.
+After editing `.env`, run `uv run crisai doctor`. If doctor reports that `.env`
+is missing placeholders present in `.env.example`, add the placeholders without
+overwriting real credentials.
 
 ---
 
@@ -144,7 +156,8 @@ Recommended startup behaviour:
 - do **not** force `--pipeline` in the launcher
 - let the router decide unless you explicitly pin a mode or agent later
 
-The Ink Gem and React web clients require the UI workspace dependencies:
+The Ink Gem and React web clients require the UI workspace dependencies.
+`scripts/bootstrap.sh` installs them when `npm` is available; otherwise run:
 
 ```bash
 npm --prefix ui install

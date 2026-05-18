@@ -111,7 +111,6 @@ ui/           Future React web and Ink Gem clients plus shared TypeScript UI con
 
 ## Requirements
 
-- Python 3.10+
 - uv for Python environment and dependency management
 - Node.js and npm for the React web and Ink Gem clients
 - Linux, macOS, or WSL on Windows
@@ -121,15 +120,34 @@ ui/           Future React web and Ink Gem clients plus shared TypeScript UI con
 
 ## Quick Install
 
+Install uv first if needed:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then let the bootstrap script handle the project environment:
+
 ```bash
 git clone https://github.com/crissdiamond/crisAI
 cd crisAI
+scripts/bootstrap.sh
+```
+
+uv creates and manages the project `.venv`; do not create or activate a virtual
+environment manually. The bootstrap script installs the runtime, installs UI
+dependencies when `npm` is available, creates `.env` from `.env.example` when
+missing, and creates the standard workspace folders.
+
+For troubleshooting, the manual equivalent is:
+
+```bash
 uv sync --extra litellm
 npm --prefix ui install
 cp .env.example .env
 ```
 
-Set the keys used by the default `registry/agents.yaml`:
+Then set the keys used by the default `registry/agents.yaml`:
 
 ```dotenv
 OPENAI_API_KEY=your_openai_api_key
@@ -156,9 +174,8 @@ For local development, tests, linting, and type checks:
 uv sync --extra litellm --group dev
 ```
 
-uv creates and manages the project `.venv`; do not create or activate it
-manually. Use `uv python upgrade 3.14` to move the local interpreter to the
-latest available Python 3.14 patch release.
+Use `uv python upgrade 3.14` to move the local interpreter to the latest
+available Python 3.14 patch release.
 
 ## Start
 
@@ -172,8 +189,13 @@ uv run crisai doctor
 ./start web          # React/Vite web client at http://127.0.0.1:5173
 ```
 
+`./start gem` and `./start web` expect the API process to already be running in
+another terminal. If `uv run crisai doctor` reports that `.env` is missing keys
+from `.env.example`, refresh the placeholders without overwriting real secrets.
+
 For the Ink Gem and React web clients, the UI workspace dependencies must be
-installed once:
+installed once. `scripts/bootstrap.sh` already does this when `npm` is
+available; otherwise run:
 
 ```bash
 npm --prefix ui install
