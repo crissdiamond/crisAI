@@ -56,9 +56,12 @@ default tmux session is `crisai-hcom`, configurable with
 `orchestrator(<hcom_name>)`, `gem_codex(<hcom_name>)`,
 `gem_claude(<hcom_name>)`, `web_codex(<hcom_name>)`,
 `web_claude(<hcom_name>)`, `run_codex(<hcom_name>)`, and
-`run_claude(<hcom_name>)`. Attach with `tmux attach -t crisai-hcom`, switch
-windows with `Ctrl-b` then the window number or `Ctrl-b` then `w`, and detach
-without stopping the team with `Ctrl-b` then `d`.
+`run_claude(<hcom_name>)`. Attach with `scripts/hcom_attach.sh` or
+`tmux attach -t crisai-hcom`, switch windows with `Ctrl-\` then the window
+number, `Ctrl-\` then `n` or `p`, or `Ctrl-\` then `w`, and detach without
+stopping the team with `Ctrl-\` then `d`. `Ctrl-b` remains a secondary prefix if
+needed. The tmux status bar uses cyan labels for Codex windows, purple labels
+for Claude windows, and green for the orchestrator/other windows.
 
 Tool auto-approval is enabled by default for launched agents so routine
 development work does not block on repeated provider permission prompts. The

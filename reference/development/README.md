@@ -135,15 +135,24 @@ The tmux windows are created in this order:
 6. `run_codex(<hcom_name>)`
 7. `run_claude(<hcom_name>)`
 
-Attach to the team session with:
+Attach to the team session with the helper:
+
+```bash
+scripts/hcom_attach.sh
+```
+
+Or attach directly with:
 
 ```bash
 tmux attach -t crisai-hcom
 ```
 
-Inside tmux, switch between agent windows with `Ctrl-b` then the window number
-or `Ctrl-b` then `w` for the window list. Detach without stopping agents with
-`Ctrl-b` then `d`.
+Inside tmux, switch between agent windows with `Ctrl-\` then the window number,
+`Ctrl-\` then `n` or `p` for next/previous, or `Ctrl-\` then `w` for the window
+list. Detach without stopping agents with `Ctrl-\` then `d`. `Ctrl-b` remains a
+secondary prefix if needed. The tmux status bar uses cyan labels for Codex
+windows, purple labels for Claude windows, and green for the orchestrator/other
+windows.
 
 Continue the same team context:
 

@@ -57,10 +57,19 @@ The hcom development team uses a dedicated `tmux` session by default. Attach to
 the running team with:
 
 ```bash
+scripts/hcom_attach.sh
+```
+
+Or attach directly with:
+
+```bash
 tmux attach -t crisai-hcom
 ```
 
-Inside tmux, use `Ctrl-b` then a window number to switch agents:
+Inside tmux, use `Ctrl-\` then a window number to switch agents:
 `0` orchestrator, `1` Gem Codex, `2` Gem Claude, `3` web Codex, `4` web Claude,
-`5` runtime Codex, and `6` runtime Claude. Use `Ctrl-b` then `d` to detach
-without stopping the team.
+`5` runtime Codex, and `6` runtime Claude. Use `Ctrl-\` then `n` or `p` for
+next/previous, `Ctrl-\` then `w` for the window list, and `Ctrl-\` then `d` to
+detach without stopping the team. `Ctrl-b` remains a secondary prefix if needed.
+The tmux status bar uses cyan labels for Codex windows, purple labels for
+Claude windows, and green for the orchestrator/other windows.
