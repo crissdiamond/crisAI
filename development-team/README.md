@@ -101,6 +101,7 @@ scripts/hcom_start.sh --target-repo /path/to/crisAI --resume
 scripts/hcom_start.sh --target-repo /path/to/crisAI --no-tool-auto-approve
 scripts/hcom_status.sh --target-repo /path/to/crisAI
 scripts/hcom_stop.sh --target-repo /path/to/crisAI
+scripts/hcom_stop.sh --target-repo /path/to/crisAI --keep-terminals
 ```
 
 If this package lives inside the target repo, `--target-repo` can be omitted.
@@ -133,6 +134,9 @@ hcom exposes them.
 `scripts/hcom_stop.sh` snapshots the active hcom/provider session IDs before
 stopping the team, so the next `scripts/hcom_start.sh --target-repo /path/to/crisAI --resume`
 can restore the same agent sessions where the provider still supports resume.
+It also closes terminal shells launched for the team by default. Use
+`--keep-terminals` or `HCOM_TEAM_CLOSE_TERMINALS=0` when those windows should
+stay open for debugging.
 
 Both should be ignored by the target repository. This package includes
 `.gitignore.example` entries to copy into the target repo if needed.

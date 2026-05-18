@@ -5,6 +5,41 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export HCOM_DIR="${HCOM_DIR:-$ROOT_DIR/.hcom}"
 ASSIGNMENTS="$ROOT_DIR/reference/development/session_assignments.local.yaml"
+CLOSE_TERMINALS="${HCOM_TEAM_CLOSE_TERMINALS:-1}"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/hcom_stop.sh [--close-terminals|--keep-terminals]
+
+Stops the crisAI hcom development team and snapshots resumable session IDs.
+
+Terminals:
+  Terminal cleanup is enabled by default. Set HCOM_TEAM_CLOSE_TERMINALS=0
+  or pass --keep-terminals to leave launched terminal windows open.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --close-terminals)
+      CLOSE_TERMINALS=1
+      shift
+      ;;
+    --keep-terminals)
+      CLOSE_TERMINALS=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
 
 if ! command -v hcom >/dev/null 2>&1; then
   echo "Missing required command: hcom" >&2
@@ -126,6 +161,83 @@ PY
 
 snapshot_assignments
 
+close_team_terminals() {
+  [[ "$CLOSE_TERMINALS" == "1" ]] || return 0
+  [[ -f "$ASSIGNMENTS" ]] || return 0
+
+  ASSIGNMENTS_PATH="$ASSIGNMENTS" HCOM_DIR_PATH="$HCOM_DIR" python - <<'PY'
+import os
+import signal
+from pathlib import Path
+
+assignments_path = Path(os.environ["ASSIGNMENTS_PATH"])
+hcom_dir = os.environ["HCOM_DIR_PATH"]
+
+names = set()
+in_sessions = False
+for raw_line in assignments_path.read_text(encoding="utf-8").splitlines():
+    line = raw_line.rstrip()
+    if line == "sessions:":
+        in_sessions = True
+        continue
+    if in_sessions and line.startswith("  ") and not line.startswith("    ") and line.endswith(":"):
+        names.add(line.strip()[:-1])
+
+if not names:
+    raise SystemExit(0)
+
+current_pid = os.getpid()
+killed = []
+
+for proc_dir in Path("/proc").iterdir():
+    if not proc_dir.name.isdigit():
+        continue
+
+    pid = int(proc_dir.name)
+    if pid == current_pid:
+        continue
+
+    try:
+        comm = (proc_dir / "comm").read_text(encoding="utf-8").strip()
+    except (FileNotFoundError, PermissionError, ProcessLookupError, UnicodeDecodeError):
+        continue
+
+    if comm not in {"bash", "sh", "zsh", "fish"}:
+        continue
+
+    try:
+        raw_environ = (proc_dir / "environ").read_bytes()
+    except (FileNotFoundError, PermissionError, ProcessLookupError):
+        continue
+
+    environ = {}
+    for item in raw_environ.split(b"\0"):
+        if b"=" not in item:
+            continue
+        key, value = item.split(b"=", 1)
+        try:
+            environ[key.decode()] = value.decode()
+        except UnicodeDecodeError:
+            continue
+
+    if environ.get("HCOM_DIR") != hcom_dir:
+        continue
+    if environ.get("HCOM_NAME") not in names:
+        continue
+
+    try:
+        os.kill(pid, signal.SIGTERM)
+        killed.append(str(pid))
+    except ProcessLookupError:
+        continue
+
+if killed:
+    print(f"Closed hcom terminal shell(s): {', '.join(killed)}")
+PY
+}
+
 for tag in crisai-orchestrator crisai-runtime crisai-gem crisai-web; do
   hcom kill "tag:$tag" || true
 done
+
+close_team_terminals

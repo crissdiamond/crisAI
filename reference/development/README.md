@@ -117,6 +117,13 @@ Stop and save resumable session information:
 scripts/hcom_stop.sh
 ```
 
+The stop script also closes terminal shells launched for the team. Keep those
+windows open for debugging with:
+
+```bash
+scripts/hcom_stop.sh --keep-terminals
+```
+
 Continue the same team context:
 
 ```bash
