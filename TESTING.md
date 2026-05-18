@@ -191,9 +191,13 @@ tests/
 From the repo root:
 
 ```bash
-pip install -e ".[dev]"
-pytest
+uv sync --extra litellm --group dev
+uv run pytest
 ```
+
+Use both `--extra litellm` and `--group dev` for local development. The dev
+group installs test/static-analysis tooling; the LiteLLM extra installs the
+provider bridge required by the default multi-provider registry.
 
 That is the preferred command for checking the full current project state.
 The default pytest configuration includes `--cov=crisai --cov-report=term-missing` and requires total coverage of at least 70%. CI runs the same suite with `pytest-timeout` enabled so hung async or web tests fail within the configured per-test timeout.
@@ -222,25 +226,25 @@ For a clean-install smoke check, also verify the supported launch modes:
 ### Unit tests only
 
 ```bash
-pytest tests/unit
+uv run pytest tests/unit
 ```
 
 ### CLI-focused tests
 
 ```bash
-pytest tests/cli
+uv run pytest tests/cli
 ```
 
 ### Orchestration sequencing tests
 
 ```bash
-pytest tests/orchestration
+uv run pytest tests/orchestration
 ```
 
 ### Integration tests
 
 ```bash
-pytest tests/integration
+uv run pytest tests/integration
 ```
 
 ### Smoke tests
@@ -250,16 +254,16 @@ Smoke tests are opt-in because they can call real provider APIs. Set
 running them:
 
 ```bash
-pytest tests/smoke
+uv run pytest tests/smoke
 ```
 
 ### Selected files
 
 ```bash
-pytest tests/unit/test_model_resolver.py
-pytest tests/unit/test_chat_context.py
-pytest tests/cli/test_pipelines.py
-pytest tests/orchestration/test_peer_mode.py
+uv run pytest tests/unit/test_model_resolver.py
+uv run pytest tests/unit/test_chat_context.py
+uv run pytest tests/cli/test_pipelines.py
+uv run pytest tests/orchestration/test_peer_mode.py
 ```
 
 ---
@@ -282,10 +286,13 @@ For the core suite, the project should import and run without requiring live pro
 Install test and static-analysis tooling with the dev extra:
 
 ```bash
-pip install -e ".[dev]"
+uv sync --extra litellm --group dev
 ```
 
-The base install keeps runtime dependencies only; `pytest`, `pytest-timeout`, `ruff`, and `mypy` live in the dev extra. `traced` remains a runtime dependency.
+The base uv install keeps runtime dependencies only; `pytest`, `pytest-timeout`,
+`ruff`, and `mypy` live in the dev dependency group. The default registry also
+needs the LiteLLM extra, so use both flags together for development installs.
+`traced` remains a runtime dependency.
 
 ### Microsoft Graph auth smoke test (manual)
 `tests/orchestration/test_graph_login.py` is a manual smoke test and is intentionally skipped by pytest.
@@ -293,7 +300,7 @@ The base install keeps runtime dependencies only; `pytest`, `pytest-timeout`, `r
 Run it directly when you want to validate interactive Microsoft Entra login and Graph reachability:
 
 ```bash
-python tests/orchestration/test_graph_login.py
+uv run python tests/orchestration/test_graph_login.py
 ```
 
 WSL note:
@@ -307,7 +314,7 @@ If you want to exercise OpenAI, Gemini, Anthropic, or DeepSeek in real runtime f
 Run the suite after each improvement:
 
 ```bash
-pytest
+uv run pytest
 ```
 
 This is especially important after changes to:

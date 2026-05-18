@@ -459,7 +459,7 @@ def doctor(
         lines.append("Setup guidance:")
         lines.append("- Put local credentials and runtime overrides in `.env` copied from `.env.example`.")
         lines.append("- Keep shared agents, models, MCP servers, policy, and memory defaults in `registry/*.yaml`.")
-        lines.append("- Run `crisai doctor --models` after changing model providers or agent model_ref values.")
+        lines.append("- Run `uv run crisai doctor --models` after changing model providers or agent model_ref values.")
 
     if result.ok:
         print_status_message("\n".join(lines), title="✅ crisai doctor")

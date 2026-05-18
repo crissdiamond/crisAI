@@ -112,6 +112,7 @@ ui/           Future React web and Ink Gem clients plus shared TypeScript UI con
 ## Requirements
 
 - Python 3.10+
+- uv for Python environment and dependency management
 - Node.js and npm for the React web and Ink Gem clients
 - Linux, macOS, or WSL on Windows
 - `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `DEEPSEEK_API_KEY` for the default multi-provider agent registry
@@ -123,10 +124,7 @@ ui/           Future React web and Ink Gem clients plus shared TypeScript UI con
 ```bash
 git clone https://github.com/crissdiamond/crisAI
 cd crisAI
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e ".[litellm]"
+uv sync --extra litellm
 npm --prefix ui install
 cp .env.example .env
 ```
@@ -155,18 +153,19 @@ cp registry/examples/agents.openai.yaml registry/agents.yaml
 For local development, tests, linting, and type checks:
 
 ```bash
-pip install -e ".[dev]"
+uv sync --extra litellm --group dev
 ```
 
-The `dev` extra includes LiteLLM support because the default registry uses
-LiteLLM-backed Gemini and DeepSeek models.
+uv creates and manages the project `.venv`; do not create or activate it
+manually. Use `uv python upgrade 3.14` to move the local interpreter to the
+latest available Python 3.14 patch release.
 
 ## Start
 
 Run the FastAPI backend first, then attach a client:
 
 ```bash
-crisai doctor
+uv run crisai doctor
 ./start api          # FastAPI backend on http://127.0.0.1:8000
 ./start gem          # Ink terminal client (separate terminal window)
 # or
@@ -213,7 +212,7 @@ Inside the CLI:
 Example one-off request:
 
 ```bash
-python -m crisai.cli.main ask -m "Find the most relevant document for integration strategy and summarise it."
+uv run python -m crisai.cli.main ask -m "Find the most relevant document for integration strategy and summarise it."
 ```
 
 ## Workflow Modes
@@ -259,8 +258,8 @@ The registry is the main control plane:
 - `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, retrieval source-fit constraints, and generic session-anchor vocabulary used to preserve user-visible labels across follow-up turns.
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
 
-Run `crisai doctor` after registry edits.
-Run `crisai doctor --models` after model/provider edits to dry-build configured agent models without making API calls.
+Run `uv run crisai doctor` after registry edits.
+Run `uv run crisai doctor --models` after model/provider edits to dry-build configured agent models without making API calls.
 
 ## Retrieval Sources
 
@@ -316,15 +315,15 @@ SharePoint documents and SharePoint-backed intranet pages use separate MCP serve
 Install dev dependencies first:
 
 ```bash
-pip install -e ".[dev]"
-pytest
+uv sync --extra litellm --group dev
+uv run pytest
 ```
 
 Static checks:
 
 ```bash
-ruff check .
-mypy src
+uv run ruff check src/ tests/
+uv run mypy src
 ```
 
 See [TESTING.md](TESTING.md) for the suite layout and manual Graph login smoke test.

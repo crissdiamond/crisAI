@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ ! -d .venv ]; then
-  python3 -m venv .venv
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv not found. Install it first:"
+  echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+  exit 1
 fi
 
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+uv sync --extra litellm
 
 if command -v npm >/dev/null 2>&1; then
   npm --prefix ui install
@@ -25,6 +25,5 @@ mkdir -p workspace/knowledge workspace/knowledge_staging workspace/tasks workspa
 echo "crisAI bootstrap complete."
 echo "Next:"
 echo "  1. Edit .env with your API keys"
-echo "  2. source .venv/bin/activate"
-echo "  3. crisai doctor"
-echo "  4. ./start api, then ./start gem or ./start web"
+echo "  2. uv run crisai doctor"
+echo "  3. ./start api, then ./start gem or ./start web"

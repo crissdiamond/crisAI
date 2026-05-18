@@ -98,35 +98,40 @@ This allows examples such as:
 - `judge` → Gemini
 - `design_challenger` → Anthropic
 
-### 2.7 Installation and virtual environment
+### 2.7 Installation and Python environment
 
-crisAI is meant to run from a **local Python virtual environment** named **`.venv`** at the project root. The **`./start`** script activates `.venv` for both CLI and web; if `.venv` is missing, it prints short setup commands and exits.
+crisAI uses **uv** for Python environment and dependency management. uv creates
+and manages the project `.venv`; users should not create, activate, or install
+into it manually. The preferred local interpreter is Python 3.14, pinned by
+`.python-version`, while the package still supports Python 3.10+.
 
 First-time setup (full step-by-step, including `.env`, is in the repository **README**):
 
-1. Create and activate the venv, for example:
+1. Install uv if needed:
    ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-2. Install dependencies, for example:
+2. Install dependencies:
    ```bash
-   pip install --upgrade pip
-   pip install -e ".[litellm]"
+   uv sync --extra litellm
    ```
-   or `pip install -r requirements.txt` (same default multi-provider install).
-   Use `pip install -e .` only when you have changed `registry/agents.yaml` to an
-   OpenAI-only configuration.
+3. For development, tests, linting, and type checks:
+   ```bash
+   uv sync --extra litellm --group dev
+   ```
 
-On **Debian / Ubuntu**, if `python3 -m venv` fails with a message about **`ensurepip`** or **`python3.x-venv` missing**, install the OS **`venv`** package for your Python version (e.g. `sudo apt install python3-venv` or `python3.12-venv`).
+Use `uv python upgrade 3.14` to update the local 3.14 interpreter to the latest
+available patch release.
 
-You can also use **`scripts/bootstrap.sh`**, which creates `.venv` if needed, runs `pip install -r requirements.txt`, installs UI workspace dependencies with `npm --prefix ui install` when npm is available, and creates `.env` from `.env.example` when missing.
+You can also use **`scripts/bootstrap.sh`**, which runs `uv sync --extra
+litellm`, installs UI workspace dependencies with `npm --prefix ui install` when
+npm is available, and creates `.env` from `.env.example` when missing.
 
 ---
 
 ## 3. Starting crisAI
 
-From the project root (after `.venv` exists and dependencies are installed):
+From the project root (after uv dependencies are installed):
 
 ```bash
 ./start api          # FastAPI backend  (start this first)
@@ -246,18 +251,18 @@ These are the best first commands because they show you:
 Outside interactive chat, you can reset a persisted session directly:
 
 ```bash
-crisai clear-session --session architecture
+uv run crisai clear-session --session architecture
 ```
 
 Structural checks on promoted knowledge, staged knowledge, and task Markdown (`workspace/knowledge/`, `workspace/knowledge_staging/`, and `workspace/tasks/`) are driven by **`registry/workspace_artifact_profiles.yaml`**. The first matching profile (by declare order) supplies rules on top of `defaults`; front-matter **`type`** can be spelled with synonyms listed under `type_aliases` (for example **`HLD`** maps to **`high_level_design`**). Run validation manually:
 
 ```bash
-crisai doctor
-crisai validate-artefacts
-crisai validate-artefacts -p workspace/knowledge_staging/patterns/example.md
+uv run crisai doctor
+uv run crisai validate-artefacts
+uv run crisai validate-artefacts -p workspace/knowledge_staging/patterns/example.md
 ```
 
-`crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, and tracked secret/cache hygiene. Use `crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
+`uv run crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, and tracked secret/cache hygiene. Use `uv run crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
 
 The same validator runs automatically as part of the **peer post-run verifier** for Markdown files touched in that workflow (`src/crisai/orchestration/peer_verifier.py` calling `validate_workspace_artefact_paths`).
 
@@ -991,7 +996,7 @@ The Graph login script under `tests/orchestration/test_graph_login.py` is manual
 Run it directly when validating local auth/browser flow:
 
 ```bash
-python tests/orchestration/test_graph_login.py
+uv run python tests/orchestration/test_graph_login.py
 ```
 
 ---
@@ -1013,7 +1018,7 @@ fast orchestration/design roles, DeepSeek for summary/context/refinement roles,
 and Gemini for review/judge roles. A first run with the default registry
 therefore needs LiteLLM support plus `OPENAI_API_KEY`, `GEMINI_API_KEY`, and
 `DEEPSEEK_API_KEY`. For a one-provider setup, copy the matching example over the
-live registry file before running `crisai doctor --models`:
+live registry file before running `uv run crisai doctor --models`:
 
 ```bash
 cp registry/examples/agents.openai.yaml registry/agents.yaml
@@ -1051,7 +1056,7 @@ The current design is built to support:
 - Anthropic
 - DeepSeek
 
-OpenAI uses the native SDK path. Gemini, Anthropic, and DeepSeek are resolved through LiteLLM-backed integration when selected. LiteLLM is required for the default registry and is installed by `pip install -e ".[litellm]"`, `pip install -e ".[dev]"`, and `pip install -r requirements.txt`.
+OpenAI uses the native SDK path. Gemini, Anthropic, and DeepSeek are resolved through LiteLLM-backed integration when selected. LiteLLM is required for the default registry and is installed by `uv sync --extra litellm`; development installs use `uv sync --extra litellm --group dev`.
 
 ### Available DeepSeek model refs
 
@@ -1173,7 +1178,7 @@ CRISAI_RUN_SMOKE_TESTS=1 \
   DEEPSEEK_API_KEY=sk-... \
   GEMINI_API_KEY=AI... \
   ANTHROPIC_API_KEY=sk-ant-... \
-  python -m pytest tests/smoke/ -v
+  uv run pytest tests/smoke/ -v
 ```
 
 Individual provider keys can be omitted — tests that need the missing key skip automatically.

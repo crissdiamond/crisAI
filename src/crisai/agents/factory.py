@@ -56,7 +56,7 @@ class AgentFactory:
             except ImportError as exc:
                 raise ImportError(
                     "LiteLLM support is required for Gemini, Anthropic, or DeepSeek models. "
-                    "Install it with `pip install 'openai-agents[litellm]'` or add `litellm` to your environment."
+                    "Install project dependencies with `uv sync --extra litellm`."
                 ) from exc
 
             kwargs: dict[str, Any] = {}

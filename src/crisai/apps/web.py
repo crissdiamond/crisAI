@@ -1387,6 +1387,6 @@ def main() -> None:
         import uvicorn
     except ImportError as exc:  # pragma: no cover
         raise typer.BadParameter(
-            "Missing web dependencies. Install with: pip install fastapi uvicorn"
+            "Missing web dependencies. Install project dependencies with: uv sync --extra litellm"
         ) from exc
     _run_async(uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=8000)).serve())

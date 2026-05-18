@@ -3,15 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-if [ ! -d ".venv" ]; then
-  echo "Missing .venv. Create and install dependencies first:"
-  echo "  python3 -m venv .venv"
-  echo "  source .venv/bin/activate"
-  echo "  pip install -e ."
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv not found. Install it first:"
+  echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
   exit 1
 fi
 
-source .venv/bin/activate
 export PYTHONPATH=./src
 
 if [ -f .env ]; then
@@ -25,15 +22,15 @@ MODE="${1:-gem}"
 case "$MODE" in
   api)
     # FastAPI backend — required before starting web or gem.
-    exec crisai-web
+    exec uv run crisai-web
     ;;
   web)
     # React web client. Start the API server first: ./start api
-    exec python -m crisai.cli.main web-react
+    exec uv run python -m crisai.cli.main web-react
     ;;
   cli|gem)
     # Ink terminal client. Start the API server first: ./start api
-    exec python -m crisai.cli.main gem-ink
+    exec uv run python -m crisai.cli.main gem-ink
     ;;
   *)
     echo "Usage: ./start <command>"

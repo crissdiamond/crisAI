@@ -1,3 +1,0 @@
-# Editable install for the default multi-provider registry.
-# The default agents use OpenAI plus LiteLLM-backed Gemini/DeepSeek refs.
--e ".[litellm]"

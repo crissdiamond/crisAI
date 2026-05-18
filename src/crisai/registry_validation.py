@@ -296,7 +296,7 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
     except Exception as exc:  # noqa: BLE001
         errors.append(DoctorIssue(
             message=f"semantic_catalog.yaml is invalid: {exc}",
-            hint="Check `registry/semantic_catalog.yaml` for YAML syntax errors and re-run `crisai doctor`.",
+            hint="Check `registry/semantic_catalog.yaml` for YAML syntax errors and re-run `uv run crisai doctor`.",
         ))
 
     graph_path = registry_dir / "semantic_graph.yaml"
@@ -305,12 +305,12 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
         if not graph_path.is_file():
             errors.append(DoctorIssue(
                 message="semantic_graph.yaml is missing.",
-                hint="Ensure `registry/semantic_graph.yaml` exists, then re-run `crisai doctor`.",
+                hint="Ensure `registry/semantic_graph.yaml` exists, then re-run `uv run crisai doctor`.",
             ))
         else:
             errors.append(DoctorIssue(
                 message="semantic_graph.yaml is invalid (failed to parse or produced no vertices).",
-                hint="Check `registry/semantic_graph.yaml` for YAML syntax errors and re-run `crisai doctor`.",
+                hint="Check `registry/semantic_graph.yaml` for YAML syntax errors and re-run `uv run crisai doctor`.",
             ))
     else:
         info.append(f"semantic_graph.yaml loaded ({len(graph.vertex_terms)} vertices)")
@@ -412,7 +412,7 @@ def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[
     except Exception as exc:  # noqa: BLE001
         return [DoctorIssue(
             message=f"Could not initialise agent factory for model dry-build: {exc}",
-            hint="Ensure all required packages are installed: `pip install -e '.[litellm]'`.",
+            hint="Ensure all required packages are installed: `uv sync --extra litellm`.",
         )], warnings
 
     for agent in agents:
