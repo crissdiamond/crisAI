@@ -175,6 +175,30 @@ role_terminal_label() {
   esac
 }
 
+hcom_display_name() {
+  local role="$1"
+  local name="$2"
+  local label
+  label="$(role_terminal_label "$role")"
+
+  case "$role" in
+    orchestrator_codex)
+      name="${name#crisai-orchestrator-}"
+      ;;
+    gem_codex | gem_claude)
+      name="${name#crisai-gem-}"
+      ;;
+    web_codex | web_claude)
+      name="${name#crisai-web-}"
+      ;;
+    runtime_codex | runtime_claude)
+      name="${name#crisai-runtime-}"
+      ;;
+  esac
+
+  printf '%s(%s)\n' "$label" "$name"
+}
+
 terminal_for_role() {
   local role="$1"
   local terminal="$TEAM_TERMINAL"
@@ -376,7 +400,7 @@ launch_agent() {
     exit 1
   fi
   if [[ -n "${pane_id:-}" ]]; then
-    tmux rename-window -t "$pane_id" "$(role_terminal_label "$role")($name)" >/dev/null 2>&1 || true
+    tmux rename-window -t "$pane_id" "$(hcom_display_name "$role" "$name")" >/dev/null 2>&1 || true
   fi
   printf 'Started %s as %s.\n' "$role" "$name" >&2
   printf '%s\n' "$name"
