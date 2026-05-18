@@ -249,6 +249,47 @@ test("event lines keep distinct content after a compact summary", () => {
   ]);
 });
 
+test("event lines keep content when summary is empty", () => {
+  const event = uiEvent({
+    event_type: "stage_output",
+    title: "Retrieval Planner",
+    summary: "",
+    content: "Retrieve the specific OneDrive deck.",
+    agent_id: "retrieval_planner",
+    stage: "RETRIEVAL_PLANNER OUTPUT"
+  });
+
+  const lines = buildEventLines([event], "", 80);
+
+  assert.deepEqual(lines, [
+    "Retrieval Planner",
+    "Retrieve the specific OneDrive deck.",
+    ""
+  ]);
+});
+
+test("event lines preserve content with meaningful internal whitespace", () => {
+  const event = uiEvent({
+    event_type: "stage_output",
+    title: "Retrieval Planner",
+    summary: "Retrieve the deck",
+    content: "Retrieve\nthe\ndeck",
+    agent_id: "retrieval_planner",
+    stage: "RETRIEVAL_PLANNER OUTPUT"
+  });
+
+  const lines = buildEventLines([event], "", 80);
+
+  assert.deepEqual(lines, [
+    "Retrieval Planner",
+    "Retrieve the deck",
+    "Retrieve",
+    "the",
+    "deck",
+    ""
+  ]);
+});
+
 test("checkpoint waiting clears on decision or terminal event", () => {
   const requested = uiEvent({
     event_type: "checkpoint_requested",

@@ -670,7 +670,7 @@ function isDuplicateEventBody(summary: string, content: string): boolean {
 }
 
 function normalizeEventBody(value: string): string {
-  return value.trim().replace(/\s+/g, " ");
+  return value.trim();
 }
 
 export function wrapPlainText(text: string, width: number): string[] {
