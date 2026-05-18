@@ -45,14 +45,12 @@ the source of truth.
 Use `scripts/hcom_stop.sh` to end the team. The stop script snapshots the active
 hcom/provider session IDs, transcript paths, and stopped status before killing
 the team tags, so `scripts/hcom_start.sh --resume` has the information needed to
-restore the previous sessions. It also closes terminal shells launched for the
-team by default. Use `scripts/hcom_stop.sh --keep-terminals` or
-`HCOM_TEAM_CLOSE_TERMINALS=0` when those windows should stay open for debugging.
+restore the previous sessions.
 
-In WSL, the launcher opens shells in Windows Terminal when `wt.exe` is
-available, otherwise it falls back to `tmux`. Override this with
-`--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL` when a different hcom
-terminal backend is preferred.
+The launcher uses `tmux` by default when available. That keeps hcom team shells
+inside a managed terminal session and avoids force-closing Windows Terminal tabs
+from WSL. Override this with `--terminal PRESET_OR_COMMAND` or
+`HCOM_TEAM_TERMINAL` when a different hcom terminal backend is preferred.
 
 Tool auto-approval is enabled by default for launched agents so routine
 development work does not block on repeated provider permission prompts. The

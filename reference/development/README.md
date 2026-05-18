@@ -117,12 +117,8 @@ Stop and save resumable session information:
 scripts/hcom_stop.sh
 ```
 
-The stop script also closes terminal shells launched for the team. Keep those
-windows open for debugging with:
-
-```bash
-scripts/hcom_stop.sh --keep-terminals
-```
+The launcher uses `tmux` by default when available, so hcom can close managed
+team panes without touching unrelated WSL or Windows Terminal sessions.
 
 Continue the same team context:
 

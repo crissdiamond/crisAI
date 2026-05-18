@@ -34,7 +34,8 @@ State:
 
 Terminal:
   HCOM_TEAM_TERMINAL or --terminal controls where hcom opens shells.
-  In WSL, the default is Windows Terminal when wt.exe is available, otherwise tmux.
+  The default is tmux when available. Windows Terminal can be requested
+  explicitly with a wt.exe terminal command.
 
 Approvals:
   Tool auto-approval is enabled by default. Set HCOM_TEAM_TOOL_AUTO_APPROVE=0
@@ -140,12 +141,12 @@ default_team_terminal() {
     printf '%s\n' "$TEAM_TERMINAL"
     return 0
   fi
-  if [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v wt.exe >/dev/null 2>&1; then
-    printf 'wt.exe -w 0 new-tab --title hcom -- wsl.exe -d %s bash {script}\n' "$WSL_DISTRO_NAME"
-    return 0
-  fi
   if command -v tmux >/dev/null 2>&1; then
     printf 'tmux\n'
+    return 0
+  fi
+  if [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v wt.exe >/dev/null 2>&1; then
+    printf 'wt.exe -w 0 new-tab --title hcom -- wsl.exe -d %s bash {script}\n' "$WSL_DISTRO_NAME"
   fi
 }
 

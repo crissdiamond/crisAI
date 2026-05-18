@@ -101,7 +101,6 @@ scripts/hcom_start.sh --target-repo /path/to/crisAI --resume
 scripts/hcom_start.sh --target-repo /path/to/crisAI --no-tool-auto-approve
 scripts/hcom_status.sh --target-repo /path/to/crisAI
 scripts/hcom_stop.sh --target-repo /path/to/crisAI
-scripts/hcom_stop.sh --target-repo /path/to/crisAI --keep-terminals
 ```
 
 If this package lives inside the target repo, `--target-repo` can be omitted.
@@ -110,12 +109,11 @@ Tool auto-approval is enabled by default for launched agents. Use
 `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
 Codex/Claude tool approval is required.
 
-In WSL, the launcher opens hcom shells in Windows Terminal when `wt.exe` is
-available, otherwise it falls back to `tmux`. Override this with
+The launcher uses `tmux` by default when available. Override this with
 `--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`, for example:
 
 ```bash
-scripts/hcom_start.sh --target-repo /path/to/crisAI --terminal tmux
+scripts/hcom_start.sh --target-repo /path/to/crisAI --terminal 'wt.exe -w 0 new-tab --title hcom -- wsl.exe -d Ubuntu bash {script}'
 ```
 
 ## Local State
@@ -134,9 +132,8 @@ hcom exposes them.
 `scripts/hcom_stop.sh` snapshots the active hcom/provider session IDs before
 stopping the team, so the next `scripts/hcom_start.sh --target-repo /path/to/crisAI --resume`
 can restore the same agent sessions where the provider still supports resume.
-It also closes terminal shells launched for the team by default. Use
-`--keep-terminals` or `HCOM_TEAM_CLOSE_TERMINALS=0` when those windows should
-stay open for debugging.
+With the default `tmux` backend, hcom manages the team panes without touching
+unrelated WSL or Windows Terminal sessions.
 
 Both should be ignored by the target repository. This package includes
 `.gitignore.example` entries to copy into the target repo if needed.

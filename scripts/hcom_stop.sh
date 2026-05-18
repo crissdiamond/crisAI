@@ -5,30 +5,21 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export HCOM_DIR="${HCOM_DIR:-$ROOT_DIR/.hcom}"
 ASSIGNMENTS="$ROOT_DIR/reference/development/session_assignments.local.yaml"
-CLOSE_TERMINALS="${HCOM_TEAM_CLOSE_TERMINALS:-1}"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/hcom_stop.sh [--close-terminals|--keep-terminals]
+Usage: scripts/hcom_stop.sh
 
 Stops the crisAI hcom development team and snapshots resumable session IDs.
 
 Terminals:
-  Terminal cleanup is enabled by default. Set HCOM_TEAM_CLOSE_TERMINALS=0
-  or pass --keep-terminals to leave launched terminal windows open.
+  Use tmux for deterministic hcom terminal cleanup. Windows Terminal tabs are
+  not force-closed from WSL.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --close-terminals)
-      CLOSE_TERMINALS=1
-      shift
-      ;;
-    --keep-terminals)
-      CLOSE_TERMINALS=0
-      shift
-      ;;
     -h|--help)
       usage
       exit 0
@@ -161,126 +152,6 @@ PY
 
 snapshot_assignments
 
-close_team_terminals() {
-  [[ "$CLOSE_TERMINALS" == "1" ]] || return 0
-  [[ -f "$ASSIGNMENTS" ]] || return 0
-
-  ASSIGNMENTS_PATH="$ASSIGNMENTS" HCOM_DIR_PATH="$HCOM_DIR" python - <<'PY'
-import os
-import signal
-import time
-from pathlib import Path
-
-assignments_path = Path(os.environ["ASSIGNMENTS_PATH"])
-hcom_dir = os.environ["HCOM_DIR_PATH"]
-launch_dir = f"{hcom_dir}/.tmp/launch/"
-
-names = set()
-in_sessions = False
-for raw_line in assignments_path.read_text(encoding="utf-8").splitlines():
-    line = raw_line.rstrip()
-    if line == "sessions:":
-        in_sessions = True
-        continue
-    if in_sessions and line.startswith("  ") and not line.startswith("    ") and line.endswith(":"):
-        names.add(line.strip()[:-1])
-
-if not names:
-    raise SystemExit(0)
-
-current_pid = os.getpid()
-excluded = {current_pid}
-try:
-    parent_pid = os.getppid()
-    while parent_pid and parent_pid not in excluded:
-        excluded.add(parent_pid)
-        stat = Path(f"/proc/{parent_pid}/stat").read_text(encoding="utf-8").split()
-        parent_pid = int(stat[3])
-except (FileNotFoundError, PermissionError, ProcessLookupError, ValueError):
-    pass
-
-
-def proc_cmdline(proc_dir):
-    try:
-        return (proc_dir / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "ignore")
-    except (FileNotFoundError, PermissionError, ProcessLookupError):
-        return ""
-
-
-def proc_comm(proc_dir):
-    try:
-        return (proc_dir / "comm").read_text(encoding="utf-8").strip()
-    except (FileNotFoundError, PermissionError, ProcessLookupError, UnicodeDecodeError):
-        return ""
-
-
-def proc_environ(proc_dir):
-    try:
-        raw_environ = (proc_dir / "environ").read_bytes()
-    except (FileNotFoundError, PermissionError, ProcessLookupError):
-        return {}
-
-    environ = {}
-    for item in raw_environ.split(b"\0"):
-        if b"=" not in item:
-            continue
-        key, value = item.split(b"=", 1)
-        try:
-            environ[key.decode()] = value.decode()
-        except UnicodeDecodeError:
-            continue
-    return environ
-
-
-def is_team_process(proc_dir):
-    pid = int(proc_dir.name)
-    if pid in excluded:
-        return False
-
-    cmd = proc_cmdline(proc_dir)
-    if not cmd:
-        return False
-
-    if launch_dir in cmd:
-        return True
-    if hcom_dir in cmd and "hcom pty" in cmd:
-        return True
-    if hcom_dir in cmd and proc_comm(proc_dir) in {"codex", "MainThread", "node", "claude"}:
-        return True
-
-    environ = proc_environ(proc_dir)
-    if environ.get("HCOM_DIR") != hcom_dir:
-        return False
-    return environ.get("HCOM_NAME") in names
-
-
-pids = sorted(
-    int(proc_dir.name)
-    for proc_dir in Path("/proc").iterdir()
-    if proc_dir.name.isdigit() and is_team_process(proc_dir)
-)
-
-for pid in pids:
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        continue
-
-time.sleep(1)
-remaining = [pid for pid in pids if Path(f"/proc/{pid}").exists()]
-for pid in remaining:
-    try:
-        os.kill(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        continue
-
-if pids:
-    print(f"Closed hcom team process(es): {', '.join(map(str, pids))}")
-PY
-}
-
 for tag in crisai-orchestrator crisai-runtime crisai-gem crisai-web; do
   hcom kill "tag:$tag" || true
 done
-
-close_team_terminals
