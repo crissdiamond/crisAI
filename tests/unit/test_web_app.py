@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
@@ -14,9 +15,12 @@ from crisai.apps.web import (
     _append_stage_delta_event,
     _collect_stage_outputs,
     _evict_old_jobs,
+    _expected_flow_tabs,
+    _run_history_snapshot,
     _select_latest_run,
     _to_http_exception,
     _trace_line_to_stage_output,
+    _ui_event_from_stage_entry,
     create_session,
     get_session,
     list_sessions,
@@ -25,6 +29,9 @@ from crisai.apps.web import (
     workspace_file,
     workspace_tree,
 )
+from crisai.orchestration.request_contract import infer_request_contract
+
+REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
 
 
 @pytest.fixture(autouse=True)
@@ -115,6 +122,56 @@ def test_trace_line_maps_stage_start_to_agent_tab():
     assert out["content"] == "Starting stage for context_synthesizer."
 
 
+def test_trace_line_keeps_full_content_separate_from_compact_summary():
+    entry = {
+        "event_type": "stage_output",
+        "stage": "RETRIEVAL_PLANNER OUTPUT",
+        "agent_id": "retrieval_planner",
+        "content": (
+            "- Retrieve the exact Integration Strategy deck.\n"
+            "- Inspect slide text before summarising.\n"
+            "```json\n{\"schema_version\": \"evidence_bundle_v1\", \"items\": []}\n```"
+        ),
+        "run_id": "run-x",
+    }
+
+    out = _trace_line_to_stage_output(entry, verbose=False)
+
+    assert out is not None
+    assert out["content"].startswith("**Summary:**")
+    assert out["summary"].startswith("**Summary:**")
+    assert out["full_content"].startswith("- Retrieve the exact Integration Strategy deck.")
+    assert "- Inspect slide text before summarising." in out["full_content"]
+    assert "evidence_bundle_v1" not in out["full_content"]
+    assert out["summary"] != out["full_content"]
+
+
+def test_ui_event_from_stage_entry_uses_summary_and_full_content_separately():
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["job-1"] = {
+        "status": "running",
+        "current_session": "NewTest-02",
+        "decision": type("D", (), {"mode": "pipeline"})(),
+    }
+    stage_entry = {
+        "agent_id": "retrieval_planner",
+        "stage": "RETRIEVAL_PLANNER OUTPUT",
+        "event_type": "stage_output",
+        "content": "**Summary:** Retrieve the exact deck.",
+        "summary": "**Summary:** Retrieve the exact deck.",
+        "full_content": "- Retrieve the exact deck.\n- Inspect the slides.",
+        "verbose_content": "- Retrieve the exact deck.\n- Inspect the slides.",
+    }
+
+    event = _ui_event_from_stage_entry(job_id="job-1", job=web_mod._RUN_JOBS["job-1"], stage_entry=stage_entry)
+
+    assert event["summary"] == "**Summary:** Retrieve the exact deck."
+    assert event["content"] == "- Retrieve the exact deck.\n- Inspect the slides."
+    assert event["verbose_content"] == event["content"]
+    assert event["summary"] != event["content"]
+
+
 def test_trace_line_ignores_unrelated_workflow_output():
     entry = {"event_type": "workflow_output", "stage": "OTHER", "agent_id": "retrieval_planner", "content": "x"}
     assert _trace_line_to_stage_output(entry) is None
@@ -189,6 +246,76 @@ def test_collect_stage_outputs_defaults_to_clean_stage_summary():
     assert result[0]["content"].startswith("**Summary:**")
     assert "Retrieved the deck" in result[0]["content"]
     assert "evidence_bundle_v1" not in result[0]["content"]
+
+
+def test_expected_flow_tabs_use_summary_fast_path_contract():
+    decision = type(
+        "Decision",
+        (),
+        {"mode": "pipeline", "needs_review": False, "needs_retrieval": True, "agent": "retrieval_planner"},
+    )()
+    contract = infer_request_contract(
+        "Summarise the latest Integration Strategy deck from OneDrive.",
+        current_mode="pipeline",
+        registry_dir=REGISTRY_DIR,
+    )
+
+    tabs = _expected_flow_tabs(decision, request_contract=contract)
+
+    keys = [tab["key"] for tab in tabs]
+    assert "summary" in keys
+    assert "design" not in keys
+    assert keys == [
+        "retrieval_planner",
+        "context_retrieval",
+        "context_synthesizer",
+        "summary",
+        "orchestrator",
+        "final_output",
+    ]
+
+
+def test_run_history_snapshot_uses_summary_expected_stages():
+    from crisai.apps import web as web_mod
+
+    decision = type(
+        "Decision",
+        (),
+        {"mode": "pipeline", "needs_review": False, "needs_retrieval": True, "agent": "retrieval_planner"},
+    )()
+    contract = infer_request_contract(
+        "Summarise the latest Integration Strategy deck from OneDrive.",
+        current_mode="pipeline",
+        registry_dir=REGISTRY_DIR,
+    )
+    web_mod._RUN_JOBS["job-summary"] = {
+        "status": "completed",
+        "created_at": "2026-05-18T23:00:00+00:00",
+        "payload": RunRequest(message="Summarise the latest Integration Strategy deck from OneDrive."),
+        "decision": decision,
+        "decision_data": {
+            "intent": "summary",
+            "mode": "pipeline",
+            "agent": "retrieval_planner",
+            "needs_retrieval": True,
+            "needs_review": False,
+            "confidence": 0.91,
+            "reason": "summary",
+        },
+        "request_contract": contract.to_dict(),
+        "request_contract_is_summary": contract.is_summary,
+        "events": [],
+        "final_output": "done",
+        "error": "",
+        "current_session": "NewTest-02",
+        "run_id": "trace-1",
+    }
+
+    snapshot = _run_history_snapshot("job-summary", updated_at="2026-05-18T23:01:00+00:00")
+
+    keys = [stage["key"] for stage in snapshot["expected_stages"]]
+    assert "summary" in keys
+    assert "design" not in keys
 
 
 def test_append_stage_delta_event_coalesces_streaming_updates():

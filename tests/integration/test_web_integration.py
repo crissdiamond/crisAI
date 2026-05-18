@@ -181,6 +181,45 @@ def test_run_start_returns_job_id_and_decision(
     assert isinstance(body["expected_tabs"], list)
 
 
+def test_run_start_summary_pipeline_expected_tabs_use_summary_fast_path(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Summary pipeline runs expose summary, not design, as the expected drafting stage."""
+    decision = _FakeDecision(
+        intent="summary",
+        mode="pipeline",
+        agent="retrieval_planner",
+        needs_retrieval=True,
+        needs_review=False,
+        confidence=0.91,
+        reason="summary",
+    )
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: decision)
+
+    async def _noop_run_job(job_id: str, payload: Any, decision: Any) -> None:
+        from crisai.apps import web as web_mod
+        web_mod._RUN_JOBS[job_id]["status"] = "completed"
+        web_mod._RUN_JOBS[job_id]["final_output"] = "done"
+
+    monkeypatch.setattr("crisai.apps.web._run_job", _noop_run_job)
+
+    resp = client.post(
+        "/api/run/start",
+        json={"message": "Summarise the latest Integration Strategy deck from OneDrive."},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    keys = [tab["key"] for tab in body["expected_tabs"]]
+    assert "summary" in keys
+    assert "design" not in keys
+    assert body["request_contract"]["task_contract"]["primary_intent"] == "summarize_source"
+    from crisai.apps import web as web_mod
+
+    assert web_mod._RUN_JOBS[body["job_id"]]["events"][0]["metadata"]["expected_tabs"] == body["expected_tabs"]
+
+
 def test_api_v1_run_start_returns_shared_ui_state(
     client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -385,7 +424,7 @@ def test_api_v1_run_state_maps_trace_rows_to_ui_events(
     assert body["schema_version"] == "ui_run_state_v1"
     assert body["events"][0]["event_type"] == "stage_output"
     assert body["events"][0]["agent_id"] == "design"
-    assert "drafted recommendation" in body["events"][0]["content"]
+    assert "Drafted recommendation" in body["events"][0]["content"]
 
 
 def test_api_v1_session_runs_lists_persisted_terminal_runs(

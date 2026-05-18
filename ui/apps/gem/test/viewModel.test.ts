@@ -209,6 +209,46 @@ test("event lines keep informational notices separate from errors", () => {
   assert(!lines.join(" ").includes("Error:"));
 });
 
+test("event lines suppress duplicate summary and content body text", () => {
+  const event = uiEvent({
+    event_type: "stage_output",
+    title: "Retrieval Planner",
+    summary: "**Summary:** Retrieve the specific OneDrive deck.",
+    content: "  **Summary:** Retrieve the specific OneDrive deck.\n",
+    agent_id: "retrieval_planner",
+    stage: "RETRIEVAL_PLANNER OUTPUT"
+  });
+
+  const lines = buildEventLines([event], "", 80);
+
+  assert.deepEqual(lines, [
+    "Retrieval Planner",
+    "**Summary:** Retrieve the specific OneDrive deck.",
+    ""
+  ]);
+});
+
+test("event lines keep distinct content after a compact summary", () => {
+  const event = uiEvent({
+    event_type: "stage_output",
+    title: "Retrieval Planner",
+    summary: "**Summary:** Retrieve the specific OneDrive deck.",
+    content: "- Query OneDrive for the exact deck title.\n- Inspect matching PowerPoint content.",
+    agent_id: "retrieval_planner",
+    stage: "RETRIEVAL_PLANNER OUTPUT"
+  });
+
+  const lines = buildEventLines([event], "", 80);
+
+  assert.deepEqual(lines, [
+    "Retrieval Planner",
+    "**Summary:** Retrieve the specific OneDrive deck.",
+    "- Query OneDrive for the exact deck title.",
+    "- Inspect matching PowerPoint content.",
+    ""
+  ]);
+});
+
 test("checkpoint waiting clears on decision or terminal event", () => {
   const requested = uiEvent({
     event_type: "checkpoint_requested",

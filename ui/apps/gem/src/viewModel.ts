@@ -646,7 +646,9 @@ export function buildEventLines(events: UiEvent[], error: string, width: number,
   for (const event of visibleEvents) {
     lines.push(...wrapPlainText(event.title, width));
     if (event.summary) lines.push(...wrapPlainText(event.summary, width));
-    if (event.content) lines.push(...wrapPlainText(event.content, width));
+    if (event.content && !isDuplicateEventBody(event.summary, event.content)) {
+      lines.push(...wrapPlainText(event.content, width));
+    }
     lines.push("");
   }
 
@@ -659,6 +661,16 @@ export function buildEventLines(events: UiEvent[], error: string, width: number,
   }
 
   return lines.length > 0 ? lines : ["No output yet."];
+}
+
+function isDuplicateEventBody(summary: string, content: string): boolean {
+  const normalizedSummary = normalizeEventBody(summary);
+  const normalizedContent = normalizeEventBody(content);
+  return normalizedSummary.length > 0 && normalizedSummary === normalizedContent;
+}
+
+function normalizeEventBody(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
 }
 
 export function wrapPlainText(text: string, width: number): string[] {

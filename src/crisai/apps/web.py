@@ -340,16 +340,20 @@ def _ui_event_from_stage_entry(
         "stage_error": "stage_failed",
     }.get(source_event, "stage_output"))
     agent_id = str(stage_entry.get("agent_id") or "system")
-    content = str(stage_entry.get("content") or "")
+    content = str(stage_entry.get("full_content") or stage_entry.get("content") or "")
+    summary = str(stage_entry.get("summary") or "").strip()
+    if not summary:
+        summary = content.splitlines()[0] if content else ""
+    verbose_content = str(stage_entry.get("verbose_content") or content)
     event = make_ui_event(
         event_type,
         run_id=job_id,
         session=_job_session(job),
         status=str(job.get("status") or "running"),
         title=agent_id.replace("_", " ").title(),
-        summary=content.splitlines()[0] if content else "",
+        summary=summary,
         content=content,
-        verbose_content=content,
+        verbose_content=verbose_content,
         mode=_job_mode(job),
         agent_id=agent_id,
         stage=str(stage_entry.get("stage") or ""),
@@ -398,13 +402,18 @@ def _run_history_snapshot(job_id: str, *, updated_at: str | None = None) -> dict
     completed_at = now if job.get("status") in {"completed", "failed"} else ""
     payload = job.get("payload")
     message = str(getattr(payload, "message", "") or "")
+    expected_stages = _expected_flow_tabs(
+        job.get("decision"),
+        request_contract=job.get("request_contract"),
+        is_summary=job.get("request_contract_is_summary"),
+    )
     return {
         "schema_version": "ui_run_state_v1",
         "run_id": job_id,
         "session": _job_session(job),
         "status": str(job.get("status") or ""),
         "decision": job.get("decision_data", {}),
-        "expected_stages": _expected_flow_tabs(job.get("decision")),
+        "expected_stages": expected_stages,
         "events": job.get("events", []),
         "final_output": job.get("final_output", ""),
         "error": job.get("error", ""),
@@ -766,23 +775,25 @@ def _workspace_tree(base: Path) -> list[dict[str, Any]]:
     return entries
 
 
-def _expected_flow_tabs(decision: Any) -> list[dict[str, str]]:
-    """Build expected flow tabs from routing decision."""
+def _expected_flow_tabs(
+    decision: Any,
+    *,
+    request_contract: Any | None = None,
+    is_summary: bool | None = None,
+) -> list[dict[str, str]]:
+    """Build expected flow tabs from routing decision and request contract."""
     mode = getattr(decision, "mode", "single")
     needs_review = bool(getattr(decision, "needs_review", False))
     needs_retrieval = bool(getattr(decision, "needs_retrieval", False))
     agent = getattr(decision, "agent", "orchestrator") or "orchestrator"
+    summary_pipeline = _is_summary_contract(request_contract) if is_summary is None else is_summary
 
     tabs: list[dict[str, str]] = []
     if mode == "pipeline":
-        tabs.extend(
-            [
-                {"key": "retrieval_planner", "label": "retrieval_planner"},
-                {"key": "context_retrieval", "label": "context_retrieval"},
-                {"key": "context_synthesizer", "label": "context_synthesizer"},
-                {"key": "design", "label": "design"},
-            ]
-        )
+        tabs.append({"key": "retrieval_planner", "label": "retrieval_planner"})
+        tabs.append({"key": "context_retrieval", "label": "context_retrieval"})
+        tabs.append({"key": "context_synthesizer", "label": "context_synthesizer"})
+        tabs.append({"key": "summary", "label": "summary"} if summary_pipeline else {"key": "design", "label": "design"})
         if needs_review:
             tabs.append({"key": "review", "label": "review"})
         tabs.append({"key": "orchestrator", "label": "orchestrator"})
@@ -804,6 +815,20 @@ def _expected_flow_tabs(decision: Any) -> list[dict[str, str]]:
 
     tabs.append({"key": "final_output", "label": "final_output"})
     return tabs
+
+
+def _is_summary_contract(request_contract: Any | None) -> bool:
+    """Return whether a request contract represents a summary deliverable."""
+    if request_contract is None:
+        return False
+    is_summary = getattr(request_contract, "is_summary", None)
+    if isinstance(is_summary, bool):
+        return is_summary
+    if isinstance(request_contract, dict):
+        task_contract = request_contract.get("task_contract")
+        if isinstance(task_contract, dict):
+            return bool(task_contract.get("is_summary"))
+    return False
 
 
 def _extract_stage_key(entry: dict[str, str]) -> str:
@@ -839,6 +864,9 @@ def _trace_line_to_stage_output(entry: dict[str, Any], *, verbose: bool = False)
         return None
 
     agent_id = str(entry.get("agent_id") or "system")
+    raw_content = str(entry.get("content", ""))
+    summary = render_stage_output_text(agent_id, raw_content, verbose=False)
+    full_content = render_stage_output_text(agent_id, raw_content, verbose=True)
     return {
         "key": _extract_stage_key(
             {
@@ -849,7 +877,10 @@ def _trace_line_to_stage_output(entry: dict[str, Any], *, verbose: bool = False)
         "agent_id": agent_id,
         "stage": str(entry.get("stage", "")),
         "event_type": render_event,
-        "content": render_stage_output_text(agent_id, str(entry.get("content", "")), verbose=verbose),
+        "content": render_stage_output_text(agent_id, raw_content, verbose=verbose),
+        "summary": summary,
+        "full_content": full_content,
+        "verbose_content": full_content,
     }
 
 
@@ -988,6 +1019,7 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         "decision": decision,
         "decision_data": asdict(decision),
         "request_contract": request_contract.to_dict(),
+        "request_contract_is_summary": request_contract.is_summary,
         "before_size": before_size,
         "run_id": None,
         "stage_outputs": [],
@@ -1003,6 +1035,11 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         "event_trace_keys": set(),
         "task": None,
     }
+    expected_tabs = _expected_flow_tabs(
+        decision,
+        request_contract=request_contract,
+        is_summary=request_contract.is_summary,
+    )
     _append_job_event(
         job_id,
         make_ui_event(
@@ -1014,7 +1051,7 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
             summary="Workflow run accepted.",
             mode=getattr(decision, "mode", None),
             metadata={
-                "expected_tabs": _expected_flow_tabs(decision),
+                "expected_tabs": expected_tabs,
                 "selected_agent": getattr(decision, "agent", None),
                 **_agent_model_metadata(getattr(decision, "agent", None)),
             },
@@ -1069,7 +1106,7 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
         "job_id": job_id,
         "decision": asdict(decision),
         "request_contract": request_contract.to_dict(),
-        "expected_tabs": _expected_flow_tabs(decision),
+        "expected_tabs": expected_tabs,
     }
 
 
@@ -1143,13 +1180,18 @@ def _run_state(job_id: str) -> dict[str, Any]:
     if job is None:
         raise HTTPException(status_code=404, detail="Run job not found.")
     _refresh_job_from_trace(job_id)
+    expected_stages = _expected_flow_tabs(
+        job.get("decision"),
+        request_contract=job.get("request_contract"),
+        is_summary=job.get("request_contract_is_summary"),
+    )
     return {
         "schema_version": "ui_run_state_v1",
         "run_id": job_id,
         "session": _job_session(job),
         "status": job.get("status"),
         "decision": job.get("decision_data", {}),
-        "expected_stages": _expected_flow_tabs(job.get("decision")),
+        "expected_stages": expected_stages,
         "events": job.get("events", []),
         "final_output": job.get("final_output", ""),
         "error": job.get("error", ""),
