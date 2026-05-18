@@ -269,6 +269,13 @@ Outside interactive chat, you can reset a persisted session directly:
 uv run crisai clear-session --session architecture
 ```
 
+The non-interactive `ask` command can also read an existing task session when a
+follow-up depends on prior context:
+
+```bash
+uv run crisai ask --session architecture --message "continue"
+```
+
 Structural checks on promoted knowledge, staged knowledge, and task Markdown (`workspace/knowledge/`, `workspace/knowledge_staging/`, and `workspace/tasks/`) are driven by **`registry/workspace_artifact_profiles.yaml`**. The first matching profile (by declare order) supplies rules on top of `defaults`; front-matter **`type`** can be spelled with synonyms listed under `type_aliases` (for example **`HLD`** maps to **`high_level_design`**). Run validation manually:
 
 ```bash

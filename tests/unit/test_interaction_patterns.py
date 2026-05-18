@@ -36,6 +36,26 @@ def test_generative_peer_patterns_compile_without_error():
     assert all(isinstance(p, re.Pattern) for p in patterns)
 
 
+def test_continuation_patterns_load_from_catalog():
+    """interaction.continuation_patterns contains compiled bare continuation patterns."""
+    catalog = load_semantic_catalog()
+    patterns = catalog.interaction.continuation_patterns
+    assert len(patterns) > 0
+    assert all(isinstance(p, re.Pattern) for p in patterns)
+    assert any(pattern.search("continue") for pattern in patterns)
+    assert any(pattern.search("continua") for pattern in patterns)
+
+
+def test_continuation_intent_template_loads_from_catalog():
+    """lexicon.continuation_intent_template owns continuation wrapper wording."""
+    catalog = load_semantic_catalog()
+    template = catalog.lexicon.continuation_intent_template
+    assert template["preamble"]
+    assert template["previous_user_label"].endswith(":")
+    assert template["previous_assistant_label"].endswith(":")
+    assert template["current_user_label"].endswith(":")
+
+
 def test_peer_retrieval_force_patterns_include_intranet():
     catalog = load_semantic_catalog()
     patterns = catalog.interaction.peer_retrieval_force_patterns
@@ -49,6 +69,7 @@ def test_interaction_section_absent_yields_empty_collections():
     data.pop("interaction", None)
     catalog = build_semantic_catalog_from_dict(data)
     assert catalog.interaction.explicit_mode_patterns == {}
+    assert catalog.interaction.continuation_patterns == ()
     assert catalog.interaction.generative_peer_patterns == ()
     assert catalog.interaction.retrieval_required_patterns == ()
     assert catalog.interaction.peer_retrieval_force_patterns == ()

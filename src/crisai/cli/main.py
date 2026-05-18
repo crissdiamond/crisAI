@@ -16,6 +16,11 @@ from typing import Any
 import typer
 from prompt_toolkit import PromptSession
 
+from crisai.cli.chat_context import (
+    build_chat_input,
+    continuation_intent_message,
+    normalise_legacy_workspace_paths,
+)
 from crisai.cli.display import (
     print_final_answer,
     print_final_recommendation,
@@ -25,6 +30,8 @@ from crisai.cli.display import (
 from crisai.cli.session_store import (
     clear_cli_history,
     clear_history,
+    load_history,
+    sanitize_session_name,
 )
 from crisai.cli.status_views import (
     print_agents_table,
@@ -590,6 +597,7 @@ async def _prompt_retrieval_checkpoint(snapshot: RetrievalCheckpointSnapshot) ->
 def ask(
     message: str = typer.Option(..., "--message", "-m"),
     agent_id: str = typer.Option("orchestrator", "--agent"),
+    session: str = typer.Option("default", "--session", "-s", help="Session history to use for continuation context."),
     pipeline: bool = typer.Option(False, "--pipeline", help="Run the visible retrieval planner / design / review / orchestrator pipeline."),
     peer: bool = typer.Option(False, "--peer", help="Run the peer workflow: retrieval planner -> author -> challenger -> refiner -> judge -> orchestrator."),
     review: bool = typer.Option(False, "--review/--no-review", help="Review is off by default. Use --review to enable it."),
@@ -606,26 +614,40 @@ def ask(
     ),
 ) -> None:
     """Run a single non-interactive crisAI request."""
-    explicit_mode = _detect_explicit_mode(message)
+    session_name = sanitize_session_name(session)
+    history = load_history(session_name)
+    runtime_message = normalise_legacy_workspace_paths(message)
+    intent_message = continuation_intent_message(
+        runtime_message,
+        history,
+        registry_dir=Path(load_settings().registry_dir),
+    )
+    agent_message = (
+        build_chat_input(runtime_message, history, session_name=session_name)
+        if history
+        else runtime_message
+    )
+    explicit_mode = _detect_explicit_mode(intent_message)
     mode_override = "peer" if peer else "pipeline" if pipeline else explicit_mode
 
     decision = _resolve_route(
-        message,
+        intent_message,
         review_enabled=review,
         mode_override=mode_override,
         agent_override=agent_id if agent_id != "orchestrator" else None,
     )
-    decision = _apply_decision_overrides(message, explicit_mode, decision)
+    decision = _apply_decision_overrides(intent_message, explicit_mode, decision)
     print_status_message(route_display(decision), title="🧭 Routing decision")
     checkpoint_override = _resolve_checkpoint_override(retrieval_checkpoint, no_retrieval_checkpoint)
 
     async def _run() -> None:
         text = await _run_with_routing(
-            message,
+            agent_message,
             verbose,
             review,
             decision,
-            user_intent_message=message,
+            user_intent_message=intent_message,
+            session_name=session_name,
             retrieval_checkpoint_enabled=checkpoint_override,
             retrieval_checkpoint_handler=_prompt_retrieval_checkpoint,
         )

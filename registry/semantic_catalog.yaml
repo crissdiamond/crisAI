@@ -456,6 +456,11 @@ lexicon:
     - chiamata
     - intitolato
     - intitolata
+  continuation_intent_template:
+    preamble: "Continue the immediately preceding exchange using the prior result as context."
+    previous_user_label: "Previous user request:"
+    previous_assistant_label: "Previous assistant result:"
+    current_user_label: "Current user instruction:"
 
 session_memory:
   decision_markers:
@@ -718,6 +723,12 @@ interaction:
     single:
       - '\buse\s+single\s+mode\b'
       - '\brun\s+a\s+single\s+agent\b'
+  continuation_patterns:
+    - '^\s*continue\s*$'
+    - '^\s*carry\s+on\s*$'
+    - '^\s*go\s+on\s*$'
+    - '^\s*resume\s*$'
+    - '^\s*continua\s*$'
   generative_peer_patterns:
     - '\bpropose\b'
     - '\bdesign\b'

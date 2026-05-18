@@ -33,6 +33,7 @@ from crisai.cli.artefact_lifecycle import persist_reusable_deliverable
 from crisai.cli.chat_context import (
     build_chat_input,
     build_session_context_package,
+    continuation_intent_message,
     normalise_legacy_workspace_paths,
     render_session_memory,
     serialize_session_context,
@@ -433,7 +434,7 @@ def _persist_terminal_run_history(job_id: str) -> None:
 
 def _resolve_decision(payload: RunRequest):
     """Resolve router decision from web request preferences."""
-    message = normalise_legacy_workspace_paths(payload.message)
+    message = _intent_message_for_payload(payload)
     explicit_mode = _detect_explicit_mode(message)
     mode_override = None if payload.mode == "auto" else payload.mode
     if mode_override is None:
@@ -450,12 +451,23 @@ def _resolve_decision(payload: RunRequest):
 
 def _resolve_request_contract(payload: RunRequest, decision: Any):
     """Resolve a user-facing request contract for UI transparency."""
-    message = normalise_legacy_workspace_paths(payload.message)
+    message = _intent_message_for_payload(payload)
     settings = load_settings()
     return infer_request_contract(
         message,
         current_mode=str(getattr(decision, "mode", "") or payload.mode or "auto"),
         registry_dir=Path(settings.registry_dir),
+    )
+
+
+def _intent_message_for_payload(payload: RunRequest, history: list[tuple[str, str]] | None = None) -> str:
+    """Return the message used for routing, contracts, and workflow policy."""
+    session_name = sanitize_session_name(payload.session)
+    loaded_history = load_history(session_name) if history is None else history
+    return continuation_intent_message(
+        payload.message,
+        loaded_history,
+        registry_dir=Path(load_settings().registry_dir),
     )
 
 
@@ -485,6 +497,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
     session_name = sanitize_session_name(payload.session)
     history = load_history(session_name)
     runtime_message = normalise_legacy_workspace_paths(payload.message)
+    intent_message = _intent_message_for_payload(payload, history)
     chat_input = build_chat_input(runtime_message, history, session_name=session_name)
     try:
         final_output = await _run_with_routing(
@@ -492,7 +505,7 @@ async def _execute(payload: RunRequest) -> dict[str, Any]:
             verbose=payload.verbose,
             review=payload.review,
             decision=decision,
-            user_intent_message=runtime_message,
+            user_intent_message=intent_message,
             session_name=session_name,
             retrieval_checkpoint_enabled=False,
         )
@@ -850,13 +863,14 @@ async def _run_job(job_id: str, payload: RunRequest, decision: Any) -> None:
         session_name = sanitize_session_name(payload.session)
         history = load_history(session_name)
         runtime_message = normalise_legacy_workspace_paths(payload.message)
+        intent_message = _intent_message_for_payload(payload, history)
         chat_input = build_chat_input(runtime_message, history, session_name=session_name)
         final_output = await _run_with_routing(
             message=chat_input,
             verbose=payload.verbose,
             review=payload.review,
             decision=decision,
-            user_intent_message=runtime_message,
+            user_intent_message=intent_message,
             session_name=session_name,
             retrieval_checkpoint_enabled=getattr(payload, "retrieval_checkpoint", None),
             retrieval_checkpoint_handler=_make_web_checkpoint_handler(job_id),

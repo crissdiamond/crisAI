@@ -9,9 +9,14 @@ Adding a new routing path: append a tuple to GOLDEN_CASES and verify it passes.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from crisai.cli.chat_context import continuation_intent_message
 from crisai.orchestration.router import decide_route
+
+REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
 
 # (query, expected_intent, expected_mode)
 GOLDEN_CASES: list[tuple[str, str, str]] = [
@@ -205,6 +210,25 @@ def test_deterministic_nudge_sets_needs_retrieval(monkeypatch: pytest.MonkeyPatc
         review_enabled=False,
         registry_dir=None,
     )
+    assert decision.needs_retrieval is True
+
+
+def test_bare_continue_routes_like_previous_source_lookup_task() -> None:
+    history = [
+        (
+            "user",
+            "find all the documents in my onedrive with integration strategy in the title. "
+            "List the 3 best candidate.",
+        ),
+        ("assistant", "I found 10 OneDrive documents with integration strategy in the title."),
+    ]
+    message = continuation_intent_message("continue", history, registry_dir=REGISTRY_DIR)
+
+    decision = decide_route(message, review_enabled=False, registry_dir=REGISTRY_DIR)
+
+    assert decision.intent == "discovery"
+    assert decision.mode == "single"
+    assert decision.agent == "retrieval_planner"
     assert decision.needs_retrieval is True
 
 

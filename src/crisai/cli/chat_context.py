@@ -53,6 +53,9 @@ _MARKDOWN_LINK_RE = re.compile(r"\[([^\]]{3,160})\]\(([^)]+)\)")
 _NOISE_SECTION_RE = re.compile(
     r"(?ims)^(\|.*\|\n\|[-:| ]+\|\n(?:\|.*\|\n?)+|```(?:json)?\s*\{.*?schema_version.*?\}\s*```)"
 )
+_MACHINE_SCHEMA_BLOCK_RE = re.compile(
+    r"(?ims)^```(?:json)?\s*\{.*?schema_version.*?\}\s*```"
+)
 _LEGACY_WORKSPACE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_/-])(?:workspace/)?context(?=/)")
 
 
@@ -224,10 +227,18 @@ def build_runtime_context_package(
     cfg = config or load_session_memory_config()
     memory = load_session_memory(session_name) if session_name else SessionMemory()
     anchors = load_session_anchors(session_name) if session_name else None
-    resolved_anchors = resolve_anchor_references(user_input, anchors, registry_dir=load_settings().registry_dir) if anchors else ()
+    settings = load_settings()
+    registry_dir = Path(settings.registry_dir)
+    preserve_recent_tables = is_continuation_request(user_input, registry_dir=registry_dir)
+    resolved_anchors = resolve_anchor_references(user_input, anchors, registry_dir=registry_dir) if anchors else ()
     if history and not any((memory.task_goal, memory.current_state, memory.known_sources, memory.last_outputs)):
         memory = compact_session_memory(history, max_memory_chars=cfg.max_memory_chars)
-    recent = _relevant_recent_entries(user_input, history, max_entries=cfg.max_recent_turns * 2)
+    recent = _relevant_recent_entries(
+        user_input,
+        history,
+        max_entries=cfg.max_recent_turns * 2,
+        preserve_tables=preserve_recent_tables,
+    )
     baseline_brief = build_session_baseline_brief(session_name, memory) if session_name else render_session_memory(memory)
     transcript = render_history(recent)
     truncated = False
@@ -427,6 +438,61 @@ def build_chat_input(user_input: str, history: list[HistoryEntry], *, session_na
     return build_runtime_context_package(user_input, history, session_name=session_name).prompt
 
 
+def is_continuation_request(user_input: str, *, registry_dir: Path | None = None) -> bool:
+    """Return whether the user input is a configured bare continuation command."""
+    text = normalise_legacy_workspace_paths(user_input or "").strip()
+    if not text:
+        return False
+    catalog = _semantic_catalog(registry_dir)
+    interaction = getattr(catalog, "interaction", None) if catalog is not None else None
+    patterns = getattr(interaction, "continuation_patterns", ()) if interaction is not None else ()
+    return any(pattern.search(text) for pattern in patterns)
+
+
+def continuation_intent_message(
+    user_input: str,
+    history: list[HistoryEntry],
+    *,
+    registry_dir: Path | None = None,
+) -> str:
+    """Return an intent message that carries the immediately preceding exchange."""
+    normalized = normalise_legacy_workspace_paths(user_input or "")
+    if not history or not is_continuation_request(normalized, registry_dir=registry_dir):
+        return normalized
+    previous_user = _last_history_content(history, "user")
+    previous_assistant = _last_history_content(history, "assistant")
+    if not previous_user and not previous_assistant:
+        return normalized
+    template = _continuation_intent_template(registry_dir)
+    if not template:
+        return normalized
+    parts = [template["preamble"]]
+    if previous_user:
+        parts.extend(["", template["previous_user_label"], previous_user])
+    if previous_assistant:
+        parts.extend(["", template["previous_assistant_label"], _clean_recent_turn(previous_assistant, preserve_tables=True)])
+    parts.extend(["", template["current_user_label"], normalized])
+    return "\n".join(part for part in parts if part is not None).strip()
+
+
+def _continuation_intent_template(registry_dir: Path | None = None) -> dict[str, str]:
+    required = ("preamble", "previous_user_label", "previous_assistant_label", "current_user_label")
+    catalog = _semantic_catalog(registry_dir)
+    lexicon = getattr(catalog, "lexicon", None) if catalog is not None else None
+    template = getattr(lexicon, "continuation_intent_template", {}) if lexicon is not None else {}
+    if not isinstance(template, dict):
+        return {}
+    clean = {key: str(template.get(key) or "").strip() for key in required}
+    return clean if all(clean.values()) else {}
+
+
+def _last_history_content(history: list[HistoryEntry], role: str) -> str:
+    for entry_role, content in reversed(history):
+        if entry_role == role and str(content).strip():
+            return normalise_legacy_workspace_paths(str(content))
+    return ""
+
+
 def normalise_legacy_workspace_paths(text: str) -> str:
     """Map pre-refactor workspace path wording to the configured knowledge root."""
     if not text:
@@ -457,11 +523,7 @@ def _bool_setting(value: object, default: bool) -> bool:
 
 
 def _clean_for_memory(text: str) -> str:
-    clean = sanitize_user_visible_text(text or "")
-    if _is_runtime_failure_note(clean):
-        return ""
-    clean = _NOISE_SECTION_RE.sub("", clean)
-    return re.sub(r"\n{3,}", "\n\n", clean).strip()
+    return _clean_recent_turn(text, preserve_tables=False)
 
 
 def _is_runtime_failure_note(text: str) -> bool:
@@ -478,8 +540,10 @@ def _is_runtime_failure_note(text: str) -> bool:
     )
 
 
-def _semantic_catalog():
+def _semantic_catalog(registry_dir: Path | None = None):
     try:
+        if registry_dir is not None:
+            return load_semantic_catalog(str(registry_dir))
         return load_semantic_catalog()
     except Exception:  # noqa: BLE001 - session memory must degrade safely.
         return None
@@ -625,24 +689,40 @@ def _expanded_content_terms(text: str, *, registry_dir: Path | None = None) -> s
     return terms
 
 
-def _relevant_recent_entries(user_input: str, history: list[HistoryEntry], *, max_entries: int) -> list[HistoryEntry]:
+def _relevant_recent_entries(
+    user_input: str,
+    history: list[HistoryEntry],
+    *,
+    max_entries: int,
+    preserve_tables: bool = False,
+) -> list[HistoryEntry]:
     if max_entries <= 0:
         return []
     query_terms = _content_terms(user_input)
     recent = history[-max_entries:]
+    max_chars = 2000 if preserve_tables else 1200
     if not query_terms:
-        return recent
+        return [(role, _truncate(_clean_recent_turn(content, preserve_tables=preserve_tables), max_chars)) for role, content in recent]
     relevant = [
-        (role, _truncate(_clean_for_memory(content), 1200))
+        (role, _truncate(clean, max_chars))
         for role, content in recent
-        if _clean_for_memory(content) and query_terms & _content_terms(content)
+        if (clean := _clean_recent_turn(content, preserve_tables=preserve_tables))
+        if query_terms & _content_terms(content)
     ]
     fallback = [
-        (role, _truncate(clean, 1200))
+        (role, _truncate(clean, max_chars))
         for role, content in recent[-2:]
-        if (clean := _clean_for_memory(content))
+        if (clean := _clean_recent_turn(content, preserve_tables=preserve_tables))
     ]
     return relevant or fallback
+
+
+def _clean_recent_turn(text: str, *, preserve_tables: bool) -> str:
+    clean = sanitize_user_visible_text(text or "")
+    if _is_runtime_failure_note(clean):
+        return ""
+    clean = _MACHINE_SCHEMA_BLOCK_RE.sub("", clean) if preserve_tables else _NOISE_SECTION_RE.sub("", clean)
+    return re.sub(r"\n{3,}", "\n\n", clean).strip()
 
 
 def _content_terms(text: str) -> set[str]:

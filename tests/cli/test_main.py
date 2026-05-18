@@ -247,3 +247,56 @@ def test_clear_session_command_clears_target_and_prints_notice(monkeypatch):
     assert cleared_cli == ["architecture-review"]
     assert notices[-1][0] == "🧹 Session cleared"
     assert "architecture-review" in notices[-1][1]
+
+
+def test_ask_uses_session_history_for_continuation_intent(monkeypatch):
+    captured: dict[str, object] = {}
+    decision = SimpleNamespace(
+        intent="discovery",
+        mode="single",
+        agent="retrieval_planner",
+        needs_retrieval=True,
+        needs_review=False,
+        confidence=0.85,
+        reason="test",
+    )
+    history = [
+        ("user", "Find all documents in my OneDrive with integration strategy in the title."),
+        ("assistant", "I found 10 OneDrive documents."),
+    ]
+
+    monkeypatch.setattr(main, "load_history", lambda session_name: history)
+    monkeypatch.setattr(main, "print_status_message", lambda body, title=None: None)
+    monkeypatch.setattr(main, "update_terminal_title", lambda title: None)
+    monkeypatch.setattr(main, "_render_final_output", lambda decision, text: None)
+
+    def fake_resolve_route(message, **kwargs):
+        captured["route_message"] = message
+        return decision
+
+    async def fake_run_with_routing(message, verbose, review, route_decision, **kwargs):
+        captured["agent_message"] = message
+        captured["intent_message"] = kwargs["user_intent_message"]
+        captured["session_name"] = kwargs["session_name"]
+        return "ok"
+
+    monkeypatch.setattr(main, "_resolve_route", fake_resolve_route)
+    monkeypatch.setattr(main, "_apply_decision_overrides", lambda message, explicit_mode, route_decision: route_decision)
+    monkeypatch.setattr(main, "_run_with_routing", fake_run_with_routing)
+
+    main.ask(
+        message="continua",
+        agent_id="orchestrator",
+        session="architecture",
+        pipeline=False,
+        peer=False,
+        review=False,
+        verbose=False,
+        retrieval_checkpoint=False,
+        no_retrieval_checkpoint=False,
+    )
+
+    assert "Previous user request:" in str(captured["route_message"])
+    assert "Find all documents in my OneDrive" in str(captured["intent_message"])
+    assert "Relevant recent turns:" in str(captured["agent_message"])
+    assert captured["session_name"] == "architecture"

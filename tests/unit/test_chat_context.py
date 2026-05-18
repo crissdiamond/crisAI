@@ -102,6 +102,76 @@ def test_build_chat_input_wraps_compact_memory_and_relevant_tail(monkeypatch):
     assert "User: Now continue with Integration Strategy details." in transcript
 
 
+def test_continuation_intent_message_uses_previous_exchange() -> None:
+    history = [
+        ("user", "Find all documents in my OneDrive with integration strategy in the title."),
+        (
+            "assistant",
+            "I found 10 OneDrive documents.\n\n"
+            "| File | Note |\n"
+            "|---|---|\n"
+            "| UCL Integration Strategy full deck v3.pptx | Exact phrase. |",
+        ),
+    ]
+
+    message = chat_context.continuation_intent_message(
+        "continue",
+        history,
+        registry_dir=Path(__file__).resolve().parents[2] / "registry",
+    )
+
+    assert "Previous user request:" in message
+    assert "Find all documents in my OneDrive" in message
+    assert "Previous assistant result:" in message
+    assert "| UCL Integration Strategy full deck v3.pptx | Exact phrase. |" in message
+    assert "Current user instruction:" in message
+
+
+def test_continuation_intent_message_accepts_italian_continua() -> None:
+    history = [
+        ("user", "Trova i documenti in OneDrive con integration strategy nel titolo."),
+        ("assistant", "Ho trovato 10 documenti."),
+    ]
+
+    message = chat_context.continuation_intent_message(
+        "continua",
+        history,
+        registry_dir=Path(__file__).resolve().parents[2] / "registry",
+    )
+
+    assert "Previous user request:" in message
+    assert "Trova i documenti in OneDrive" in message
+    assert "Current user instruction:" in message
+    assert message.endswith("continua")
+
+
+def test_continuation_request_degrades_when_catalog_unavailable(monkeypatch) -> None:
+    monkeypatch.setattr(chat_context, "load_semantic_catalog", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("missing")))
+
+    assert chat_context.is_continuation_request("continue") is False
+    assert chat_context.continuation_intent_message(
+        "continue",
+        [("user", "Find OneDrive documents."), ("assistant", "Found documents.")],
+    ) == "continue"
+
+
+def test_bare_continuation_preserves_previous_assistant_table_in_runtime_context(monkeypatch):
+    captured = {}
+
+    def fake_render_cli_text(template: str, **kwargs):
+        captured.update(kwargs)
+        return "wrapped"
+
+    monkeypatch.setattr(chat_context, "render_cli_text", fake_render_cli_text)
+    history = [
+        ("user", "Find all documents in my OneDrive with integration strategy in the title."),
+        ("assistant", "Result:\n\n| File | Note |\n|---|---|\n| UCL Integration Strategy full deck v3.pptx | Exact phrase. |"),
+    ]
+
+    assert chat_context.build_chat_input("continue", history, session_name="demo") == "wrapped"
+    assert "| UCL Integration Strategy full deck v3.pptx | Exact phrase. |" in captured["transcript"]
+
+
 def test_runtime_context_package_normalises_legacy_context_path_in_wrapper(monkeypatch):
     captured = {}
 

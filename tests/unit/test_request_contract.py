@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from crisai.cli.chat_context import continuation_intent_message
 from crisai.orchestration.request_contract import (
     infer_request_contract,
     render_request_contract_brief,
@@ -49,6 +50,24 @@ def test_request_contract_keeps_pasted_text_summary_source_free() -> None:
     assert contract.is_summary is True
     assert contract.source_required is False
     assert contract.actions == ("summarize",)
+
+
+def test_bare_continue_contract_preserves_previous_source_lookup_context() -> None:
+    history = [
+        (
+            "user",
+            "find all the documents in my onedrive with integration strategy in the title. "
+            "List the 3 best candidate.",
+        ),
+        ("assistant", "I found 10 OneDrive documents with integration strategy in the title."),
+    ]
+    message = continuation_intent_message("continue", history, registry_dir=REGISTRY_DIR)
+
+    contract = infer_request_contract(message, registry_dir=REGISTRY_DIR)
+
+    assert contract.source_required is True
+    assert "personal_onedrive" in contract.source_families
+    assert "retrieve_source" in contract.actions
 
 
 def test_request_contract_brief_is_human_readable_not_json() -> None:

@@ -83,6 +83,7 @@ class LexiconTerms:
     function_words: dict[str, frozenset[str]]
     prompt_noise_terms: frozenset[str]
     title_relation_terms: frozenset[str]
+    continuation_intent_template: dict[str, str] = dataclass_field(default_factory=dict)
 
     @property
     def all_function_words(self) -> frozenset[str]:
@@ -98,6 +99,7 @@ class InteractionPatterns:
     """Regex patterns for explicit mode detection and peer retrieval overrides."""
 
     explicit_mode_patterns: dict[str, tuple[re.Pattern[str], ...]]
+    continuation_patterns: tuple[re.Pattern[str], ...]
     generative_peer_patterns: tuple[re.Pattern[str], ...]
     retrieval_required_patterns: tuple[re.Pattern[str], ...]
     peer_retrieval_force_patterns: tuple[re.Pattern[str], ...]
@@ -434,6 +436,7 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             function_words=function_words,
             prompt_noise_terms=_as_frozenset(lexicon_block.get("prompt_noise_terms")),
             title_relation_terms=_as_frozenset(lexicon_block.get("title_relation_terms")),
+            continuation_intent_template=_string_mapping(lexicon_block.get("continuation_intent_template")),
         ),
         retrieval_constraints=RetrievalConstraintTerms(
             object_type_terms=_as_frozenset(retrieval_block.get("object_type_terms")),
@@ -441,6 +444,7 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
         ),
         interaction=InteractionPatterns(
             explicit_mode_patterns=explicit_mode_patterns,
+            continuation_patterns=_compile_list("continuation_patterns"),
             generative_peer_patterns=_compile_list("generative_peer_patterns"),
             retrieval_required_patterns=_compile_list("retrieval_required_patterns"),
             peer_retrieval_force_patterns=_compile_list("peer_retrieval_force_patterns"),
