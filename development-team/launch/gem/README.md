@@ -1,10 +1,10 @@
-# Gem hcom Launch Folder
+# Gem hcom Context Folder
 
-This is an hcom launch folder, not the Gem source root.
+This is an hcom context folder, not the Gem source root.
 
-Run Gem-area hcom agents from here so their terminal context is clearly scoped
-to Ink terminal client work. The actual source remains in the normal repository
-locations.
+The launcher starts Gem agents from the target repository root so Codex
+workspace-write covers the files they own. Use this folder only for Gem context.
+The actual source remains in the normal repository locations.
 
 Primary ownership:
 

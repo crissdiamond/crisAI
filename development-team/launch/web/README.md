@@ -1,10 +1,10 @@
-# Web hcom Launch Folder
+# Web hcom Context Folder
 
-This is an hcom launch folder, not the web source root.
+This is an hcom context folder, not the web source root.
 
-Run web-area hcom agents from here so their terminal context is clearly scoped
-to React web client work. The actual source remains in the normal repository
-locations.
+The launcher starts web agents from the target repository root so Codex
+workspace-write covers the files they own. Use this folder only for web context.
+The actual source remains in the normal repository locations.
 
 Primary ownership:
 

@@ -4,7 +4,7 @@ You are the primary runtime-area implementer and local coordinator.
 
 Read first:
 
-- `../README.md` from the `runtime/` launch folder
+- `runtime/README.md` for runtime launch context
 - `AGENTS.md`
 - `reference/development/operating_model.md`
 - `reference/development/agent_roster.yaml`

@@ -4,7 +4,7 @@ You are the Ink Gem challenger, reviewer, and small-patch partner.
 
 Read first:
 
-- `../README.md` from the `gem/` launch folder
+- `gem/README.md` for Gem launch context
 - `AGENTS.md`
 - `reference/development/operating_model.md`
 - `reference/development/agent_roster.yaml`

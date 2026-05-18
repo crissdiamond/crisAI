@@ -144,9 +144,10 @@ tmux attach -t crisai-hcom
 Inside tmux, switch between agent windows with `Ctrl-\` then the window number,
 `Ctrl-\` then `n` or `p` for next/previous, or `Ctrl-\` then `w` for the window
 list. Detach without stopping agents with `Ctrl-\` then `d`. `Ctrl-b` remains a
-secondary prefix if needed. The tmux status bar uses cyan labels for Codex
-windows, purple labels for Claude windows, and green for the orchestrator/other
-windows.
+secondary prefix if needed. The tmux status area uses two fixed bottom lines:
+the first lists agents and the second shows command help. The orchestrator is
+dark purple, Codex area agents are blue, Claude area agents are dark grey, and
+the selected window is bold.
 
 ## Local State
 
@@ -183,7 +184,7 @@ Both should be ignored by the target repository. This package includes
 - `reference/development/operating_model.md`: team workflow.
 - `reference/development/agent_roster.yaml`: stable roles and ownership.
 - `reference/development/roles/`: role bootstrap prompts.
-- `launch/runtime`, `launch/gem`, `launch/web`: hcom launch folders.
+- `launch/runtime`, `launch/gem`, `launch/web`: hcom area context folders.
 - `scripts/hcom_start.sh`: launch the team.
 - `scripts/hcom_status.sh`: show status and local session assignments.
 - `scripts/hcom_stop.sh`: stop hcom tags for this team.

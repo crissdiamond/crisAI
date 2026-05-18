@@ -1,10 +1,10 @@
-# Runtime hcom Launch Folder
+# Runtime hcom Context Folder
 
-This is an hcom launch folder, not the runtime source root.
+This is an hcom context folder, not the runtime source root.
 
-Run runtime-area hcom agents from here so their terminal context is clearly
-scoped to runtime work. The actual source remains in the normal repository
-locations.
+The launcher starts runtime agents from the target repository root so Codex
+workspace-write covers the files they own. Use this folder only for runtime
+context. The actual source remains in the normal repository locations.
 
 Primary ownership:
 

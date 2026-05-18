@@ -28,9 +28,9 @@ Usage: scripts/hcom_start.sh [--target-repo PATH] [--dry-run] [--headless] [--re
 
 Launches:
   - one Codex orchestrator from the target repo root
-  - runtime Codex + Claude from launch/runtime
-  - Gem Codex + Claude from launch/gem
-  - web Codex + Claude from launch/web
+  - runtime Codex + Claude from the target repo root, with runtime role context
+  - Gem Codex + Claude from the target repo root, with Gem role context
+  - web Codex + Claude from the target repo root, with web role context
 
 State:
   HCOM_DIR defaults to <target-repo>/.hcom.
@@ -344,12 +344,7 @@ tool_auto_approval_args() {
 }
 
 launch_dir_for() {
-  local launch_dir="$1"
-  if [[ "$launch_dir" == "." ]]; then
-    printf '%s\n' "$TARGET_REPO"
-  else
-    printf '%s\n' "$TEAM_DIR/launch/$launch_dir"
-  fi
+  printf '%s\n' "$TARGET_REPO"
 }
 
 launch_agent() {

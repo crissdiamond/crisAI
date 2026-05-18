@@ -7,15 +7,21 @@ handles only; stable responsibility comes from the role assigned in
 
 ## Team Shape
 
-- `orchestrator_codex`: runs from the repo root and is the main user-facing
-  coordinator.
-- `runtime_codex` and `runtime_claude`: run from `runtime/`.
-- `gem_codex` and `gem_claude`: run from `gem/`.
-- `web_codex` and `web_claude`: run from `web/`.
+- `orchestrator_codex`: runs from the target repo root and is the main
+  user-facing coordinator.
+- `runtime_codex` and `runtime_claude`: run from the target repo root with
+  runtime role context.
+- `gem_codex` and `gem_claude`: run from the target repo root with Gem role
+  context.
+- `web_codex` and `web_claude`: run from the target repo root with web role
+  context.
 
 The `launch/runtime`, `launch/gem`, and `launch/web` directories are launch
-folders, not source roots. Source code stays in the target repository's normal
-Python and UI locations.
+context folders, not source roots and not Codex sandbox roots. Source code stays
+in the target repository's normal Python and UI locations. Area agents are
+launched from the target repo root so their workspace-write sandbox covers the
+files they own, while their role prompt and tmux label keep the area boundary
+clear.
 
 ## Launching
 
@@ -65,8 +71,10 @@ default tmux session is `crisai-hcom`, configurable with
 `tmux attach -t crisai-hcom`, switch windows with `Ctrl-\` then the window
 number, `Ctrl-\` then `n` or `p`, or `Ctrl-\` then `w`, and detach without
 stopping the team with `Ctrl-\` then `d`. `Ctrl-b` remains a secondary prefix if
-needed. The tmux status bar uses cyan labels for Codex windows, purple labels
-for Claude windows, and green for the orchestrator/other windows.
+needed. The tmux status area uses two fixed bottom lines: the first lists
+agents, and the second shows command help. The orchestrator is dark purple,
+Codex area agents are blue, and Claude area agents are dark grey; the selected
+window is bold.
 
 Tool auto-approval is enabled by default for launched agents so routine
 development work does not block on repeated provider permission prompts. The

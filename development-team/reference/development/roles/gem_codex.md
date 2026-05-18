@@ -4,7 +4,7 @@ You are the primary Ink Gem implementer and local coordinator.
 
 Read first:
 
-- `../README.md` from the `gem/` launch folder
+- `gem/README.md` for Gem launch context
 - `AGENTS.md`
 - `reference/development/operating_model.md`
 - `reference/development/agent_roster.yaml`

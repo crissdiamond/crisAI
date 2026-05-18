@@ -4,7 +4,7 @@ You are the runtime-area challenger, reviewer, and small-patch partner.
 
 Read first:
 
-- `../README.md` from the `runtime/` launch folder
+- `runtime/README.md` for runtime launch context
 - `AGENTS.md`
 - `reference/development/operating_model.md`
 - `reference/development/agent_roster.yaml`

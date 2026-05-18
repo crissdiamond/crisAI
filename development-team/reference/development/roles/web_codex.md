@@ -4,7 +4,7 @@ You are the primary React web implementer and local coordinator.
 
 Read first:
 
-- `../README.md` from the `web/` launch folder
+- `web/README.md` for web launch context
 - `AGENTS.md`
 - `reference/development/operating_model.md`
 - `reference/development/agent_roster.yaml`

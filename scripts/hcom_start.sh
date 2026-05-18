@@ -27,9 +27,9 @@ Usage: scripts/hcom_start.sh [--dry-run] [--headless] [--resume] [--tool-auto-ap
 
 Launches:
   - one Codex orchestrator from repo root
-  - runtime Codex + Claude from runtime/
-  - Gem Codex + Claude from gem/
-  - web Codex + Claude from web/
+  - runtime Codex + Claude from repo root, with runtime role context
+  - Gem Codex + Claude from repo root, with Gem role context
+  - web Codex + Claude from repo root, with web role context
 
 State:
   HCOM_DIR defaults to ./.hcom and is ignored by git.
@@ -473,27 +473,27 @@ name="$(launch_agent orchestrator_codex codex crisai-orchestrator . reference/de
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" orchestrator_codex root codex crisai-orchestrator
 
-name="$(launch_agent gem_codex codex crisai-gem gem reference/development/roles/gem_codex.md gem)"
+name="$(launch_agent gem_codex codex crisai-gem . reference/development/roles/gem_codex.md gem)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" gem_codex gem codex crisai-gem
 
-name="$(launch_agent gem_claude claude crisai-gem gem reference/development/roles/gem_claude.md gem)"
+name="$(launch_agent gem_claude claude crisai-gem . reference/development/roles/gem_claude.md gem)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" gem_claude gem claude crisai-gem
 
-name="$(launch_agent web_codex codex crisai-web web reference/development/roles/web_codex.md web)"
+name="$(launch_agent web_codex codex crisai-web . reference/development/roles/web_codex.md web)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" web_codex web codex crisai-web
 
-name="$(launch_agent web_claude claude crisai-web web reference/development/roles/web_claude.md web)"
+name="$(launch_agent web_claude claude crisai-web . reference/development/roles/web_claude.md web)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" web_claude web claude crisai-web
 
-name="$(launch_agent runtime_codex codex crisai-runtime runtime reference/development/roles/runtime_codex.md runtime)"
+name="$(launch_agent runtime_codex codex crisai-runtime . reference/development/roles/runtime_codex.md runtime)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" runtime_codex runtime codex crisai-runtime
 
-name="$(launch_agent runtime_claude claude crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
+name="$(launch_agent runtime_claude claude crisai-runtime . reference/development/roles/runtime_claude.md runtime)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" runtime_claude runtime claude crisai-runtime
 

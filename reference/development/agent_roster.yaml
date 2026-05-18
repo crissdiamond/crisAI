@@ -24,7 +24,8 @@ roles:
 
   runtime_codex:
     provider: codex
-    launch_dir: runtime
+    launch_dir: "."
+    context_dir: runtime
     tag: crisai-runtime
     role_file: reference/development/roles/runtime_codex.md
     paired_with: runtime_claude
@@ -40,7 +41,8 @@ roles:
 
   runtime_claude:
     provider: claude
-    launch_dir: runtime
+    launch_dir: "."
+    context_dir: runtime
     tag: crisai-runtime
     role_file: reference/development/roles/runtime_claude.md
     paired_with: runtime_codex
@@ -53,7 +55,8 @@ roles:
 
   gem_codex:
     provider: codex
-    launch_dir: gem
+    launch_dir: "."
+    context_dir: gem
     tag: crisai-gem
     role_file: reference/development/roles/gem_codex.md
     paired_with: gem_claude
@@ -68,7 +71,8 @@ roles:
 
   gem_claude:
     provider: claude
-    launch_dir: gem
+    launch_dir: "."
+    context_dir: gem
     tag: crisai-gem
     role_file: reference/development/roles/gem_claude.md
     paired_with: gem_codex
@@ -81,7 +85,8 @@ roles:
 
   web_codex:
     provider: codex
-    launch_dir: web
+    launch_dir: "."
+    context_dir: web
     tag: crisai-web
     role_file: reference/development/roles/web_codex.md
     paired_with: web_claude
@@ -96,7 +101,8 @@ roles:
 
   web_claude:
     provider: claude
-    launch_dir: web
+    launch_dir: "."
+    context_dir: web
     tag: crisai-web
     role_file: reference/development/roles/web_claude.md
     paired_with: web_codex

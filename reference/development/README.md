@@ -150,9 +150,10 @@ tmux attach -t crisai-hcom
 Inside tmux, switch between agent windows with `Ctrl-\` then the window number,
 `Ctrl-\` then `n` or `p` for next/previous, or `Ctrl-\` then `w` for the window
 list. Detach without stopping agents with `Ctrl-\` then `d`. `Ctrl-b` remains a
-secondary prefix if needed. The tmux status bar uses cyan labels for Codex
-windows, purple labels for Claude windows, and green for the orchestrator/other
-windows.
+secondary prefix if needed. The tmux status area uses two fixed bottom lines:
+the first lists agents and the second shows command help. The orchestrator is
+dark purple, Codex area agents are blue, Claude area agents are dark grey, and
+the selected window is bold.
 
 Start or continue the team context:
 
