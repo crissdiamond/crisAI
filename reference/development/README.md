@@ -95,6 +95,9 @@ treat this as a design principle, not as a preference.
 - [Handoff template](handoff_template.md): compact area handoff format.
 - [Review template](review_template.md): review format for Claude reviewers.
 
+Default development-team terminal management requires `tmux`. Windows Terminal
+can still be used by overriding `--terminal`, but the managed default is tmux.
+
 ## Common Commands
 
 Fresh team launch:
@@ -118,7 +121,29 @@ scripts/hcom_stop.sh
 ```
 
 The launcher uses `tmux` by default when available, so hcom can close managed
-team panes without touching unrelated WSL or Windows Terminal sessions.
+team panes without touching unrelated WSL or Windows Terminal sessions. The
+default tmux session is `crisai-hcom`; override it with
+`HCOM_TEAM_TMUX_SESSION`.
+
+The tmux windows are created in this order:
+
+1. `orchestrator(<hcom_name>)`
+2. `gem_codex(<hcom_name>)`
+3. `gem_claude(<hcom_name>)`
+4. `web_codex(<hcom_name>)`
+5. `web_claude(<hcom_name>)`
+6. `run_codex(<hcom_name>)`
+7. `run_claude(<hcom_name>)`
+
+Attach to the team session with:
+
+```bash
+tmux attach -t crisai-hcom
+```
+
+Inside tmux, switch between agent windows with `Ctrl-b` then the window number
+or `Ctrl-b` then `w` for the window list. Detach without stopping agents with
+`Ctrl-b` then `d`.
 
 Continue the same team context:
 
@@ -147,6 +172,11 @@ scripts/hcom_start.sh --target-repo /path/to/crisAI
 scripts/hcom_start.sh --target-repo /path/to/crisAI --resume
 scripts/hcom_stop.sh --target-repo /path/to/crisAI
 ```
+
+When running the packaged scripts from this repository's embedded
+`development-team/` directory, pass `--target-repo /home/diamond/crisAI` or run
+the root scripts under `scripts/`. Without `--target-repo`, the packaged script
+treats its own `development-team/` checkout as the target repository.
 
 See [development-team/README.md](../../development-team/README.md) for the
 packaged-team form.

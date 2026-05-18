@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export HCOM_DIR="${HCOM_DIR:-$ROOT_DIR/.hcom}"
 ASSIGNMENTS="$ROOT_DIR/reference/development/session_assignments.local.yaml"
+TEAM_TMUX_SESSION="${HCOM_TEAM_TMUX_SESSION:-crisai-hcom}"
 
 usage() {
   cat <<'EOF'
@@ -155,3 +156,7 @@ snapshot_assignments
 for tag in crisai-orchestrator crisai-runtime crisai-gem crisai-web; do
   hcom kill "tag:$tag" || true
 done
+
+if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$TEAM_TMUX_SESSION" 2>/dev/null; then
+  tmux kill-session -t "$TEAM_TMUX_SESSION"
+fi

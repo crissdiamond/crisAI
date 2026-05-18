@@ -8,10 +8,10 @@ locations.
 
 Primary ownership:
 
-- `src/crisai/`
-- `registry/`
-- `prompts/`
-- runtime-relevant tests under `tests/`
+- target repo `src/crisai/`
+- target repo `registry/`
+- target repo `prompts/`
+- runtime-relevant tests under target repo `tests/`
 
 Role files in the development-team repo:
 

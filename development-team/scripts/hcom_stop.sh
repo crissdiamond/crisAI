@@ -33,6 +33,7 @@ done
 
 export HCOM_DIR="${HCOM_DIR:-$TARGET_REPO/.hcom}"
 ASSIGNMENTS="${HCOM_ASSIGNMENTS:-$TARGET_REPO/.hcom-development/session_assignments.local.yaml}"
+TEAM_TMUX_SESSION="${HCOM_TEAM_TMUX_SESSION:-crisai-hcom}"
 
 if ! command -v hcom >/dev/null 2>&1; then
   echo "Missing required command: hcom" >&2
@@ -157,3 +158,7 @@ snapshot_assignments
 for tag in crisai-orchestrator crisai-runtime crisai-gem crisai-web; do
   hcom kill "tag:$tag" || true
 done
+
+if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$TEAM_TMUX_SESSION" 2>/dev/null; then
+  tmux kill-session -t "$TEAM_TMUX_SESSION"
+fi

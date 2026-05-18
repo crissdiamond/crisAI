@@ -8,9 +8,9 @@ locations.
 
 Primary ownership:
 
-- `../ui/apps/web/`
-- `../ui/packages/contracts/` only when assigned by the orchestrator
-- web-relevant tests under `../tests/`
+- target repo `ui/apps/web/`
+- target repo `ui/packages/contracts/` only when assigned by the orchestrator
+- web-relevant tests under target repo `tests/`
 
 Role files in the development-team repo:
 

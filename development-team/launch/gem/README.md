@@ -8,9 +8,9 @@ locations.
 
 Primary ownership:
 
-- `../ui/apps/gem/`
-- `../ui/packages/contracts/` only when assigned by the orchestrator
-- Gem-relevant tests under `../tests/`
+- target repo `ui/apps/gem/`
+- target repo `ui/packages/contracts/` only when assigned by the orchestrator
+- Gem-relevant tests under target repo `tests/`
 
 Role files in the development-team repo:
 

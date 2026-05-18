@@ -1,5 +1,9 @@
 # Copy to session_assignments.local.yaml or let scripts/hcom_start.sh generate it.
 # Random hcom names are session handles only; role ids below are stable.
+target_repo: /path/to/crisAI
+team_repo: /path/to/crisAI-development-team
+hcom_dir: /path/to/crisAI/.hcom
+tmux_session: crisai-hcom
 sessions:
   nemo:
     role: orchestrator_codex

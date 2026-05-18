@@ -20,3 +20,15 @@ tests/orchestration/test_graph_login.py`.
 For hcom-based multi-agent development, run `scripts/hcom_start.sh --dry-run`
 first, then `scripts/hcom_start.sh` when ready. See
 `reference/development/operating_model.md`.
+
+The hcom development team uses a dedicated `tmux` session by default. Attach to
+the running team with:
+
+```bash
+tmux attach -t crisai-hcom
+```
+
+Inside tmux, use `Ctrl-b` then a window number to switch agents:
+`0` orchestrator, `1` Gem Codex, `2` Gem Claude, `3` web Codex, `4` web Claude,
+`5` runtime Codex, and `6` runtime Claude. Use `Ctrl-b` then `d` to detach
+without stopping the team.

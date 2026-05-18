@@ -103,7 +103,9 @@ scripts/hcom_status.sh --target-repo /path/to/crisAI
 scripts/hcom_stop.sh --target-repo /path/to/crisAI
 ```
 
-If this package lives inside the target repo, `--target-repo` can be omitted.
+Always pass `--target-repo` when using the packaged scripts against an existing
+crisAI checkout. If omitted, the packaged script treats the development-team
+repository itself as the target repository.
 
 Tool auto-approval is enabled by default for launched agents. Use
 `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
@@ -115,6 +117,27 @@ The launcher uses `tmux` by default when available. Override this with
 ```bash
 scripts/hcom_start.sh --target-repo /path/to/crisAI --terminal 'wt.exe -w 0 new-tab --title hcom -- wsl.exe -d Ubuntu bash {script}'
 ```
+
+The default tmux session is `crisai-hcom`; override it with
+`HCOM_TEAM_TMUX_SESSION`. The tmux windows are created in this order:
+
+1. `orchestrator(<hcom_name>)`
+2. `gem_codex(<hcom_name>)`
+3. `gem_claude(<hcom_name>)`
+4. `web_codex(<hcom_name>)`
+5. `web_claude(<hcom_name>)`
+6. `run_codex(<hcom_name>)`
+7. `run_claude(<hcom_name>)`
+
+Attach with:
+
+```bash
+tmux attach -t crisai-hcom
+```
+
+Inside tmux, switch between agent windows with `Ctrl-b` then the window number
+or `Ctrl-b` then `w` for the window list. Detach without stopping agents with
+`Ctrl-b` then `d`.
 
 ## Local State
 
@@ -143,6 +166,7 @@ Both should be ignored by the target repository. This package includes
 - `hcom`
 - `codex`
 - `claude`
+- `tmux` for the default managed terminal backend
 - Claude memory MCP server available to launched agents
 
 ## Files
@@ -154,3 +178,5 @@ Both should be ignored by the target repository. This package includes
 - `scripts/hcom_start.sh`: launch the team.
 - `scripts/hcom_status.sh`: show status and local session assignments.
 - `scripts/hcom_stop.sh`: stop hcom tags for this team.
+- `scripts/hcom_tmux_terminal.sh`: create named tmux windows for launched
+  agents.

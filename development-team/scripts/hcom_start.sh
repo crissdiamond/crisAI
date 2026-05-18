@@ -11,6 +11,11 @@ HEADLESS=0
 RESUME=0
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
+TEAM_TERMINAL_EXPLICIT=0
+if [[ -n "$TEAM_TERMINAL" ]]; then
+  TEAM_TERMINAL_EXPLICIT=1
+fi
+TEAM_TMUX_SESSION="${HCOM_TEAM_TMUX_SESSION:-crisai-hcom}"
 EXTRA_ARGS=()
 LAUNCHED_NAMES=()
 declare -A PREVIOUS_HCOM_NAMES=()
@@ -35,8 +40,9 @@ State:
 
 Terminal:
   HCOM_TEAM_TERMINAL or --terminal controls where hcom opens shells.
-  The default is tmux when available. Windows Terminal can be requested
-  explicitly with a wt.exe terminal command.
+  The default is a dedicated tmux session named crisai-hcom when available.
+  Override the tmux session name with HCOM_TEAM_TMUX_SESSION.
+  Windows Terminal can be requested explicitly with a wt.exe terminal command.
 
 Approvals:
   Tool auto-approval is enabled by default. Set HCOM_TEAM_TOOL_AUTO_APPROVE=0
@@ -72,6 +78,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --terminal)
       TEAM_TERMINAL="$2"
+      TEAM_TERMINAL_EXPLICIT=1
       shift 2
       ;;
     -h|--help)
@@ -152,12 +159,38 @@ default_team_terminal() {
     return 0
   fi
   if command -v tmux >/dev/null 2>&1; then
-    printf 'tmux\n'
+    printf '%s/scripts/hcom_tmux_terminal.sh %s {role_label} {script}\n' "$TEAM_DIR" "$TEAM_TMUX_SESSION"
     return 0
   fi
   if [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v wt.exe >/dev/null 2>&1; then
     printf 'wt.exe -w 0 new-tab --title hcom -- wsl.exe -d %s bash {script}\n' "$WSL_DISTRO_NAME"
   fi
+}
+
+role_terminal_label() {
+  case "$1" in
+    orchestrator_codex)
+      printf 'orchestrator\n'
+      ;;
+    runtime_codex)
+      printf 'run_codex\n'
+      ;;
+    runtime_claude)
+      printf 'run_claude\n'
+      ;;
+    *)
+      printf '%s\n' "$1"
+      ;;
+  esac
+}
+
+terminal_for_role() {
+  local role="$1"
+  local terminal="$TEAM_TERMINAL"
+  if [[ "$TEAM_TERMINAL_EXPLICIT" -eq 0 ]]; then
+    terminal="${terminal//\{role_label\}/$(role_terminal_label "$role")}"
+  fi
+  printf '%s\n' "$terminal"
 }
 
 name_from_hcom_list() {
@@ -294,12 +327,12 @@ launch_agent() {
   if [[ -n "$resume_target" ]]; then
     cmd=(hcom r "$resume_target" --tag "$tag" --dir "$dir" --hcom-prompt "$prompt" --go)
   else
-    cmd=(hcom "$provider" --tag "$tag" --dir "$dir" --hcom-prompt "$prompt")
+    cmd=(hcom "$provider" --tag "$tag" --dir "$dir" --hcom-prompt "$prompt" --go)
   fi
   if [[ "$HEADLESS" -eq 1 ]]; then
     cmd+=(--headless)
   elif [[ -n "$TEAM_TERMINAL" ]]; then
-    cmd+=(--terminal "$TEAM_TERMINAL")
+    cmd+=(--terminal "$(terminal_for_role "$role")")
   fi
   local tool_arg
   while IFS= read -r tool_arg; do
@@ -387,6 +420,7 @@ cat >"$ASSIGNMENTS" <<EOF
 target_repo: $TARGET_REPO
 team_repo: $TEAM_DIR
 hcom_dir: $HCOM_DIR
+tmux_session: $TEAM_TMUX_SESSION
 generated_at: "$(date -Is)"
 sessions:
 EOF
@@ -394,14 +428,6 @@ EOF
 name="$(launch_agent orchestrator_codex codex crisai-orchestrator . reference/development/roles/orchestrator_codex.md root)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" orchestrator_codex root codex crisai-orchestrator
-
-name="$(launch_agent runtime_codex codex crisai-runtime runtime reference/development/roles/runtime_codex.md runtime)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" runtime_codex runtime codex crisai-runtime
-
-name="$(launch_agent runtime_claude claude crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" runtime_claude runtime claude crisai-runtime
 
 name="$(launch_agent gem_codex codex crisai-gem gem reference/development/roles/gem_codex.md gem)"
 LAUNCHED_NAMES+=("$name")
@@ -418,6 +444,14 @@ write_assignment "$name" web_codex web codex crisai-web
 name="$(launch_agent web_claude claude crisai-web web reference/development/roles/web_claude.md web)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" web_claude web claude crisai-web
+
+name="$(launch_agent runtime_codex codex crisai-runtime runtime reference/development/roles/runtime_codex.md runtime)"
+LAUNCHED_NAMES+=("$name")
+write_assignment "$name" runtime_codex runtime codex crisai-runtime
+
+name="$(launch_agent runtime_claude claude crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
+LAUNCHED_NAMES+=("$name")
+write_assignment "$name" runtime_claude runtime claude crisai-runtime
 
 echo "hcom team assignment written to $ASSIGNMENTS"
 if [[ "$DRY_RUN" -eq 0 ]]; then

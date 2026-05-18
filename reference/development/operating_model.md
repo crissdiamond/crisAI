@@ -50,7 +50,15 @@ restore the previous sessions.
 The launcher uses `tmux` by default when available. That keeps hcom team shells
 inside a managed terminal session and avoids force-closing Windows Terminal tabs
 from WSL. Override this with `--terminal PRESET_OR_COMMAND` or
-`HCOM_TEAM_TERMINAL` when a different hcom terminal backend is preferred.
+`HCOM_TEAM_TERMINAL` when a different hcom terminal backend is preferred. The
+default tmux session is `crisai-hcom`, configurable with
+`HCOM_TEAM_TMUX_SESSION`. Default tmux windows are named and ordered as:
+`orchestrator(<hcom_name>)`, `gem_codex(<hcom_name>)`,
+`gem_claude(<hcom_name>)`, `web_codex(<hcom_name>)`,
+`web_claude(<hcom_name>)`, `run_codex(<hcom_name>)`, and
+`run_claude(<hcom_name>)`. Attach with `tmux attach -t crisai-hcom`, switch
+windows with `Ctrl-b` then the window number or `Ctrl-b` then `w`, and detach
+without stopping the team with `Ctrl-b` then `d`.
 
 Tool auto-approval is enabled by default for launched agents so routine
 development work does not block on repeated provider permission prompts. The
