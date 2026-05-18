@@ -170,10 +170,12 @@ close_team_terminals() {
   ASSIGNMENTS_PATH="$ASSIGNMENTS" HCOM_DIR_PATH="$HCOM_DIR" python - <<'PY'
 import os
 import signal
+import time
 from pathlib import Path
 
 assignments_path = Path(os.environ["ASSIGNMENTS_PATH"])
 hcom_dir = os.environ["HCOM_DIR_PATH"]
+launch_dir = f"{hcom_dir}/.tmp/launch/"
 
 names = set()
 in_sessions = False
@@ -189,28 +191,36 @@ if not names:
     raise SystemExit(0)
 
 current_pid = os.getpid()
-killed = []
+excluded = {current_pid}
+try:
+    parent_pid = os.getppid()
+    while parent_pid and parent_pid not in excluded:
+        excluded.add(parent_pid)
+        stat = Path(f"/proc/{parent_pid}/stat").read_text(encoding="utf-8").split()
+        parent_pid = int(stat[3])
+except (FileNotFoundError, PermissionError, ProcessLookupError, ValueError):
+    pass
 
-for proc_dir in Path("/proc").iterdir():
-    if not proc_dir.name.isdigit():
-        continue
 
-    pid = int(proc_dir.name)
-    if pid == current_pid:
-        continue
-
+def proc_cmdline(proc_dir):
     try:
-        comm = (proc_dir / "comm").read_text(encoding="utf-8").strip()
+        return (proc_dir / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "ignore")
+    except (FileNotFoundError, PermissionError, ProcessLookupError):
+        return ""
+
+
+def proc_comm(proc_dir):
+    try:
+        return (proc_dir / "comm").read_text(encoding="utf-8").strip()
     except (FileNotFoundError, PermissionError, ProcessLookupError, UnicodeDecodeError):
-        continue
+        return ""
 
-    if comm not in {"bash", "sh", "zsh", "fish"}:
-        continue
 
+def proc_environ(proc_dir):
     try:
         raw_environ = (proc_dir / "environ").read_bytes()
     except (FileNotFoundError, PermissionError, ProcessLookupError):
-        continue
+        return {}
 
     environ = {}
     for item in raw_environ.split(b"\0"):
@@ -221,20 +231,53 @@ for proc_dir in Path("/proc").iterdir():
             environ[key.decode()] = value.decode()
         except UnicodeDecodeError:
             continue
+    return environ
 
+
+def is_team_process(proc_dir):
+    pid = int(proc_dir.name)
+    if pid in excluded:
+        return False
+
+    cmd = proc_cmdline(proc_dir)
+    if not cmd:
+        return False
+
+    if launch_dir in cmd:
+        return True
+    if hcom_dir in cmd and "hcom pty" in cmd:
+        return True
+    if hcom_dir in cmd and proc_comm(proc_dir) in {"codex", "MainThread", "node", "claude"}:
+        return True
+
+    environ = proc_environ(proc_dir)
     if environ.get("HCOM_DIR") != hcom_dir:
-        continue
-    if environ.get("HCOM_NAME") not in names:
-        continue
+        return False
+    return environ.get("HCOM_NAME") in names
 
+
+pids = sorted(
+    int(proc_dir.name)
+    for proc_dir in Path("/proc").iterdir()
+    if proc_dir.name.isdigit() and is_team_process(proc_dir)
+)
+
+for pid in pids:
     try:
         os.kill(pid, signal.SIGTERM)
-        killed.append(str(pid))
     except ProcessLookupError:
         continue
 
-if killed:
-    print(f"Closed hcom terminal shell(s): {', '.join(killed)}")
+time.sleep(1)
+remaining = [pid for pid in pids if Path(f"/proc/{pid}").exists()]
+for pid in remaining:
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        continue
+
+if pids:
+    print(f"Closed hcom team process(es): {', '.join(map(str, pids))}")
 PY
 }
 
