@@ -8,6 +8,7 @@ ASSIGNMENTS="$ROOT_DIR/reference/development/session_assignments.local.yaml"
 DRY_RUN=0
 HEADLESS=0
 RESUME=0
+AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
 EXTRA_ARGS=()
 LAUNCHED_NAMES=()
@@ -16,7 +17,7 @@ declare -A PREVIOUS_PROVIDER_SESSION_IDS=()
 
 usage() {
   cat <<'EOF'
-Usage: scripts/hcom_start.sh [--dry-run] [--headless] [--resume] [--terminal PRESET_OR_COMMAND] [-- extra hcom args]
+Usage: scripts/hcom_start.sh [--dry-run] [--headless] [--resume] [--tool-auto-approve|--no-tool-auto-approve] [--terminal PRESET_OR_COMMAND] [-- extra hcom args]
 
 Launches:
   - one Codex orchestrator from repo root
@@ -34,6 +35,10 @@ State:
 Terminal:
   HCOM_TEAM_TERMINAL or --terminal controls where hcom opens shells.
   In WSL, the default is Windows Terminal when wt.exe is available, otherwise tmux.
+
+Approvals:
+  Tool auto-approval is enabled by default. Set HCOM_TEAM_TOOL_AUTO_APPROVE=0
+  or pass --no-tool-auto-approve to keep Codex/Claude permission prompts.
 EOF
 }
 
@@ -49,6 +54,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --resume)
       RESUME=1
+      shift
+      ;;
+    --tool-auto-approve)
+      AUTO_APPROVE_TOOLS=1
+      shift
+      ;;
+    --no-tool-auto-approve)
+      AUTO_APPROVE_TOOLS=0
       shift
       ;;
     --terminal)
@@ -225,6 +238,20 @@ run_cmd() {
   "$@"
 }
 
+tool_auto_approval_args() {
+  local provider="$1"
+  [[ "$AUTO_APPROVE_TOOLS" == "1" ]] || return 0
+
+  case "$provider" in
+    codex)
+      printf '%s\n' --ask-for-approval never --sandbox workspace-write
+      ;;
+    claude)
+      printf '%s\n' --permission-mode dontAsk
+      ;;
+  esac
+}
+
 launch_agent() {
   local role="$1"
   local provider="$2"
@@ -253,6 +280,10 @@ launch_agent() {
   elif [[ -n "$TEAM_TERMINAL" ]]; then
     cmd+=(--terminal "$TEAM_TERMINAL")
   fi
+  local tool_arg
+  while IFS= read -r tool_arg; do
+    cmd+=("$tool_arg")
+  done < <(tool_auto_approval_args "$provider")
   if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
     cmd+=("${EXTRA_ARGS[@]}")
   fi

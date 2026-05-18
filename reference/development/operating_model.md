@@ -52,6 +52,13 @@ available, otherwise it falls back to `tmux`. Override this with
 `--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL` when a different hcom
 terminal backend is preferred.
 
+Tool auto-approval is enabled by default for launched agents so routine
+development work does not block on repeated provider permission prompts. The
+launcher uses non-bypass modes: Codex receives `--ask-for-approval never
+--sandbox workspace-write`, and Claude receives `--permission-mode dontAsk`.
+Use `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
+tool approval is required.
+
 ## Responsibilities
 
 - The orchestrator plans work, assigns tasks, integrates results, runs final

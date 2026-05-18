@@ -98,11 +98,16 @@ From that repo, launch against a target crisAI checkout:
 scripts/hcom_start.sh --target-repo /path/to/crisAI --dry-run
 scripts/hcom_start.sh --target-repo /path/to/crisAI
 scripts/hcom_start.sh --target-repo /path/to/crisAI --resume
+scripts/hcom_start.sh --target-repo /path/to/crisAI --no-tool-auto-approve
 scripts/hcom_status.sh --target-repo /path/to/crisAI
 scripts/hcom_stop.sh --target-repo /path/to/crisAI
 ```
 
 If this package lives inside the target repo, `--target-repo` can be omitted.
+
+Tool auto-approval is enabled by default for launched agents. Use
+`--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
+Codex/Claude tool approval is required.
 
 In WSL, the launcher opens hcom shells in Windows Terminal when `wt.exe` is
 available, otherwise it falls back to `tmux`. Override this with

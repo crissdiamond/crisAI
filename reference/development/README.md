@@ -103,6 +103,14 @@ Fresh team launch:
 scripts/hcom_start.sh
 ```
 
+By default, launched Codex and Claude agents use non-bypass tool auto-approval
+so they can proceed without repeated permission prompts. Disable this when you
+want interactive tool approval:
+
+```bash
+scripts/hcom_start.sh --no-tool-auto-approve
+```
+
 Stop and save resumable session information:
 
 ```bash
