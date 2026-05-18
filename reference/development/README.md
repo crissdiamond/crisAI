@@ -161,9 +161,9 @@ Start or continue the team context:
 ```
 
 `./start hcom` resumes saved hcom sessions when local assignments exist,
-otherwise it starts a fresh team, then attaches to the managed tmux session. Use
-`scripts/hcom_start.sh` directly when you want advanced flags such as
-`--dry-run`, `--headless`, or `--no-tool-auto-approve`.
+otherwise it starts a fresh team. Use `./start hcom-attach` to attach to the
+managed tmux session. Use `scripts/hcom_start.sh` directly when you want
+advanced flags such as `--dry-run`, `--headless`, or `--no-tool-auto-approve`.
 
 Show hcom state and local role assignments:
 

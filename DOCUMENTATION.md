@@ -217,9 +217,8 @@ separately from this operator manual to avoid confusing it with crisAI's runtime
 multi-agent workflows. See
 `reference/development/README.md` for development-team setup and operating
 rules. When developing this repository locally, `./start hcom` starts or resumes
-the saved hcom team and attaches to the managed tmux session. Use
-`./start hcom-attach` when the team is already running and you only need to
-reattach.
+the saved hcom team. Use `./start hcom-attach` to attach to the managed tmux
+session.
 
 ---
 

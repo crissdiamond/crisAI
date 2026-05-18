@@ -224,14 +224,13 @@ workflow. That process is separate from crisAI's runtime multi-agent workflows.
 See [reference/development/README.md](reference/development/README.md) for the
 development operating model.
 
-For local development team work, start or resume the hcom team and attach to
-the managed tmux session with:
+For local development team work, start or resume the hcom team with:
 
 ```bash
 ./start hcom
 ```
 
-If the team is already running and you only need to reattach:
+Attach to the managed tmux session separately:
 
 ```bash
 ./start hcom-attach

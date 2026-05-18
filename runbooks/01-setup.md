@@ -51,8 +51,7 @@ tests/orchestration/test_graph_login.py`.
 
 For hcom-based multi-agent development, run `scripts/hcom_start.sh --dry-run`
 first, then `./start hcom` when ready. `./start hcom` resumes saved hcom
-sessions when local assignments exist, otherwise it starts a fresh team, then
-attaches to the managed tmux session. See
+sessions when local assignments exist, otherwise it starts a fresh team. See
 `reference/development/operating_model.md`.
 
 The hcom development team uses a dedicated `tmux` session by default. Attach to
