@@ -291,6 +291,12 @@ retrieval priority, and promotion targets. The default corpora are
 (`workspace/knowledge_staging/`). Prompts and task output use the configured
 knowledge roots.
 
+Agent and web workspace browsing deliberately hides local runtime-sensitive
+paths such as `.auth/`, `.tokens/`, `.secrets/`, `.cache/`, `.crisai/`,
+`chat_sessions/`, and `logs/`. Do not use those folder names for business
+content that agents need to read. `uv run crisai doctor` warns when explicit
+Microsoft token-cache environment paths are configured inside the workspace.
+
 Agents do not write to `workspace/knowledge/` by default. If the user explicitly requests an exact `workspace/knowledge/...` output path, that path is authorized for that run only and must be the path that changes; writing a substitute under `knowledge_staging/` fails policy validation.
 
 Markdown is the authoritative generated artefact format. Native Word, PowerPoint, Excel, email, JSON, and diagram exports should be generated later from reviewed Markdown and organisation templates.

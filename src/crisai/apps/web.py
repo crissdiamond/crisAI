@@ -72,6 +72,12 @@ from crisai.orchestration.retrieval_checkpoint import (
 )
 from crisai.registry import Registry
 from crisai.ui_events import UiEvent, UiEventType, make_ui_event
+from crisai.workspace.safety import (
+    SensitiveWorkspacePathError,
+    WorkspacePathEscapeError,
+    iter_visible_workspace_files,
+    resolve_workspace_path,
+)
 from crisai.workspace.spaces import load_workspace_spaces
 
 
@@ -629,14 +635,15 @@ def _workspace_root() -> Path:
 
 
 def _safe_workspace_path(relative_path: str) -> Path:
-    raw = str(relative_path or "").strip().lstrip("/")
-    if raw.startswith("workspace/"):
-        raw = raw[len("workspace/") :]
     root = _workspace_root()
-    candidate = (root / raw).resolve()
-    if candidate != root and root not in candidate.parents:
-        raise HTTPException(status_code=400, detail="Path escapes workspace root.")
-    return candidate
+    try:
+        return resolve_workspace_path(root, relative_path)
+    except WorkspacePathEscapeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except SensitiveWorkspacePathError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 def _browser_roots() -> dict[str, str]:
@@ -729,11 +736,7 @@ def _workspace_tree(base: Path) -> list[dict[str, Any]]:
     if not base.exists():
         return []
     entries: list[dict[str, Any]] = []
-    for path in sorted(base.rglob("*")):
-        if path.name.startswith(".") and path.is_dir():
-            continue
-        if path.is_dir():
-            continue
+    for path in sorted(iter_visible_workspace_files(base, root)):
         try:
             stat = path.stat()
         except OSError:

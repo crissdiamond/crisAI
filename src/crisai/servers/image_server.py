@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
 from crisai.powerpoint import extract_slide_images
+from crisai.workspace.safety import resolve_workspace_path
 
 mcp = FastMCP("crisai-vision")
 
@@ -52,18 +53,7 @@ log_event(f"server_started root={ROOT}")
 
 
 def _safe_path(relative_path: str) -> Path:
-    raw = (relative_path or ".").strip()
-    if raw.startswith("/"):
-        raw = raw.lstrip("/")
-    if raw.startswith("workspace/"):
-        raw = raw[len("workspace/"):]
-    candidate = (ROOT / raw).resolve()
-    root = ROOT.resolve()
-    if candidate != root and root not in candidate.parents:
-        raise ValueError(
-            f"Path escapes the workspace root. root={root} requested={relative_path} resolved={candidate}"
-        )
-    return candidate
+    return resolve_workspace_path(ROOT, relative_path)
 
 
 def _describe_image_blob(blob: bytes, content_type: str, prompt: str) -> str:

@@ -394,3 +394,25 @@ def test_doctor_does_not_warn_when_api_key_set(tmp_path: Path, monkeypatch) -> N
     _errors, warnings = _check_env_setup(tmp_path)
 
     assert not any("CRISAI_API_KEY" in w.message and "unprotected" in w.message for w in warnings)
+
+
+def test_doctor_warns_when_ms_token_cache_path_is_inside_workspace(tmp_path: Path, monkeypatch) -> None:
+    workspace = tmp_path / "workspace"
+    monkeypatch.setenv("CRISAI_WORKSPACE_DIR", str(workspace))
+    monkeypatch.setenv("MS_TOKEN_CACHE_PATH", str(workspace / ".auth" / "msal_token_cache.json"))
+    monkeypatch.delenv("MS_TOKEN_INFO_PATH", raising=False)
+
+    result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
+
+    assert any("MS_TOKEN_CACHE_PATH points inside the workspace" in warning.message for warning in result.warnings)
+
+
+def test_doctor_allows_ms_token_cache_path_outside_workspace(tmp_path: Path, monkeypatch) -> None:
+    workspace = tmp_path / "workspace"
+    monkeypatch.setenv("CRISAI_WORKSPACE_DIR", str(workspace))
+    monkeypatch.setenv("MS_TOKEN_CACHE_PATH", str(tmp_path / "auth" / "msal_token_cache.json"))
+    monkeypatch.delenv("MS_TOKEN_INFO_PATH", raising=False)
+
+    result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
+
+    assert not any("MS_TOKEN_CACHE_PATH points inside the workspace" in warning.message for warning in result.warnings)

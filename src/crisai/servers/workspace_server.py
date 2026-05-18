@@ -12,6 +12,7 @@ from crisai.logging_utils import append_json_log_line, configure_mcp_framework_l
 from crisai.orchestration.retrieval_association_graph import (
     deterministic_context_from_registry,
 )
+from crisai.workspace.safety import iter_visible_workspace_files, resolve_workspace_path
 from crisai.workspace.spaces import load_workspace_spaces
 
 mcp = FastMCP("crisai-workspace")
@@ -42,23 +43,7 @@ def log_event(message: str) -> None:
 
 
 def _safe_path(relative_path: str) -> Path:
-    raw = (relative_path or ".").strip()
-    spaces = load_workspace_spaces()
-
-    # normalise common model mistakes
-    if raw.startswith("/"):
-        raw = raw.lstrip("/")
-    raw = spaces.canonicalize_workspace_path(raw)
-
-    candidate = (ROOT / raw).resolve()
-    root = ROOT.resolve()
-
-    if candidate != root and root not in candidate.parents:
-        raise ValueError(
-            f"Path escapes the workspace root. root={root} requested={relative_path} resolved={candidate}"
-        )
-
-    return candidate
+    return resolve_workspace_path(ROOT, relative_path)
 
 
 def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
@@ -115,7 +100,7 @@ def list_workspace_files(subdir: str = ".") -> list[str]:
     base = _safe_path(subdir)
     if not base.exists():
         return []
-    return sorted(str(file_path.relative_to(ROOT)) for file_path in base.rglob("*") if file_path.is_file())
+    return sorted(str(file_path.relative_to(ROOT)) for file_path in iter_visible_workspace_files(base, ROOT))
 
 
 @mcp.tool()
@@ -184,9 +169,7 @@ def search_workspace_text(query: str, subdir: str = ".", max_hits: int = 20) -> 
         return []
     results: list[dict[str, str | int]] = []
     pattern = re.compile(re.escape(query), flags=re.IGNORECASE)
-    for file_path in base.rglob("*"):
-        if not file_path.is_file():
-            continue
+    for file_path in iter_visible_workspace_files(base, ROOT):
         try:
             lines = file_path.read_text(encoding="utf-8").splitlines()
         except UnicodeDecodeError:
@@ -207,9 +190,7 @@ def search_workspace_text(query: str, subdir: str = ".", max_hits: int = 20) -> 
             if len(seen_keys) > 6:
                 break
             token_pattern = re.compile(re.escape(token), flags=re.IGNORECASE)
-            for file_path in base.rglob("*"):
-                if not file_path.is_file():
-                    continue
+            for file_path in iter_visible_workspace_files(base, ROOT):
                 try:
                     lines = file_path.read_text(encoding="utf-8").splitlines()
                 except UnicodeDecodeError:

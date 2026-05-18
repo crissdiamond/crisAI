@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 
+import pytest
 from docx import Document
 from pptx import Presentation
 
@@ -138,3 +139,40 @@ def test_render_export_rejects_non_export_output_path(tmp_path, monkeypatch):
         assert "tasks/<task>/exports" in str(exc)
     else:
         raise AssertionError("expected output path validation failure")
+
+
+def test_inspect_document_template_manifest_blocks_sensitive_secret_folder(tmp_path, monkeypatch):
+    server, workspace = _load_server(tmp_path, monkeypatch)
+    manifest = workspace / ".secrets" / "template.yaml"
+    manifest.parent.mkdir()
+    manifest.write_text("template_id: secret\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="restricted"):
+        server.inspect_document_template_manifest(".secrets/template.yaml")
+
+
+def test_render_docx_blocks_sensitive_manifest_template_file(tmp_path, monkeypatch):
+    server, workspace = _load_server(tmp_path, monkeypatch)
+    source = workspace / "tasks/demo/artefacts/design.md"
+    manifest = workspace / "knowledge/templates/ucl/hld/ucl-hld-docx.template.yaml"
+    secret_template = workspace / ".auth" / "template.docx"
+    output = workspace / "tasks/demo/exports/design.docx"
+    source.parent.mkdir(parents=True)
+    manifest.parent.mkdir(parents=True)
+    secret_template.parent.mkdir()
+    source.write_text("## Context\nx\n", encoding="utf-8")
+    manifest.write_text(
+        "template_id: test\n"
+        "output_type: docx\n"
+        "template_file: ../../../../.auth/template.docx\n",
+        encoding="utf-8",
+    )
+    Document().save(str(secret_template))
+
+    with pytest.raises(ValueError, match="restricted"):
+        server.render_docx_from_markdown(
+            "tasks/demo/artefacts/design.md",
+            "knowledge/templates/ucl/hld/ucl-hld-docx.template.yaml",
+            "tasks/demo/exports/design.docx",
+        )
+    assert not output.exists()

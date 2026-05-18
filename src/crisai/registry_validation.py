@@ -31,6 +31,7 @@ _SESSION_MEMORY_ENV_VARS = {
     "CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS": "an integer >= 500",
     "CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE": "true or false",
 }
+_TOKEN_CACHE_PATH_ENV_VARS = ("MS_TOKEN_CACHE_PATH", "MS_TOKEN_INFO_PATH")
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -388,6 +389,26 @@ def _tracked_secret_like_paths(root_dir: Path) -> tuple[list[DoctorIssue], list[
     return errors, warnings
 
 
+def _configured_token_cache_path_warnings(root_dir: Path) -> list[DoctorIssue]:
+    """Warn when explicit token-cache paths are placed under the workspace."""
+    warnings: list[DoctorIssue] = []
+    workspace_dir = Path(os.getenv("CRISAI_WORKSPACE_DIR", str(root_dir / "workspace"))).expanduser().resolve()
+    for env_name in _TOKEN_CACHE_PATH_ENV_VARS:
+        raw = os.getenv(env_name, "").strip()
+        if not raw:
+            continue
+        path = Path(raw).expanduser().resolve()
+        if path == workspace_dir or workspace_dir in path.parents:
+            warnings.append(DoctorIssue(
+                message=f"{env_name} points inside the workspace: {path}",
+                hint=(
+                    "Move Microsoft token cache files outside `workspace/`, or rely on the "
+                    "agent/web sensitive-path deny policy until the cache path is relocated."
+                ),
+            ))
+    return warnings
+
+
 # ---------------------------------------------------------------------------
 # Model dry-build validation
 # ---------------------------------------------------------------------------
@@ -529,6 +550,7 @@ def run_doctor(root_dir: Path, registry_dir: Path, *, validate_models: bool = Fa
     hygiene_errors, hygiene_warnings = _tracked_secret_like_paths(root_dir)
     errors.extend(hygiene_errors)
     warnings.extend(hygiene_warnings)
+    warnings.extend(_configured_token_cache_path_warnings(root_dir))
 
     if validate_models:
         model_errors, model_warnings = _validate_model_dry_build(root_dir, registry_dir)

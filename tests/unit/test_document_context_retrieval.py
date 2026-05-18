@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -206,3 +207,94 @@ def test_inspect_powerpoint_document_returns_structured_slides(
     assert result["path"] == "knowledge/deck.pptx"
     assert result["slides"][0]["title"] == "Integration Strategy"
     assert "Strategic themes and target operating model" in result["slides"][0]["text"]
+
+
+def test_read_document_blocks_sensitive_secret_folder(document_server: ModuleType, tmp_path: Path) -> None:
+    secret = tmp_path / ".secrets" / "secret.md"
+    secret.parent.mkdir()
+    secret.write_text("private", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="restricted"):
+        document_server.read_document(".secrets/secret.md")
+
+
+def test_list_supported_documents_omits_sensitive_dirs(
+    document_server: ModuleType,
+    tmp_path: Path,
+) -> None:
+    public = tmp_path / "knowledge" / "standard.md"
+    public.parent.mkdir(parents=True)
+    public.write_text("# Standard\n", encoding="utf-8")
+    auth = tmp_path / ".auth" / "token.md"
+    auth.parent.mkdir()
+    auth.write_text("token", encoding="utf-8")
+    cache = tmp_path / ".cache" / "cached.md"
+    cache.parent.mkdir()
+    cache.write_text("cache", encoding="utf-8")
+
+    listed = document_server.list_supported_document_files(".")
+
+    assert listed == ["knowledge/standard.md"]
+
+
+def test_build_context_index_omits_sensitive_dirs(
+    document_server: ModuleType,
+    tmp_path: Path,
+) -> None:
+    public = tmp_path / "knowledge" / "standard.md"
+    public.parent.mkdir(parents=True)
+    public.write_text("public architecture guidance", encoding="utf-8")
+    auth = tmp_path / ".auth" / "token.md"
+    auth.parent.mkdir()
+    auth.write_text("secret architecture guidance", encoding="utf-8")
+
+    summary = document_server.build_context_index(context_subdir=".")
+
+    assert summary["documents_indexed"] == 1
+    assert summary["folder_counts"] == {"knowledge": 1}
+
+
+def test_search_context_chunks_filters_stale_sensitive_index_entries(
+    document_server: ModuleType,
+    tmp_path: Path,
+) -> None:
+    index_path = tmp_path / ".crisai" / "context_index.json"
+    index_path.parent.mkdir()
+    normal_text = "needle public architecture guidance"
+    secret_text = "needle secret token guidance"
+    index_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "created_at": "2026-05-18T00:00:00",
+                "context_subdir": ".",
+                "documents": ["knowledge/public.md", ".auth/token.md"],
+                "folder_counts": {"knowledge": 1, ".auth": 1},
+                "chunks": [
+                    {
+                        "chunk_id": "chunk-public",
+                        "path": "knowledge/public.md",
+                        "folder": "knowledge",
+                        "authority_weight": 1.0,
+                        "chunk_index": 1,
+                        "text": normal_text,
+                        "vector": document_server._vectorise(normal_text),
+                    },
+                    {
+                        "chunk_id": "chunk-secret",
+                        "path": ".auth/token.md",
+                        "folder": ".auth",
+                        "authority_weight": 1.0,
+                        "chunk_index": 1,
+                        "text": secret_text,
+                        "vector": document_server._vectorise(secret_text),
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    results = document_server.search_context_chunks("needle guidance", rebuild=False, context_subdir=".")
+
+    assert [result["path"] for result in results] == ["knowledge/public.md"]

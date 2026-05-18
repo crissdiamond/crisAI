@@ -168,3 +168,80 @@ def test_workspace_write_policy_blocks_oversized_content(tmp_path, monkeypatch) 
 
     with pytest.raises(ValueError, match="exceeds maximum size"):
         workspace_server.write_workspace_file("outputs/large.md", "x" * 2048)
+
+
+def test_workspace_read_blocks_sensitive_auth_folder(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    (fake_workspace / ".auth").mkdir(parents=True)
+    (fake_workspace / ".auth" / "msal_token_cache.json").write_text("secret", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    with pytest.raises(ValueError, match="restricted"):
+        workspace_server.read_workspace_file(".auth/msal_token_cache.json")
+
+
+def test_workspace_listing_omits_sensitive_dirs_and_allows_prefix_neighbors(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    (fake_workspace / "knowledge").mkdir(parents=True)
+    (fake_workspace / "knowledge" / "standard.md").write_text("# Standard\n", encoding="utf-8")
+    (fake_workspace / ".auth").mkdir()
+    (fake_workspace / ".auth" / "msal_token_cache.json").write_text("secret", encoding="utf-8")
+    (fake_workspace / ".cache").mkdir()
+    (fake_workspace / ".cache" / "runtime.json").write_text("cache", encoding="utf-8")
+    (fake_workspace / "knowledge" / ".authentic").mkdir()
+    (fake_workspace / "knowledge" / ".authentic" / "readme.md").write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    listed = workspace_server.list_workspace_files(".")
+
+    assert "knowledge/standard.md" in listed
+    assert "knowledge/.authentic/readme.md" in listed
+    assert ".auth/msal_token_cache.json" not in listed
+    assert ".cache/runtime.json" not in listed
+
+
+def test_workspace_search_omits_sensitive_dirs(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    (fake_workspace / "knowledge").mkdir(parents=True)
+    (fake_workspace / "knowledge" / "public.txt").write_text("needle public\n", encoding="utf-8")
+    (fake_workspace / ".tokens").mkdir()
+    (fake_workspace / ".tokens" / "secret.txt").write_text("needle secret\n", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    hits = workspace_server.search_workspace_text("needle", max_hits=10)
+
+    assert [hit["path"] for hit in hits] == ["knowledge/public.txt"]
+
+
+def test_workspace_read_blocks_normalized_sensitive_path(tmp_path, monkeypatch) -> None:
+    fake_workspace = tmp_path / "ws"
+    (fake_workspace / ".auth").mkdir(parents=True)
+    (fake_workspace / ".auth" / "token.json").write_text("secret", encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["crisai-test-workspace", str(fake_workspace)])
+    for name in list(sys.modules):
+        if name == "crisai.servers.workspace_server" or name.startswith("crisai.servers.workspace_server."):
+            del sys.modules[name]
+
+    import crisai.servers.workspace_server as workspace_server
+
+    with pytest.raises(ValueError, match="restricted"):
+        workspace_server.read_workspace_file("knowledge/../.auth/token.json")

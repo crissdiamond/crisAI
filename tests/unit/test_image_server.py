@@ -124,3 +124,33 @@ def test_describe_powerpoint_slide_images_rejects_non_pptx(tmp_path, monkeypatch
 
     with pytest.raises(ValueError, match="Expected a .pptx file"):
         mod.describe_powerpoint_slide_images("report.pdf")
+
+
+def test_describe_image_blocks_sensitive_auth_folder_before_model_call(tmp_path, monkeypatch):
+    mod = _load_image_server(tmp_path, monkeypatch)
+    path = tmp_path / ".auth" / "secret.png"
+    path.parent.mkdir()
+    path.write_bytes(_MINIMAL_PNG)
+    monkeypatch.setattr(
+        mod,
+        "_describe_image_blob",
+        lambda blob, ct, p: pytest.fail("vision model should not be called"),
+    )
+
+    with pytest.raises(ValueError, match="restricted"):
+        mod.describe_image(".auth/secret.png")
+
+
+def test_describe_powerpoint_slide_images_blocks_sensitive_tokens_folder(tmp_path, monkeypatch):
+    mod = _load_image_server(tmp_path, monkeypatch)
+    path = tmp_path / ".tokens" / "deck.pptx"
+    path.parent.mkdir()
+    path.write_bytes(_pptx_bytes_with_images([1]))
+    monkeypatch.setattr(
+        mod,
+        "_describe_image_blob",
+        lambda blob, ct, p: pytest.fail("vision model should not be called"),
+    )
+
+    with pytest.raises(ValueError, match="restricted"):
+        mod.describe_powerpoint_slide_images(".tokens/deck.pptx")

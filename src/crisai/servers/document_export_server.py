@@ -13,7 +13,10 @@ from pptx import Presentation
 
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
-from crisai.workspace.spaces import load_workspace_spaces
+from crisai.workspace.safety import (
+    assert_workspace_path_visible,
+    resolve_workspace_path,
+)
 
 mcp = FastMCP("crisai-document-export")
 
@@ -43,19 +46,7 @@ def log_event(message: str) -> None:
 
 
 def _safe_path(relative_path: str) -> Path:
-    raw = (relative_path or ".").strip()
-    spaces = load_workspace_spaces()
-    if raw.startswith("/"):
-        raw = raw.lstrip("/")
-    raw = spaces.canonicalize_workspace_path(raw)
-
-    candidate = (ROOT / raw).resolve()
-    root = ROOT.resolve()
-    if candidate != root and root not in candidate.parents:
-        raise ValueError(
-            f"Path escapes the workspace root. root={root} requested={relative_path} resolved={candidate}"
-        )
-    return candidate
+    return resolve_workspace_path(ROOT, relative_path)
 
 
 def _relative(path: Path) -> str:
@@ -158,6 +149,7 @@ def _resolve_docx_template(manifest_path: Path, manifest: dict[str, Any]) -> Pat
     root = ROOT.resolve()
     if template_path != root and root not in template_path.parents:
         raise ValueError("Template file escapes workspace root.")
+    assert_workspace_path_visible(template_path, root)
     if not template_path.exists():
         return None
     if template_path.suffix.lower() != ".docx":

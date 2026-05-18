@@ -738,6 +738,13 @@ workspace/tasks/<task>/exports/       generated native exports from reviewed Mar
 workspace/outputs/                    generic tool outputs
 ```
 
+Workspace file access blocks local runtime-sensitive paths from agent MCP tools
+and web browsing/editing, including `.auth/`, `.tokens/`, `.secrets/`,
+`.cache/`, `.crisai/`, `chat_sessions/`, and `logs/`. These names are reserved
+for local auth, cache, session, and log state rather than business content.
+`uv run crisai doctor` warns when explicit Microsoft token-cache environment
+paths are configured inside the workspace.
+
 `registry/workspace_spaces.yaml` owns the canonical root names, named knowledge corpora, writable roots, task subdirectories, promotion roots, and enterprise-architecture vocabulary. Keep semantics there rather than hard-coding new workspace categories in Python.
 
 Knowledge corpora are declared with an id, label, root, role, access mode,

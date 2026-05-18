@@ -21,7 +21,11 @@ from pypdf import PdfReader
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
 from crisai.powerpoint import extract_powerpoint_from_path
-from crisai.workspace.spaces import load_workspace_spaces
+from crisai.workspace.safety import (
+    is_sensitive_workspace_path,
+    iter_visible_workspace_files,
+    resolve_workspace_path,
+)
 
 mcp = FastMCP("crisai-document-reader")
 
@@ -110,22 +114,7 @@ log_event(f"server_started root={ROOT}")
 
 
 def _safe_path(relative_path: str) -> Path:
-    raw = (relative_path or ".").strip()
-    spaces = load_workspace_spaces()
-
-    if raw.startswith("/"):
-        raw = raw.lstrip("/")
-    raw = spaces.canonicalize_workspace_path(raw)
-
-    candidate = (ROOT / raw).resolve()
-    root = ROOT.resolve()
-
-    if candidate != root and root not in candidate.parents:
-        raise ValueError(
-            f"Path escapes the workspace root. root={root} requested={relative_path} resolved={candidate}"
-        )
-
-    return candidate
+    return resolve_workspace_path(ROOT, relative_path)
 
 
 def _detect_text_encoding(data: bytes) -> str:
@@ -332,11 +321,11 @@ def _iter_supported_files(base: Path) -> list[Path]:
         return []
 
     return sorted(
-        file_path
-        for file_path in base.rglob("*")
-        if file_path.is_file()
-        and file_path.suffix.lower() in SUPPORTED_DOCUMENT_SUFFIXES
-        and ".crisai" not in file_path.parts
+        iter_visible_workspace_files(
+            base,
+            ROOT,
+            predicate=lambda file_path: file_path.suffix.lower() in SUPPORTED_DOCUMENT_SUFFIXES,
+        )
     )
 
 
@@ -528,6 +517,9 @@ def search_context_chunks(
     ranked: list[dict[str, Any]] = []
 
     for chunk in index.get("chunks", []):
+        chunk_path = str(chunk.get("path") or "")
+        if chunk_path and is_sensitive_workspace_path(ROOT / chunk_path, ROOT):
+            continue
         vector_score = _cosine_similarity(query_vector, chunk.get("vector", {}))
         if vector_score <= 0:
             continue

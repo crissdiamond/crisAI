@@ -458,6 +458,22 @@ def test_workspace_tree_lists_knowledge_files(tmp_path, monkeypatch):
     assert payload["files"][0]["editable"] is True
 
 
+def test_workspace_tree_omits_sensitive_cache_dirs(tmp_path, monkeypatch):
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    knowledge = workspace / "knowledge"
+    knowledge.mkdir(parents=True)
+    (knowledge / "standard.md").write_text("# Standard\n", encoding="utf-8")
+    (knowledge / ".cache").mkdir()
+    (knowledge / ".cache" / "secret.md").write_text("secret", encoding="utf-8")
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+
+    payload = workspace_tree("knowledge")
+
+    assert [item["path"] for item in payload["files"]] == ["knowledge/standard.md"]
+
+
 def test_workspace_file_read_and_save_markdown(tmp_path, monkeypatch):
     from crisai.apps import web as web_mod
 
@@ -489,3 +505,33 @@ def test_workspace_file_rejects_path_traversal(tmp_path, monkeypatch):
         workspace_file("../outside.md")
 
     assert exc_info.value.status_code == 400
+
+
+def test_workspace_file_rejects_sensitive_auth_path(tmp_path, monkeypatch):
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    auth_file = workspace / ".auth" / "msal_token_info.json"
+    auth_file.parent.mkdir(parents=True)
+    auth_file.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+
+    with pytest.raises(HTTPException) as exc_info:
+        workspace_file(".auth/msal_token_info.json")
+
+    assert exc_info.value.status_code == 403
+
+
+def test_workspace_file_rejects_normalized_sensitive_auth_path(tmp_path, monkeypatch):
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    auth_file = workspace / ".auth" / "msal_token_info.json"
+    auth_file.parent.mkdir(parents=True)
+    auth_file.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})())
+
+    with pytest.raises(HTTPException) as exc_info:
+        workspace_file("knowledge/../.auth/msal_token_info.json")
+
+    assert exc_info.value.status_code == 403
