@@ -21,7 +21,18 @@ MODE="${1:-gem}"
 
 has_hcom_assignments() {
   local assignments="reference/development/session_assignments.local.yaml"
-  [[ -f "$assignments" ]] && grep -q '^[[:space:]]\+role:' "$assignments"
+  [[ -f "$assignments" ]] || return 1
+  local role
+  for role in \
+    orchestrator_codex \
+    gem_codex \
+    gem_claude \
+    web_codex \
+    web_claude \
+    runtime_codex \
+    runtime_claude; do
+    grep -q "^[[:space:]]\\+role: $role$" "$assignments" || return 1
+  done
 }
 
 case "$MODE" in

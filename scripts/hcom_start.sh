@@ -17,6 +17,7 @@ fi
 TEAM_TMUX_SESSION="${HCOM_TEAM_TMUX_SESSION:-crisai-hcom}"
 EXTRA_ARGS=()
 LAUNCHED_NAMES=()
+EXISTING_NAMES=()
 declare -A PREVIOUS_HCOM_NAMES=()
 declare -A PREVIOUS_PROVIDER_SESSION_IDS=()
 
@@ -149,7 +150,7 @@ default_team_terminal() {
     return 0
   fi
   if command -v tmux >/dev/null 2>&1; then
-    printf '%s/scripts/hcom_tmux_terminal.sh %s {role_label} {script}\n' "$ROOT_DIR" "$TEAM_TMUX_SESSION"
+    printf '__crisai_tmux_direct__\n'
     return 0
   fi
   if [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v wt.exe >/dev/null 2>&1; then
@@ -186,7 +187,8 @@ name_from_hcom_list() {
   local provider="$2"
   local attempt
   local assigned_csv
-  assigned_csv="$(IFS=,; printf '%s' "${LAUNCHED_NAMES[*]-}")"
+  local assigned_names=("${EXISTING_NAMES[@]}" "${LAUNCHED_NAMES[@]}")
+  assigned_csv="$(IFS=,; printf '%s' "${assigned_names[*]-}")"
 
   for attempt in {1..30}; do
     local name
@@ -229,10 +231,33 @@ if matches:
   done
 }
 
+snapshot_existing_names() {
+  [[ "$DRY_RUN" -eq 0 ]] || return 0
+  local json
+  if ! json="$(hcom list --json 2>/dev/null)"; then
+    return 0
+  fi
+  mapfile -t EXISTING_NAMES < <(printf '%s\n' "$json" | python -c '
+import json
+import sys
+
+try:
+    agents = json.load(sys.stdin)
+except json.JSONDecodeError:
+    agents = []
+
+for agent in agents:
+    status = str(agent.get("status", "")).lower()
+    name = agent.get("name", "")
+    if name and status not in {"inactive", "unknown"}:
+        print(name)
+')
+}
+
 provider_session_id_for_name() {
   local hcom_name="$1"
   local attempt json session_id
-  for attempt in {1..30}; do
+  for attempt in {1..5}; do
     if ! json="$(hcom list --json 2>/dev/null)"; then
       sleep 1
       continue
@@ -309,7 +334,7 @@ launch_agent() {
   fi
   if [[ "$HEADLESS" -eq 1 ]]; then
     cmd+=(--headless)
-  elif [[ -n "$TEAM_TERMINAL" ]]; then
+  elif [[ -n "$TEAM_TERMINAL" && "$TEAM_TERMINAL" != "__crisai_tmux_direct__" ]]; then
     cmd+=(--terminal "$(terminal_for_role "$role")")
   fi
   local tool_arg
@@ -329,11 +354,17 @@ launch_agent() {
     return 0
   fi
 
-  local output
-  output="$("${cmd[@]}" 2>&1)"
-  printf '%s\n' "$output" >&2
-  local name
-  name="$(printf '%s\n' "$output" | extract_names | head -n 1)"
+  local name output pane_id
+  printf 'Starting %s (%s)...\n' "$role" "$provider" >&2
+  if [[ "$TEAM_TERMINAL" == "__crisai_tmux_direct__" && "$HEADLESS" -eq 0 ]]; then
+    cmd+=(--run-here)
+    pane_id="$("$ROOT_DIR/scripts/hcom_tmux_command.sh" "$TEAM_TMUX_SESSION" "$(role_terminal_label "$role")" "${cmd[@]}")"
+    name="$(name_from_hcom_list "$tag" "$provider" | head -n 1)"
+  else
+    output="$("${cmd[@]}" 2>&1)"
+    printf '%s\n' "$output" >&2
+    name="$(printf '%s\n' "$output" | extract_names | head -n 1)"
+  fi
   if [[ -z "$name" && -n "$resume_target" && "$resume_target" == "${PREVIOUS_HCOM_NAMES[$role]:-}" ]]; then
     name="$resume_target"
   fi
@@ -344,6 +375,10 @@ launch_agent() {
     echo "Could not parse hcom launched name for role $role." >&2
     exit 1
   fi
+  if [[ -n "${pane_id:-}" ]]; then
+    tmux rename-window -t "$pane_id" "$(role_terminal_label "$role")($name)" >/dev/null 2>&1 || true
+  fi
+  printf 'Started %s as %s.\n' "$role" "$name" >&2
   printf '%s\n' "$name"
 }
 
@@ -354,8 +389,12 @@ write_assignment() {
   local provider="$4"
   local tag="$5"
   local provider_session_id
-  provider_session_id="${PREVIOUS_PROVIDER_SESSION_IDS[$role]:-}"
-  if [[ -z "$provider_session_id" && "$DRY_RUN" -eq 0 ]]; then
+  if [[ "$RESUME" -eq 1 ]]; then
+    provider_session_id="${PREVIOUS_PROVIDER_SESSION_IDS[$role]:-}"
+  else
+    provider_session_id=""
+  fi
+  if [[ -z "$provider_session_id" && "$provider" == "codex" && "$DRY_RUN" -eq 0 ]]; then
     provider_session_id="$(provider_session_id_for_name "$name")"
   fi
 
@@ -390,13 +429,11 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   hcom config name_export HCOM_NAME >/dev/null
   hcom config auto_subscribe collision,created,blocked >/dev/null
   hcom config auto_approve true >/dev/null
+  snapshot_existing_names
 fi
 
-ASSIGNMENTS_WRITE_PATH="$ASSIGNMENTS"
-if [[ "$DRY_RUN" -eq 1 ]]; then
-  ASSIGNMENTS_WRITE_PATH="$(mktemp)"
-  trap 'rm -f "$ASSIGNMENTS_WRITE_PATH"' EXIT
-fi
+ASSIGNMENTS_WRITE_PATH="$(mktemp)"
+trap 'rm -f "$ASSIGNMENTS_WRITE_PATH"' EXIT
 
 mkdir -p "$(dirname "$ASSIGNMENTS_WRITE_PATH")"
 cat >"$ASSIGNMENTS_WRITE_PATH" <<EOF
@@ -437,6 +474,9 @@ LAUNCHED_NAMES+=("$name")
 write_assignment "$name" runtime_claude runtime claude crisai-runtime
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
+  mkdir -p "$(dirname "$ASSIGNMENTS")"
+  mv "$ASSIGNMENTS_WRITE_PATH" "$ASSIGNMENTS"
+  trap - EXIT
   echo "hcom team assignment written to $ASSIGNMENTS"
   hcom list
 else
