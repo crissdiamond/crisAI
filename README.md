@@ -106,7 +106,7 @@ src/crisai/   CLI, web app/API, orchestration, MCP servers, runtime, schemas, an
 tests/        Network-free unit, CLI, and orchestration regression tests
 workspace/    Knowledge base, task workspaces, staged knowledge, outputs, sessions, and caches
 runbooks/     Operational setup, security, registry, policy, and observability notes
-ui/           Future React web and Ink Gem clients plus shared TypeScript UI contracts
+ui/           React web and Ink Gem clients plus shared TypeScript UI contracts
 ```
 
 ## Requirements
@@ -126,7 +126,7 @@ Install uv first if needed:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Then let the bootstrap script handle the project environment:
+Then clone the repository and run the project bootstrap:
 
 ```bash
 git clone https://github.com/crissdiamond/crisAI
@@ -139,15 +139,17 @@ environment manually. The bootstrap script installs the runtime, installs UI
 dependencies when `npm` is available, creates `.env` from `.env.example` when
 missing, and creates the standard workspace folders.
 
-For troubleshooting, the manual equivalent is:
+For troubleshooting or restricted environments, the manual equivalent is:
 
 ```bash
 uv sync --extra litellm
-npm --prefix ui install
-cp .env.example .env
+npm --prefix ui install   # required for React web and Ink Gem clients
+cp .env.example .env      # only when .env does not already exist
 ```
 
-Then set the keys used by the default `registry/agents.yaml`:
+## Configure
+
+Edit `.env` and set the keys used by the default `registry/agents.yaml`:
 
 ```dotenv
 OPENAI_API_KEY=your_openai_api_key
@@ -168,7 +170,16 @@ with one provider, copy one of the mono-provider examples over
 cp registry/examples/agents.openai.yaml registry/agents.yaml
 ```
 
-For local development, tests, linting, and type checks:
+Run doctor after editing `.env` or registry files:
+
+```bash
+uv run crisai doctor
+```
+
+If doctor reports that `.env` is missing keys from `.env.example`, add the
+missing placeholders without overwriting real secrets.
+
+For local development, tests, linting, and type checks, install the dev group:
 
 ```bash
 uv sync --extra litellm --group dev
@@ -190,16 +201,9 @@ uv run crisai doctor
 ```
 
 `./start gem` and `./start web` expect the API process to already be running in
-another terminal. If `uv run crisai doctor` reports that `.env` is missing keys
-from `.env.example`, refresh the placeholders without overwriting real secrets.
-
-For the Ink Gem and React web clients, the UI workspace dependencies must be
-installed once. `scripts/bootstrap.sh` already does this when `npm` is
-available; otherwise run:
-
-```bash
-npm --prefix ui install
-```
+another terminal. Both clients require UI workspace dependencies; bootstrap
+installs them automatically when `npm` is available. If bootstrap skipped that
+step, run `npm --prefix ui install` once before starting a client.
 
 If the FastAPI runtime is protected with a static bearer token, set
 `CRISAI_API_KEY` in `.env`. The `./start web` launcher maps it to
