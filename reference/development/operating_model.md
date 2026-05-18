@@ -63,7 +63,7 @@ without stopping the team with `Ctrl-b` then `d`.
 Tool auto-approval is enabled by default for launched agents so routine
 development work does not block on repeated provider permission prompts. The
 launcher uses non-bypass modes: Codex receives `--ask-for-approval never
---sandbox workspace-write`, and Claude receives `--permission-mode dontAsk`.
+--sandbox workspace-write`, and Claude receives `--permission-mode auto`.
 Use `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
 tool approval is required.
 

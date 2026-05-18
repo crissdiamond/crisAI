@@ -281,7 +281,7 @@ tool_auto_approval_args() {
       printf '%s\n' --ask-for-approval never --sandbox workspace-write
       ;;
     claude)
-      printf '%s\n' --permission-mode dontAsk
+      printf '%s\n' --permission-mode auto
       ;;
   esac
 }
