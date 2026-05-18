@@ -216,7 +216,8 @@ The hcom/Codex/Claude process used to develop this repository is documented
 separately from this operator manual to avoid confusing it with crisAI's runtime
 multi-agent workflows. See
 `reference/development/README.md` for development-team setup and operating
-rules.
+rules. When developing this repository locally, `./start hcom` resumes the
+saved hcom team and `./start hcom-attach` attaches to the managed tmux session.
 
 ---
 

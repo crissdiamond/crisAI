@@ -32,6 +32,14 @@ case "$MODE" in
     # Ink terminal client. Start the API server first: ./start api
     exec uv run python -m crisai.cli.main gem-ink
     ;;
+  hcom)
+    # Resume the hcom development team.
+    exec scripts/hcom_start.sh --resume
+    ;;
+  hcom-attach)
+    # Attach to the running hcom tmux session.
+    exec scripts/hcom_attach.sh
+    ;;
   *)
     echo "Usage: ./start <command>"
     echo ""
@@ -39,6 +47,8 @@ case "$MODE" in
     echo "  web           React web client (requires api)"
     echo "  gem           Ink terminal client (requires api)"
     echo "  cli           Alias for gem"
+    echo "  hcom          Resume the hcom development team"
+    echo "  hcom-attach   Attach to the hcom tmux session"
     exit 2
     ;;
 esac

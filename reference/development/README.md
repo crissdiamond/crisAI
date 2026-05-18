@@ -157,8 +157,12 @@ windows.
 Continue the same team context:
 
 ```bash
-scripts/hcom_start.sh --resume
+./start hcom
 ```
+
+`./start hcom` is a convenience wrapper for `scripts/hcom_start.sh --resume`.
+Use `scripts/hcom_start.sh` directly when you want a fresh team launch or
+advanced flags such as `--dry-run`, `--headless`, or `--no-tool-auto-approve`.
 
 Show hcom state and local role assignments:
 

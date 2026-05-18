@@ -50,7 +50,8 @@ dev group. The manual Graph login smoke test remains `uv run python
 tests/orchestration/test_graph_login.py`.
 
 For hcom-based multi-agent development, run `scripts/hcom_start.sh --dry-run`
-first, then `scripts/hcom_start.sh` when ready. See
+first, then `./start hcom` when ready. `./start hcom` resumes saved hcom
+sessions by running `scripts/hcom_start.sh --resume`. See
 `reference/development/operating_model.md`.
 
 The hcom development team uses a dedicated `tmux` session by default. Attach to
@@ -61,6 +62,12 @@ scripts/hcom_attach.sh
 ```
 
 Or attach directly with:
+
+```bash
+./start hcom-attach
+```
+
+or:
 
 ```bash
 tmux attach -t crisai-hcom
