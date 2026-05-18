@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import io
 import os
+import sys
 from collections.abc import Callable
 from contextlib import redirect_stderr, redirect_stdout
 from contextvars import ContextVar, Token
+from importlib.metadata import PackageNotFoundError, version
 
 from agents import Runner
 
@@ -96,8 +98,45 @@ def _stream_event_delta(event: object) -> str:
     return delta if isinstance(delta, str) else ""
 
 
+def _parse_version(value: str) -> tuple[int, int, int]:
+    """Return the first three numeric version parts from a package version."""
+    parts: list[int] = []
+    for raw_part in value.split("."):
+        digits = ""
+        for char in raw_part:
+            if not char.isdigit():
+                break
+            digits += char
+        if digits == "":
+            break
+        parts.append(int(digits))
+        if len(parts) == 3:
+            break
+    while len(parts) < 3:
+        parts.append(0)
+    return parts[0], parts[1], parts[2]
+
+
+def _openai_streaming_construct_type_incompatible() -> bool:
+    """Return whether OpenAI streaming response parsing is known to fail."""
+    if sys.version_info < (3, 14):
+        return False
+    try:
+        openai_version = version("openai")
+    except PackageNotFoundError:
+        return False
+    return _parse_version(openai_version) <= (1, 109, 1)
+
+
 async def _run_agent_streamed_silently(agent_id: str, agent, prompt: str, callback: StageStreamCallback) -> str:
     """Run an agent with token deltas forwarded to a UI callback."""
+    if _openai_streaming_construct_type_incompatible():
+        logger.warning(
+            "OpenAI streamed response parsing is incompatible with this Python/OpenAI SDK combination; "
+            "falling back to non-streamed agent execution."
+        )
+        return await _run_agent_silently(agent, prompt)
+
     result = None
     try:
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
