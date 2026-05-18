@@ -19,6 +19,11 @@ fi
 
 MODE="${1:-gem}"
 
+has_hcom_assignments() {
+  local assignments="reference/development/session_assignments.local.yaml"
+  [[ -f "$assignments" ]] && grep -q '^[[:space:]]\+role:' "$assignments"
+}
+
 case "$MODE" in
   api)
     # FastAPI backend — required before starting web or gem.
@@ -33,8 +38,13 @@ case "$MODE" in
     exec uv run python -m crisai.cli.main gem-ink
     ;;
   hcom)
-    # Resume the hcom development team.
-    exec scripts/hcom_start.sh --resume
+    # Start or resume the hcom development team, then attach to tmux.
+    if has_hcom_assignments; then
+      scripts/hcom_start.sh --resume
+    else
+      scripts/hcom_start.sh
+    fi
+    exec scripts/hcom_attach.sh
     ;;
   hcom-attach)
     # Attach to the running hcom tmux session.
@@ -47,7 +57,7 @@ case "$MODE" in
     echo "  web           React web client (requires api)"
     echo "  gem           Ink terminal client (requires api)"
     echo "  cli           Alias for gem"
-    echo "  hcom          Resume the hcom development team"
+    echo "  hcom          Start or resume the hcom development team and attach"
     echo "  hcom-attach   Attach to the hcom tmux session"
     exit 2
     ;;

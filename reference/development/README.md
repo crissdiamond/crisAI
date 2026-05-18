@@ -154,15 +154,16 @@ secondary prefix if needed. The tmux status bar uses cyan labels for Codex
 windows, purple labels for Claude windows, and green for the orchestrator/other
 windows.
 
-Continue the same team context:
+Start or continue the team context:
 
 ```bash
 ./start hcom
 ```
 
-`./start hcom` is a convenience wrapper for `scripts/hcom_start.sh --resume`.
-Use `scripts/hcom_start.sh` directly when you want a fresh team launch or
-advanced flags such as `--dry-run`, `--headless`, or `--no-tool-auto-approve`.
+`./start hcom` resumes saved hcom sessions when local assignments exist,
+otherwise it starts a fresh team, then attaches to the managed tmux session. Use
+`scripts/hcom_start.sh` directly when you want advanced flags such as
+`--dry-run`, `--headless`, or `--no-tool-auto-approve`.
 
 Show hcom state and local role assignments:
 
