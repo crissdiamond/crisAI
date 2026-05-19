@@ -713,6 +713,13 @@ async def run_single(
                 if agent_id == "retrieval_planner"
                 else message
             )
+            append_trace_entry(
+                environment,
+                f"{agent_id.upper()} OUTPUT_START",
+                f"Starting stage for {agent_id}.",
+                event_type="stage_start",
+                agent_id=agent_id,
+            )
             result = await _run_agent_silently(agent, prompt)
             if session_name and agent_id == "retrieval_planner":
                 persist_session_source_candidates_from_output(session_name, result)
@@ -722,6 +729,13 @@ async def run_single(
                 result,
                 run_id=_get_run_id(environment),
                 event_type="workflow_output",
+                agent_id=agent_id,
+            )
+            append_trace_entry(
+                environment,
+                f"{agent_id.upper()} OUTPUT_END",
+                f"Completed stage for {agent_id}.",
+                event_type="stage_end",
                 agent_id=agent_id,
             )
             try:

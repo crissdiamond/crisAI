@@ -183,7 +183,10 @@ The web server exposes the v1 shared UI runtime API:
 
 The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
 task-contract transparency, streamed stage deltas, stage progress, retrieval
-checkpoints, final answers, and failures.
+checkpoints, final answers, and failures. Stage events use stable snake_case
+stage keys and separate human labels in `expected_stages` and event metadata.
+Routing decisions, task contracts, and checkpoint events keep structured
+metadata for verbose/debug views, but they are not normal stage rail items.
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show
@@ -476,7 +479,7 @@ For source-summary requests, the pipeline uses a shorter path after validated
 `content_read` evidence:
 
 ```text
-task_contract -> retrieval_planner -> context_retrieval -> retrieval_checkpoint -> summary
+task_contract -> retrieval_planner -> context_retrieval -> retrieval_checkpoint -> context_synthesizer skipped -> summary -> orchestrator skipped
 ```
 
 The skipped context/final stages are traced as skipped events; the summary agent

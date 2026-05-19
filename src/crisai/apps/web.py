@@ -112,6 +112,20 @@ _UPLOAD_SUFFIXES = frozenset({
     ".yaml",
     ".yml",
 })
+_STAGE_LABELS = {
+    "retrieval_planner": "Retrieval planner",
+    "context_retrieval": "Context retrieval",
+    "context_synthesizer": "Context synthesizer",
+    "summary": "Summary",
+    "design": "Design",
+    "review": "Review",
+    "orchestrator": "Final orchestration",
+    "design_author": "Design author",
+    "design_challenger": "Design challenger",
+    "design_refiner": "Design refiner",
+    "judge": "Judge",
+    "final_output": "Final output",
+}
 
 @app.middleware("http")
 async def _auth_middleware(request: Request, call_next: Any) -> Any:
@@ -260,14 +274,19 @@ def _append_stage_delta_event(job_id: str, agent_id: str, delta: str) -> None:
             run_id=job_id,
             session=_job_session(job),
             status=str(job.get("status") or "running"),
-            title=f"{agent_id.replace('_', ' ').title()} streaming",
+            title=f"{_stage_label(agent_id)} streaming",
             summary=summary[:240],
             content=content,
             verbose_content=content,
             mode=_job_mode(job),
             agent_id=agent_id,
-            stage="stream",
-            metadata={"partial": True, "content_length": len(content)},
+            stage=agent_id,
+            metadata={
+                "partial": True,
+                "content_length": len(content),
+                "stage_key": agent_id,
+                "stage_label": _stage_label(agent_id),
+            },
         ),
     )
 
@@ -312,6 +331,19 @@ def _agent_model_metadata(agent_id: str | None) -> dict[str, Any]:
     return {key: value for key, value in metadata.items() if value}
 
 
+def _stage_label(stage_key: str | None) -> str:
+    """Return the human label for a stable snake_case stage key."""
+    key = str(stage_key or "").strip()
+    if not key:
+        return "System"
+    return _STAGE_LABELS.get(key, key.replace("_", " ").capitalize())
+
+
+def _stage_tab(stage_key: str) -> dict[str, str]:
+    """Return one expected-stage entry for the shared UI contract."""
+    return {"key": stage_key, "label": _stage_label(stage_key)}
+
+
 def _trace_entry_event_key(entry: dict[str, Any]) -> str:
     """Return a stable key for de-duplicating trace-backed UI events."""
     return "|".join(
@@ -341,6 +373,12 @@ def _ui_event_from_stage_entry(
         "stage_error": "stage_failed",
     }.get(source_event, "stage_output"))
     agent_id = str(stage_entry.get("agent_id") or "system")
+    stage_key = _extract_stage_key(
+        {
+            "agent_id": str(stage_entry.get("agent_id") or ""),
+            "stage": str(stage_entry.get("stage", "")),
+        }
+    )
     content = str(stage_entry.get("full_content") or stage_entry.get("content") or "")
     summary = str(stage_entry.get("summary") or "").strip()
     if not summary:
@@ -351,14 +389,20 @@ def _ui_event_from_stage_entry(
         run_id=job_id,
         session=_job_session(job),
         status=str(job.get("status") or "running"),
-        title=agent_id.replace("_", " ").title(),
+        title=_stage_label(stage_key),
         summary=summary,
         content=content,
         verbose_content=verbose_content,
         mode=_job_mode(job),
-        agent_id=agent_id,
-        stage=str(stage_entry.get("stage") or ""),
-        metadata={"source_event_type": source_event},
+        agent_id=stage_key,
+        stage=stage_key,
+        metadata={
+            "source_event_type": source_event,
+            "trace_agent_id": agent_id,
+            "trace_stage": str(stage_entry.get("stage") or ""),
+            "stage_key": stage_key,
+            "stage_label": _stage_label(stage_key),
+        },
     )
     return event.to_dict()
 
@@ -563,9 +607,8 @@ def _make_web_checkpoint_handler(job_id: str):
                 title="Retrieval checkpoint",
                 summary="Retrieval evidence is ready for confirmation.",
                 content=snapshot.evidence_brief,
+                verbose_content=snapshot.retrieval_prose,
                 mode=_job_mode(job),
-                agent_id="retrieval_checkpoint",
-                stage="retrieval_checkpoint",
                 metadata=snapshot.to_dict(),
             ),
         )
@@ -794,30 +837,30 @@ def _expected_flow_tabs(
 
     tabs: list[dict[str, str]] = []
     if mode == "pipeline":
-        tabs.append({"key": "retrieval_planner", "label": "retrieval_planner"})
-        tabs.append({"key": "context_retrieval", "label": "context_retrieval"})
-        tabs.append({"key": "context_synthesizer", "label": "context_synthesizer"})
-        tabs.append({"key": "summary", "label": "summary"} if summary_pipeline else {"key": "design", "label": "design"})
-        if needs_review:
-            tabs.append({"key": "review", "label": "review"})
-        tabs.append({"key": "orchestrator", "label": "orchestrator"})
+        tabs.append(_stage_tab("retrieval_planner"))
+        tabs.append(_stage_tab("context_retrieval"))
+        tabs.append(_stage_tab("context_synthesizer"))
+        tabs.append(_stage_tab("summary" if summary_pipeline else "design"))
+        if needs_review and not summary_pipeline:
+            tabs.append(_stage_tab("review"))
+        tabs.append(_stage_tab("orchestrator"))
     elif mode == "peer":
         if needs_retrieval:
-            tabs.append({"key": "retrieval_planner", "label": "retrieval_planner"})
-            tabs.append({"key": "context_retrieval", "label": "context_retrieval"})
+            tabs.append(_stage_tab("retrieval_planner"))
+            tabs.append(_stage_tab("context_retrieval"))
         tabs.extend(
             [
-                {"key": "design_author", "label": "design_author"},
-                {"key": "design_challenger", "label": "design_challenger"},
-                {"key": "design_refiner", "label": "design_refiner"},
-                {"key": "judge", "label": "judge"},
-                {"key": "orchestrator", "label": "orchestrator"},
+                _stage_tab("design_author"),
+                _stage_tab("design_challenger"),
+                _stage_tab("design_refiner"),
+                _stage_tab("judge"),
+                _stage_tab("orchestrator"),
             ]
         )
     else:
-        tabs.append({"key": agent, "label": agent})
+        tabs.append(_stage_tab(agent))
 
-    tabs.append({"key": "final_output", "label": "final_output"})
+    tabs.append(_stage_tab("final_output"))
     return tabs
 
 
@@ -1070,9 +1113,8 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
             status="running",
             title="Routing decision",
             summary=str(getattr(decision, "reason", "")),
-            content=str(getattr(decision, "reason", "")),
+            verbose_content=str(getattr(decision, "reason", "")),
             mode=getattr(decision, "mode", None),
-            agent_id=getattr(decision, "agent", None),
             metadata={
                 **asdict(decision),
                 **_agent_model_metadata(getattr(decision, "agent", None)),
@@ -1092,14 +1134,12 @@ async def run_start(payload: RunRequest) -> dict[str, Any]:
                 f"{request_contract.deliverable_type}; evidence: "
                 f"{request_contract.required_evidence_level}."
             ),
-            content=render_request_contract_brief(
+            verbose_content=render_request_contract_brief(
                 request_contract,
                 selected_mode=str(getattr(decision, "mode", "") or ""),
                 selected_agent=str(getattr(decision, "agent", "") or ""),
             ),
             mode=getattr(decision, "mode", None),
-            agent_id=getattr(decision, "agent", None),
-            stage="task_contract",
             metadata=request_contract.to_dict(),
         ),
     )
@@ -1170,8 +1210,6 @@ async def run_checkpoint(job_id: str, payload: CheckpointRequest) -> dict[str, A
             summary=f"Checkpoint decision: {decision.action}.",
             content=decision.redirect_instruction,
             mode=_job_mode(job),
-            agent_id="retrieval_checkpoint",
-            stage="retrieval_checkpoint",
             metadata=decision.to_dict(),
         ),
     )

@@ -254,9 +254,13 @@ def test_api_v1_run_start_returns_shared_ui_state(
     assert body["events"][0]["metadata"]["model_ref"] == "openai_fast"
     assert body["events"][1]["event_type"] == "routing_decision"
     assert body["events"][1]["metadata"]["model_name"] == "gpt-5.4-mini"
+    assert body["events"][1]["content"] == ""
+    assert body["events"][1]["agent_id"] is None
     assert body["events"][2]["event_type"] == "task_contract"
-    assert "Intent:" in body["events"][2]["content"]
-    assert "```json" not in body["events"][2]["content"]
+    assert body["events"][2]["content"] == ""
+    assert body["events"][2]["agent_id"] is None
+    assert "Intent:" in body["events"][2]["verbose_content"]
+    assert "```json" not in body["events"][2]["verbose_content"]
 
 
 def test_run_start_rejects_concurrent_run(

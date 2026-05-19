@@ -1833,6 +1833,64 @@ async def test_run_single_emits_fail_open_deterministic_trace_when_graph_missing
 
 
 @pytest.mark.anyio
+async def test_run_single_emits_stage_start_before_completion(monkeypatch, tmp_path):
+    captured_events: list[tuple[str, str, dict]] = []
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(
+            root_dir=tmp_path,
+            trace_file=tmp_path / "trace.log",
+            runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
+            factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
+            run_id="test-run-id",
+        ),
+    )
+
+    async def _fake_run_agent_silently(agent, prompt: str) -> str:
+        del agent, prompt
+        stage_events = [event for event in captured_events if event[2].get("event_type") == "stage_start"]
+        assert stage_events
+        return "single output"
+
+    monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
+    monkeypatch.setattr(
+        pipelines,
+        "append_trace_entry",
+        lambda environment, stage, content, **kwargs: captured_events.append((stage, content, kwargs)),
+    )
+
+    result = await pipelines.run_single(
+        "Find integration principles.",
+        "retrieval_planner",
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
+    )
+
+    stage_events = [
+        (stage, content, kwargs)
+        for stage, content, kwargs in captured_events
+        if kwargs.get("event_type") in {"stage_start", "stage_end"}
+    ]
+    assert result == "single output"
+    assert stage_events == [
+        (
+            "RETRIEVAL_PLANNER OUTPUT_START",
+            "Starting stage for retrieval_planner.",
+            {"event_type": "stage_start", "agent_id": "retrieval_planner"},
+        ),
+        (
+            "RETRIEVAL_PLANNER OUTPUT_END",
+            "Completed stage for retrieval_planner.",
+            {"event_type": "stage_end", "agent_id": "retrieval_planner"},
+        ),
+    ]
+
+
+@pytest.mark.anyio
 async def test_run_single_policy_uses_latest_user_intent_not_history_wrapper(monkeypatch, tmp_path):
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
     monkeypatch.setattr(

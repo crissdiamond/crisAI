@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from crisai.apps.web import (
     _collect_stage_outputs,
     _evict_old_jobs,
     _expected_flow_tabs,
+    _make_web_checkpoint_handler,
     _run_history_snapshot,
     _select_latest_run,
     _to_http_exception,
@@ -30,6 +32,10 @@ from crisai.apps.web import (
     workspace_tree,
 )
 from crisai.orchestration.request_contract import infer_request_contract
+from crisai.orchestration.retrieval_checkpoint import (
+    RetrievalCheckpointDecision,
+    RetrievalCheckpointSnapshot,
+)
 
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
 
@@ -170,6 +176,46 @@ def test_ui_event_from_stage_entry_uses_summary_and_full_content_separately():
     assert event["content"] == "- Retrieve the exact deck.\n- Inspect the slides."
     assert event["verbose_content"] == event["content"]
     assert event["summary"] != event["content"]
+    assert event["agent_id"] == "retrieval_planner"
+    assert event["stage"] == "retrieval_planner"
+    assert event["title"] == "Retrieval planner"
+    assert event["metadata"]["stage_key"] == "retrieval_planner"
+    assert event["metadata"]["stage_label"] == "Retrieval planner"
+
+
+@pytest.mark.anyio
+async def test_checkpoint_event_does_not_create_stage_identity():
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["job-checkpoint"] = {
+        "status": "running",
+        "current_session": "NewTest-04",
+        "decision": type("D", (), {"mode": "pipeline"})(),
+        "events": [],
+    }
+    handler = _make_web_checkpoint_handler("job-checkpoint")
+    snapshot = RetrievalCheckpointSnapshot(
+        request="summarise the deck",
+        retrieval_plan="retrieve deck",
+        evidence_brief="read deck",
+        retrieval_prose="read deck prose",
+        attempt=0,
+        max_redirects=2,
+    )
+
+    task = asyncio.create_task(handler(snapshot))
+    await asyncio.sleep(0)
+    event = web_mod._RUN_JOBS["job-checkpoint"]["events"][0]
+    future = web_mod._RUN_JOBS["job-checkpoint"]["checkpoint_future"]
+    future.set_result(RetrievalCheckpointDecision.continue_())
+
+    decision = await task
+
+    assert decision.action == "continue"
+    assert event["event_type"] == "checkpoint_requested"
+    assert event["agent_id"] is None
+    assert event["stage"] is None
+    assert event["metadata"]["evidence_brief"] == "read deck"
 
 
 def test_trace_line_ignores_unrelated_workflow_output():
@@ -263,6 +309,7 @@ def test_expected_flow_tabs_use_summary_fast_path_contract():
     tabs = _expected_flow_tabs(decision, request_contract=contract)
 
     keys = [tab["key"] for tab in tabs]
+    labels = [tab["label"] for tab in tabs]
     assert "summary" in keys
     assert "design" not in keys
     assert keys == [
@@ -272,6 +319,14 @@ def test_expected_flow_tabs_use_summary_fast_path_contract():
         "summary",
         "orchestrator",
         "final_output",
+    ]
+    assert labels == [
+        "Retrieval planner",
+        "Context retrieval",
+        "Context synthesizer",
+        "Summary",
+        "Final orchestration",
+        "Final output",
     ]
 
 
