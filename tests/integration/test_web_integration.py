@@ -212,8 +212,10 @@ def test_run_start_summary_pipeline_expected_tabs_use_summary_fast_path(
     assert resp.status_code == 200
     body = resp.json()
     keys = [tab["key"] for tab in body["expected_tabs"]]
-    assert "summary" in keys
+    assert keys == ["retrieval_planner", "context_retrieval", "summary", "final_output"]
     assert "design" not in keys
+    assert "context_synthesizer" not in keys
+    assert "orchestrator" not in keys
     assert body["request_contract"]["task_contract"]["primary_intent"] == "summarize_source"
     from crisai.apps import web as web_mod
 

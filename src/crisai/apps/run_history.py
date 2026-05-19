@@ -171,6 +171,8 @@ def _bounded_detail(snapshot: dict[str, Any]) -> dict[str, Any]:
             "request_contract": metadata.get("request_contract") if isinstance(metadata.get("request_contract"), dict) else {},
         },
     }
+    if isinstance(metadata.get("observability"), dict):
+        detail["metadata"]["observability"] = metadata["observability"]
     return detail
 
 

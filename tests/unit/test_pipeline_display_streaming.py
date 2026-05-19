@@ -75,9 +75,20 @@ async def test_streamed_agent_falls_back_when_openai_streaming_is_incompatible(m
 @pytest.mark.anyio
 async def test_streamed_agent_forwards_visible_deltas(monkeypatch) -> None:
     callbacks: list[tuple[str, str]] = []
+    observability: list[tuple[str, str, dict[str, object]]] = []
 
     class FakeStreamedResult:
         final_output = "final"
+        context_wrapper = SimpleNamespace(
+            usage=SimpleNamespace(
+                requests=2,
+                input_tokens=15,
+                output_tokens=6,
+                total_tokens=21,
+                input_tokens_details=SimpleNamespace(cached_tokens=4),
+                output_tokens_details=SimpleNamespace(reasoning_tokens=1),
+            )
+        )
 
         async def stream_events(self):
             yield SimpleNamespace(data=SimpleNamespace(type="response.output_text.delta", delta="hello"))
@@ -91,22 +102,128 @@ async def test_streamed_agent_forwards_visible_deltas(monkeypatch) -> None:
 
     monkeypatch.setattr(pipeline_display, "_openai_streaming_construct_type_incompatible", lambda: False)
     monkeypatch.setattr(pipeline_display.Runner, "run_streamed", fake_run_streamed)
-
-    result = await pipeline_display._run_agent_streamed_silently(
-        "agent_id",
-        "agent",
-        "prompt",
-        lambda agent_id, delta: callbacks.append((agent_id, delta)),
+    agent_token = set_stage_observability_agent_id("agent_id")
+    callback_token = set_stage_observability_callback(
+        lambda agent_id, event_type, metadata: observability.append((agent_id, event_type, metadata))
     )
+
+    try:
+        result = await pipeline_display._run_agent_streamed_silently(
+            "agent_id",
+            "agent",
+            "prompt",
+            lambda agent_id, delta: callbacks.append((agent_id, delta)),
+        )
+    finally:
+        reset_stage_observability_callback(callback_token)
+        reset_stage_observability_agent_id(agent_token)
 
     assert result == "final"
     assert callbacks == [("agent_id", "hello")]
+    assert observability == [
+        (
+            "agent_id",
+            "provider_usage",
+            {
+                "provider_usage": {
+                    "requests": 2,
+                    "input_tokens": 15,
+                    "output_tokens": 6,
+                    "total_tokens": 21,
+                    "cached_tokens": 4,
+                    "reasoning_tokens": 1,
+                }
+            },
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_non_streamed_agent_emits_provider_usage_from_context_wrapper(monkeypatch) -> None:
+    observability: list[tuple[str, str, dict[str, object]]] = []
+
+    class FakeResult:
+        final_output = "final"
+        raw_responses = []
+        context_wrapper = SimpleNamespace(
+            usage=SimpleNamespace(
+                requests=1,
+                input_tokens=9,
+                output_tokens=5,
+                total_tokens=14,
+                input_tokens_details=SimpleNamespace(cached_tokens=2),
+                output_tokens_details=SimpleNamespace(reasoning_tokens=3),
+            )
+        )
+
+    async def fake_run(agent, prompt: str, *, max_turns: int):
+        assert agent == "agent"
+        assert prompt == "prompt"
+        assert max_turns > 0
+        return FakeResult()
+
+    monkeypatch.setattr(pipeline_display.Runner, "run", fake_run)
+    agent_token = set_stage_observability_agent_id("agent_id")
+    callback_token = set_stage_observability_callback(
+        lambda agent_id, event_type, metadata: observability.append((agent_id, event_type, metadata))
+    )
+
+    try:
+        result = await pipeline_display._run_agent_silently("agent", "prompt")
+    finally:
+        reset_stage_observability_callback(callback_token)
+        reset_stage_observability_agent_id(agent_token)
+
+    assert result == "final"
+    assert observability == [
+        (
+            "agent_id",
+            "provider_usage",
+            {
+                "provider_usage": {
+                    "requests": 1,
+                    "input_tokens": 9,
+                    "output_tokens": 5,
+                    "total_tokens": 14,
+                    "cached_tokens": 2,
+                    "reasoning_tokens": 3,
+                }
+            },
+        )
+    ]
 
 
 def test_provider_usage_metadata_is_absent_without_raw_usage() -> None:
     assert _provider_usage_metadata(SimpleNamespace(raw_responses=[])) == {}
     assert _provider_usage_metadata(SimpleNamespace(raw_responses=[SimpleNamespace(usage=None)])) == {}
     assert _provider_usage_metadata(SimpleNamespace(raw_responses=[SimpleNamespace(usage=SimpleNamespace())])) == {}
+
+
+def test_provider_usage_metadata_falls_back_to_context_wrapper_usage() -> None:
+    result = SimpleNamespace(
+        raw_responses=[SimpleNamespace(usage=None)],
+        context_wrapper=SimpleNamespace(
+            usage={
+                "requests": 2,
+                "input_tokens": 10,
+                "output_tokens": 4,
+                "total_tokens": 14,
+                "input_tokens_details": {"cached_tokens": 6},
+                "output_tokens_details": {"reasoning_tokens": 1},
+            }
+        ),
+    )
+
+    assert _provider_usage_metadata(result) == {
+        "provider_usage": {
+            "requests": 2,
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "total_tokens": 14,
+            "cached_tokens": 6,
+            "reasoning_tokens": 1,
+        }
+    }
 
 
 def test_streaming_fallback_metadata_excludes_raw_provider_payloads() -> None:

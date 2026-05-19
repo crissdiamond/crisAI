@@ -9,7 +9,7 @@ from __future__ import annotations
 import io
 import os
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import redirect_stderr, redirect_stdout
 from contextvars import ContextVar, Token
 from importlib.metadata import PackageNotFoundError, version
@@ -187,11 +187,35 @@ def _streaming_fallback_metadata() -> dict[str, object]:
     }
 
 
-def _provider_usage_metadata(result: object) -> dict[str, object]:
-    """Extract provider usage counters only when the SDK returned usage data."""
-    raw_responses = getattr(result, "raw_responses", None)
-    if not isinstance(raw_responses, list) or not raw_responses:
-        return {}
+def _usage_attr(usage: object, name: str) -> object:
+    """Return a usage attribute from SDK objects or mapping-like payloads."""
+    if isinstance(usage, Mapping):
+        return usage.get(name)
+    return getattr(usage, name, None)
+
+
+def _usage_counter_value(usage: object, name: str) -> int:
+    """Return a non-negative integer counter from a provider usage object."""
+    value = _usage_attr(usage, name)
+    if not isinstance(value, int | float | str | bytes | bytearray):
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, parsed)
+
+
+def _nested_usage_counter_value(usage: object, details_name: str, counter_name: str) -> int:
+    """Return a nested provider usage counter when present."""
+    details = _usage_attr(usage, details_name)
+    if details is None:
+        return 0
+    return _usage_counter_value(details, counter_name)
+
+
+def _provider_usage_from_usage_objects(usage_objects: list[object]) -> dict[str, int]:
+    """Aggregate provider usage counters from SDK-reported usage objects."""
     totals = {
         "requests": 0,
         "input_tokens": 0,
@@ -200,23 +224,30 @@ def _provider_usage_metadata(result: object) -> dict[str, object]:
         "cached_tokens": 0,
         "reasoning_tokens": 0,
     }
-    has_usage = False
-    for response in raw_responses:
-        usage = getattr(response, "usage", None)
+    for usage in usage_objects:
         if usage is None:
             continue
-        has_usage = True
-        totals["requests"] += int(getattr(usage, "requests", 0) or 0)
-        totals["input_tokens"] += int(getattr(usage, "input_tokens", 0) or 0)
-        totals["output_tokens"] += int(getattr(usage, "output_tokens", 0) or 0)
-        totals["total_tokens"] += int(getattr(usage, "total_tokens", 0) or 0)
-        input_details = getattr(usage, "input_tokens_details", None)
-        output_details = getattr(usage, "output_tokens_details", None)
-        totals["cached_tokens"] += int(getattr(input_details, "cached_tokens", 0) or 0)
-        totals["reasoning_tokens"] += int(getattr(output_details, "reasoning_tokens", 0) or 0)
-    if not has_usage:
-        return {}
-    provider_usage = {key: value for key, value in totals.items() if value > 0}
+        totals["requests"] += _usage_counter_value(usage, "requests")
+        totals["input_tokens"] += _usage_counter_value(usage, "input_tokens")
+        totals["output_tokens"] += _usage_counter_value(usage, "output_tokens")
+        totals["total_tokens"] += _usage_counter_value(usage, "total_tokens")
+        totals["cached_tokens"] += _nested_usage_counter_value(usage, "input_tokens_details", "cached_tokens")
+        totals["reasoning_tokens"] += _nested_usage_counter_value(usage, "output_tokens_details", "reasoning_tokens")
+    return {key: value for key, value in totals.items() if value > 0}
+
+
+def _provider_usage_metadata(result: object) -> dict[str, object]:
+    """Extract provider usage counters only when the SDK returned usage data."""
+    raw_responses = getattr(result, "raw_responses", None)
+    if isinstance(raw_responses, list) and raw_responses:
+        provider_usage = _provider_usage_from_usage_objects(
+            [getattr(response, "usage", None) for response in raw_responses]
+        )
+        if provider_usage:
+            return {"provider_usage": provider_usage}
+    context_wrapper = getattr(result, "context_wrapper", None)
+    context_usage = getattr(context_wrapper, "usage", None)
+    provider_usage = _provider_usage_from_usage_objects([context_usage])
     return {"provider_usage": provider_usage} if provider_usage else {}
 
 

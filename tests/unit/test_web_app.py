@@ -347,19 +347,56 @@ def test_expected_flow_tabs_use_summary_fast_path_contract():
     assert keys == [
         "retrieval_planner",
         "context_retrieval",
-        "context_synthesizer",
         "summary",
-        "orchestrator",
         "final_output",
     ]
     assert labels == [
         "Retrieval planner",
         "Context retrieval",
-        "Context synthesizer",
         "Summary",
-        "Final orchestration",
         "Final output",
     ]
+
+
+def test_summary_fast_path_skipped_events_do_not_become_expected_rail_stages():
+    decision = type(
+        "Decision",
+        (),
+        {"mode": "pipeline", "needs_review": False, "needs_retrieval": True, "agent": "retrieval_planner"},
+    )()
+    contract = infer_request_contract(
+        "Summarise the latest Integration Strategy deck from OneDrive.",
+        current_mode="pipeline",
+        registry_dir=REGISTRY_DIR,
+    )
+    skipped_entries = [
+        {
+            "event_type": "stage_skipped",
+            "stage": "CONTEXT_SYNTHESIZER SKIPPED",
+            "agent_id": "context_synthesizer",
+            "content": "summary fast path",
+        },
+        {
+            "event_type": "stage_skipped",
+            "stage": "ORCHESTRATOR SKIPPED",
+            "agent_id": "orchestrator",
+            "content": "summary fast path",
+        },
+    ]
+
+    expected_keys = [tab["key"] for tab in _expected_flow_tabs(decision, request_contract=contract)]
+    transcript_events = [
+        _trace_line_to_stage_output(entry, verbose=True)
+        for entry in skipped_entries
+    ]
+
+    assert expected_keys == ["retrieval_planner", "context_retrieval", "summary", "final_output"]
+    assert [event["key"] for event in transcript_events if event is not None] == [
+        "context_synthesizer",
+        "orchestrator",
+    ]
+    assert "context_synthesizer" not in expected_keys
+    assert "orchestrator" not in expected_keys
 
 
 def test_run_history_snapshot_uses_summary_expected_stages():
@@ -391,6 +428,22 @@ def test_run_history_snapshot_uses_summary_expected_stages():
         },
         "request_contract": contract.to_dict(),
         "events": [],
+        "stage_outputs": [
+            {
+                "key": "context_synthesizer",
+                "agent_id": "context_synthesizer",
+                "stage": "CONTEXT_SYNTHESIZER SKIPPED",
+                "event_type": "stage_skipped",
+                "content": "summary fast path",
+            },
+            {
+                "key": "orchestrator",
+                "agent_id": "orchestrator",
+                "stage": "ORCHESTRATOR SKIPPED",
+                "event_type": "stage_skipped",
+                "content": "summary fast path",
+            },
+        ],
         "final_output": "done",
         "error": "",
         "current_session": "NewTest-02",
@@ -400,8 +453,10 @@ def test_run_history_snapshot_uses_summary_expected_stages():
     snapshot = _run_history_snapshot("job-summary", updated_at="2026-05-18T23:01:00+00:00")
 
     keys = [stage["key"] for stage in snapshot["expected_stages"]]
-    assert "summary" in keys
+    assert keys == ["retrieval_planner", "context_retrieval", "summary", "final_output"]
     assert "design" not in keys
+    assert "context_synthesizer" not in keys
+    assert "orchestrator" not in keys
 
 
 def test_append_stage_delta_event_coalesces_streaming_updates():

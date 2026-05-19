@@ -850,11 +850,14 @@ def _expected_flow_tabs(
     if mode == "pipeline":
         tabs.append(_stage_tab("retrieval_planner"))
         tabs.append(_stage_tab("context_retrieval"))
-        tabs.append(_stage_tab("context_synthesizer"))
-        tabs.append(_stage_tab("summary" if summary_pipeline else "design"))
-        if needs_review and not summary_pipeline:
-            tabs.append(_stage_tab("review"))
-        tabs.append(_stage_tab("orchestrator"))
+        if summary_pipeline:
+            tabs.append(_stage_tab("summary"))
+        else:
+            tabs.append(_stage_tab("context_synthesizer"))
+            tabs.append(_stage_tab("design"))
+            if needs_review:
+                tabs.append(_stage_tab("review"))
+            tabs.append(_stage_tab("orchestrator"))
     elif mode == "peer":
         if needs_retrieval:
             tabs.append(_stage_tab("retrieval_planner"))

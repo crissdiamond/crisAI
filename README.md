@@ -218,9 +218,10 @@ session. Normal Gem panels hide internal transport events such as routing and
 task-contract payloads; retrieval checkpoints show bounded source rows instead
 of expanding structured evidence metadata or long raw URLs. When stage
 observability metadata is present, Gem shows aggregate token usage in the status
-bar and prepends bounded duration/token details to pinned stage views. The Gem
-prompt panel is a fixed-height multiline editor for long or pasted prompts, with
-wrapping and cursor movement inside the prompt area.
+bar and prepends bounded duration/token details to pinned stage views, including
+request counts only when they fit cleanly. The Gem prompt panel is a fixed-height
+multiline editor for long or pasted prompts, with wrapping and cursor movement
+inside the prompt area.
 
 ## Development Model
 

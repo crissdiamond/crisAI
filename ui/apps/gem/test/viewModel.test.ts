@@ -215,6 +215,7 @@ test("shared observability helpers safely extract and aggregate fixture events",
       observability: {
         schema_version: "ui_stage_observability_v1",
         provider_usage: {
+          requests: 1,
           input_tokens: 120,
           output_tokens: "30",
           total_tokens: 150,
@@ -243,6 +244,7 @@ test("shared observability helpers safely extract and aggregate fixture events",
       observability: {
         schema_version: "ui_stage_observability_v1",
         provider_usage: {
+          requests: 1,
           input_tokens: 20,
           output_tokens: 5,
           total_tokens: 25,
@@ -263,6 +265,7 @@ test("shared observability helpers safely extract and aggregate fixture events",
       observability: {
         schema_version: "ui_stage_observability_v1",
         provider_usage: {
+          requests: 9,
           input_tokens: 999,
           output_tokens: 999,
           total_tokens: 999,
@@ -290,6 +293,7 @@ test("shared observability helpers safely extract and aggregate fixture events",
   assert.deepEqual(extractStageObservability(valid), {
     schema_version: "ui_stage_observability_v1",
     provider_usage: {
+      requests: 1,
       input_tokens: 120,
       output_tokens: 30,
       total_tokens: 150,
@@ -309,6 +313,7 @@ test("shared observability helpers safely extract and aggregate fixture events",
   assert.equal(extractStageObservability(invalid), null);
   assert.deepEqual(aggregateStageObservability([earlierSummary, valid, invalid, second]), {
     provider_usage: {
+      requests: 2,
       input_tokens: 140,
       output_tokens: 35,
       total_tokens: 175,
@@ -332,6 +337,7 @@ test("Gem token and stage metrics format observability without overflowing panel
       observability: {
         schema_version: "ui_stage_observability_v1",
         provider_usage: {
+          requests: 1,
           input_tokens: 120,
           output_tokens: 30,
           total_tokens: 150,
@@ -355,13 +361,17 @@ test("Gem token and stage metrics format observability without overflowing panel
   assert.equal(aggregateTokenTotal([event]), "150");
   assert.equal(aggregateTokenTotal([uiEvent({ event_type: "stage_completed" })]), "n/a");
   assert.equal(
+    pinnedStageMetricsLine(stage, 96),
+    "Metrics: duration 2.3s · tokens 150 (in 120, out 30, cached 10, reasoning 3), req 1"
+  );
+  assert.equal(
     pinnedStageMetricsLine(stage, 80),
     "Metrics: duration 2.3s · tokens 150 (in 120, out 30, cached 10, reasoning 3)"
   );
   assert.equal(pinnedStageMetricsLine(stage, 34).length, 34);
   assert.equal(
-    pinnedStageContent([stage], "summary", 80),
-    "Metrics: duration 2.3s · tokens 150 (in 120, out 30, cached 10, reasoning 3)\n\nStage answer."
+    pinnedStageContent([stage], "summary", 96),
+    "Metrics: duration 2.3s · tokens 150 (in 120, out 30, cached 10, reasoning 3), req 1\n\nStage answer."
   );
 });
 
@@ -726,6 +736,78 @@ test("sidebar stages hide stale expected-only pending stages after final answer"
   assert(keys.includes("final_output"));
 });
 
+test("summary fast-path rail keeps only executable expected stages", () => {
+  const expectedStages = [
+    { key: "retrieval_planner", label: "Retrieval planner" },
+    { key: "context_retrieval", label: "Context retrieval" },
+    { key: "summary", label: "Summary" },
+    { key: "final_output", label: "Final output" }
+  ];
+  const events = [
+    uiEvent({
+      event_type: "stage_completed",
+      title: "Retrieval planner",
+      summary: "Plan complete.",
+      agent_id: "retrieval_planner",
+      stage: "RETRIEVAL_PLANNER OUTPUT"
+    }),
+    uiEvent({
+      event_type: "stage_completed",
+      title: "Context retrieval",
+      summary: "Evidence retrieved.",
+      agent_id: "context_retrieval",
+      stage: "CONTEXT RETRIEVAL OUTPUT"
+    }),
+    uiEvent({
+      event_type: "checkpoint_requested",
+      title: "Retrieval checkpoint",
+      summary: "Review retrieved sources.",
+      agent_id: "retrieval_checkpoint",
+      stage: "retrieval_checkpoint"
+    }),
+    uiEvent({
+      event_type: "stage_skipped",
+      title: "Context synthesizer skipped",
+      summary: "Summary fast path.",
+      agent_id: "context_synthesizer",
+      stage: "CONTEXT OUTPUT"
+    }),
+    uiEvent({
+      event_type: "stage_completed",
+      title: "Summary",
+      summary: "Summary answer.",
+      agent_id: "summary",
+      stage: "SUMMARY OUTPUT"
+    }),
+    uiEvent({
+      event_type: "stage_skipped",
+      title: "Orchestrator skipped",
+      summary: "Summary fast path.",
+      agent_id: "orchestrator",
+      stage: "FINAL OUTPUT"
+    }),
+    uiEvent({
+      event_type: "final_answer",
+      title: "Final answer",
+      summary: "Run completed with a final answer.",
+      content: "Final summary.",
+      status: "completed",
+      agent_id: "final_output",
+      stage: "final_output"
+    })
+  ];
+
+  const stages = deriveStageSummaries(events, expectedStages);
+  const keys = sidebarStages(stages).map((stage) => stage.key);
+  const checkpoint = stages.find((stage) => stage.key === "retrieval_checkpoint");
+
+  assert.deepEqual(keys, ["retrieval_planner", "context_retrieval", "summary", "final_output"]);
+  assert.equal(checkpoint?.event?.event_type, "checkpoint_requested");
+  assert(!keys.includes("context_synthesizer"));
+  assert(!keys.includes("orchestrator"));
+  assert(!keys.includes("retrieval_checkpoint"));
+});
+
 test("sidebar stages keep expected pending stages for active runs", () => {
   const stages: UiStageSummary[] = [
     { key: "retrieval_planner", label: "retrieval planner", status: "complete", summary: "done" },
@@ -772,6 +854,7 @@ test("sidebar stages hide checkpoint decision rows from the progress rail", () =
   const keys = sidebarStages(deriveStageSummaries(events, expectedStages)).map((stage) => stage.key);
 
   assert(!keys.includes("retrieval_checkpoint"));
+  assert(!keys.includes("context_synthesizer"));
   assert(keys.includes("design"));
 });
 

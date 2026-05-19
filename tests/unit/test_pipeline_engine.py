@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -306,7 +307,7 @@ async def test_workflow_session_processes_stage_output_before_trace_and_print(en
     assert fixture.output_calls == [("retrieval_planner", "clean stage output", True)]
 
 @pytest.mark.anyio
-async def test_workflow_session_adds_observability_to_stage_output_metadata(engine_fixture):
+async def test_workflow_session_adds_observability_to_stage_output_metadata(engine_fixture, caplog):
     fixture = engine_fixture
 
     async def observability_stage_runner(agent_id, agent, prompt):
@@ -323,14 +324,15 @@ async def test_workflow_session_adds_observability_to_stage_output_metadata(engi
 
     fixture.engine._stage_runner = observability_stage_runner
 
-    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
-        await workflow.run_stage(
-            spec=fixture.retrieval_planner_spec,
-            ui_agent_id="retrieval_planner",
-            prompt="find context",
-            trace_label="RETRIEVAL_PLANNER OUTPUT",
-            verbose=False,
-        )
+    with caplog.at_level(logging.INFO, logger="crisai.cli.pipeline_engine"):
+        async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+            await workflow.run_stage(
+                spec=fixture.retrieval_planner_spec,
+                ui_agent_id="retrieval_planner",
+                prompt="find context",
+                trace_label="RETRIEVAL_PLANNER OUTPUT",
+                verbose=False,
+            )
 
     stage_output = fixture.trace_calls[1]
     assert stage_output[0] == "RETRIEVAL_PLANNER OUTPUT"
@@ -338,6 +340,16 @@ async def test_workflow_session_adds_observability_to_stage_output_metadata(engi
     assert observability["streaming"] == {"attempted": True, "fallback": True, "fallback_reason": "sdk_incompatible"}
     assert observability["provider_usage"] == {"input_tokens": 7, "output_tokens": 3, "total_tokens": 10}
     _assert_execution_time(observability)
+    log_record = next(
+        record for record in caplog.records if getattr(record, "event_type", None) == "agent_stage_observability"
+    )
+    assert log_record.run_id is None
+    assert log_record.agent_id == "retrieval_planner"
+    assert log_record.stage == "retrieval_planner"
+    assert log_record.trace_label == "RETRIEVAL_PLANNER OUTPUT"
+    assert log_record.provider_usage == {"input_tokens": 7, "output_tokens": 3, "total_tokens": 10}
+    assert log_record.execution_time == observability["execution_time"]
+    assert "stage output" not in log_record.getMessage()
 
 
 @pytest.mark.anyio

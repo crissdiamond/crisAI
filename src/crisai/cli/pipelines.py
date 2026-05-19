@@ -105,6 +105,7 @@ from .pipeline_display import (
 from .pipeline_engine import (
     WorkflowEngine,
     _execution_time_metadata,
+    _log_successful_agent_stage,
     _merge_stage_observability_metadata,
     _utc_now_iso,
 )
@@ -761,6 +762,12 @@ async def run_single(
                 reset_stage_observability_agent_id(observability_agent_token)
             if session_name and agent_id == "retrieval_planner":
                 persist_session_source_candidates_from_output(session_name, result)
+            workflow_metadata = _merge_stage_observability_metadata(
+                None,
+                observability_events,
+                execution_time=_execution_time_metadata(started_at, started_monotonic),
+            )
+            assert workflow_metadata is not None
             append_trace(
                 environment.trace_file,
                 "FINAL_OUTPUT",
@@ -768,11 +775,14 @@ async def run_single(
                 run_id=_get_run_id(environment),
                 event_type="workflow_output",
                 agent_id=agent_id,
-                metadata=_merge_stage_observability_metadata(
-                    None,
-                    observability_events,
-                    execution_time=_execution_time_metadata(started_at, started_monotonic),
-                ),
+                metadata=workflow_metadata,
+            )
+            _log_successful_agent_stage(
+                run_id=_get_run_id(environment),
+                agent_id=agent_id,
+                stage=agent_id,
+                trace_label="FINAL_OUTPUT",
+                observability=workflow_metadata["observability"],
             )
             append_trace_entry(
                 environment,

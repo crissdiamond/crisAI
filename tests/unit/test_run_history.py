@@ -73,6 +73,36 @@ def test_persist_run_snapshot_writes_detail_and_lists_newest_first(run_history_w
     assert detail["events"][0]["event_type"] == "stage_output"
 
 
+def test_persist_run_snapshot_preserves_observability_metadata(run_history_workspace: Path) -> None:
+    snapshot = _snapshot("observe")
+    snapshot["metadata"]["observability"] = {
+        "schema_version": "ui_stage_observability_v1",
+        "provider_usage": {
+            "requests": 1,
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "total_tokens": 30,
+        },
+        "execution_time": {
+            "started_at": "2026-05-17T09:59:00Z",
+            "ended_at": "2026-05-17T10:00:00Z",
+            "duration_ms": 60000,
+        },
+        "streaming": {
+            "attempted": True,
+            "fallback": False,
+        },
+    }
+    snapshot["events"][0]["metadata"]["observability"] = snapshot["metadata"]["observability"]
+
+    run_history.persist_run_snapshot(snapshot)
+    detail = run_history.load_run_detail("demo", "observe")
+
+    assert detail is not None
+    assert detail["metadata"]["observability"] == snapshot["metadata"]["observability"]
+    assert detail["events"][0]["metadata"]["observability"] == snapshot["metadata"]["observability"]
+
+
 def test_run_history_retains_latest_fifty_terminal_runs(run_history_workspace: Path) -> None:
     for index in range(55):
         run_history.persist_run_snapshot(

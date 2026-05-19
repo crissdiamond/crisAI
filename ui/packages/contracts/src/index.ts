@@ -32,6 +32,7 @@ export type UiEvent = {
 };
 
 export type UiProviderUsage = {
+  requests?: number;
   input_tokens?: number;
   output_tokens?: number;
   total_tokens?: number;
@@ -350,6 +351,7 @@ export function aggregateStageObservability(events: UiEvent[]): UiObservabilityA
   }
 
   const usage: Required<UiProviderUsage> = {
+    requests: 0,
     input_tokens: 0,
     output_tokens: 0,
     total_tokens: 0,
@@ -363,6 +365,7 @@ export function aggregateStageObservability(events: UiEvent[]): UiObservabilityA
   for (const observability of latestByStage.values()) {
     stageCount += 1;
     if (observability.provider_usage) {
+      usage.requests += observability.provider_usage.requests ?? 0;
       usage.input_tokens += observability.provider_usage.input_tokens ?? 0;
       usage.output_tokens += observability.provider_usage.output_tokens ?? 0;
       usage.total_tokens += observability.provider_usage.total_tokens ?? 0;
@@ -425,6 +428,7 @@ function providerUsageValue(value: unknown): UiProviderUsage | undefined {
   const record = recordValue(value);
   if (!record) return undefined;
   const usage: UiProviderUsage = {};
+  copyFiniteInteger(record, usage, "requests");
   copyFiniteInteger(record, usage, "input_tokens");
   copyFiniteInteger(record, usage, "output_tokens");
   copyFiniteInteger(record, usage, "total_tokens");

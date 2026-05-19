@@ -220,6 +220,7 @@ export function sidebarStages(stages: UiStageSummary[]): UiStageSummary[] {
   );
   return stages
     .filter((stage) => !isCheckpointStage(stage))
+    .filter((stage) => stage.status !== "skipped")
     .filter((stage) => !(terminalComplete && stage.status === "pending" && stage.event === undefined))
     .slice(-12);
 }
@@ -617,15 +618,22 @@ export function pinnedStageMetricsLine(stage: UiStageSummary, width = 80): strin
   }
   const usage = observability.provider_usage;
   if (usage) {
-    const tokenParts = [
+    const baseTokenParts = [
       usage.input_tokens !== undefined ? `in ${usage.input_tokens}` : "",
       usage.output_tokens !== undefined ? `out ${usage.output_tokens}` : "",
       usage.cached_tokens !== undefined ? `cached ${usage.cached_tokens}` : "",
       usage.reasoning_tokens !== undefined ? `reasoning ${usage.reasoning_tokens}` : ""
     ].filter(Boolean);
-    if (usage.total_tokens !== undefined || tokenParts.length > 0) {
+    if (usage.total_tokens !== undefined || baseTokenParts.length > 0) {
       const total = usage.total_tokens !== undefined ? String(usage.total_tokens) : "n/a";
-      parts.push(`tokens ${total}${tokenParts.length > 0 ? ` (${tokenParts.join(", ")})` : ""}`);
+      const tokenPart = `tokens ${total}${baseTokenParts.length > 0 ? ` (${baseTokenParts.join(", ")})` : ""}`;
+      if (usage.requests !== undefined) {
+        const requestPart = `${tokenPart}, req ${usage.requests}`;
+        const candidate = `Metrics: ${[...parts, requestPart].join(" · ")}`;
+        parts.push(candidate.length <= Math.max(8, Math.floor(width)) ? requestPart : tokenPart);
+      } else {
+        parts.push(tokenPart);
+      }
     }
   }
   if (parts.length === 0) return "";

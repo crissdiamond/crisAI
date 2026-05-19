@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
+from crisai.logging_utils import get_logger
+
 from .pipeline_display import (
     reset_stage_observability_agent_id,
     reset_stage_observability_callback,
@@ -24,6 +26,7 @@ ServerContextFactory = Callable[..., Any]
 StageOutputProcessor = Callable[[str], tuple[str, dict[str, Any] | None]]
 _DEFAULT_STAGE_TIMEOUT_SECONDS = 300.0
 _OBSERVABILITY_SCHEMA_VERSION = "ui_stage_observability_v1"
+logger = get_logger(__name__)
 
 
 def _resolve_stage_timeout_seconds() -> float:
@@ -234,12 +237,20 @@ class WorkflowSession:
             observability_events,
             execution_time=_execution_time_metadata(started_at, started_monotonic),
         )
+        assert trace_metadata is not None
         self.trace_event(
             trace_label,
             trace_content,
             event_type="stage_output",
             agent_id=ui_agent_id,
             metadata=trace_metadata,
+        )
+        _log_successful_agent_stage(
+            run_id=getattr(self._environment, "run_id", None),
+            agent_id=ui_agent_id,
+            stage=ui_agent_id,
+            trace_label=trace_label,
+            observability=trace_metadata["observability"],
         )
         self.trace_event(
             f"{trace_label}_END",
@@ -353,3 +364,26 @@ def _execution_time_metadata(started_at: str, started_monotonic: float) -> dict[
         "ended_at": ended_at,
         "duration_ms": duration_ms,
     }
+
+
+def _log_successful_agent_stage(
+    *,
+    run_id: str | None,
+    agent_id: str,
+    stage: str,
+    trace_label: str,
+    observability: dict[str, Any],
+) -> None:
+    """Log metadata-only observability for a completed agent stage."""
+    logger.info(
+        "Agent stage completed.",
+        extra={
+            "event_type": "agent_stage_observability",
+            "run_id": run_id,
+            "agent_id": agent_id,
+            "stage": stage,
+            "trace_label": trace_label,
+            "provider_usage": observability.get("provider_usage"),
+            "execution_time": observability.get("execution_time"),
+        },
+    )

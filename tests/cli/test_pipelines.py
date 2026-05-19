@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -1891,7 +1892,7 @@ async def test_run_single_emits_stage_start_before_completion(monkeypatch, tmp_p
 
 
 @pytest.mark.anyio
-async def test_run_single_attaches_observability_to_workflow_output(monkeypatch, tmp_path):
+async def test_run_single_attaches_observability_to_workflow_output(monkeypatch, tmp_path, caplog):
     trace_calls: list[tuple[str, str, dict]] = []
 
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
@@ -1922,13 +1923,14 @@ async def test_run_single_attaches_observability_to_workflow_output(monkeypatch,
     monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
     monkeypatch.setattr(pipelines, "append_trace", _capture_trace)
 
-    result = await pipelines.run_single(
-        "Find integration principles.",
-        "retrieval_planner",
-        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
-        server_specs={},
-        agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
-    )
+    with caplog.at_level(logging.INFO, logger="crisai.cli.pipeline_engine"):
+        result = await pipelines.run_single(
+            "Find integration principles.",
+            "retrieval_planner",
+            settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+            server_specs={},
+            agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
+        )
 
     workflow_output = next(call for call in trace_calls if call[2].get("event_type") == "workflow_output")
     assert result == "single output"
@@ -1942,6 +1944,16 @@ async def test_run_single_attaches_observability_to_workflow_output(monkeypatch,
     assert observability["execution_time"]["started_at"]
     assert observability["execution_time"]["ended_at"]
     assert observability["execution_time"]["duration_ms"] >= 0
+    log_record = next(
+        record for record in caplog.records if getattr(record, "event_type", None) == "agent_stage_observability"
+    )
+    assert log_record.run_id == "test-run-id"
+    assert log_record.agent_id == "retrieval_planner"
+    assert log_record.stage == "retrieval_planner"
+    assert log_record.trace_label == "FINAL_OUTPUT"
+    assert log_record.provider_usage == {"input_tokens": 8, "output_tokens": 4, "total_tokens": 12}
+    assert log_record.execution_time == observability["execution_time"]
+    assert "single output" not in log_record.getMessage()
 
 
 @pytest.mark.anyio

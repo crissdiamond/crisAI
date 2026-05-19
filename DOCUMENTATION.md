@@ -194,8 +194,9 @@ recorded under stage event metadata as structured observability rather than
 normal user-visible content. Provider token counters are included only when the
 SDK returns usage data; missing usage remains absent rather than estimated.
 Clients consume `metadata.observability` when it declares
-`schema_version: ui_stage_observability_v1`, with optional provider usage,
-execution timing, and streaming details.
+`schema_version: ui_stage_observability_v1`, with optional provider usage
+including SDK-reported request and token counters, execution timing, and
+streaming details.
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show
@@ -212,12 +213,13 @@ as routing decisions, task contracts, checkpoint decisions, and run lifecycle
 markers; checkpoint requests keep the decision visible and summarize structured
 evidence metadata as bounded source rows with concise URL labels. When stage
 observability metadata is available, Gem aggregates total tokens in the status
-bar and prepends a bounded duration/token breakdown to pinned stage views; the
-stage rail may include a compact duration suffix only when it fits. Its prompt
-panel is a fixed-height multiline editor: long prompts wrap inside the prompt
-area, pasted multiline text is normalized for terminal display, Left/Right moves
-the cursor, and Up/Down moves through wrapped prompt lines when the prompt spans
-multiple visible lines.
+bar and prepends a bounded duration/token breakdown to pinned stage views. A
+request count is included only where it fits cleanly, and the stage rail may
+include a compact duration suffix only when it fits. Its prompt panel is a
+fixed-height multiline editor: long prompts wrap inside the prompt area, pasted
+multiline text is normalized for terminal display, Left/Right moves the cursor,
+and Up/Down moves through wrapped prompt lines when the prompt spans multiple
+visible lines.
 
 When the FastAPI runtime is protected by a static bearer token, set
 `CRISAI_API_KEY` in `.env`. The shared TypeScript client sends the token as an
