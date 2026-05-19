@@ -230,6 +230,9 @@ For local development team work, start or resume the hcom team with:
 ./start hcom
 ```
 
+The default hcom team is Codex-only; Claude reviewers are launched on demand by
+the orchestrator for review tasks.
+
 Attach to the managed tmux session separately:
 
 ```bash

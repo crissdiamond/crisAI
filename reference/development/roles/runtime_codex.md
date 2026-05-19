@@ -39,9 +39,10 @@ Structured workflow contracts:
 
 Pairing:
 
-- Work with `runtime_claude`.
-- Ask Claude to challenge designs, review risky diffs, and make small focused
-  patches when useful.
+- Work with `runtime_claude` when the orchestrator launches an ephemeral
+  reviewer for the task.
+- Ask the orchestrator to launch Claude when a diff is risky, cross-cutting,
+  security-sensitive, or needs independent design challenge.
 - You remain responsible for resolving feedback in your area before handing
   back to the orchestrator.
 

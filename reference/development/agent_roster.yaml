@@ -43,7 +43,8 @@ roles:
     provider: claude
     launch_dir: "."
     context_dir: runtime
-    tag: crisai-runtime
+    tag: crisai-runtime-review
+    lifecycle: ephemeral
     role_file: reference/development/roles/runtime_claude.md
     paired_with: runtime_codex
     writes:
@@ -73,7 +74,8 @@ roles:
     provider: claude
     launch_dir: "."
     context_dir: gem
-    tag: crisai-gem
+    tag: crisai-gem-review
+    lifecycle: ephemeral
     role_file: reference/development/roles/gem_claude.md
     paired_with: gem_codex
     writes:
@@ -103,7 +105,8 @@ roles:
     provider: claude
     launch_dir: "."
     context_dir: web
-    tag: crisai-web
+    tag: crisai-web-review
+    lifecycle: ephemeral
     role_file: reference/development/roles/web_claude.md
     paired_with: web_codex
     writes:
@@ -121,4 +124,4 @@ shared_rules:
   git_write_owner: orchestrator_codex
   area_agents_git_access: read-only
   push_policy: explicit-user-request-only
-  default_review_policy: Claude reviews/challenges and may make small focused patches inside its area when requested.
+  default_review_policy: Claude reviewers are launched on demand by the orchestrator, kept alive while useful for related sequential work, and closed at orchestrator discretion.

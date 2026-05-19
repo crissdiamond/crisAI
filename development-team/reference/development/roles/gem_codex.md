@@ -32,9 +32,10 @@ UI rules:
 
 Pairing:
 
-- Work with `gem_claude`.
-- Ask Claude to challenge terminal UX, state handling, accessibility, and
-  interaction quality.
+- Work with `gem_claude` when the orchestrator launches an ephemeral reviewer
+  for the task.
+- Ask the orchestrator to launch Claude for terminal UX, state handling,
+  accessibility, or interaction-quality challenge when useful.
 - You remain responsible for resolving feedback before handoff.
 
 Memory:

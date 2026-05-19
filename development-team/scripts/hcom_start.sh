@@ -12,6 +12,7 @@ RESUME=0
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
 ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-access}"
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
+CLAUDE_MODE="${HCOM_TEAM_CLAUDE_MODE:-ephemeral}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
 CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
@@ -33,9 +34,8 @@ Usage: scripts/hcom_start.sh [--target-repo PATH] [--dry-run] [--headless] [--re
 
 Launches:
   - one Codex orchestrator from the target repo root
-  - runtime Codex + Claude from the target repo root, with runtime role context
-  - Gem Codex + Claude from the target repo root, with Gem role context
-  - web Codex + Claude from the target repo root, with web role context
+  - runtime Codex, Gem Codex, and web Codex from the target repo root
+  - Claude reviewers only when HCOM_TEAM_CLAUDE_MODE=persistent
 
 State:
   HCOM_DIR defaults to <target-repo>/.hcom.
@@ -65,6 +65,13 @@ Message handling:
   instructions to prevent idle draft prompts in the input bar.
   HCOM_TEAM_MEMORY_WRITE_POLICY is included in bootstrap instructions so agents
   degrade gracefully when Claude memory is read-only.
+
+Claude reviewers:
+  HCOM_TEAM_CLAUDE_MODE defaults to ephemeral. In ephemeral mode Claude
+  reviewers are launched on demand with scripts/hcom_claude_review.sh and are
+  closed at orchestrator discretion with scripts/hcom_claude_close.sh.
+  Set HCOM_TEAM_CLAUDE_MODE=persistent to launch the legacy always-on Claude
+  reviewers with the standing team.
 EOF
 }
 
@@ -128,6 +135,7 @@ require_bin() {
 
 role_prompt() {
   local role_file="$1"
+  local role="${2:-}"
   cat "$TEAM_DIR/$role_file"
   printf '\n\n'
   cat <<EOF
@@ -138,7 +146,9 @@ Start by identifying your hcom session name, stable role, area, and peer from
 $ASSIGNMENTS when it exists. Use hcom for concise coordination and the Claude
 memory MCP server for durable task context. Do not store secrets in memory.
 EOF
-  printf '\nIf you are a Claude review agent, follow this idle prompt policy:\n%s\n' "$CLAUDE_IDLE_PROMPT_POLICY"
+  if [[ "$role" == *_claude ]]; then
+    printf '\nIf you are a Claude review agent, follow this idle prompt policy:\n%s\n' "$CLAUDE_IDLE_PROMPT_POLICY"
+  fi
   printf '\nFollow this memory policy:\n%s\n' "$MEMORY_WRITE_POLICY"
 }
 
@@ -380,7 +390,7 @@ launch_agent() {
   local area="$6"
 
   local prompt dir resume_target
-  prompt="$(role_prompt "$role_file")"
+  prompt="$(role_prompt "$role_file" "$role")"
   dir="$(launch_dir_for "$launch_dir")"
 
   if [[ "$RESUME" -eq 1 ]]; then
@@ -484,7 +494,13 @@ EOF
 
 require_bin hcom
 require_bin codex
-require_bin claude
+if [[ "$CLAUDE_MODE" != "ephemeral" && "$CLAUDE_MODE" != "persistent" ]]; then
+  echo "HCOM_TEAM_CLAUDE_MODE must be 'ephemeral' or 'persistent'." >&2
+  exit 1
+fi
+if [[ "$CLAUDE_MODE" == "persistent" ]]; then
+  require_bin claude
+fi
 
 export HCOM_DIR="$HCOM_STATE_DIR"
 export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
@@ -522,25 +538,31 @@ name="$(launch_agent gem_codex codex crisai-gem gem reference/development/roles/
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" gem_codex gem codex crisai-gem
 
-name="$(launch_agent gem_claude claude crisai-gem gem reference/development/roles/gem_claude.md gem)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" gem_claude gem claude crisai-gem
+if [[ "$CLAUDE_MODE" == "persistent" ]]; then
+  name="$(launch_agent gem_claude claude crisai-gem gem reference/development/roles/gem_claude.md gem)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" gem_claude gem claude crisai-gem
+fi
 
 name="$(launch_agent web_codex codex crisai-web web reference/development/roles/web_codex.md web)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" web_codex web codex crisai-web
 
-name="$(launch_agent web_claude claude crisai-web web reference/development/roles/web_claude.md web)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" web_claude web claude crisai-web
+if [[ "$CLAUDE_MODE" == "persistent" ]]; then
+  name="$(launch_agent web_claude claude crisai-web web reference/development/roles/web_claude.md web)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" web_claude web claude crisai-web
+fi
 
 name="$(launch_agent runtime_codex codex crisai-runtime runtime reference/development/roles/runtime_codex.md runtime)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" runtime_codex runtime codex crisai-runtime
 
-name="$(launch_agent runtime_claude claude crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" runtime_claude runtime claude crisai-runtime
+if [[ "$CLAUDE_MODE" == "persistent" ]]; then
+  name="$(launch_agent runtime_claude claude crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" runtime_claude runtime claude crisai-runtime
+fi
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
   mkdir -p "$(dirname "$ASSIGNMENTS")"

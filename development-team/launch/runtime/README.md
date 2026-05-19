@@ -16,7 +16,8 @@ Primary ownership:
 Role files in the development-team repo:
 
 - Codex: `../../reference/development/roles/runtime_codex.md`
-- Claude: `../../reference/development/roles/runtime_claude.md`
+- Claude reviewer, launched on demand:
+  `../../reference/development/roles/runtime_claude.md`
 
 Before work, read from the target repo:
 

@@ -26,11 +26,8 @@ has_hcom_assignments() {
   for role in \
     orchestrator_codex \
     gem_codex \
-    gem_claude \
     web_codex \
-    web_claude \
-    runtime_codex \
-    runtime_claude; do
+    runtime_codex; do
     grep -q "^[[:space:]]\\+role: $role$" "$assignments" || return 1
   done
 }

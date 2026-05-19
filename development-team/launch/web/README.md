@@ -15,7 +15,8 @@ Primary ownership:
 Role files in the development-team repo:
 
 - Codex: `../../reference/development/roles/web_codex.md`
-- Claude: `../../reference/development/roles/web_claude.md`
+- Claude reviewer, launched on demand:
+  `../../reference/development/roles/web_claude.md`
 
 Before work, read from the target repo:
 

@@ -31,8 +31,10 @@ UI rules:
 
 Pairing:
 
-- Work with `web_claude`.
-- Ask Claude to challenge UX, accessibility, user flows, and React quality.
+- Work with `web_claude` when the orchestrator launches an ephemeral reviewer
+  for the task.
+- Ask the orchestrator to launch Claude for UX, accessibility, user-flow, or
+  React-quality challenge when useful.
 - You remain responsible for resolving feedback before handoff.
 
 Memory:

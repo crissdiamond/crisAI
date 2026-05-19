@@ -9,16 +9,16 @@ handles only; stable responsibility comes from the role assigned in
 
 - `orchestrator_codex`: runs from the repo root and is the main user-facing
   coordinator.
-- `runtime_codex` and `runtime_claude`: run from the repo root with runtime
-  role context.
-- `gem_codex` and `gem_claude`: run from the repo root with Gem role context.
-- `web_codex` and `web_claude`: run from the repo root with web role context.
+- `runtime_codex`, `gem_codex`, and `web_codex`: run from the repo root with
+  area role context.
+- `runtime_claude`, `gem_claude`, and `web_claude`: ephemeral reviewers
+  launched by the orchestrator when review value justifies the cost.
 
 The top-level `runtime/`, `gem/`, and `web/` directories are area context folders,
 not source roots and not Codex sandbox roots. Source code stays in the existing
-Python and UI locations. Area agents are launched from the repo root so their
-workspace-write sandbox covers the files they own, while their role prompt and
-tmux label keep the area boundary clear.
+Python and UI locations. Standing area Codex agents are launched from the repo
+root so their workspace-write sandbox covers the files they own, while their
+role prompt and tmux label keep the area boundary clear.
 
 ## Launching
 
@@ -30,6 +30,10 @@ Use a fresh launch for new work:
 ```bash
 scripts/hcom_start.sh
 ```
+
+By default this starts the standing Codex team only: orchestrator, runtime,
+Gem, and web. Set `HCOM_TEAM_CLAUDE_MODE=persistent` only when intentionally
+debugging or running a long paired session with always-on Claude reviewers.
 
 Use resume only when continuing the same team context:
 
@@ -44,7 +48,8 @@ sessions fall back to a fresh launch for that role. After launch, the assignment
 file records both the hcom session name and the provider session UUID when hcom
 exposes one. Claude memory remains the durable project memory layer, so resumed
 provider sessions should be used for continuity on active work rather than as
-the source of truth.
+the source of truth. Ephemeral Claude reviewers are normally launched fresh for
+the task thread that needs them.
 
 Use `scripts/hcom_stop.sh` to end the team. The stop script snapshots the active
 hcom/provider session IDs, transcript paths, and stopped status before killing
@@ -58,8 +63,8 @@ from WSL. Override this with `--terminal PRESET_OR_COMMAND` or
 default tmux session is `crisai-hcom`, configurable with
 `HCOM_TEAM_TMUX_SESSION`. Default tmux windows are named and ordered as:
 `orchestrator(<hcom_name>)`, `gem_codex(<hcom_name>)`,
-`gem_claude(<hcom_name>)`, `web_codex(<hcom_name>)`,
-`web_claude(<hcom_name>)`, `run_codex(<hcom_name>)`, and
+`web_codex(<hcom_name>)`, and `run_codex(<hcom_name>)`. Persistent Claude mode
+adds `gem_claude(<hcom_name>)`, `web_claude(<hcom_name>)`, and
 `run_claude(<hcom_name>)`. Attach with `scripts/hcom_attach.sh` or
 `tmux attach -t crisai-hcom`, switch windows with `Ctrl-\` then the window
 number, `Ctrl-\` then `n` or `p`, or `Ctrl-\` then `w`, and detach without
@@ -75,10 +80,20 @@ launcher gives the orchestrator Codex a Git-writer profile
 (`--ask-for-approval never --sandbox danger-full-access` by default) so `.git`
 metadata is writable for commit and push operations. Area Codex agents receive
 `--ask-for-approval never --sandbox workspace-write`, and Claude receives
-`--permission-mode auto`.
+`--permission-mode auto` when they are launched.
 Use `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
 tool approval is required. Override `HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX` or
 `HCOM_TEAM_AREA_CODEX_SANDBOX` when a different Codex sandbox profile is needed.
+
+Launch ephemeral Claude reviewers with `scripts/hcom_claude_review.sh`. The
+orchestrator must choose the role, thread, expected output, lease cap, and
+whether the reviewer should run headless or in tmux.
+`HCOM_TEAM_CLAUDE_VISIBILITY` defaults to `headless`; use `tmux` only when a
+visible temporary reviewer pane is worth the UI noise. Use
+`scripts/hcom_claude_status.sh` to inspect active reviewers and
+`scripts/hcom_claude_close.sh` to close them by name, role, thread, or expired
+lease. Leases are stale-session safety caps; the orchestrator still decides
+when to close or keep Claude alive for sequential related tasks.
 
 The launcher also sets `HCOM_HINTS` for the team. Direct hcom requests from the
 orchestrator or paired agent are actionable assignments: agents should proceed
@@ -87,9 +102,9 @@ follow-up commands or draft prompts in the input bar. Area agents should not
 monitor or ask status questions about unrelated agents. They should query
 another agent only when it is directly required by the assigned task; otherwise
 they should report their own waiting state through hcom and return to listening.
-Claude review agents also receive a bootstrap/system idle prompt policy so
-onboarding completion does not produce draft prompts like `wait for assignment`
-or `check pending assignments`.
+Claude review agents also receive a bootstrap/system idle prompt policy so task
+completion does not produce draft prompts like `wait for assignment` or
+`check pending assignments`.
 
 ## Responsibilities
 
@@ -102,8 +117,10 @@ or `check pending assignments`.
   documentation edits, but should not directly implement area feature work
   unless delegation is not practical and the exception is explicit.
 - Area Codex agents are primary implementers and local coordinators.
-- Claude area agents challenge, review, and may make small focused patches
-  inside their area when useful.
+- Claude area agents are ephemeral reviewers. The orchestrator launches them
+  when independent challenge is useful, may keep them alive across related
+  sequential work, and closes them after push, abandonment, or when follow-up is
+  unlikely.
 - Shared files such as `registry/*`, `prompts/*`, `README.md`,
   `DOCUMENTATION.md`, and `ui/packages/contracts/*` need explicit orchestrator
   ownership for the task.
@@ -200,8 +217,8 @@ Do not store secrets, API keys, auth tokens, or private credential material.
    hcom task thread.
 4. Area agents receive short hcom requests with scope, paths, expected checks,
    and memory/bundle references.
-5. Area Codex implements or plans; area Claude reviews or makes small patches
-   when requested.
+5. Area Codex implements or plans; the orchestrator launches an ephemeral Claude
+   reviewer when review/challenge is useful.
 6. Area Codex resolves review feedback and records a concise memory update when
    write access is available, otherwise it includes the intended memory summary
    in the handoff.

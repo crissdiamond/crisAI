@@ -6,14 +6,13 @@ development team.
 The default shape is:
 
 - one top-level Codex orchestrator;
-- runtime Codex + Claude pair;
-- Gem Codex + Claude pair;
-- web Codex + Claude pair.
+- runtime, Gem, and web Codex implementers;
+- on-demand Claude reviewers launched by the orchestrator when useful.
 
-Codex is the primary coder. Claude agents challenge, review, and may make small
-focused patches inside their assigned area. The Claude memory MCP server is the
-shared durable context layer across agent streams; hcom is used for concise
-coordination and bundles.
+Codex is the primary coder. Claude reviewers challenge, review, and may make
+small focused patches inside their assigned area when the orchestrator launches
+them. The Claude memory MCP server is the shared durable context layer across
+agent streams; hcom is used for concise coordination and bundles.
 
 ## Claude Memory MCP
 
@@ -44,17 +43,17 @@ flowchart TB
     Orchestrator --> WebPair[Web Area]
 
     RuntimePair --> RuntimeCodex[Runtime Codex<br/>primary implementer]
-    RuntimePair --> RuntimeClaude[Runtime Claude<br/>review and small patches]
+    RuntimePair -. on demand .-> RuntimeClaude[Runtime Claude<br/>review and small patches]
 
     GemPair --> GemCodex[Gem Codex<br/>primary implementer]
-    GemPair --> GemClaude[Gem Claude<br/>review and small patches]
+    GemPair -. on demand .-> GemClaude[Gem Claude<br/>review and small patches]
 
     WebPair --> WebCodex[Web Codex<br/>primary implementer]
-    WebPair --> WebClaude[Web Claude<br/>review and small patches]
+    WebPair -. on demand .-> WebClaude[Web Claude<br/>review and small patches]
 
-    RuntimeCodex <--> RuntimeClaude
-    GemCodex <--> GemClaude
-    WebCodex <--> WebClaude
+    RuntimeCodex -. review loop .-> RuntimeClaude
+    GemCodex -. review loop .-> GemClaude
+    WebCodex -. review loop .-> WebClaude
 
     Orchestrator --> Hcom[hcom<br/>messages, threads, bundles, events]
     RuntimeCodex --> Hcom
@@ -111,6 +110,21 @@ Tool auto-approval is enabled by default for launched agents. Use
 `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
 Codex/Claude tool approval is required.
 
+By default, `scripts/hcom_start.sh` launches the standing Codex team only. Set
+`HCOM_TEAM_CLAUDE_MODE=persistent` to launch legacy always-on Claude reviewers.
+The recommended model is ephemeral Claude review:
+
+```bash
+scripts/hcom_claude_review.sh --target-repo /path/to/crisAI --role gem_claude --thread gem-ui-review --task "Review the Gem UI diff and report UX risks."
+scripts/hcom_claude_status.sh --target-repo /path/to/crisAI
+scripts/hcom_claude_close.sh --target-repo /path/to/crisAI --thread gem-ui-review
+```
+
+`HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. Use `tmux` only when a
+temporary visible Claude pane is useful. The orchestrator decides when to close
+Claude reviewers, normally after the related task is pushed, abandoned, or no
+longer likely to need follow-up.
+
 The orchestrator Codex is the only Git writer and launches with
 `HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX=danger-full-access` by default so `.git`
 metadata is writable for commits and pushes. Area Codex agents keep
@@ -129,11 +143,10 @@ The default tmux session is `crisai-hcom`; override it with
 
 1. `orchestrator(<hcom_name>)`
 2. `gem_codex(<hcom_name>)`
-3. `gem_claude(<hcom_name>)`
-4. `web_codex(<hcom_name>)`
-5. `web_claude(<hcom_name>)`
-6. `run_codex(<hcom_name>)`
-7. `run_claude(<hcom_name>)`
+3. `web_codex(<hcom_name>)`
+4. `run_codex(<hcom_name>)`
+
+Persistent Claude mode adds Claude reviewer windows.
 
 Attach with the helper:
 
@@ -181,7 +194,7 @@ Both should be ignored by the target repository. This package includes
 
 - `hcom`
 - `codex`
-- `claude`
+- `claude` for on-demand or persistent Claude reviewers
 - `tmux` for the default managed terminal backend
 - Claude memory MCP server available to launched agents
 
@@ -192,6 +205,10 @@ Both should be ignored by the target repository. This package includes
 - `reference/development/roles/`: role bootstrap prompts.
 - `launch/runtime`, `launch/gem`, `launch/web`: hcom area context folders.
 - `scripts/hcom_start.sh`: launch the team.
+- `scripts/hcom_claude_review.sh`: launch an ephemeral Claude reviewer.
+- `scripts/hcom_claude_status.sh`: inspect active Claude reviewers.
+- `scripts/hcom_claude_close.sh`: close Claude reviewers by name, role, thread,
+  or expired lease.
 - `scripts/hcom_status.sh`: show status and local session assignments.
 - `scripts/hcom_stop.sh`: stop hcom tags for this team.
 - `scripts/hcom_tmux_terminal.sh`: create named tmux windows for launched

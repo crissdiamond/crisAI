@@ -21,13 +21,6 @@ sessions:
     tag: crisai-runtime
     hcom_session_id: polo
     status: active
-  pine:
-    role: runtime_claude
-    area: runtime
-    provider: claude
-    tag: crisai-runtime
-    hcom_session_id: pine
-    status: active
   bolo:
     role: gem_codex
     area: gem
@@ -35,24 +28,10 @@ sessions:
     tag: crisai-gem
     hcom_session_id: bolo
     status: active
-  bune:
-    role: gem_claude
-    area: gem
-    provider: claude
-    tag: crisai-gem
-    hcom_session_id: bune
-    status: active
   hula:
     role: web_codex
     area: web
     provider: codex
     tag: crisai-web
     hcom_session_id: hula
-    status: active
-  hoin:
-    role: web_claude
-    area: web
-    provider: claude
-    tag: crisai-web
-    hcom_session_id: hoin
     status: active

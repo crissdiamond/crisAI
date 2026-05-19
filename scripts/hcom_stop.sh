@@ -153,7 +153,7 @@ PY
 
 snapshot_assignments
 
-for tag in crisai-orchestrator crisai-runtime crisai-gem crisai-web; do
+for tag in crisai-orchestrator crisai-runtime crisai-gem crisai-web crisai-runtime-review crisai-gem-review crisai-web-review; do
   hcom kill "tag:$tag" || true
 done
 

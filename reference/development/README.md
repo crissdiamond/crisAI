@@ -10,13 +10,16 @@ building the repository, not for using crisAI as an architecture workstation.
 crisAI can be developed by a small hcom-coordinated team:
 
 - one Codex orchestrator from the repository root;
-- paired Codex and Claude agents for runtime, Gem, and web work;
+- runtime, Gem, and web Codex implementers;
+- on-demand Claude reviewers for runtime, Gem, and web work;
 - Claude memory MCP as the durable project context layer;
 - hcom for short coordination messages, bundles, events, and terminal sessions.
 
-Codex remains the main implementation agent. Claude agents review, challenge,
-and make small focused patches when requested. The orchestrator owns planning,
-cross-area coordination, final integration, and Git metadata writes.
+Codex remains the main implementation agent. Claude reviewers are launched by
+the orchestrator when review or challenge is valuable, and may make small
+focused patches when requested. The orchestrator owns planning, cross-area
+coordination, final integration, Git metadata writes, and Claude reviewer
+lifecycle.
 
 ## Architecture At A Glance
 
@@ -29,11 +32,11 @@ flowchart TB
     Orchestrator --> Web[Web Pair]
 
     Runtime --> RuntimeCodex[Codex]
-    Runtime --> RuntimeClaude[Claude Review]
+    Runtime -. on demand .-> RuntimeClaude[Claude Review]
     Gem --> GemCodex[Codex]
-    Gem --> GemClaude[Claude Review]
+    Gem -. on demand .-> GemClaude[Claude Review]
     Web --> WebCodex[Codex]
-    Web --> WebClaude[Claude Review]
+    Web -. on demand .-> WebClaude[Claude Review]
 
     Orchestrator --> Git[Git Integration]
     Orchestrator --> Hcom[hcom Coordination]
@@ -107,8 +110,10 @@ scripts/hcom_start.sh
 ```
 
 By default, launched Codex and Claude agents use non-bypass tool auto-approval
-so they can proceed without repeated permission prompts. Disable this when you
-want interactive tool approval:
+so they can proceed without repeated permission prompts. The default team launch
+starts Codex agents only; Claude reviewers are ephemeral unless
+`HCOM_TEAM_CLAUDE_MODE=persistent` is set. Disable auto-approval when you want
+interactive tool approval:
 
 ```bash
 scripts/hcom_start.sh --no-tool-auto-approve
@@ -119,6 +124,18 @@ The orchestrator Codex is the only Git writer and launches with
 metadata is writable for commits and pushes. Area Codex agents keep
 `HCOM_TEAM_AREA_CODEX_SANDBOX=workspace-write` and must hand off Git writes to
 the orchestrator.
+
+Launch a Claude reviewer only when useful:
+
+```bash
+scripts/hcom_claude_review.sh --role runtime_claude --thread runtime-review --task "Review the runtime diff and report risks."
+scripts/hcom_claude_status.sh
+scripts/hcom_claude_close.sh --thread runtime-review
+```
+
+`HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. The orchestrator may keep
+a reviewer alive across related sequential tasks, but should close it after the
+related task is pushed, abandoned, or unlikely to need follow-up.
 
 Stop and save resumable session information:
 
@@ -135,11 +152,10 @@ The tmux windows are created in this order:
 
 1. `orchestrator(<hcom_name>)`
 2. `gem_codex(<hcom_name>)`
-3. `gem_claude(<hcom_name>)`
-4. `web_codex(<hcom_name>)`
-5. `web_claude(<hcom_name>)`
-6. `run_codex(<hcom_name>)`
-7. `run_claude(<hcom_name>)`
+3. `web_codex(<hcom_name>)`
+4. `run_codex(<hcom_name>)`
+
+Persistent Claude mode adds Claude reviewer windows.
 
 Attach to the team session with the helper:
 
