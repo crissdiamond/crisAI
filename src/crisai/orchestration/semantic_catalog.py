@@ -74,6 +74,8 @@ class RetrievalConstraintTerms:
 
     object_type_terms: frozenset[str]
     source_scope_markers: dict[str, frozenset[str]]
+    source_type_markers: dict[str, frozenset[str]] = dataclass_field(default_factory=dict)
+    source_candidate_metadata_deny_keys: frozenset[str] = dataclass_field(default_factory=frozenset)
 
 
 @dataclass(frozen=True)
@@ -375,6 +377,7 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             "registry/semantic_catalog.yaml: retrieval_constraints.source_scope_markers "
             "must contain at least one non-empty scope."
         )
+    type_markers = _source_scope_markers(retrieval_block.get("source_type_markers"))
 
     _compile = re.IGNORECASE | re.DOTALL
     interaction_block = data.get("interaction")
@@ -441,6 +444,10 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
         retrieval_constraints=RetrievalConstraintTerms(
             object_type_terms=_as_frozenset(retrieval_block.get("object_type_terms")),
             source_scope_markers=scope_markers,
+            source_type_markers=type_markers,
+            source_candidate_metadata_deny_keys=_as_frozenset(
+                retrieval_block.get("source_candidate_metadata_deny_keys")
+            ),
         ),
         interaction=InteractionPatterns(
             explicit_mode_patterns=explicit_mode_patterns,

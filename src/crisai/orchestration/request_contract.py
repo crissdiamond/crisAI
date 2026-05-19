@@ -13,7 +13,14 @@ from .retrieval_association_graph import (
     deterministic_context_from_registry,
 )
 from .semantic_catalog import SemanticCatalog, load_semantic_catalog
-from .session_anchors import AnchorReference, AnchorRegistry, resolve_anchor_references
+from .session_anchors import (
+    AnchorReference,
+    AnchorRegistry,
+    ResolvedSourceReference,
+    SessionSourceCandidate,
+    resolve_anchor_references,
+    resolve_session_sources,
+)
 from .task_contract import TaskContract, infer_task_contract
 
 _WORKSPACE_PATH_RE = re.compile(r"`?(workspace/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`?")
@@ -41,6 +48,7 @@ class RequestContract:
     quality_gates: tuple[str, ...] = field(default_factory=tuple)
     route_hints: tuple[str, ...] = field(default_factory=tuple)
     referenced_anchors: tuple[AnchorReference, ...] = field(default_factory=tuple)
+    resolved_sources: tuple[ResolvedSourceReference, ...] = field(default_factory=tuple)
 
     @property
     def primary_intent(self) -> str:
@@ -77,6 +85,7 @@ class RequestContract:
             "quality_gates": list(self.quality_gates),
             "route_hints": list(self.route_hints),
             "referenced_anchors": [ref.to_dict() for ref in self.referenced_anchors],
+            "resolved_sources": [ref.to_dict() for ref in self.resolved_sources],
         }
 
     def to_json(self) -> str:
@@ -92,6 +101,7 @@ def infer_request_contract(
     catalog: SemanticCatalog | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
     anchor_registry: AnchorRegistry | None = None,
+    source_candidates: tuple[SessionSourceCandidate, ...] = (),
 ) -> RequestContract:
     """Infer an execution contract by combining task, source, output, and mode facts."""
     catalog = catalog or _load_catalog(registry_dir)
@@ -101,6 +111,13 @@ def infer_request_contract(
 
     source_families = _source_families(text, catalog, deterministic_context)
     named_sources = _named_sources(message)
+    resolved_sources = resolve_session_sources(
+        message,
+        source_candidates,
+        registry_dir=registry_dir,
+    )
+    source_families = _merge_source_families(source_families, resolved_sources)
+    named_sources = _merge_named_sources(named_sources, resolved_sources)
     output_path = _workspace_output_path(message)
     output_target_subdir = _parent_subdir(output_path)
     publication_requested = _score_terms(text, catalog.router.publication_terms) >= 1 or output_path is not None
@@ -155,6 +172,7 @@ def infer_request_contract(
         quality_gates=quality_gates,
         route_hints=route_hints,
         referenced_anchors=referenced_anchors,
+        resolved_sources=resolved_sources,
     )
 
 
@@ -187,7 +205,37 @@ def render_request_contract_brief(
         lines.append(f"Output path: {contract.output_path}")
     if contract.actions:
         lines.append(f"Actions: {', '.join(contract.actions)}")
+    if contract.resolved_sources:
+        lines.append(
+            "Resolved source(s): "
+            + ", ".join(reference.source.title for reference in contract.resolved_sources[:3])
+        )
     return "\n".join(lines)
+
+
+def _merge_source_families(
+    source_families: tuple[str, ...],
+    resolved_sources: tuple[ResolvedSourceReference, ...],
+) -> tuple[str, ...]:
+    families = list(source_families)
+    for reference in resolved_sources:
+        source = reference.source
+        for value in (source.source_family, source.source_scope):
+            if value and value not in families:
+                families.append(value)
+    return tuple(sorted(families))
+
+
+def _merge_named_sources(
+    named_sources: tuple[str, ...],
+    resolved_sources: tuple[ResolvedSourceReference, ...],
+) -> tuple[str, ...]:
+    names = list(named_sources)
+    for reference in resolved_sources:
+        title = reference.source.title
+        if title and title not in names:
+            names.append(title)
+    return tuple(names)
 
 
 def _load_catalog(registry_dir: Path | None) -> SemanticCatalog:

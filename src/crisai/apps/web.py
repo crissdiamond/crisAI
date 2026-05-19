@@ -463,10 +463,13 @@ def _resolve_request_contract(payload: RunRequest, decision: Any):
     """Resolve a user-facing request contract for UI transparency."""
     message = _intent_message_for_payload(payload)
     settings = load_settings()
+    session_name = sanitize_session_name(payload.session)
+    source_candidates = tuple(load_session_memory(session_name).source_candidates)
     return infer_request_contract(
         message,
         current_mode=str(getattr(decision, "mode", "") or payload.mode or "auto"),
         registry_dir=Path(settings.registry_dir),
+        source_candidates=source_candidates,
     )
 
 

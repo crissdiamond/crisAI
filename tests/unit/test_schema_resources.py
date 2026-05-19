@@ -11,6 +11,7 @@ def test_schema_resources_are_valid_json() -> None:
         "evidence_bundle_v1.schema.json",
         "task_contract_v1.schema.json",
         "request_contract_v1.schema.json",
+        "session_source_candidate_v1.schema.json",
         "deterministic_context_v1.schema.json",
         "peer_run_contract.schema.json",
         "ui_event_v1.schema.json",

@@ -643,7 +643,7 @@ Its purpose is simple:
 
 ### 9.1 Runtime workflow policy gates
 
-Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, workspace output paths, and resolved session anchors. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations. The shared v1 UI contract exposes a human-readable task contract before agent execution so users can see the inferred intent, deliverable, evidence level, source requirement, and selected workflow before tokens are spent.
+Before routing, crisAI builds `request_contract_v1` from the registry-driven task contract, deterministic retrieval context, explicit mode patterns, source-scope markers, named source references, workspace output paths, resolved session anchors, and resolved prior-turn source candidates. Routing then uses this normalized contract to decide whether the request is retrieval-only, source-backed drafting, summary, peer review, publication, document formatting, or operations. The shared v1 UI contract exposes a human-readable task contract before agent execution so users can see the inferred intent, deliverable, evidence level, source requirement, and selected workflow before tokens are spent.
 
 After routing selects a mode/agent path, crisAI applies a generic runtime policy layer from `registry/workflow_policy.yaml`:
 
@@ -849,6 +849,15 @@ the role defaults to primary. For named-source summaries, content read from
 nearby variants must be marked supplemental after the requested source is read,
 or excluded from the evidence bundle.
 
+Session memory also persists safe `session_source_candidate_v1` source
+identities from previous turns. These candidates can carry titles, source
+family/type/scope, stable URLs or workspace paths, content IDs, locations, rank,
+and evidence/read status. They must not persist opaque Graph `read_handle`
+values. Follow-up requests such as “summarise the Full Presentation v2 deck”
+resolve against these candidates into `request_contract_v1.resolved_sources`,
+then retrieval agents re-search, refetch, and read the source with current tools
+before any content summary is allowed.
+
 For “latest”, “most recent”, or “likely master” source summaries, retrieval
 should include the top matching candidate metadata in the evidence bundle. If
 the newest modified file and the strongest version/master candidate disagree,
@@ -867,10 +876,11 @@ fit.
 
 For summary and source-backed generation requests, the pipeline carries both a
 `request_contract_v1` machine payload and the nested `task_contract_v1` payload.
-The Request Contract tells the runtime which source/read/write gates apply; the
-Task Contract tells downstream agents that the main deliverable is the user’s
-requested summary, design, template, assessment, or recommendation, and that any
-“latest/best candidate” work is only a source-resolution subtask.
+The Request Contract tells the runtime which source/read/write gates apply and
+which prior-turn source identities were resolved; the Task Contract tells
+downstream agents that the main deliverable is the user’s requested summary,
+design, template, assessment, or recommendation, and that any “latest/best
+candidate” work is only a source-resolution subtask.
 Once retrieval has validated `content_read` evidence, source summaries use a
 fast path that passes the validated evidence summary directly to the `summary`
 agent and returns that output without a separate context synthesis or final

@@ -23,6 +23,10 @@ from crisai.orchestration.prompt_generation import (
     build_review_prompt,
     build_single_retrieval_planner_prompt,
 )
+from crisai.orchestration.session_anchors import (
+    ResolvedSourceReference,
+    SessionSourceCandidate,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -66,6 +70,36 @@ def test_build_retrieval_prompts_include_source_fit_constraints():
     assert "title phrases" in retrieval_text
     assert "queries_expanded: (suppressed: explicit source constraints active)" in planner_text
     assert "api strategy" not in planner_text.lower()
+
+
+def test_retrieval_prompts_include_resolved_session_sources_without_read_handles():
+    candidate = SessionSourceCandidate(
+        title="UCL Integration Strategy_Full Presentation v2.pptx",
+        source_family="sharepoint_docs",
+        source_type="sharepoint_document",
+        source_scope="sharepoint",
+        open_url="https://liveuclac.sharepoint.com/sites/DataTeam/doc.pptx",
+        location="Data & Integration Team",
+    )
+    resolved = (ResolvedSourceReference(matched_text="full, presentation, v2", score=8.25, source=candidate),)
+
+    planner_text = build_retrieval_planner_prompt(
+        "Please summarise the Full presentation v2 deck.",
+        resolved_sources=resolved,
+    )
+    retrieval_text = build_context_retrieval_prompt(
+        "Please summarise the Full presentation v2 deck.",
+        "handoff text",
+        resolved_sources=resolved,
+    )
+
+    assert "Resolved Session Sources" in planner_text
+    assert "UCL Integration Strategy_Full Presentation v2.pptx" in planner_text
+    assert "sharepoint_docs" in retrieval_text
+    assert "sharepoint_document" in retrieval_text
+    assert "re-search/refetch/read" in retrieval_text
+    assert "read_handle: sharepoint_doc" not in planner_text
+    assert "read_handle: sharepoint_doc" not in retrieval_text
 
 
 def test_build_context_retrieval_prompt_documents_workspace_search_semantics():

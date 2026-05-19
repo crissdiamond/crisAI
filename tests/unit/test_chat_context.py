@@ -202,6 +202,97 @@ def test_compact_memory_canonicalizes_workspace_prefix_sources():
     assert "knowledge/patterns/reporting-patterns.txt" in memory.known_sources
 
 
+def test_compact_memory_extracts_sharepoint_source_candidates_from_inventory_table():
+    history = [
+        ("user", "Find Integration Strategy files."),
+        (
+            "assistant",
+            "Found files:\n\n"
+            "| File | Location | Note |\n"
+            "|---|---|---|\n"
+            "| [UCL Integration Strategy_Full Presentation v2.pptx]"
+            "(https://liveuclac.sharepoint.com/sites/DataTeam/_layouts/15/Doc.aspx?file=x) "
+            "| Data & Integration Team | Exact title phrase. |",
+        ),
+    ]
+
+    memory = chat_context.compact_session_memory(history)
+
+    assert memory.source_candidates
+    candidate = memory.source_candidates[0]
+    assert candidate.title == "UCL Integration Strategy_Full Presentation v2.pptx"
+    assert candidate.source_family == "sharepoint_docs"
+    assert candidate.source_type == "sharepoint_document"
+    assert candidate.source_scope == "sharepoint"
+    assert candidate.location == "Data & Integration Team"
+    assert candidate.open_url.startswith("https://liveuclac.sharepoint.com/")
+    assert not hasattr(candidate, "read_handle")
+
+
+def test_compact_memory_extracts_evidence_source_candidates_without_read_handle():
+    history = [
+        ("user", "Summarise the deck."),
+        (
+            "assistant",
+            """Retrieved source.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise the deck.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy_Full Presentation v2.pptx",
+        "open_url": "https://liveuclac.sharepoint.com/sites/DataTeam/doc.pptx",
+        "read_handle": "sharepoint_doc:secret",
+        "metadata": {
+          "read_handle": "sharepoint_doc:nested-secret",
+          "site_display_name": "Data & Integration Team"
+        }
+      },
+      "evidence_level": "content_read",
+      "read_status": "read"
+    }
+  ],
+  "gaps": []
+}
+```
+""",
+        ),
+    ]
+
+    memory = chat_context.compact_session_memory(history)
+    payload = memory.source_candidates[0].to_dict()
+
+    assert payload["title"] == "UCL Integration Strategy_Full Presentation v2.pptx"
+    assert payload["evidence_level"] == "content_read"
+    assert "read_handle" not in payload
+    assert "read_handle" not in payload["metadata"]
+    assert payload["metadata"]["site_display_name"] == "Data & Integration Team"
+
+
+def test_source_type_inference_uses_semantic_catalog_markers():
+    sharepoint_history = [
+        ("user", "Find files."),
+        (
+            "assistant",
+            "[Deck.pptx](https://liveuclac.sharepoint.com/sites/DataTeam/doc.pptx)",
+        ),
+    ]
+    workspace_history = [
+        ("user", "Use local source."),
+        ("assistant", "Read [note.md](file:///workspace/knowledge/note.md)."),
+    ]
+
+    sharepoint_memory = chat_context.compact_session_memory(sharepoint_history)
+    workspace_memory = chat_context.compact_session_memory(workspace_history)
+
+    assert sharepoint_memory.source_candidates[0].source_type == "sharepoint_document"
+    assert workspace_memory.source_candidates[0].source_type == "workspace_file"
+
+
 def test_compact_memory_extracts_v2_structured_fields(monkeypatch):
     chat_context.load_semantic_catalog.cache_clear()
     catalog = _repo_catalog()

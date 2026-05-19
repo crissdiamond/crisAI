@@ -526,6 +526,8 @@ retrieval_constraints:
     - pagine
   source_scope_markers:
     personal_onedrive:
+      - -my.sharepoint.com
+      - /personal/
       - onedrive
       - one drive
       - my drive
@@ -548,6 +550,17 @@ retrieval_constraints:
       - workspace
       - local file
       - local files
+  source_type_markers:
+    sharepoint_document:
+      - sharepoint.com
+      - sharepoint_document
+    workspace_file:
+      - workspace/
+      - knowledge/
+      - tasks/
+      - workspace_file
+  source_candidate_metadata_deny_keys:
+    - read_handle
 
 artifact_lifecycle:
   persisted_deliverable_filenames:

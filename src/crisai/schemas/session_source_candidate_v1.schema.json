@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crisai.local/schemas/session_source_candidate_v1.schema.json",
+  "title": "Session Source Candidate",
+  "type": "object",
+  "required": [
+    "title",
+    "source_family",
+    "source_type",
+    "source_scope",
+    "open_url",
+    "content_id",
+    "workspace_path",
+    "location",
+    "evidence_level",
+    "read_status",
+    "rank",
+    "source_turn",
+    "metadata"
+  ],
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "source_family": { "type": "string" },
+    "source_type": { "type": "string" },
+    "source_scope": { "type": "string" },
+    "open_url": { "type": "string" },
+    "content_id": { "type": "string" },
+    "workspace_path": { "type": "string" },
+    "location": { "type": "string" },
+    "evidence_level": { "type": "string" },
+    "read_status": { "type": "string" },
+    "rank": {
+      "anyOf": [{ "type": "integer" }, { "type": "null" }]
+    },
+    "source_turn": {
+      "anyOf": [{ "type": "integer" }, { "type": "null" }]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

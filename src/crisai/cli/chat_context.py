@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import asdict, dataclass
@@ -21,7 +22,10 @@ from crisai.cli.session_store import (
 from crisai.cli.text_loader import render_cli_text
 from crisai.config import load_settings
 from crisai.orchestration.retrieval_association_graph import (
+    collect_graph_emits,
     deterministic_context_from_registry,
+    expand_retrieval_hints,
+    load_retrieval_association_graph,
 )
 from crisai.orchestration.semantic_catalog import (
     LexiconTerms,
@@ -29,6 +33,7 @@ from crisai.orchestration.semantic_catalog import (
     load_semantic_catalog,
 )
 from crisai.orchestration.session_anchors import (
+    SessionSourceCandidate,
     extract_session_anchors_from_history,
     render_anchor_registry,
     render_resolved_anchor_references,
@@ -56,6 +61,7 @@ _NOISE_SECTION_RE = re.compile(
 _MACHINE_SCHEMA_BLOCK_RE = re.compile(
     r"(?ims)^```(?:json)?\s*\{.*?schema_version.*?\}\s*```"
 )
+_FENCED_JSON_BLOCK_RE = re.compile(r"(?is)```(?:json)?\s*(.*?)\s*```")
 _LEGACY_WORKSPACE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_/-])(?:workspace/)?context(?=/)")
 
 
@@ -168,6 +174,7 @@ def compact_session_memory(history: list[HistoryEntry], *, max_memory_chars: int
         if (clean := _clean_for_memory(sanitize_user_visible_text(content)))
     ]
     sources = _extract_sources(history)
+    source_candidates = _extract_source_candidates(history)
     artefacts = [source for source in sources if "/artefacts/" in source or source.startswith("tasks/")]
     task_goal = _truncate(_durable_task_goal(user_messages), 500)
     last_outputs = [_truncate(item, 500) for item in assistant_messages[-2:]]
@@ -194,6 +201,7 @@ def compact_session_memory(history: list[HistoryEntry], *, max_memory_chars: int
         rejected_options=rejected_options[:5],
         source_findings=source_findings[:8],
         known_sources=sources[:12],
+        source_candidates=source_candidates[:20],
         active_artefacts=artefacts[:8],
         open_questions=open_questions[:5],
         next_actions=next_actions[:5],
@@ -292,6 +300,7 @@ def render_session_memory(memory: SessionMemory) -> str:
         ("Rejected options", memory.rejected_options),
         ("Source findings", memory.source_findings),
         ("Known sources", memory.known_sources),
+        ("Source candidates", _render_source_candidates(memory.source_candidates)),
         ("Active artefacts", memory.active_artefacts),
         ("Open questions", memory.open_questions),
         ("Next actions", memory.next_actions),
@@ -577,6 +586,248 @@ def _extract_sources(history: list[HistoryEntry]) -> list[str]:
     return sources
 
 
+def _extract_source_candidates(history: list[HistoryEntry]) -> list[SessionSourceCandidate]:
+    candidates: list[SessionSourceCandidate] = []
+    for turn_index, (role, content) in enumerate(history):
+        if role != "assistant" or not content.strip():
+            continue
+        candidates.extend(_source_candidates_from_evidence_bundles(content, source_turn=turn_index))
+        candidates.extend(_source_candidates_from_markdown_links(content, source_turn=turn_index))
+    return _dedupe_source_candidates(candidates)
+
+
+def _source_candidates_from_evidence_bundles(content: str, *, source_turn: int) -> list[SessionSourceCandidate]:
+    candidates: list[SessionSourceCandidate] = []
+    for match in _FENCED_JSON_BLOCK_RE.finditer(content or ""):
+        try:
+            payload = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict) or payload.get("schema_version") != "evidence_bundle_v1":
+            continue
+        items = payload.get("items")
+        if not isinstance(items, list):
+            continue
+        for rank, item in enumerate(items, start=1):
+            if not isinstance(item, dict):
+                continue
+            source = item.get("source")
+            if not isinstance(source, dict):
+                continue
+            candidate = _candidate_from_source_payload(
+                source,
+                rank=rank,
+                source_turn=source_turn,
+                evidence_level=str(item.get("evidence_level") or ""),
+                read_status=str(item.get("read_status") or ""),
+            )
+            if candidate is not None:
+                candidates.append(candidate)
+    return candidates
+
+
+def _candidate_from_source_payload(
+    source: dict[str, Any],
+    *,
+    rank: int,
+    source_turn: int,
+    evidence_level: str = "",
+    read_status: str = "",
+) -> SessionSourceCandidate | None:
+    title = str(source.get("title") or source.get("name") or "").strip()
+    open_url = str(source.get("open_url") or source.get("webUrl") or "").strip()
+    content_id = str(source.get("content_id") or "").strip()
+    workspace_path = str(source.get("workspace_path") or "").strip()
+    if not title and workspace_path:
+        title = Path(workspace_path).name
+    if not title:
+        return None
+    source_type = str(source.get("source_type") or "").strip()
+    family = _source_family_from_reference(
+        title=title,
+        source_type=source_type,
+        open_url=open_url,
+        workspace_path=workspace_path,
+        content_id=content_id,
+    )
+    scope = _source_scope(
+        source_type=source_type,
+        open_url=open_url,
+        workspace_path=workspace_path,
+        content_id=content_id,
+    )
+    metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    metadata = _safe_source_candidate_metadata(metadata)
+    return SessionSourceCandidate(
+        title=title,
+        source_family=str(source.get("source_family") or "").strip() or family,
+        source_type=source_type or _source_type_from_reference(open_url=open_url, workspace_path=workspace_path),
+        source_scope=scope,
+        open_url=open_url,
+        content_id=content_id,
+        workspace_path=workspace_path,
+        location=str(source.get("location") or "").strip(),
+        evidence_level=evidence_level,
+        read_status=read_status,
+        rank=rank,
+        source_turn=source_turn,
+        metadata=metadata,
+    )
+
+
+def _source_candidates_from_markdown_links(content: str, *, source_turn: int) -> list[SessionSourceCandidate]:
+    candidates: list[SessionSourceCandidate] = []
+    for rank, match in enumerate(_MARKDOWN_LINK_RE.finditer(content or ""), start=1):
+        label = (match.group(1) or "").strip()
+        href = (match.group(2) or "").strip()
+        if not label or not href:
+            continue
+        workspace_path = _workspace_path_from_href(href)
+        open_url = "" if workspace_path else href
+        family = _source_family_from_reference(title=label, open_url=open_url, workspace_path=workspace_path)
+        scope = _source_scope(open_url=open_url, workspace_path=workspace_path)
+        source_type = _source_type_from_reference(open_url=open_url, workspace_path=workspace_path)
+        if not scope and not workspace_path:
+            continue
+        location = _markdown_table_location(content, match.start())
+        candidates.append(
+            SessionSourceCandidate(
+                title=label,
+                source_family=family,
+                source_type=source_type,
+                source_scope=scope,
+                open_url=open_url,
+                workspace_path=workspace_path,
+                location=location,
+                evidence_level="metadata_read",
+                read_status="metadata_read",
+                rank=rank,
+                source_turn=source_turn,
+            )
+        )
+    return candidates
+
+
+def _workspace_path_from_href(href: str) -> str:
+    href_text = (href or "").strip()
+    marker = "/workspace/"
+    if marker in href_text:
+        return _canonical_source_path(href_text.split(marker, 1)[1])
+    if href_text.startswith("workspace/"):
+        return _canonical_source_path(href_text)
+    return ""
+
+
+def _markdown_table_location(content: str, match_start: int) -> str:
+    line_start = content.rfind("\n", 0, match_start) + 1
+    line_end = content.find("\n", match_start)
+    line = content[line_start:] if line_end == -1 else content[line_start:line_end]
+    if "|" not in line:
+        return ""
+    raw_cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+    clean_cells = [re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", cell).strip() for cell in raw_cells]
+    for index, cell in enumerate(raw_cells):
+        if _MARKDOWN_LINK_RE.search(cell):
+            return clean_cells[index + 1] if index + 1 < len(clean_cells) else ""
+    return ""
+
+
+def _source_scope(
+    *,
+    source_type: str = "",
+    open_url: str = "",
+    workspace_path: str = "",
+    content_id: str = "",
+) -> str:
+    lowered_ref = f"{source_type} {open_url} {workspace_path} {content_id}".lower()
+    catalog = _semantic_catalog()
+    constraints = getattr(catalog, "retrieval_constraints", None) if catalog is not None else None
+    markers_by_scope = getattr(constraints, "source_scope_markers", {}) if constraints is not None else {}
+    for scope, markers in markers_by_scope.items():
+        if any(marker and marker in lowered_ref for marker in markers):
+            return str(scope)
+    return ""
+
+
+def _source_family_from_reference(
+    *,
+    title: str = "",
+    source_type: str = "",
+    open_url: str = "",
+    workspace_path: str = "",
+    content_id: str = "",
+) -> str:
+    registry_dir = getattr(load_settings(), "registry_dir", None)
+    if registry_dir is None:
+        return ""
+    del title
+    reference_text = " ".join(part for part in (source_type, open_url, workspace_path, content_id) if part)
+    if not reference_text.strip():
+        return ""
+    try:
+        root = Path(registry_dir)
+        graph = load_retrieval_association_graph(root)
+        seeds, _terms = expand_retrieval_hints(reference_text, graph)
+        emits = collect_graph_emits(graph, seeds)
+        sources = emits.get("suggested_sources")
+        if isinstance(sources, list):
+            direct_families = [str(source) for source in sources if str(source).strip()]
+            if direct_families:
+                return sorted(direct_families)[0]
+        context, loaded = deterministic_context_from_registry(reference_text, root)
+    except Exception:  # noqa: BLE001 - source continuity must fail soft.
+        return ""
+    if not loaded:
+        return ""
+    families = [source for source in sorted(context.suggested_sources) if source != "generic_retrieval"]
+    return families[0] if families else ""
+
+
+def _source_type_from_reference(*, open_url: str = "", workspace_path: str = "") -> str:
+    reference_text = " ".join(part for part in (open_url, workspace_path) if part).lower()
+    catalog = _semantic_catalog()
+    constraints = getattr(catalog, "retrieval_constraints", None) if catalog is not None else None
+    markers_by_type = getattr(constraints, "source_type_markers", {}) if constraints is not None else {}
+    for source_type, markers in markers_by_type.items():
+        if any(marker and marker in reference_text for marker in markers):
+            return str(source_type)
+    return ""
+
+
+def _safe_source_candidate_metadata(metadata: dict[str, Any]) -> dict[str, str]:
+    catalog = _semantic_catalog()
+    constraints = getattr(catalog, "retrieval_constraints", None) if catalog is not None else None
+    denied = getattr(constraints, "source_candidate_metadata_deny_keys", frozenset()) if constraints is not None else frozenset()
+    return {
+        str(key): str(value)
+        for key, value in metadata.items()
+        if str(key).strip() and str(value).strip() and str(key).strip().lower() not in denied
+    }
+
+
+def _dedupe_source_candidates(candidates: list[SessionSourceCandidate]) -> list[SessionSourceCandidate]:
+    by_identity: dict[str, SessionSourceCandidate] = {}
+    for candidate in candidates:
+        identity = candidate.identity
+        if identity not in by_identity:
+            by_identity[identity] = candidate
+    return list(by_identity.values())
+
+
+def _render_source_candidates(candidates: list[SessionSourceCandidate]) -> list[str]:
+    rendered: list[str] = []
+    for candidate in candidates[:12]:
+        parts = [candidate.title]
+        if candidate.source_family:
+            parts.append(candidate.source_family)
+        if candidate.source_scope:
+            parts.append(candidate.source_scope)
+        if candidate.location:
+            parts.append(candidate.location)
+        rendered.append(" | ".join(parts))
+    return rendered
+
+
 def _source_from_markdown_link(label: str, href: str) -> str:
     """Extract a workspace source path from a Markdown link label or href."""
     href_text = (href or "").strip()
@@ -745,6 +996,7 @@ def _limit_memory(memory: SessionMemory, max_chars: int) -> SessionMemory:
         rejected_options=memory.rejected_options[:3],
         source_findings=memory.source_findings[:4],
         known_sources=memory.known_sources[:8],
+        source_candidates=memory.source_candidates[:12],
         active_artefacts=memory.active_artefacts[:4],
         open_questions=memory.open_questions[:3],
         next_actions=memory.next_actions[:3],

@@ -99,6 +99,7 @@ from .pipeline_display import (
 from .pipeline_engine import WorkflowEngine
 from .session_store import (
     load_session_anchors,
+    load_session_memory,
     register_task_artefacts,
     sanitize_session_name,
 )
@@ -145,6 +146,7 @@ def _infer_runtime_request_contract(
 ) -> RequestContract:
     """Infer request contract with the configured registry as fallback."""
     anchor_registry = load_session_anchors(session_name) if session_name else None
+    source_candidates = tuple(load_session_memory(session_name).source_candidates) if session_name else ()
     try:
         return infer_request_contract(
             intent_message,
@@ -152,6 +154,7 @@ def _infer_runtime_request_contract(
             registry_dir=registry_dir,
             deterministic_context=deterministic_context,
             anchor_registry=anchor_registry,
+            source_candidates=source_candidates,
         )
     except FileNotFoundError:
         if registry_dir is None:
@@ -162,6 +165,7 @@ def _infer_runtime_request_contract(
             registry_dir=None,
             deterministic_context=deterministic_context,
             anchor_registry=anchor_registry,
+            source_candidates=source_candidates,
         )
 
 
@@ -179,16 +183,24 @@ def _build_retrieval_planner_fallback(
     *,
     deterministic_context: DeterministicRetrievalContext,
     task_contract: TaskContract,
+    request_contract: RequestContract | None = None,
 ) -> str:
     """Build a deterministic retrieval handoff when the planner emits no text."""
     del message
     terms = ", ".join(sorted(deterministic_context.suggested_terms)[:24]) or "(none)"
     sources = ", ".join(sorted(deterministic_context.suggested_sources)) or "(none)"
     topics = ", ".join(sorted(deterministic_context.activated_topic_ids)) or "(none)"
+    resolved_sources = (
+        ", ".join(reference.source.title for reference in request_contract.resolved_sources)
+        if request_contract is not None and request_contract.resolved_sources
+        else "(none)"
+    )
     return (
         "Retrieval planner returned empty output; continuing with deterministic fallback handoff.\n"
         "- Retrieval focus: use the user request as the authoritative retrieval brief and search/read local workspace "
         "context when the request asks for local documents or workspace context.\n"
+        "- Resolved prior-turn sources: "
+        f"{resolved_sources}. Prefer these source identities when present and re-search/refetch/read with current tools.\n"
         f"- Deliverable to support: {task_contract.deliverable_type}; primary intent: {task_contract.primary_intent}.\n"
         "- Open explicit workspace-relative paths first when present; otherwise list/search likely workspace knowledge, "
         "standards, patterns, notes, templates, and prior designs relevant to the request.\n"
@@ -695,6 +707,7 @@ async def run_single(
                     intent_message,
                     deterministic_context=deterministic_context,
                     registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                    resolved_sources=request_contract.resolved_sources,
                 )
                 if agent_id == "retrieval_planner"
                 else message
@@ -875,6 +888,7 @@ async def run_pipeline(
                         deterministic_context=deterministic_context,
                         registry_dir=Path(registry_dir) if registry_dir is not None else None,
                         task_contract=task_contract,
+                        resolved_sources=request_contract.resolved_sources,
                     ),
                     trace_label="RETRIEVAL_PLANNER OUTPUT",
                     verbose=verbose,
@@ -886,6 +900,7 @@ async def run_pipeline(
                     retrieval_message,
                     deterministic_context=deterministic_context,
                     task_contract=task_contract,
+                    request_contract=request_contract,
                 )
                 workflow.trace_event(
                     "RETRIEVAL_PLANNER FALLBACK",
@@ -906,6 +921,7 @@ async def run_pipeline(
                     deterministic_context=deterministic_context,
                     registry_dir=Path(registry_dir) if registry_dir is not None else None,
                     task_contract=task_contract,
+                    resolved_sources=request_contract.resolved_sources,
                 ),
                 trace_label="CONTEXT RETRIEVAL OUTPUT",
                 verbose=verbose,
@@ -1306,6 +1322,7 @@ async def run_peer_pipeline(
                     deterministic_context=deterministic_context,
                     registry_dir=Path(registry_dir) if registry_dir is not None else None,
                     task_contract=request_contract.task_contract,
+                    resolved_sources=request_contract.resolved_sources,
                 ),
                 trace_label="RETRIEVAL_PLANNER OUTPUT",
                 verbose=verbose,
@@ -1322,6 +1339,7 @@ async def run_peer_pipeline(
                         deterministic_context=deterministic_context,
                         registry_dir=Path(registry_dir) if registry_dir is not None else None,
                         task_contract=request_contract.task_contract,
+                        resolved_sources=request_contract.resolved_sources,
                     ),
                     trace_label="CONTEXT RETRIEVAL OUTPUT",
                     verbose=verbose,

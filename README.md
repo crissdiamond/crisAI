@@ -293,7 +293,7 @@ The registry is the main control plane:
 - `registry/workflow_policy.yaml`: runtime hard gates.
 - `registry/workspace_spaces.yaml`: workspace roots, named knowledge corpora, task artefact folders, promotion roots, and architecture vocabulary.
 - `registry/session_memory.yaml`: compact session memory defaults and deterministic session context budgets, with `.env` overrides via `CRISAI_SESSION_MEMORY_*`.
-- `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, retrieval source-fit constraints, and generic session-anchor vocabulary used to preserve user-visible labels across follow-up turns.
+- `registry/semantic_catalog.yaml`: legacy router, verifier, peer-contract terms, shared prompt lexicon, retrieval source-fit constraints, source identity markers, and generic session-anchor vocabulary used to preserve user-visible labels across follow-up turns.
 - `registry/semantic_graph.yaml`: task intent, deliverable, source-resolution, source-family, and retrieval topic expansion.
 
 Run `uv run crisai doctor` after registry edits.
@@ -313,6 +313,10 @@ crisAI can retrieve from:
 - Published intranet pages through the scoped intranet MCP. The default provider is SharePoint Site Pages; custom providers can adapt wiki-style intranets.
 
 For latest/master document summaries, crisAI asks for source confirmation when modified-date and version/master signals conflict instead of guessing.
+For cross-turn source follow-ups, session memory stores safe source candidates
+such as titles, source family/type/scope, stable URLs or workspace paths, and
+evidence status. It does not persist opaque Graph read handles; retrieval must
+re-search, refetch, and read the source in the current turn before summarising.
 
 ## Workspace Model
 

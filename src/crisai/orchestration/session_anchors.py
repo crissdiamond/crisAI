@@ -93,6 +93,86 @@ class AnchorRegistry:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class SessionSourceCandidate:
+    """Safe source identity surfaced in an earlier turn."""
+
+    title: str
+    source_family: str = ""
+    source_type: str = ""
+    source_scope: str = ""
+    open_url: str = ""
+    content_id: str = ""
+    workspace_path: str = ""
+    location: str = ""
+    evidence_level: str = ""
+    read_status: str = ""
+    rank: int | None = None
+    source_turn: int | None = None
+    metadata: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> SessionSourceCandidate:
+        """Build a candidate from persisted JSON."""
+        return cls(
+            title=str(payload.get("title") or "").strip(),
+            source_family=str(payload.get("source_family") or "").strip(),
+            source_type=str(payload.get("source_type") or "").strip(),
+            source_scope=str(payload.get("source_scope") or "").strip(),
+            open_url=str(payload.get("open_url") or "").strip(),
+            content_id=str(payload.get("content_id") or "").strip(),
+            workspace_path=str(payload.get("workspace_path") or "").strip(),
+            location=str(payload.get("location") or "").strip(),
+            evidence_level=str(payload.get("evidence_level") or "").strip(),
+            read_status=str(payload.get("read_status") or "").strip(),
+            rank=_optional_int(payload.get("rank")),
+            source_turn=_optional_int(payload.get("source_turn")),
+            metadata={
+                str(key): str(value)
+                for key, value in (payload.get("metadata") or {}).items()
+                if str(key).strip() and str(value).strip()
+            }
+            if isinstance(payload.get("metadata"), dict)
+            else {},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable representation."""
+        return asdict(self)
+
+    @property
+    def identity(self) -> str:
+        """Return the strongest stable non-secret source identity available."""
+        return self.open_url or self.workspace_path or self.content_id or self.title
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedSourceReference:
+    """A persisted source candidate matched to the latest user request."""
+
+    matched_text: str
+    score: float
+    source: SessionSourceCandidate
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> ResolvedSourceReference:
+        """Build a resolved source reference from request-contract JSON."""
+        source_payload = payload.get("source")
+        return cls(
+            matched_text=str(payload.get("matched_text") or "").strip(),
+            score=float(payload.get("score") or 0.0),
+            source=SessionSourceCandidate.from_dict(source_payload if isinstance(source_payload, dict) else {}),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable representation."""
+        return {
+            "matched_text": self.matched_text,
+            "score": self.score,
+            "source": self.source.to_dict(),
+        }
+
+
 def extract_session_anchors_from_history(
     history: list[tuple[str, str]],
     *,
@@ -153,6 +233,74 @@ def resolve_anchor_references(
             _append_reference(resolved, resolved_keys, anchor.title, anchor)
 
     return tuple(resolved)
+
+
+def resolve_session_sources(
+    message: str,
+    candidates: tuple[SessionSourceCandidate, ...],
+    *,
+    registry_dir: Path | None = None,
+    limit: int = 3,
+) -> tuple[ResolvedSourceReference, ...]:
+    """Resolve latest-turn source references against persisted source candidates."""
+    if not (message or "").strip() or not candidates:
+        return ()
+    query_terms = _content_terms(message, registry_dir=registry_dir)
+    if not query_terms:
+        return ()
+    scored: list[ResolvedSourceReference] = []
+    normalized_message = _normalise_match_text(message)
+    for candidate in candidates:
+        title_terms = _content_terms(candidate.title, registry_dir=registry_dir)
+        if not title_terms:
+            continue
+        overlap = query_terms & title_terms
+        if not overlap:
+            continue
+        score = float(len(overlap) * 2)
+        normalized_title = _normalise_match_text(candidate.title)
+        if normalized_title and normalized_title in normalized_message:
+            score += 8.0
+        if len(overlap) >= 2:
+            score += 2.0
+        if candidate.open_url or candidate.workspace_path or candidate.content_id:
+            score += 0.25
+        if score < 4.0:
+            continue
+        scored.append(
+            ResolvedSourceReference(
+                matched_text=", ".join(sorted(overlap)),
+                score=round(score, 3),
+                source=candidate,
+            )
+        )
+    scored.sort(key=lambda item: (-item.score, item.source.rank or 10_000, item.source.title.lower()))
+    return tuple(_dedupe_resolved_sources(scored)[: max(1, limit)])
+
+
+def render_resolved_sources(references: tuple[ResolvedSourceReference, ...], *, max_items: int = 5) -> str:
+    """Render resolved sources for runtime prompt handoff."""
+    if not references:
+        return "None."
+    lines: list[str] = []
+    for reference in references[:max_items]:
+        source = reference.source
+        bits = [
+            f"title: {source.title}",
+            f"matched: {reference.matched_text}",
+            f"source_family: {source.source_family}",
+            f"source_type: {source.source_type}",
+        ]
+        if source.source_scope:
+            bits.append(f"source_scope: {source.source_scope}")
+        if source.location:
+            bits.append(f"location: {source.location}")
+        if source.open_url:
+            bits.append(f"open_url: {source.open_url}")
+        if source.workspace_path:
+            bits.append(f"workspace_path: {source.workspace_path}")
+        lines.append("- " + " | ".join(bit for bit in bits if bit and not bit.endswith(": ")))
+    return "\n".join(lines)
 
 
 def render_anchor_registry(registry: AnchorRegistry, *, max_items: int = 20) -> str:
@@ -335,6 +483,18 @@ def _append_reference(
     resolved.append(AnchorReference(matched_text=matched_text, anchor=anchor))
 
 
+def _dedupe_resolved_sources(references: list[ResolvedSourceReference]) -> list[ResolvedSourceReference]:
+    seen: set[str] = set()
+    deduped: list[ResolvedSourceReference] = []
+    for reference in references:
+        identity = reference.source.identity
+        if identity in seen:
+            continue
+        seen.add(identity)
+        deduped.append(reference)
+    return deduped
+
+
 def _dedupe_anchors(anchors: list[SessionAnchor]) -> list[SessionAnchor]:
     by_key: dict[tuple[str, str, str], SessionAnchor] = {}
     for anchor in anchors:
@@ -365,6 +525,29 @@ def _normalise_cell(value: str) -> str:
 
 def _clean_text(value: str) -> str:
     return " ".join((value or "").split()).strip()
+
+
+def _content_terms(text: str, *, registry_dir: Path | None = None) -> set[str]:
+    try:
+        catalog = _load_catalog(registry_dir)
+        lexicon = catalog.lexicon
+        stop = lexicon.all_function_words | lexicon.prompt_noise_terms | lexicon.title_relation_terms
+    except Exception:  # noqa: BLE001 - source resolution must fail soft.
+        stop = set()
+    terms = {
+        token
+        for token in re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{1,}", (text or "").lower())
+        if token not in stop
+    }
+    return {
+        token
+        for token in terms
+        if len(token) >= 3 or re.fullmatch(r"v[0-9]+", token)
+    }
+
+
+def _normalise_match_text(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
 
 def _cell_at(row: list[str], idx: int | None) -> str:

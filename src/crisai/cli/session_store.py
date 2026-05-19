@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from crisai.config import load_settings
-from crisai.orchestration.session_anchors import AnchorRegistry
+from crisai.orchestration.session_anchors import AnchorRegistry, SessionSourceCandidate
 from crisai.workspace.spaces import load_workspace_spaces
 
 HistoryEntry = tuple[str, str]
@@ -32,6 +32,7 @@ class SessionMemory:
     rejected_options: list[str] = field(default_factory=list)
     source_findings: list[str] = field(default_factory=list)
     known_sources: list[str] = field(default_factory=list)
+    source_candidates: list[SessionSourceCandidate] = field(default_factory=list)
     active_artefacts: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
     next_actions: list[str] = field(default_factory=list)
@@ -53,6 +54,7 @@ class SessionMemory:
             rejected_options=_string_list(payload.get("rejected_options")),
             source_findings=_string_list(payload.get("source_findings")),
             known_sources=_string_list(payload.get("known_sources")),
+            source_candidates=_source_candidate_list(payload.get("source_candidates")),
             active_artefacts=_string_list(payload.get("active_artefacts")),
             open_questions=_string_list(payload.get("open_questions")),
             next_actions=_string_list(payload.get("next_actions")),
@@ -66,6 +68,16 @@ def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _source_candidate_list(value: Any) -> list[SessionSourceCandidate]:
+    if not isinstance(value, list):
+        return []
+    return [
+        SessionSourceCandidate.from_dict(item)
+        for item in value
+        if isinstance(item, dict) and str(item.get("title") or "").strip()
+    ]
 
 
 def sanitize_session_name(session_name: str) -> str:

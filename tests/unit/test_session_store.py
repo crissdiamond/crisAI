@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace
 
 from crisai.cli import session_store
+from crisai.orchestration.session_anchors import SessionSourceCandidate
 
 
 def test_cli_history_file_uses_workspace_dir(tmp_path, monkeypatch):
@@ -178,6 +179,39 @@ def test_save_and_load_session_memory_round_trip(tmp_path, monkeypatch):
     assert loaded.schema_version == "session_memory_v2"
     assert loaded.known_sources == ["workspace/knowledge/integration.md"]
     assert loaded.updated_at.endswith("Z")
+
+
+def test_session_memory_source_candidates_round_trip_without_read_handle(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        session_store,
+        "load_settings",
+        lambda: SimpleNamespace(workspace_dir=tmp_path),
+    )
+    memory = session_store.SessionMemory(
+        task_goal="Summarise the deck.",
+        source_candidates=[
+            SessionSourceCandidate(
+                title="UCL Integration Strategy_Full Presentation v2.pptx",
+                source_family="sharepoint_docs",
+                source_type="sharepoint_document",
+                source_scope="sharepoint",
+                open_url="https://liveuclac.sharepoint.com/sites/DataTeam/doc.pptx",
+                location="Data & Integration Team",
+                evidence_level="metadata_read",
+                read_status="metadata_read",
+                rank=1,
+            )
+        ],
+    )
+
+    session_store.save_session_memory("demo", memory)
+    payload = json.loads(session_store.session_memory_file("demo").read_text(encoding="utf-8"))
+    loaded = session_store.load_session_memory("demo")
+
+    assert "read_handle" not in payload["source_candidates"][0]
+    assert loaded.source_candidates[0].title == "UCL Integration Strategy_Full Presentation v2.pptx"
+    assert loaded.source_candidates[0].source_family == "sharepoint_docs"
+    assert loaded.source_candidates[0].source_type == "sharepoint_document"
 
 
 def test_load_session_memory_does_not_create_session_dirs(tmp_path, monkeypatch):

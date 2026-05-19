@@ -7,6 +7,7 @@ from crisai.orchestration.request_contract import (
     infer_request_contract,
     render_request_contract_brief,
 )
+from crisai.orchestration.session_anchors import SessionSourceCandidate
 
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
 
@@ -111,3 +112,32 @@ def test_request_contract_brief_is_human_readable_not_json() -> None:
     assert "Agent: summary" in rendered
     assert "```json" not in rendered
     assert "schema_version" not in rendered
+
+
+def test_request_contract_resolves_followup_source_from_session_candidates() -> None:
+    candidate = SessionSourceCandidate(
+        title="UCL Integration Strategy_Full Presentation v2.pptx",
+        source_family="sharepoint_docs",
+        source_type="sharepoint_document",
+        source_scope="sharepoint",
+        open_url="https://liveuclac.sharepoint.com/sites/DataTeam/doc.pptx",
+        location="Data & Integration Team",
+        evidence_level="metadata_read",
+        read_status="metadata_read",
+        rank=3,
+    )
+
+    contract = infer_request_contract(
+        "Please summarise in detail the Full presentation v2 deck, why the strategy, what is it, how, who and when.",
+        registry_dir=REGISTRY_DIR,
+        source_candidates=(candidate,),
+    )
+
+    assert contract.primary_intent == "summarize_source"
+    assert contract.source_required is True
+    assert "sharepoint_docs" in contract.source_families
+    assert "sharepoint" in contract.source_families
+    assert contract.resolved_sources
+    assert contract.resolved_sources[0].source.title == "UCL Integration Strategy_Full Presentation v2.pptx"
+    assert "UCL Integration Strategy_Full Presentation v2.pptx" in contract.named_sources
+    assert "read_handle" not in contract.to_dict()["resolved_sources"][0]["source"]

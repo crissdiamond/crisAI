@@ -16,6 +16,10 @@ from crisai.orchestration.retrieval_association_graph import (
     format_retrieval_expansion_block,
     load_retrieval_association_graph,
 )
+from crisai.orchestration.session_anchors import (
+    ResolvedSourceReference,
+    render_resolved_sources,
+)
 from crisai.orchestration.source_constraints import (
     infer_source_fit_constraints,
     render_source_fit_constraints,
@@ -117,6 +121,7 @@ def build_retrieval_planner_prompt(
     registry_dir: Path | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
     task_contract: TaskContract | None = None,
+    resolved_sources: tuple[ResolvedSourceReference, ...] = (),
 ) -> str:
     """Build the runtime prompt for the retrieval planner stage.
 
@@ -147,6 +152,8 @@ def build_retrieval_planner_prompt(
     if task_contract is not None:
         blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
     blocks.append(_section("Source Fit Constraints", render_source_fit_constraints(source_constraints)))
+    if resolved_sources:
+        blocks.append(_section("Resolved Session Sources", render_resolved_sources(resolved_sources)))
     if expansion:
         blocks.append(expansion)
     blocks.extend(
@@ -160,6 +167,8 @@ def build_retrieval_planner_prompt(
             "Produce a **compact retrieval handoff** for the Context Retrieval stage.\n"
             "- Preserve the Task Contract's primary deliverable. Retrieval is a support step, not the final answer.\n"
             "- Preserve Source Fit Constraints exactly: explicit title phrases and source scopes outrank semantic expansion hints.\n"
+            "- If Resolved Session Sources are present, treat them as the preferred source identity from the prior turn. "
+            "Use their source family, URL/path/content id, and title to retrieve the source again; do not assume a stale handle exists.\n"
             "- Do **not** retrieve or read source documents in this stage.\n"
             "- Provide only what helps search: 3–7 concrete angles (folders, doc "
             "types, product areas, keywords, standards IDs), ambiguities that change "
@@ -187,6 +196,7 @@ def build_single_retrieval_planner_prompt(
     *,
     registry_dir: Path | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
+    resolved_sources: tuple[ResolvedSourceReference, ...] = (),
 ) -> str:
     """Build the runtime prompt for single-mode retrieval-planner execution.
 
@@ -214,6 +224,8 @@ def build_single_retrieval_planner_prompt(
     )
     blocks = [_section("User request", message)]
     blocks.append(_section("Source Fit Constraints", render_source_fit_constraints(source_constraints)))
+    if resolved_sources:
+        blocks.append(_section("Resolved Session Sources", render_resolved_sources(resolved_sources)))
     if expansion:
         blocks.append(expansion)
     blocks.extend(
@@ -221,6 +233,7 @@ def build_single_retrieval_planner_prompt(
             "Task:\nPerform retrieval now and return concrete results for the user request.",
             "Execution rules:\n"
             "- Use available retrieval tools for OneDrive/SharePoint/workspace as needed.\n"
+            "- If Resolved Session Sources are present, prefer those prior-turn source identities and re-search/refetch/read them with current tools.\n"
             "- Preserve Source Fit Constraints exactly: explicit title phrases and source scopes are hard filters.\n"
             "- **SharePoint vs OneDrive:** if the user asks for SharePoint (not personal OneDrive only), "
             "prefer `search_sharepoint_site_documents` or `list_sites` + `search_site_drive_documents`; "
@@ -248,6 +261,7 @@ def build_context_retrieval_prompt(
     registry_dir: Path | None = None,
     deterministic_context: DeterministicRetrievalContext | None = None,
     task_contract: TaskContract | None = None,
+    resolved_sources: tuple[ResolvedSourceReference, ...] = (),
 ) -> str:
     """Build the runtime prompt for the context retrieval stage.
 
@@ -285,6 +299,8 @@ def build_context_retrieval_prompt(
     if task_contract is not None:
         blocks.append(_section("Task Contract", render_task_contract_summary(task_contract)))
     blocks.append(_section("Source Fit Constraints", render_source_fit_constraints(source_constraints)))
+    if resolved_sources:
+        blocks.append(_section("Resolved Session Sources", render_resolved_sources(resolved_sources)))
     if expansion:
         blocks.append(expansion)
     blocks.extend(
@@ -295,6 +311,7 @@ def build_context_retrieval_prompt(
                 _deterministic_handoff_block(context, include_terms=not source_constraints.is_active),
             ),
             "Task:\nRetrieve the most relevant material for this request from available context sources. "
+            "If Resolved Session Sources are present, use them as authoritative prior-turn source identity; re-search/refetch/read by title, URL/path, content id, and source family with current tools. "
             "Prefer context-specific retrieval tools such as build_context_index, search_context_chunks, and get_context_index_summary when available. "
             "If those tools are unavailable, list or search before reading files. "
             "When a **Deterministic retrieval expansion** block appears above, treat it as optional query hints from `registry/semantic_graph.yaml`; still validate fit to the user request. "

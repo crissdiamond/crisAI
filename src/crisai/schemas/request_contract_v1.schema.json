@@ -16,7 +16,8 @@
     "actions",
     "quality_gates",
     "route_hints",
-    "referenced_anchors"
+    "referenced_anchors",
+    "resolved_sources"
   ],
   "properties": {
     "schema_version": { "const": "request_contract_v1" },
@@ -83,6 +84,19 @@
             },
             "additionalProperties": false
           }
+        },
+        "additionalProperties": false
+      }
+    },
+    "resolved_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["matched_text", "score", "source"],
+        "properties": {
+          "matched_text": { "type": "string" },
+          "score": { "type": "number" },
+          "source": { "$ref": "session_source_candidate_v1.schema.json" }
         },
         "additionalProperties": false
       }

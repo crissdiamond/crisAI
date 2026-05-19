@@ -28,6 +28,15 @@ Registry-owned semantics:
   new language or classification behaviour, update the registry and relevant
   tests instead of adding local lists, string checks, or regexes in runtime code.
 
+Structured workflow contracts:
+
+- Machine-critical runtime exchange must use schema-backed JSON contracts or
+  typed runtime objects, not prose-only handoffs.
+- Use structured contracts for source identities, evidence, retrieval handoffs,
+  routing/task/request state, gates, retries, and checkpoint decisions.
+- Prose can summarise state for users, but downstream behaviour must not depend
+  on parsing narrative text when a contract can carry the state.
+
 Pairing:
 
 - Work with `runtime_claude`.
