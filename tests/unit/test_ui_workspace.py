@@ -28,6 +28,7 @@ def test_ui_apps_depend_on_shared_contract_package() -> None:
     assert "react" in web["dependencies"]
     assert "ink" in gem["dependencies"]
     assert "eventsource" in gem["dependencies"]
+    assert web["scripts"]["test"] == "tsx --test test/*.test.ts"
     assert gem["scripts"]["test"] == "tsx --test test/*.test.ts"
 
 
@@ -75,6 +76,9 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "VITE_CRISAI_API_KEY" in web_source
     assert "localStorage.getItem(apiKeyStorageKey)" in web_source
     assert "runtime.setApiToken" in web_source
+    assert "shouldShowTranscriptEvent(event, verbose)" in web_source
+    assert "MarkdownContent content={finalContent}" in web_source
+    assert "checkpoint-evidence" in web_source
     assert "deriveStageSummaries(activeEvents" in gem_source
     assert "latestLiveStageEvent" in gem_source
     assert "commandHistory" in gem_source

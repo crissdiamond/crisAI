@@ -1,0 +1,150 @@
+import type { UiEvent } from "@crisai/contracts";
+
+export type MarkdownInlineToken =
+  | { type: "text"; value: string }
+  | { type: "strong"; value: string }
+  | { type: "code"; value: string };
+
+export type MarkdownBlock =
+  | { type: "heading"; level: number; children: MarkdownInlineToken[] }
+  | { type: "paragraph"; children: MarkdownInlineToken[] }
+  | { type: "list"; items: MarkdownInlineToken[][] }
+  | { type: "code"; value: string }
+  | { type: "table"; headers: MarkdownInlineToken[][]; rows: MarkdownInlineToken[][][] };
+
+export const normalTranscriptHiddenEventTypes = new Set<UiEvent["event_type"]>([
+  "run_created",
+  "routing_decision",
+  "task_contract",
+  "checkpoint_decision",
+  "run_completed"
+]);
+
+export function shouldShowTranscriptEvent(event: Pick<UiEvent, "event_type">, verbose: boolean): boolean {
+  if (event.event_type === "final_answer" || event.event_type === "stage_delta") {
+    return false;
+  }
+  if (verbose) {
+    return true;
+  }
+  return !normalTranscriptHiddenEventTypes.has(event.event_type);
+}
+
+export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const blocks: MarkdownBlock[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+
+    const heading = /^(#{1,4})\s+(.+)$/.exec(line);
+    if (heading) {
+      blocks.push({
+        type: "heading",
+        level: Math.min(heading[1].length + 2, 6),
+        children: parseInlineMarkdown(heading[2])
+      });
+      index += 1;
+      continue;
+    }
+
+    if (/^```/.test(line)) {
+      const codeLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !/^```/.test(lines[index])) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push({ type: "code", value: codeLines.join("\n") });
+      index += 1;
+      continue;
+    }
+
+    if (isMarkdownTableStart(lines, index)) {
+      const tableLines: string[] = [];
+      while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+        tableLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(parseMarkdownTable(tableLines));
+      continue;
+    }
+
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items: MarkdownInlineToken[][] = [];
+      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
+        items.push(parseInlineMarkdown(lines[index].replace(/^\s*[-*]\s+/, "")));
+        index += 1;
+      }
+      blocks.push({ type: "list", items });
+      continue;
+    }
+
+    const paragraphLines = [line.trim()];
+    index += 1;
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !/^(#{1,4})\s+/.test(lines[index]) &&
+      !/^```/.test(lines[index]) &&
+      !/^\s*[-*]\s+/.test(lines[index]) &&
+      !isMarkdownTableStart(lines, index)
+    ) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+    blocks.push({ type: "paragraph", children: parseInlineMarkdown(paragraphLines.join(" ")) });
+  }
+  return blocks;
+}
+
+export function parseInlineMarkdown(value: string): MarkdownInlineToken[] {
+  const nodes: MarkdownInlineToken[] = [];
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(value)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push({ type: "text", value: value.slice(lastIndex, match.index) });
+    }
+    const token = match[0];
+    if (token.startsWith("**")) {
+      nodes.push({ type: "strong", value: token.slice(2, -2) });
+    } else {
+      nodes.push({ type: "code", value: token.slice(1, -1) });
+    }
+    lastIndex = match.index + token.length;
+  }
+  if (lastIndex < value.length) {
+    nodes.push({ type: "text", value: value.slice(lastIndex) });
+  }
+  return nodes;
+}
+
+function isMarkdownTableStart(lines: string[], index: number): boolean {
+  return Boolean(
+    lines[index]?.includes("|") &&
+      lines[index + 1]?.includes("|") &&
+      /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])
+  );
+}
+
+function parseMarkdownTable(lines: string[]): MarkdownBlock {
+  const [headerLine, , ...bodyLines] = lines;
+  const headers = splitMarkdownTableRow(headerLine).map(parseInlineMarkdown);
+  const rows = bodyLines.map((row) => splitMarkdownTableRow(row).map(parseInlineMarkdown));
+  return { type: "table", headers, rows };
+}
+
+function splitMarkdownTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}

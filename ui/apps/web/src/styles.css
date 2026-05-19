@@ -156,6 +156,7 @@ button:disabled {
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(220px, 300px);
   gap: 16px;
   min-height: 0;
+  align-items: stretch;
 }
 
 .stage-rail,
@@ -166,12 +167,31 @@ button:disabled {
   padding: 16px;
 }
 
+.stage-rail,
+.transcript,
+.history-panel {
+  box-sizing: border-box;
+  min-height: 0;
+  max-height: min(720px, 68vh);
+  overflow: auto;
+}
+
+.stage-rail {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.transcript {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
 .history-panel {
   display: grid;
   align-content: start;
   gap: 12px;
-  max-height: 720px;
-  overflow: auto;
 }
 
 .stage {
@@ -204,6 +224,7 @@ button:disabled {
 .event-card {
   padding: 16px 0;
   border-bottom: 1px solid var(--color-surface-pale);
+  min-width: 0;
 }
 
 .streaming-card {
@@ -227,6 +248,27 @@ button:disabled {
 pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.live-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+.checkpoint-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.checkpoint-decision {
+  margin: 0;
 }
 
 .checkpoint-actions {
@@ -245,8 +287,97 @@ pre {
   min-height: 72px;
 }
 
+.checkpoint-actions button {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-width: 96px;
+  min-height: 56px;
+}
+
+.checkpoint-actions button small {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.checkpoint-evidence {
+  border: 1px solid var(--color-surface-pale);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--color-bg);
+}
+
+.checkpoint-evidence summary {
+  cursor: pointer;
+  color: var(--color-primary-dark);
+  font-weight: 700;
+}
+
+.checkpoint-evidence pre {
+  max-height: 320px;
+  overflow: auto;
+}
+
 .final-card {
   border-bottom: 0;
+}
+
+.markdown-content {
+  display: grid;
+  gap: 12px;
+  overflow-wrap: anywhere;
+}
+
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6,
+.markdown-content p,
+.markdown-content ul,
+.markdown-content pre {
+  margin: 0;
+}
+
+.markdown-content ul {
+  padding-left: 20px;
+}
+
+.markdown-content code {
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: var(--color-surface-pale);
+}
+
+.markdown-code {
+  border: 1px solid var(--color-surface-pale);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--color-surface-pale);
+  overflow: auto;
+}
+
+.markdown-table-scroll {
+  max-width: 100%;
+  overflow: auto;
+}
+
+.markdown-content table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--color-surface-pale);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-content th {
+  color: var(--color-primary-dark);
+  background: var(--color-surface-pale);
 }
 
 .session-context-preview {
@@ -481,11 +612,16 @@ pre {
   }
 
   .stage-rail {
+    max-height: 42vh;
     margin-bottom: 16px;
   }
 
+  .transcript {
+    max-height: 70vh;
+  }
+
   .history-panel {
-    max-height: none;
+    max-height: 56vh;
     margin-top: 16px;
   }
 

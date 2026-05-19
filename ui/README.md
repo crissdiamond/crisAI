@@ -34,7 +34,11 @@ Current status:
   apply registry-backed theme tokens, render expected stages, select/create
   sessions, show recent session history, browse/read/save editable workspace
   files, upload source documents to task inputs or knowledge intake, and submit
-  retrieval checkpoint decisions.
+  retrieval checkpoint decisions. Normal run transcripts hide routing,
+  task-contract, and other transport events while verbose mode keeps them
+  available for debugging. Final answers render common Markdown structures, and
+  checkpoint cards put the decision controls before collapsible evidence detail
+  so long retrieval plans stay bounded inside the transcript panel.
 - `apps/gem` is an Ink scaffold that uses the same contract, stage derivation,
   session APIs, run-history APIs, and checkpoint commands (`/continue`,
   `/redirect <guidance>`, `/stop`). It renders streamed `stage_delta` output in

@@ -17,6 +17,7 @@ import {
   type UiWorkspaceFileRecord,
   type UiWorkspaceUploadTarget
 } from "@crisai/contracts";
+import { parseMarkdownBlocks, shouldShowTranscriptEvent, type MarkdownInlineToken } from "./runDisplay.js";
 import "./styles.css";
 
 const apiKeyStorageKey = "crisai_api_key";
@@ -249,6 +250,7 @@ function App() {
           finalContent={finalContent}
           liveStageEvent={liveStageEvent}
           checkpointWaiting={checkpointWaiting}
+          verbose={verbose}
           redirectInstruction={redirectInstruction}
           onRedirectInstructionChange={setRedirectInstruction}
           onCheckpoint={checkpoint}
@@ -588,6 +590,7 @@ function Transcript({
   finalContent,
   liveStageEvent,
   checkpointWaiting,
+  verbose,
   redirectInstruction,
   onRedirectInstructionChange,
   onCheckpoint
@@ -596,12 +599,23 @@ function Transcript({
   finalContent: string;
   liveStageEvent: UiEvent | null;
   checkpointWaiting: boolean;
+  verbose: boolean;
   redirectInstruction: string;
   onRedirectInstructionChange: (value: string) => void;
   onCheckpoint: (action: "continue" | "redirect" | "stop", instruction?: string) => Promise<void>;
 }) {
+  const visibleEvents = events.filter((event) => shouldShowTranscriptEvent(event, verbose));
+  const liveStatus = checkpointWaiting
+    ? "Decision needed: review retrieved sources."
+    : liveStageEvent
+      ? `Running ${liveStageEvent.title || humanizeLabel(liveStageEvent.agent_id ?? liveStageEvent.stage ?? "stage")}.`
+      : "";
+
   return (
-    <section className="transcript" aria-live="polite">
+    <section className="transcript" aria-label="Run transcript">
+      <p className="live-status" role="status" aria-live="polite" aria-atomic="true">
+        {liveStatus}
+      </p>
       {events.length === 0 ? <p>No output yet.</p> : null}
       {liveStageEvent ? (
         <article className="event-card streaming-card">
@@ -612,35 +626,25 @@ function Transcript({
           <pre>{liveStageEvent.content}</pre>
         </article>
       ) : null}
-      {events.filter((event) => event.event_type !== "final_answer" && event.event_type !== "stage_delta").map((event, index) => (
+      {visibleEvents.map((event, index) => (
         <article key={`${event.event_type}-${event.timestamp}-${index}`} className="event-card">
           <header>
             <h2>{event.title}</h2>
             <span>{event.event_type}</span>
           </header>
           {event.summary ? <p className="summary">{event.summary}</p> : null}
-          {event.content ? <pre>{event.content}</pre> : null}
           {event.event_type === "checkpoint_requested" ? (
-            <div className="checkpoint-actions">
-              <label>
-                Redirect guidance
-                <textarea
-                  value={redirectInstruction}
-                  onChange={(item) => onRedirectInstructionChange(item.target.value)}
-                  disabled={!checkpointWaiting}
-                />
-              </label>
-              <button type="button" disabled={!checkpointWaiting} onClick={() => onCheckpoint("continue")}>Continue</button>
-              <button
-                type="button"
-                disabled={!checkpointWaiting || !redirectInstruction.trim()}
-                onClick={() => onCheckpoint("redirect", redirectInstruction)}
-              >
-                Redirect
-              </button>
-              <button type="button" disabled={!checkpointWaiting} onClick={() => onCheckpoint("stop")}>Stop</button>
-            </div>
-          ) : null}
+            <CheckpointDecisionPanel
+              event={event}
+              checkpointWaiting={checkpointWaiting}
+              redirectInstruction={redirectInstruction}
+              onRedirectInstructionChange={onRedirectInstructionChange}
+              onCheckpoint={onCheckpoint}
+              verbose={verbose}
+            />
+          ) : (
+            <EventContent event={event} verbose={verbose} />
+          )}
         </article>
       ))}
       {finalContent ? (
@@ -649,11 +653,142 @@ function Transcript({
             <h2>Final answer</h2>
             <span>final_answer</span>
           </header>
-          <pre>{finalContent}</pre>
+          <MarkdownContent content={finalContent} />
         </article>
       ) : null}
     </section>
   );
+}
+
+function CheckpointDecisionPanel({
+  event,
+  checkpointWaiting,
+  redirectInstruction,
+  onRedirectInstructionChange,
+  onCheckpoint,
+  verbose
+}: {
+  event: UiEvent;
+  checkpointWaiting: boolean;
+  redirectInstruction: string;
+  onRedirectInstructionChange: (value: string) => void;
+  onCheckpoint: (action: "continue" | "redirect" | "stop", instruction?: string) => Promise<void>;
+  verbose: boolean;
+}) {
+  const evidenceDetail = event.content || event.verbose_content;
+  return (
+    <div className="checkpoint-panel">
+      <p className="checkpoint-decision">
+        Review the retrieved sources before the run spends more time drafting the answer.
+      </p>
+      <div className="checkpoint-actions" aria-label="Checkpoint actions">
+        <label>
+          Redirect guidance
+          <textarea
+            value={redirectInstruction}
+            onChange={(item) => onRedirectInstructionChange(item.target.value)}
+            disabled={!checkpointWaiting}
+            placeholder="Tell retrieval what to change before continuing"
+          />
+        </label>
+        <button type="button" disabled={!checkpointWaiting} onClick={() => onCheckpoint("continue")}>
+          Continue
+          <small>Use these sources</small>
+        </button>
+        <button
+          type="button"
+          disabled={!checkpointWaiting || !redirectInstruction.trim()}
+          onClick={() => onCheckpoint("redirect", redirectInstruction)}
+        >
+          Redirect
+          <small>Refine retrieval</small>
+        </button>
+        <button type="button" disabled={!checkpointWaiting} onClick={() => onCheckpoint("stop")}>
+          Stop
+          <small>End this run</small>
+        </button>
+      </div>
+      {evidenceDetail ? (
+        <details className="checkpoint-evidence" open={verbose}>
+          <summary>Evidence detail</summary>
+          <pre>{verbose && event.verbose_content ? event.verbose_content : evidenceDetail}</pre>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function EventContent({ event, verbose }: { event: UiEvent; verbose: boolean }) {
+  const content = verbose && event.verbose_content ? event.verbose_content : event.content;
+  if (content.trim() && content.trim() === event.summary.trim()) return null;
+  if (!content) return null;
+  return <pre>{content}</pre>;
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  return <div className="markdown-content">{renderMarkdownBlocks(content)}</div>;
+}
+
+function renderMarkdownBlocks(content: string): React.ReactNode[] {
+  return parseMarkdownBlocks(content).map((block, index) => {
+    if (block.type === "heading") {
+      const Tag = `h${block.level}` as React.ElementType;
+      return <Tag key={index}>{renderInlineMarkdown(block.children)}</Tag>;
+    }
+    if (block.type === "code") {
+      return (
+        <pre key={index} className="markdown-code">
+          <code>{block.value}</code>
+        </pre>
+      );
+    }
+    if (block.type === "list") {
+      return (
+        <ul key={index}>
+          {block.items.map((item, itemIndex) => (
+            <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ul>
+      );
+    }
+    if (block.type === "table") {
+      return (
+        <div key={index} className="markdown-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                {block.headers.map((header, headerIndex) => (
+                  <th key={headerIndex}>{renderInlineMarkdown(header)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {block.headers.map((_, cellIndex) => (
+                    <td key={cellIndex}>{renderInlineMarkdown(row[cellIndex] ?? [])}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    return <p key={index}>{renderInlineMarkdown(block.children)}</p>;
+  });
+}
+
+function renderInlineMarkdown(tokens: MarkdownInlineToken[]): React.ReactNode[] {
+  return tokens.map((token, index) => {
+    if (token.type === "strong") {
+      return <strong key={index}>{token.value}</strong>;
+    }
+    if (token.type === "code") {
+      return <code key={index}>{token.value}</code>;
+    }
+    return token.value;
+  });
 }
 
 function latestLiveStageEvent(events: UiEvent[]): UiEvent | null {
