@@ -300,7 +300,10 @@ def _merge_stage_observability_metadata(
     if not observability_events:
         return metadata
     merged: dict[str, Any] = dict(metadata or {})
-    observability = dict(merged.get("observability") if isinstance(merged.get("observability"), dict) else {})
+    existing_observability = merged.get("observability")
+    observability: dict[str, Any] = (
+        dict(existing_observability) if isinstance(existing_observability, dict) else {}
+    )
     for event_type, payload in observability_events:
         if event_type in {"streaming_fallback", "provider_usage"}:
             observability.update(payload)
