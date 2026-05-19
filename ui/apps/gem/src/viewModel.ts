@@ -643,17 +643,29 @@ export function checkpointDecisionLines(): string[] {
   ];
 }
 
+const normalPanelHiddenEventTypes = new Set<UiEvent["event_type"]>([
+  "run_created",
+  "routing_decision",
+  "task_contract",
+  "checkpoint_decision",
+  "run_completed"
+]);
+
 export function buildEventLines(events: UiEvent[], error: string, width: number, notice = ""): string[] {
   const lines: string[] = [];
   const visibleEvents = events
-    .filter((event) => event.event_type !== "final_answer" && event.event_type !== "stage_delta")
+    .filter(shouldShowNormalPanelEvent)
     .slice(-20);
 
   for (const event of visibleEvents) {
-    lines.push(...wrapPlainText(event.title, width));
-    if (event.summary) lines.push(...wrapPlainText(event.summary, width));
-    if (event.content && !isDuplicateEventBody(event.summary, event.content)) {
-      lines.push(...wrapPlainText(event.content, width));
+    if (event.event_type === "checkpoint_requested") {
+      lines.push(...checkpointEventLines(event, width));
+    } else {
+      lines.push(...wrapPlainText(event.title, width));
+      if (event.summary) lines.push(...wrapPlainText(event.summary, width));
+      if (event.content && !isDuplicateEventBody(event.summary, event.content)) {
+        lines.push(...wrapPlainText(event.content, width));
+      }
     }
     lines.push("");
   }
@@ -667,6 +679,101 @@ export function buildEventLines(events: UiEvent[], error: string, width: number,
   }
 
   return lines.length > 0 ? lines : ["No output yet."];
+}
+
+function shouldShowNormalPanelEvent(event: UiEvent): boolean {
+  if (event.event_type === "final_answer" || event.event_type === "stage_delta") {
+    return false;
+  }
+  return !normalPanelHiddenEventTypes.has(event.event_type);
+}
+
+function checkpointEventLines(event: UiEvent, width: number): string[] {
+  const lines = [
+    ...wrapPlainText(event.title || "Review retrieved sources", width),
+    ...wrapPlainText(event.summary || "Retrieved sources are ready for review.", width)
+  ];
+  const sourceRows = checkpointSourceRows(event, width);
+  if (sourceRows.length > 0) {
+    lines.push("Sources");
+    lines.push(...sourceRows);
+  }
+  return lines;
+}
+
+function checkpointSourceRows(event: UiEvent, width: number): string[] {
+  const bundle = findEvidenceBundle(event.metadata);
+  if (!bundle || !Array.isArray(bundle.items)) return [];
+  const maxRows = 5;
+  const rows = bundle.items
+    .slice(0, maxRows)
+    .map((item, index) => formatEvidenceSourceRow(item, index + 1, width))
+    .filter((line) => line.length > 0);
+  const hidden = bundle.items.length - rows.length;
+  if (hidden > 0) {
+    rows.push(...wrapPlainText(`+ ${hidden} more source${hidden === 1 ? "" : "s"}`, width));
+  }
+  return rows;
+}
+
+function findEvidenceBundle(metadata: Record<string, unknown>): Record<string, unknown> | null {
+  const direct = firstRecord(metadata, ["evidence_bundle", "evidence_bundle_v1"]);
+  if (direct) return direct;
+  const artifacts = recordValue(metadata.artifacts);
+  return artifacts ? firstRecord(artifacts, ["evidence_bundle", "evidence_bundle_v1"]) : null;
+}
+
+function formatEvidenceSourceRow(item: unknown, index: number, width: number): string {
+  const source = recordValue(recordValue(item)?.source);
+  if (!source) return "";
+  const sourceType = stringValue(source.source_type);
+  const title = stringValue(source.title);
+  const workspacePath = stringValue(source.workspace_path);
+  const location = stringValue(source.location);
+  const openUrl = stringValue(source.open_url);
+  const label = title || lastPathSegment(workspacePath) || shortUrl(openUrl) || location || sourceType || "source";
+  const detail = workspacePath || shortUrl(openUrl) || location || sourceType;
+  const suffix = detail && detail !== label ? ` · ${detail}` : "";
+  return boundedLine(`${index}. ${label}${suffix}`, width);
+}
+
+function firstRecord(source: Record<string, unknown>, keys: string[]): Record<string, unknown> | null {
+  for (const key of keys) {
+    const value = recordValue(source[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function lastPathSegment(value: string): string {
+  if (!value) return "";
+  return value.split(/[\\/]/).filter(Boolean).at(-1) ?? value;
+}
+
+function shortUrl(value: string): string {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    const tail = lastPathSegment(decodeURIComponent(url.pathname));
+    return tail ? `${url.hostname}/.../${tail}` : url.hostname;
+  } catch {
+    return value;
+  }
+}
+
+function boundedLine(value: string, width: number): string {
+  const usableWidth = Math.max(8, Math.floor(width));
+  return value.length <= usableWidth ? value : `${value.slice(0, Math.max(1, usableWidth - 1))}…`;
 }
 
 function isDuplicateEventBody(summary: string, content: string): boolean {

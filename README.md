@@ -214,8 +214,11 @@ the current task inputs folder or the knowledge intake area for later retrieval.
 Ink Gem keeps command recall on `Ctrl+P` and `Ctrl+N`, can suggest matching
 slash commands as a dim prompt suffix, and supports `/runs`, `/prev`, and
 `/prev N` for read-only review of completed or failed runs in the current
-session. The Gem prompt panel is a fixed-height multiline editor for long or
-pasted prompts, with wrapping and cursor movement inside the prompt area.
+session. Normal Gem panels hide internal transport events such as routing and
+task-contract payloads; retrieval checkpoints show bounded source rows instead
+of expanding structured evidence metadata or long raw URLs. The Gem prompt panel
+is a fixed-height multiline editor for long or pasted prompts, with wrapping and
+cursor movement inside the prompt area.
 
 ## Development Model
 

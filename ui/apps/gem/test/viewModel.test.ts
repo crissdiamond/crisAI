@@ -291,6 +291,145 @@ test("event lines preserve content with meaningful internal whitespace", () => {
   ]);
 });
 
+test("normal event lines hide internal transport events like the web transcript", () => {
+  const lines = buildEventLines([
+    uiEvent({
+      event_type: "run_created",
+      title: "Run created",
+      summary: "Transport setup."
+    }),
+    uiEvent({
+      event_type: "routing_decision",
+      title: "Routing decision",
+      summary: "Internal route selected."
+    }),
+    uiEvent({
+      event_type: "task_contract",
+      title: "Task contract",
+      summary: "Internal contract."
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      title: "Retrieval Planner",
+      summary: "Plan retrieval.",
+      content: "Use workspace sources.",
+      agent_id: "retrieval_planner",
+      stage: "retrieval_planner"
+    }),
+    uiEvent({
+      event_type: "checkpoint_decision",
+      title: "Checkpoint decision",
+      summary: "Continue."
+    }),
+    uiEvent({
+      event_type: "run_completed",
+      title: "Run completed",
+      summary: "Done."
+    })
+  ], "", 80);
+  const rendered = lines.join("\n");
+
+  assert(rendered.includes("Retrieval Planner"));
+  assert(!rendered.includes("Run created"));
+  assert(!rendered.includes("Routing decision"));
+  assert(!rendered.includes("Task contract"));
+  assert(!rendered.includes("Checkpoint decision"));
+  assert(!rendered.includes("Run completed"));
+});
+
+test("checkpoint event lines summarize evidence rows without expanding metadata bundles", () => {
+  const event = uiEvent({
+    event_type: "checkpoint_requested",
+    title: "Review retrieved sources",
+    summary: "Confirm whether these sources are sufficient.",
+    content: "Raw retrieval prose with a long https://tenant.sharepoint.com/sites/team/Shared%20Documents/VeryLongFolder/VeryLongSourceName.pptx URL should stay out of normal panels.",
+    verbose_content: JSON.stringify({
+      evidence_bundle_v1: {
+        items: [
+          {
+            source: {
+              title: "Very Long Integration Strategy Source Deck Name That Needs Bounding.pptx",
+              source_type: "sharepoint_doc",
+              open_url: "https://tenant.sharepoint.com/sites/team/Shared%20Documents/VeryLongFolder/VeryLongSourceName.pptx",
+              read_handle: "sharepoint_doc:secret-handle"
+            },
+            content_excerpt: "Sensitive excerpt"
+          }
+        ]
+      }
+    }),
+    metadata: {
+      evidence_bundle_v1: {
+        schema_version: "evidence_bundle_v1",
+        items: [
+          {
+            source: {
+              title: "Integration Strategy Update.pptx",
+              source_type: "sharepoint_doc",
+              open_url: "https://tenant.sharepoint.com/sites/team/Shared%20Documents/Strategy/Integration%20Strategy%20Update.pptx",
+              read_handle: "sharepoint_doc:secret-handle"
+            },
+            evidence_level: "content_read",
+            read_status: "read",
+            content_excerpt: "Do not render checkpoint excerpts here."
+          },
+          {
+            source: {
+              title: "",
+              source_type: "workspace_file",
+              workspace_path: "workspace/tasks/NewTest-04/artefacts/architecture-recommendation.md"
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  const lines = buildEventLines([event], "", 58);
+  const rendered = lines.join("\n");
+
+  assert(rendered.includes("Review retrieved sources"));
+  assert(rendered.includes("Confirm whether these sources are sufficient."));
+  assert(rendered.includes("Sources"));
+  assert(rendered.includes("Integration Strategy Update.pptx"));
+  assert(rendered.includes("architecture-recommendation.md"));
+  assert(lines.every((line) => line.length <= 58));
+  assert(!rendered.includes("Raw retrieval prose"));
+  assert(!rendered.includes("evidence_bundle_v1"));
+  assert(!rendered.includes("read_handle"));
+  assert(!rendered.includes("secret-handle"));
+  assert(!rendered.includes("Sensitive excerpt"));
+  assert(!rendered.includes("Do not render checkpoint excerpts"));
+  assert(!rendered.includes("https://tenant.sharepoint.com"));
+});
+
+test("checkpoint source rows prefer concise URL labels when no title is available", () => {
+  const event = uiEvent({
+    event_type: "checkpoint_requested",
+    title: "Review retrieved sources",
+    summary: "Confirm source fit.",
+    metadata: {
+      artifacts: {
+        evidence_bundle_v1: {
+          items: [
+            {
+              source: {
+                source_type: "sharepoint_doc",
+                open_url: "https://tenant.sharepoint.com/sites/team/Shared%20Documents/Strategy/Integration%20Strategy%20Update.pptx"
+              }
+            }
+          ]
+        }
+      }
+    }
+  });
+
+  const rendered = buildEventLines([event], "", 72).join("\n");
+
+  assert(rendered.includes("tenant.sharepoint.com/.../Integration Strategy Update.pptx"));
+  assert(!rendered.includes("https://tenant.sharepoint.com/sites/team"));
+});
+
 test("checkpoint waiting clears on decision or terminal event", () => {
   const requested = uiEvent({
     event_type: "checkpoint_requested",
