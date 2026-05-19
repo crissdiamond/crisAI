@@ -67,6 +67,28 @@ def test_display_sink_intercepts_status_stage_and_final() -> None:
     assert sink.calls[2] == ("final", "Done", "Final body")
 
 
+def test_display_sink_final_gets_sanitized_machine_blocks() -> None:
+    class Sink:
+        def __init__(self) -> None:
+            self.final_body = ""
+
+        def final(self, body, *, title=None):
+            del title
+            self.final_body = body
+
+    sink = Sink()
+    token = display.set_active_display_sink(sink)
+    try:
+        display.print_final_answer(
+            'Answer.\n```json\n{"schema_version":"evidence_bundle_v1","items":[{"source":{"read_handle":"sharepoint_doc:secret"}}]}\n```'
+        )
+    finally:
+        display.reset_active_display_sink(token)
+
+    assert "evidence_bundle_v1" not in sink.final_body
+    assert "sharepoint_doc:secret" not in sink.final_body
+
+
 def test_terminal_title_updates_are_disabled_by_default(monkeypatch, capsys) -> None:
     monkeypatch.delenv("CRISAI_TERMINAL_TITLE_ENABLED", raising=False)
 

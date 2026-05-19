@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -60,7 +62,7 @@ class FakeWorkflowEngine:
 
     def __init__(self, session: FakeWorkflowSession) -> None:
         self._session = session
-        self.agent_specs = None
+        self.agent_specs: list[Any] | None = None
 
     def session(self, agent_specs):
         self.agent_specs = list(agent_specs)
@@ -741,6 +743,94 @@ async def test_run_pipeline_checkpoint_continue_runs_downstream_stages(monkeypat
         "design",
         "orchestrator",
     ]
+
+
+@pytest.mark.anyio
+async def test_run_pipeline_checkpoint_carries_sanitized_evidence_bundle(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    evidence_bundle = """
+Retrieved and read the deck.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Summarise this document",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "Deck.pptx",
+        "open_url": "https://example.com/deck.pptx",
+        "read_handle": "sharepoint_doc:secret",
+        "metadata": {"read_handle": "sharepoint_doc:nested"}
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_sharepoint_document_by_handle",
+      "content_excerpt": "Slide 1: Strategy overview.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    class EvidenceWorkflowSession(FakeWorkflowSession):
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            self._stage_calls.append((ui_agent_id, prompt))
+            result = evidence_bundle if ui_agent_id == "context_retrieval" else f"{ui_agent_id}-output"
+            output_processor = kwargs.get("output_processor")
+            if output_processor is not None:
+                output_processor(result)
+            return result
+
+    session = EvidenceWorkflowSession(trace_calls, stage_calls, "summary-output")
+    engine = FakeWorkflowEngine(session)
+    checkpoints = []
+
+    async def checkpoint_handler(snapshot):
+        checkpoints.append(snapshot)
+        return RetrievalCheckpointDecision.continue_()
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    result = await pipelines.run_pipeline(
+        "Summarise this document",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(
+            openai_api_key="key",
+            log_dir=tmp_path,
+            retrieval_checkpoint_enabled=True,
+            retrieval_checkpoint_max_redirects=2,
+        ),
+        server_specs={},
+        agent_specs={},
+        retrieval_checkpoint_handler=checkpoint_handler,
+    )
+
+    assert result == "summary-output"
+    assert checkpoints[0].evidence_bundle["schema_version"] == "evidence_bundle_v1"
+    source = checkpoints[0].evidence_bundle["items"][0]["source"]
+    assert source["title"] == "Deck.pptx"
+    assert "read_handle" not in source
+    assert "read_handle" not in source["metadata"]
 
 
 @pytest.mark.anyio
@@ -1643,6 +1733,59 @@ async def test_run_single_retrieval_planner_uses_retrieval_execution_prompt(monk
 
 
 @pytest.mark.anyio
+async def test_run_single_retrieval_planner_persists_session_source_candidates(monkeypatch, tmp_path):
+    from crisai.cli import chat_context, session_store
+
+    settings = SimpleNamespace(
+        openai_api_key="key",
+        log_dir=tmp_path,
+        workspace_dir=tmp_path,
+        registry_dir=Path(__file__).resolve().parents[2] / "registry",
+    )
+    monkeypatch.setattr(session_store, "load_settings", lambda: settings)
+    monkeypatch.setattr(chat_context, "load_settings", lambda: settings)
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(
+            root_dir=tmp_path,
+            trace_file=tmp_path / "trace.log",
+            runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
+            factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
+            run_id="test-run-id",
+        ),
+    )
+
+    async def _fake_run_agent_silently(agent, prompt: str) -> str:
+        del agent, prompt
+        return (
+            "Found files:\n\n"
+            "| File | Location | Note |\n"
+            "|---|---|---|\n"
+            "| [UCL Integration Strategy_Full Presentation v2.pptx]"
+            "(https://liveuclac.sharepoint.com/sites/DataTeam/_layouts/15/Doc.aspx?sourcedoc=%7BDD876D07-51C7-54B0-8ACE-E78B49D3F954%7D&file=v2.pptx) "
+            "| OneDrive | Exact title phrase. |"
+        )
+
+    monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
+
+    await pipelines.run_single(
+        "Find Integration Strategy files on OneDrive.",
+        "retrieval_planner",
+        settings=settings,
+        server_specs={},
+        agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
+        session_name="NewTest-04",
+    )
+
+    memory = session_store.load_session_memory("NewTest-04")
+
+    assert memory.source_candidates
+    assert memory.source_candidates[0].title == "UCL Integration Strategy_Full Presentation v2.pptx"
+
+
+@pytest.mark.anyio
 async def test_run_single_emits_fail_open_deterministic_trace_when_graph_missing(monkeypatch, tmp_path):
     captured_events: list[tuple[str, str, dict | None]] = []
 
@@ -1684,7 +1827,9 @@ async def test_run_single_emits_fail_open_deterministic_trace_when_graph_missing
     deterministic_events = [event for event in captured_events if event[0] == "DETERMINISTIC_RETRIEVAL_CONTEXT"]
     assert deterministic_events
     assert "fail-open" in deterministic_events[0][1]
-    assert deterministic_events[0][2]["mode"] == "single"
+    metadata = deterministic_events[0][2]
+    assert metadata is not None
+    assert metadata["mode"] == "single"
 
 
 @pytest.mark.anyio
@@ -1818,7 +1963,9 @@ async def test_run_peer_pipeline_passes_deterministic_context_to_peer_builders(m
         agent_specs={},
         needs_retrieval=False,
     )
-    assert "deterministic_context" in capture["author_kwargs"]
+    author_kwargs = capture["author_kwargs"]
+    assert isinstance(author_kwargs, dict)
+    assert "deterministic_context" in author_kwargs
 
 
 @pytest.mark.anyio

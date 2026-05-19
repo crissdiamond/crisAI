@@ -911,12 +911,12 @@ def render_peer_message(message: PeerMessage) -> Panel:
 
 
 def print_final_answer(body: str, *, title: str | None = None) -> None:
+    display_body = _hide_machine_evidence_blocks(body)
     sink = _ACTIVE_DISPLAY_SINK.get()
     if sink is not None and hasattr(sink, "final"):
-        sink.final(body, title=title)
+        sink.final(display_body, title=title)
         return
     panel_title = Text(title or _RENDER_TITLES["final"], style=f"bold {_RENDER_STYLES['final']}")
-    display_body = _hide_machine_evidence_blocks(body)
     console.print(
         Panel(
             Markdown(display_body.strip() or "_empty_"),
