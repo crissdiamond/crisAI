@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 TRACE_FILE_NAME = "agent_trace.jsonl"
+_READ_HANDLE_VALUE_RE = re.compile(r'("read_handle"\s*:\s*)"[^"]*"', re.IGNORECASE)
 
 
 
@@ -23,6 +25,7 @@ def write_trace_event(log_file: Path, event: dict[str, Any]) -> None:
         event: Structured event payload.
     """
     log_file.parent.mkdir(parents=True, exist_ok=True)
+    event = redact_trace_payload(event)
     with log_file.open("a", encoding="utf-8") as file_obj:
         file_obj.write(json.dumps(event, ensure_ascii=False) + "\n")
 
@@ -57,7 +60,7 @@ def append_trace(
         "service": {"name": "crisai", "component": "agent_trace"},
         "event_type": event_type,
         "stage": stage,
-        "content": content.strip(),
+        "content": redact_trace_text(content.strip()),
     }
 
     if run_id:
@@ -65,6 +68,29 @@ def append_trace(
     if agent_id:
         event["agent_id"] = agent_id
     if metadata:
-        event["metadata"] = metadata
+        event["metadata"] = redact_trace_payload(metadata)
 
     write_trace_event(log_file, event)
+
+
+def redact_trace_payload(value: Any) -> Any:
+    """Return a trace-safe copy with transient read handles removed."""
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, item in value.items():
+            if str(key).strip().lower() == "read_handle":
+                continue
+            redacted[str(key)] = redact_trace_payload(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact_trace_payload(item) for item in value]
+    if isinstance(value, tuple):
+        return [redact_trace_payload(item) for item in value]
+    if isinstance(value, str):
+        return redact_trace_text(value)
+    return value
+
+
+def redact_trace_text(text: str) -> str:
+    """Redact read-handle values embedded in text traces."""
+    return _READ_HANDLE_VALUE_RE.sub(r'\1"[redacted]"', text or "")

@@ -6,6 +6,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from .semantic_catalog import SemanticCatalog, load_semantic_catalog
 
@@ -143,7 +144,17 @@ class SessionSourceCandidate:
     @property
     def identity(self) -> str:
         """Return the strongest stable non-secret source identity available."""
-        return self.open_url or self.workspace_path or self.content_id or self.title
+        for value in (
+            self.content_id,
+            _sourcedoc_identity(self.open_url),
+            self.open_url,
+            self.workspace_path,
+            self.title,
+        ):
+            cleaned = (value or "").strip().lower()
+            if cleaned:
+                return cleaned
+        return ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -493,6 +504,25 @@ def _dedupe_resolved_sources(references: list[ResolvedSourceReference]) -> list[
         seen.add(identity)
         deduped.append(reference)
     return deduped
+
+
+def _sourcedoc_identity(open_url: str) -> str:
+    """Return a provider item id from URL query parameters when present."""
+    if not open_url:
+        return ""
+    try:
+        query = parse_qs(urlparse(open_url).query)
+    except ValueError:
+        return ""
+    for values in query.values():
+        for value in values:
+            cleaned = value.strip().strip("{}")
+            if re.fullmatch(
+                r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+                cleaned,
+            ):
+                return cleaned
+    return ""
 
 
 def _dedupe_anchors(anchors: list[SessionAnchor]) -> list[SessionAnchor]:

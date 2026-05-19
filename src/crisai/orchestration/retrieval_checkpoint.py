@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 CheckpointAction = Literal["continue", "redirect", "stop"]
 
@@ -17,10 +17,11 @@ class RetrievalCheckpointSnapshot:
     retrieval_prose: str
     attempt: int
     max_redirects: int
+    evidence_bundle: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-serialisable representation for trace and web state."""
-        return {
+        payload: dict[str, object] = {
             "request": self.request,
             "retrieval_plan": self.retrieval_plan,
             "evidence_brief": self.evidence_brief,
@@ -29,6 +30,9 @@ class RetrievalCheckpointSnapshot:
             "max_redirects": self.max_redirects,
             "remaining_redirects": max(self.max_redirects - self.attempt, 0),
         }
+        if self.evidence_bundle is not None:
+            payload["evidence_bundle"] = self.evidence_bundle
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

@@ -5,8 +5,12 @@ from pathlib import Path
 from crisai.cli import chat_context
 
 
+def _repo_catalog_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "registry"
+
+
 def _repo_catalog():
-    return chat_context.load_semantic_catalog(str(Path(__file__).resolve().parents[2] / "registry"))
+    return chat_context.load_semantic_catalog(str(_repo_catalog_path()))
 
 
 def test_render_history_formats_roles():
@@ -271,6 +275,69 @@ def test_compact_memory_extracts_evidence_source_candidates_without_read_handle(
     assert "read_handle" not in payload
     assert "read_handle" not in payload["metadata"]
     assert payload["metadata"]["site_display_name"] == "Data & Integration Team"
+
+
+def test_persist_session_source_candidates_from_single_output(tmp_path, monkeypatch):
+    from crisai.cli import session_store
+
+    settings = type("Settings", (), {"workspace_dir": tmp_path, "registry_dir": _repo_catalog_path()})()
+    monkeypatch.setattr(session_store, "load_settings", lambda: settings)
+    monkeypatch.setattr(chat_context, "load_settings", lambda: settings)
+
+    output = (
+        "Found files:\n\n"
+        "| File | Location | Note |\n"
+        "|---|---|---|\n"
+        "| [UCL Integration Strategy_Full Presentation v2.pptx]"
+        "(https://liveuclac.sharepoint.com/sites/DataTeam/_layouts/15/Doc.aspx?sourcedoc=%7BDD876D07-51C7-54B0-8ACE-E78B49D3F954%7D&file=v2.pptx) "
+        "| OneDrive | Exact title phrase. |\n"
+    )
+
+    candidates = chat_context.persist_session_source_candidates_from_output("NewTest-04", output)
+    memory = session_store.load_session_memory("NewTest-04")
+
+    assert len(candidates) == 1
+    assert memory.source_candidates[0].title == "UCL Integration Strategy_Full Presentation v2.pptx"
+    assert memory.source_candidates[0].source_family == "sharepoint_docs"
+    assert memory.source_candidates[0].source_type == "sharepoint_document"
+
+
+def test_update_session_memory_preserves_previously_persisted_source_candidates(tmp_path, monkeypatch):
+    from crisai.cli import session_store
+
+    settings = type("Settings", (), {"workspace_dir": tmp_path, "registry_dir": _repo_catalog_path()})()
+    monkeypatch.setattr(session_store, "load_settings", lambda: settings)
+    monkeypatch.setattr(chat_context, "load_settings", lambda: settings)
+
+    chat_context.persist_session_source_candidates_from_output(
+        "NewTest-04",
+        "[Deck.pptx](https://liveuclac.sharepoint.com/sites/DataTeam/doc.pptx)",
+    )
+    memory = chat_context.update_session_memory(
+        "NewTest-04",
+        [("user", "Please summarise it."), ("assistant", "Summary without links.")],
+    )
+
+    assert memory.source_candidates
+    assert memory.source_candidates[0].title == "Deck.pptx"
+
+
+def test_source_candidate_dedupe_uses_sourcedoc_guid():
+    history = [
+        ("user", "Find files."),
+        (
+            "assistant",
+            "| File | Location | Note |\n"
+            "|---|---|---|\n"
+            "| [Deck A.pptx](https://tenant.sharepoint.com/doc.aspx?sourcedoc=%7B4844F689-9858-498C-A888-95D025216DA8%7D&file=a.pptx) | OneDrive | A |\n"
+            "| [Deck B.pptx](https://tenant.sharepoint.com/doc.aspx?sourcedoc=%7B4844F689-9858-498C-A888-95D025216DA8%7D&file=b.pptx) | OneDrive | B |",
+        ),
+    ]
+
+    memory = chat_context.compact_session_memory(history)
+
+    assert len(memory.source_candidates) == 1
+    assert memory.source_candidates[0].title == "Deck A.pptx"
 
 
 def test_source_type_inference_uses_semantic_catalog_markers():

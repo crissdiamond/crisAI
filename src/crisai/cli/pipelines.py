@@ -89,6 +89,7 @@ from crisai.runtime import MultiServerContext, RuntimeManager
 from crisai.tracing import TRACE_FILE_NAME, append_trace
 
 from .artefact_lifecycle import validate_task_artefacts_for_request
+from .chat_context import persist_session_source_candidates_from_output
 from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
 from .pipeline_display import (
     _run_agent_silently,
@@ -347,7 +348,7 @@ class ValidatedEvidenceTransport:
             return None
         return {
             "artifacts": {
-                "evidence_bundle_v1": self.bundle.to_dict(),
+                "evidence_bundle_v1": self.bundle.to_sanitized_dict(),
             },
             "evidence_summary": self.evidence_brief,
         }
@@ -713,6 +714,8 @@ async def run_single(
                 else message
             )
             result = await _run_agent_silently(agent, prompt)
+            if session_name and agent_id == "retrieval_planner":
+                persist_session_source_candidates_from_output(session_name, result)
             append_trace(
                 environment.trace_file,
                 "FINAL_OUTPUT",
@@ -989,6 +992,9 @@ async def run_pipeline(
                 retrieval_prose=transport.prose if transport is not None else sanitize_user_visible_text(context_retrieval_text),
                 attempt=redirect_count,
                 max_redirects=checkpoint_max_redirects,
+                evidence_bundle=transport.bundle.to_sanitized_dict()
+                if transport is not None and transport.bundle is not None
+                else None,
             )
             _trace_workflow_policy_event(
                 workflow,

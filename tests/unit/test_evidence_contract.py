@@ -123,6 +123,58 @@ def test_evidence_bundle_rejects_invalid_level() -> None:
         EvidenceBundle.from_dict(payload)
 
 
+def test_evidence_level_upgrades_after_successful_read() -> None:
+    payload = _bundle(level="search_hit_only")
+    payload["items"][0]["read_status"] = "read"
+    payload["items"][0]["read_tool"] = "read_sharepoint_document_by_handle"
+    payload["items"][0]["content_excerpt"] = "Slide 1: Strategy."
+
+    bundle = EvidenceBundle.from_dict(payload)
+
+    assert bundle.items[0].evidence_level == "content_read"
+
+
+def test_sanitized_bundle_removes_read_handles() -> None:
+    payload = _bundle()
+    payload["items"][0]["source"]["metadata"] = {
+        "read_handle": "sharepoint_doc:nested",
+        "site": "Data Team",
+    }
+
+    sanitized = EvidenceBundle.from_dict(payload).to_sanitized_dict()
+    source = sanitized["items"][0]["source"]
+
+    assert "read_handle" not in source
+    assert source["metadata"] == {"site": "Data Team"}
+
+
+def test_evidence_bundle_dedupes_by_source_guid() -> None:
+    payload = _bundle(level="search_hit_only")
+    first_url = "https://tenant.sharepoint.com/doc.aspx?sourcedoc=%7B4844F689-9858-498C-A888-95D025216DA8%7D&file=a.pptx"
+    second_url = "https://tenant.sharepoint.com/doc.aspx?sourcedoc=%7B4844F689-9858-498C-A888-95D025216DA8%7D&file=b.pptx"
+    payload["items"][0]["source"]["open_url"] = first_url
+    duplicate = _bundle()["items"][0]
+    duplicate["source"]["open_url"] = second_url
+    duplicate["source"]["title"] = "Duplicate Deck.pptx"
+    payload["items"].append(duplicate)
+
+    bundle = EvidenceBundle.from_dict(payload)
+
+    assert len(bundle.items) == 1
+    assert bundle.items[0].source.title == "Duplicate Deck.pptx"
+    assert bundle.items[0].evidence_level == "content_read"
+
+
+def test_source_type_uses_registry_marker_for_model_variant_label() -> None:
+    payload = _bundle()
+    payload["items"][0]["source"]["source_type"] = "onedrive_document"
+    payload["items"][0]["source"]["open_url"] = "https://tenant.sharepoint.com/sites/team/doc.pptx"
+
+    bundle = EvidenceBundle.from_dict(payload)
+
+    assert bundle.items[0].source.source_type == "sharepoint_document"
+
+
 def test_read_failed_requires_raw_error() -> None:
     payload = _bundle(level="read_failed")
     payload["items"][0]["raw_error"] = ""

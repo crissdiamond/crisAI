@@ -216,11 +216,30 @@ def update_session_memory(session_name: str, history: list[HistoryEntry], config
     cfg = config or load_session_memory_config()
     # Agentic memory is intentionally routed through the same persisted contract
     # until the dedicated memory agent is wired into runtime execution.
+    existing = load_session_memory(session_name)
     memory = compact_session_memory(history, max_memory_chars=cfg.max_memory_chars)
+    if existing.source_candidates:
+        memory = _memory_with_source_candidates(
+            memory,
+            _dedupe_source_candidates([*memory.source_candidates, *existing.source_candidates]),
+        )
     save_session_memory(session_name, memory)
     anchors = extract_session_anchors_from_history(history, registry_dir=load_settings().registry_dir)
     save_session_anchors(session_name, anchors)
     return memory
+
+
+def persist_session_source_candidates_from_output(session_name: str, output: str) -> list[SessionSourceCandidate]:
+    """Persist source candidates discovered in a single-turn source output."""
+    if not session_name or not (output or "").strip():
+        return []
+    discovered = _extract_source_candidates([("assistant", output)])
+    if not discovered:
+        return []
+    existing = load_session_memory(session_name)
+    merged = _dedupe_source_candidates([*discovered, *existing.source_candidates])
+    save_session_memory(session_name, _memory_with_source_candidates(existing, merged))
+    return merged
 
 
 def build_runtime_context_package(
@@ -535,6 +554,31 @@ def _clean_for_memory(text: str) -> str:
     return _clean_recent_turn(text, preserve_tables=False)
 
 
+def _memory_with_source_candidates(
+    memory: SessionMemory,
+    source_candidates: list[SessionSourceCandidate],
+) -> SessionMemory:
+    return SessionMemory(
+        schema_version=memory.schema_version,
+        task_goal=memory.task_goal,
+        current_state=memory.current_state,
+        scope=list(memory.scope),
+        assumptions=list(memory.assumptions),
+        constraints=list(memory.constraints),
+        important_decisions=list(memory.important_decisions),
+        rejected_options=list(memory.rejected_options),
+        source_findings=list(memory.source_findings),
+        known_sources=list(memory.known_sources),
+        source_candidates=source_candidates,
+        active_artefacts=list(memory.active_artefacts),
+        open_questions=list(memory.open_questions),
+        next_actions=list(memory.next_actions),
+        last_outputs=list(memory.last_outputs),
+        do_not_repeat=list(memory.do_not_repeat),
+        updated_at=memory.updated_at,
+    )
+
+
 def _is_runtime_failure_note(text: str) -> bool:
     """Return whether text is an infrastructure failure note, not task content."""
     lower = (text or "").strip().lower()
@@ -817,7 +861,7 @@ def _safe_source_candidate_metadata(metadata: dict[str, Any]) -> dict[str, str]:
 def _dedupe_source_candidates(candidates: list[SessionSourceCandidate]) -> list[SessionSourceCandidate]:
     by_identity: dict[str, SessionSourceCandidate] = {}
     for candidate in candidates:
-        identity = candidate.identity
+        identity = candidate.identity.strip().lower()
         if identity not in by_identity:
             by_identity[identity] = candidate
     return list(by_identity.values())

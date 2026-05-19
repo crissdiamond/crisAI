@@ -6,7 +6,9 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
+from .semantic_catalog import load_semantic_catalog
 from .task_contract import infer_task_contract
 
 ALLOWED_EVIDENCE_LEVELS = {
@@ -40,13 +42,19 @@ class SourceReference:
         metadata = data.get("metadata") or {}
         if not isinstance(metadata, dict):
             raise ValueError("source.metadata must be an object when provided.")
+        open_url = str(data.get("open_url") or "").strip()
+        workspace_path = str(data.get("workspace_path") or "").strip()
         return cls(
-            source_type=str(data.get("source_type") or "").strip(),
+            source_type=_registry_source_type(
+                str(data.get("source_type") or "").strip(),
+                open_url=open_url,
+                workspace_path=workspace_path,
+            ),
             title=str(data.get("title") or "").strip(),
-            open_url=str(data.get("open_url") or "").strip(),
+            open_url=open_url,
             location=str(data.get("location") or "").strip(),
             read_handle=str(data.get("read_handle") or "").strip(),
-            workspace_path=str(data.get("workspace_path") or "").strip(),
+            workspace_path=workspace_path,
             content_id=str(data.get("content_id") or "").strip(),
             metadata=dict(metadata),
         )
@@ -84,6 +92,30 @@ class SourceReference:
             "metadata": dict(self.metadata),
         }
 
+    def to_sanitized_dict(self) -> dict[str, Any]:
+        """Return source identity safe for durable logs and UI snapshots."""
+        payload = self.to_dict()
+        payload.pop("read_handle", None)
+        metadata = payload.get("metadata")
+        if isinstance(metadata, dict):
+            payload["metadata"] = _without_sensitive_keys(metadata)
+        return payload
+
+    @property
+    def stable_identity(self) -> str:
+        """Return the strongest comparable non-secret identity for dedupe."""
+        for value in (
+            self.content_id,
+            _sourcedoc_identity(self.open_url),
+            self.open_url,
+            self.workspace_path,
+            self.title,
+        ):
+            cleaned = (value or "").strip().lower()
+            if cleaned:
+                return cleaned
+        return ""
+
 
 @dataclass(frozen=True, slots=True)
 class EvidenceItem:
@@ -107,9 +139,15 @@ class EvidenceItem:
             source = SourceReference.from_dict(source_raw)
         else:
             raise ValueError("item.source must be an object.")
+        evidence_level = _upgraded_evidence_level(
+            str(data.get("evidence_level") or "").strip(),
+            read_status=str(data.get("read_status") or "").strip(),
+            read_tool=read_tool,
+            content_excerpt=str(data.get("content_excerpt") or ""),
+        )
         return cls(
             source=source,
-            evidence_level=str(data.get("evidence_level") or "").strip(),
+            evidence_level=evidence_level,
             read_status=str(data.get("read_status") or "").strip(),
             evidence_role=_evidence_role(data, source),
             read_tool=read_tool,
@@ -146,6 +184,12 @@ class EvidenceItem:
             "raw_error": self.raw_error,
         }
 
+    def to_sanitized_dict(self) -> dict[str, Any]:
+        """Return evidence item safe for durable logs and UI snapshots."""
+        payload = self.to_dict()
+        payload["source"] = self.source.to_sanitized_dict()
+        return payload
+
 
 @dataclass(frozen=True, slots=True)
 class EvidenceBundle:
@@ -167,7 +211,7 @@ class EvidenceBundle:
         bundle = cls(
             schema_version=str(data.get("schema_version") or "").strip(),
             request=str(data.get("request") or "").strip(),
-            items=[EvidenceItem.from_dict(item) for item in raw_items],
+            items=_dedupe_items([EvidenceItem.from_dict(item) for item in raw_items]),
             gaps=[str(gap) for gap in raw_gaps],
         )
         bundle.validate()
@@ -189,6 +233,15 @@ class EvidenceBundle:
             "schema_version": self.schema_version,
             "request": self.request,
             "items": [item.to_dict() for item in self.items],
+            "gaps": list(self.gaps),
+        }
+
+    def to_sanitized_dict(self) -> dict[str, Any]:
+        """Return evidence bundle without transient read handles."""
+        return {
+            "schema_version": self.schema_version,
+            "request": self.request,
+            "items": [item.to_sanitized_dict() for item in self.items],
             "gaps": list(self.gaps),
         }
 
@@ -299,3 +352,99 @@ def request_requires_content_read(message: str) -> bool:
 def render_evidence_bundle_block(bundle: EvidenceBundle) -> str:
     """Render a fenced JSON block for prompts and traces."""
     return "```json\n" + bundle.to_json() + "\n```"
+
+
+def _upgraded_evidence_level(
+    evidence_level: str,
+    *,
+    read_status: str,
+    read_tool: str,
+    content_excerpt: str,
+) -> str:
+    """Promote stale search-hit labels after a successful read."""
+    if evidence_level != "search_hit_only":
+        return evidence_level
+    status = (read_status or "").strip().lower()
+    if not status.startswith("read"):
+        return evidence_level
+    if (content_excerpt or "").strip() and (read_tool or "").strip():
+        return "content_read"
+    return "metadata_read"
+
+
+def _dedupe_items(items: list[EvidenceItem]) -> list[EvidenceItem]:
+    """Deduplicate evidence items by stable non-secret source identity."""
+    by_identity: dict[str, EvidenceItem] = {}
+    anonymous: list[EvidenceItem] = []
+    for item in items:
+        identity = item.source.stable_identity
+        if not identity:
+            anonymous.append(item)
+            continue
+        existing = by_identity.get(identity)
+        if existing is None or _evidence_rank(item) > _evidence_rank(existing):
+            by_identity[identity] = item
+    return [*by_identity.values(), *anonymous]
+
+
+def _evidence_rank(item: EvidenceItem) -> int:
+    levels = {
+        "read_failed": 0,
+        "search_hit_only": 1,
+        "metadata_read": 2,
+        "content_read": 3,
+    }
+    return levels.get(item.evidence_level, 0)
+
+
+def _sourcedoc_identity(open_url: str) -> str:
+    """Return a provider item id from URL query parameters when present."""
+    if not open_url:
+        return ""
+    try:
+        parsed = urlparse(open_url)
+        query = parse_qs(parsed.query)
+    except ValueError:
+        return ""
+    for values in query.values():
+        for value in values:
+            cleaned = value.strip().strip("{}")
+            if _looks_like_guid(cleaned):
+                return cleaned
+    return ""
+
+
+def _looks_like_guid(value: str) -> bool:
+    return bool(
+        re.fullmatch(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            value,
+        )
+    )
+
+
+def _without_sensitive_keys(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        str(key): item
+        for key, item in value.items()
+        if str(key).strip().lower() != "read_handle"
+    }
+
+
+def _registry_source_type(source_type: str, *, open_url: str, workspace_path: str) -> str:
+    """Prefer registry source type markers over model-invented labels."""
+    reference_text = " ".join(part for part in (open_url, workspace_path) if part).lower()
+    if not reference_text:
+        return source_type
+    try:
+        constraints = load_semantic_catalog().retrieval_constraints
+    except Exception:  # noqa: BLE001 - evidence parsing must still validate.
+        return source_type
+    markers_by_type = getattr(constraints, "source_type_markers", {})
+    known_types = set(markers_by_type)
+    if source_type in known_types:
+        return source_type
+    for candidate_type, markers in markers_by_type.items():
+        if any(marker and marker in reference_text for marker in markers):
+            return str(candidate_type)
+    return source_type
