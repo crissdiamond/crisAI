@@ -103,7 +103,8 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "minimumGemHeight" in gem_view_model_source
     assert "promptPanelHeight" in gem_source
     assert "tokens:${statusMetrics.tokens}" in gem_source
-    assert "event.event_type !== \"stage_delta\"" in gem_view_model_source
+    assert "shouldShowNormalPanelEvent" in gem_view_model_source
+    assert '"stage_delta"' in gem_view_model_source
     assert "/redirect <guidance>" in gem_source
     assert "/session <name>" in gem_source
     assert "formatRuntimeError" in gem_source
