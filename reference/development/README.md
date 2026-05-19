@@ -114,6 +114,12 @@ want interactive tool approval:
 scripts/hcom_start.sh --no-tool-auto-approve
 ```
 
+The orchestrator Codex is the only Git writer and launches with
+`HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX=danger-full-access` by default so `.git`
+metadata is writable for commits and pushes. Area Codex agents keep
+`HCOM_TEAM_AREA_CODEX_SANDBOX=workspace-write` and must hand off Git writes to
+the orchestrator.
+
 Stop and save resumable session information:
 
 ```bash

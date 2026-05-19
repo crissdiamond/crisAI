@@ -111,6 +111,12 @@ Tool auto-approval is enabled by default for launched agents. Use
 `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
 Codex/Claude tool approval is required.
 
+The orchestrator Codex is the only Git writer and launches with
+`HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX=danger-full-access` by default so `.git`
+metadata is writable for commits and pushes. Area Codex agents keep
+`HCOM_TEAM_AREA_CODEX_SANDBOX=workspace-write` and must hand off Git writes to
+the orchestrator.
+
 The launcher uses `tmux` by default when available. Override this with
 `--terminal PRESET_OR_COMMAND` or `HCOM_TEAM_TERMINAL`, for example:
 

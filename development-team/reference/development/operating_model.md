@@ -78,10 +78,14 @@ window is bold.
 
 Tool auto-approval is enabled by default for launched agents so routine
 development work does not block on repeated provider permission prompts. The
-launcher uses non-bypass modes: Codex receives `--ask-for-approval never
---sandbox workspace-write`, and Claude receives `--permission-mode auto`.
+launcher gives the orchestrator Codex a Git-writer profile
+(`--ask-for-approval never --sandbox danger-full-access` by default) so `.git`
+metadata is writable for commit and push operations. Area Codex agents receive
+`--ask-for-approval never --sandbox workspace-write`, and Claude receives
+`--permission-mode auto`.
 Use `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
-tool approval is required.
+tool approval is required. Override `HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX` or
+`HCOM_TEAM_AREA_CODEX_SANDBOX` when a different Codex sandbox profile is needed.
 
 The launcher also sets `HCOM_HINTS` for the team. Direct hcom requests from the
 orchestrator or paired agent are actionable assignments: agents should proceed
@@ -125,9 +129,9 @@ The development team uses a single Git writer model.
   `git log`, and `git show` to understand their work.
 - Area agents must hand off changed files, checks, and a suggested Conventional
   Commit message to the orchestrator instead of committing or pushing.
-- The orchestrator may run metadata-writing Git commands through the approved
-  outside-sandbox path when `.git` is mounted read-only in normal agent
-  sandboxes.
+- The orchestrator is launched with a Git-writer sandbox profile so it can write
+  `.git` metadata directly. Area agents keep their normal workspace-write
+  profile and must not write Git metadata.
 - Pushes remain an explicit user-controlled action. The orchestrator must not
   push unless the user has asked for a push or the active task instructions
   clearly include pushing.

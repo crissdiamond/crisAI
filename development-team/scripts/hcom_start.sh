@@ -10,6 +10,8 @@ DRY_RUN=0
 HEADLESS=0
 RESUME=0
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
+ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-access}"
+AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
 CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
@@ -51,6 +53,9 @@ Terminal:
 Approvals:
   Tool auto-approval is enabled by default. Set HCOM_TEAM_TOOL_AUTO_APPROVE=0
   or pass --no-tool-auto-approve to keep Codex/Claude permission prompts.
+  The orchestrator Codex uses HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX, defaulting
+  to danger-full-access so it can write .git metadata. Area Codex agents use
+  HCOM_TEAM_AREA_CODEX_SANDBOX, defaulting to workspace-write.
 
 Message handling:
   HCOM_TEAM_HINTS is appended to received hcom messages. The default tells
@@ -344,12 +349,17 @@ run_cmd() {
 }
 
 tool_auto_approval_args() {
-  local provider="$1"
+  local role="$1"
+  local provider="$2"
   [[ "$AUTO_APPROVE_TOOLS" == "1" ]] || return 0
 
   case "$provider" in
     codex)
-      printf '%s\n' --ask-for-approval never --sandbox workspace-write
+      local sandbox="$AREA_CODEX_SANDBOX"
+      if [[ "$role" == "orchestrator_codex" ]]; then
+        sandbox="$ORCHESTRATOR_CODEX_SANDBOX"
+      fi
+      printf '%s\n' --ask-for-approval never --sandbox "$sandbox"
       ;;
     claude)
       printf '%s\n' --permission-mode auto
@@ -396,7 +406,7 @@ launch_agent() {
   local tool_arg
   while IFS= read -r tool_arg; do
     cmd+=("$tool_arg")
-  done < <(tool_auto_approval_args "$provider")
+  done < <(tool_auto_approval_args "$role" "$provider")
   if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
     cmd+=("${EXTRA_ARGS[@]}")
   fi
