@@ -533,7 +533,7 @@ def _content_terms(text: str, *, registry_dir: Path | None = None) -> set[str]:
         lexicon = catalog.lexicon
         stop = lexicon.all_function_words | lexicon.prompt_noise_terms | lexicon.title_relation_terms
     except Exception:  # noqa: BLE001 - source resolution must fail soft.
-        stop = set()
+        stop = frozenset()
     terms = {
         token
         for token in re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{1,}", (text or "").lower())

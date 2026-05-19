@@ -5,7 +5,7 @@ import os
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -656,7 +656,12 @@ def _candidate_from_source_payload(
         workspace_path=workspace_path,
         content_id=content_id,
     )
-    metadata = source.get("metadata") if isinstance(source.get("metadata"), dict) else {}
+    metadata_payload = source.get("metadata")
+    metadata = (
+        {str(key): value for key, value in metadata_payload.items()}
+        if isinstance(metadata_payload, dict)
+        else {}
+    )
     metadata = _safe_source_candidate_metadata(metadata)
     return SessionSourceCandidate(
         title=title,
@@ -797,7 +802,11 @@ def _source_type_from_reference(*, open_url: str = "", workspace_path: str = "")
 def _safe_source_candidate_metadata(metadata: dict[str, Any]) -> dict[str, str]:
     catalog = _semantic_catalog()
     constraints = getattr(catalog, "retrieval_constraints", None) if catalog is not None else None
-    denied = getattr(constraints, "source_candidate_metadata_deny_keys", frozenset()) if constraints is not None else frozenset()
+    denied = (
+        cast(frozenset[str], getattr(constraints, "source_candidate_metadata_deny_keys", frozenset()))
+        if constraints is not None
+        else frozenset()
+    )
     return {
         str(key): str(value)
         for key, value in metadata.items()
