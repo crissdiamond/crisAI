@@ -25,7 +25,11 @@ __all__ = [
     "_resolve_agent_max_turns",
     "_run_agent_silently",
     "_run_agent_with_progress",
+    "reset_stage_observability_agent_id",
+    "reset_stage_observability_callback",
     "reset_stage_stream_callback",
+    "set_stage_observability_agent_id",
+    "set_stage_observability_callback",
     "set_stage_stream_callback",
     "print_agent_output",
     "sanitize_user_visible_text",
@@ -35,8 +39,17 @@ logger = get_logger(__name__)
 
 _DEFAULT_AGENT_MAX_TURNS = 30
 StageStreamCallback = Callable[[str, str], None]
+StageObservabilityCallback = Callable[[str, str, dict[str, object]], None]
 _STAGE_STREAM_CALLBACK: ContextVar[StageStreamCallback | None] = ContextVar(
     "crisai_stage_stream_callback",
+    default=None,
+)
+_STAGE_OBSERVABILITY_CALLBACK: ContextVar[StageObservabilityCallback | None] = ContextVar(
+    "crisai_stage_observability_callback",
+    default=None,
+)
+_STAGE_OBSERVABILITY_AGENT_ID: ContextVar[str | None] = ContextVar(
+    "crisai_stage_observability_agent_id",
     default=None,
 )
 
@@ -49,6 +62,40 @@ def set_stage_stream_callback(callback: StageStreamCallback) -> Token[StageStrea
 def reset_stage_stream_callback(token: Token[StageStreamCallback | None]) -> None:
     """Restore the previous stage streaming callback."""
     _STAGE_STREAM_CALLBACK.reset(token)
+
+
+def set_stage_observability_callback(
+    callback: StageObservabilityCallback,
+) -> Token[StageObservabilityCallback | None]:
+    """Install a per-stage callback for structured observability metadata."""
+    return _STAGE_OBSERVABILITY_CALLBACK.set(callback)
+
+
+def reset_stage_observability_callback(token: Token[StageObservabilityCallback | None]) -> None:
+    """Restore the previous stage observability callback."""
+    _STAGE_OBSERVABILITY_CALLBACK.reset(token)
+
+
+def set_stage_observability_agent_id(agent_id: str) -> Token[str | None]:
+    """Record the currently executing stage for observability callbacks."""
+    return _STAGE_OBSERVABILITY_AGENT_ID.set(agent_id)
+
+
+def reset_stage_observability_agent_id(token: Token[str | None]) -> None:
+    """Restore the previous stage observability agent id."""
+    _STAGE_OBSERVABILITY_AGENT_ID.reset(token)
+
+
+def _emit_stage_observability(event_type: str, metadata: dict[str, object]) -> None:
+    """Emit structured stage observability if the runtime installed a callback."""
+    callback = _STAGE_OBSERVABILITY_CALLBACK.get()
+    agent_id = _STAGE_OBSERVABILITY_AGENT_ID.get()
+    if callback is None or not agent_id or not metadata:
+        return
+    try:
+        callback(agent_id, event_type, metadata)
+    except Exception:
+        logger.debug("Stage observability callback failed; continuing agent run.", exc_info=True)
 
 
 def _resolve_agent_max_turns() -> int:
@@ -85,6 +132,7 @@ async def _run_agent_silently(agent, prompt: str) -> str:
     except Exception:
         logger.exception("Agent execution failed.")
         raise
+    _emit_stage_observability("provider_usage", _provider_usage_metadata(result))
     return str(result.final_output)
 
 
@@ -128,9 +176,61 @@ def _openai_streaming_construct_type_incompatible() -> bool:
     return _parse_version(openai_version) <= (1, 109, 1)
 
 
+def _streaming_fallback_metadata() -> dict[str, object]:
+    """Return trace-safe metadata for the known streaming fallback path."""
+    try:
+        openai_version = version("openai")
+    except PackageNotFoundError:
+        openai_version = ""
+    return {
+        "streaming": {
+            "attempted": True,
+            "fallback": True,
+            "fallback_reason": "openai_streaming_construct_type_incompatible",
+            "provider": "openai",
+            "openai_version": openai_version,
+            "python_version": ".".join(str(part) for part in sys.version_info[:3]),
+        }
+    }
+
+
+def _provider_usage_metadata(result: object) -> dict[str, object]:
+    """Extract provider usage counters only when the SDK returned usage data."""
+    raw_responses = getattr(result, "raw_responses", None)
+    if not isinstance(raw_responses, list) or not raw_responses:
+        return {}
+    totals = {
+        "requests": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+    }
+    has_usage = False
+    for response in raw_responses:
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            continue
+        has_usage = True
+        totals["requests"] += int(getattr(usage, "requests", 0) or 0)
+        totals["input_tokens"] += int(getattr(usage, "input_tokens", 0) or 0)
+        totals["output_tokens"] += int(getattr(usage, "output_tokens", 0) or 0)
+        totals["total_tokens"] += int(getattr(usage, "total_tokens", 0) or 0)
+        input_details = getattr(usage, "input_tokens_details", None)
+        output_details = getattr(usage, "output_tokens_details", None)
+        totals["cached_tokens"] += int(getattr(input_details, "cached_tokens", 0) or 0)
+        totals["reasoning_tokens"] += int(getattr(output_details, "reasoning_tokens", 0) or 0)
+    if not has_usage:
+        return {}
+    provider_usage = {key: value for key, value in totals.items() if value > 0}
+    return {"provider_usage": provider_usage} if provider_usage else {}
+
+
 async def _run_agent_streamed_silently(agent_id: str, agent, prompt: str, callback: StageStreamCallback) -> str:
     """Run an agent with token deltas forwarded to a UI callback."""
     if _openai_streaming_construct_type_incompatible():
+        _emit_stage_observability("streaming_fallback", _streaming_fallback_metadata())
         logger.warning(
             "OpenAI streamed response parsing is incompatible with this Python/OpenAI SDK combination; "
             "falling back to non-streamed agent execution."
@@ -156,6 +256,7 @@ async def _run_agent_streamed_silently(agent_id: str, agent, prompt: str, callba
     except Exception:
         logger.exception("Agent execution failed.")
         raise
+    _emit_stage_observability("provider_usage", _provider_usage_metadata(result))
     return str(result.final_output)
 
 

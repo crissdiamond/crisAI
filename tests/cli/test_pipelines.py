@@ -1891,6 +1891,55 @@ async def test_run_single_emits_stage_start_before_completion(monkeypatch, tmp_p
 
 
 @pytest.mark.anyio
+async def test_run_single_attaches_observability_to_workflow_output(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str, dict]] = []
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(
+            root_dir=tmp_path,
+            trace_file=tmp_path / "trace.log",
+            runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
+            factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
+            run_id="test-run-id",
+        ),
+    )
+
+    async def _fake_run_agent_silently(agent, prompt: str) -> str:
+        del agent, prompt
+        pipeline_display._emit_stage_observability(
+            "provider_usage",
+            {"provider_usage": {"input_tokens": 8, "output_tokens": 4, "total_tokens": 12}},
+        )
+        return "single output"
+
+    def _capture_trace(log_file, stage, content, **kwargs):
+        del log_file
+        trace_calls.append((stage, content, kwargs))
+
+    monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
+    monkeypatch.setattr(pipelines, "append_trace", _capture_trace)
+
+    result = await pipelines.run_single(
+        "Find integration principles.",
+        "retrieval_planner",
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
+    )
+
+    workflow_output = next(call for call in trace_calls if call[2].get("event_type") == "workflow_output")
+    assert result == "single output"
+    assert workflow_output[2]["metadata"] == {
+        "observability": {
+            "provider_usage": {"input_tokens": 8, "output_tokens": 4, "total_tokens": 12}
+        }
+    }
+
+
+@pytest.mark.anyio
 async def test_run_single_policy_uses_latest_user_intent_not_history_wrapper(monkeypatch, tmp_path):
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
     monkeypatch.setattr(

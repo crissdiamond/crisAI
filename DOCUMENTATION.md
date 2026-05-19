@@ -185,8 +185,14 @@ The v1 API emits canonical `ui_event_v1` payloads for run creation, routing,
 task-contract transparency, streamed stage deltas, stage progress, retrieval
 checkpoints, final answers, and failures. Stage events use stable snake_case
 stage keys and separate human labels in `expected_stages` and event metadata.
+Stage labels are loaded from `registry/ui.yaml` so clients can share display
+vocabulary without hardcoding it in runtime code.
 Routing decisions, task contracts, and checkpoint events keep structured
 metadata for verbose/debug views, but they are not normal stage rail items.
+When streamed stage output falls back to non-streamed execution, the fallback is
+recorded under stage event metadata as structured observability rather than
+normal user-visible content. Provider token counters are included only when the
+SDK returns usage data; missing usage remains absent rather than estimated.
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show

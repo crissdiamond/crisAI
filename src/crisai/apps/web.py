@@ -112,20 +112,6 @@ _UPLOAD_SUFFIXES = frozenset({
     ".yaml",
     ".yml",
 })
-_STAGE_LABELS = {
-    "retrieval_planner": "Retrieval planner",
-    "context_retrieval": "Context retrieval",
-    "context_synthesizer": "Context synthesizer",
-    "summary": "Summary",
-    "design": "Design",
-    "review": "Review",
-    "orchestrator": "Final orchestration",
-    "design_author": "Design author",
-    "design_challenger": "Design challenger",
-    "design_refiner": "Design refiner",
-    "judge": "Judge",
-    "final_output": "Final output",
-}
 
 @app.middleware("http")
 async def _auth_middleware(request: Request, call_next: Any) -> Any:
@@ -336,12 +322,28 @@ def _stage_label(stage_key: str | None) -> str:
     key = str(stage_key or "").strip()
     if not key:
         return "System"
-    return _STAGE_LABELS.get(key, key.replace("_", " ").capitalize())
+    return _load_stage_labels().get(key, key.replace("_", " ").capitalize())
 
 
 def _stage_tab(stage_key: str) -> dict[str, str]:
     """Return one expected-stage entry for the shared UI contract."""
     return {"key": stage_key, "label": _stage_label(stage_key)}
+
+
+def _load_stage_labels() -> dict[str, str]:
+    """Load UI stage labels from registry-owned UI configuration."""
+    try:
+        ui_path = Path(load_settings().registry_dir) / "ui.yaml"
+        raw = yaml.safe_load(ui_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - label fallback must not break run state.
+        return {}
+    if not isinstance(raw, dict) or not isinstance(raw.get("stage_labels"), dict):
+        return {}
+    return {
+        str(key): str(value)
+        for key, value in raw["stage_labels"].items()
+        if str(key).strip() and str(value).strip()
+    }
 
 
 def _trace_entry_event_key(entry: dict[str, Any]) -> str:
@@ -402,6 +404,11 @@ def _ui_event_from_stage_entry(
             "trace_stage": str(stage_entry.get("stage") or ""),
             "stage_key": stage_key,
             "stage_label": _stage_label(stage_key),
+            **(
+                {"trace_metadata": stage_entry["metadata"]}
+                if isinstance(stage_entry.get("metadata"), dict) and stage_entry.get("metadata")
+                else {}
+            ),
         },
     )
     return event.to_dict()
@@ -928,6 +935,7 @@ def _trace_line_to_stage_output(entry: dict[str, Any], *, verbose: bool = False)
         "summary": summary,
         "full_content": full_content,
         "verbose_content": full_content,
+        "metadata": entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {},
     }
 
 

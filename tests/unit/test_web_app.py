@@ -183,6 +183,37 @@ def test_ui_event_from_stage_entry_uses_summary_and_full_content_separately():
     assert event["metadata"]["stage_label"] == "Retrieval planner"
 
 
+def test_ui_event_from_stage_entry_preserves_trace_metadata_for_verbose_surfaces():
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["job-observe"] = {
+        "status": "running",
+        "current_session": "NewTest-04",
+        "decision": type("D", (), {"mode": "pipeline"})(),
+    }
+    stage_entry = {
+        "agent_id": "summary",
+        "stage": "SUMMARY OUTPUT",
+        "event_type": "stage_output",
+        "content": "summary",
+        "metadata": {
+            "observability": {
+                "streaming": {"attempted": True, "fallback": True},
+                "provider_usage": {"total_tokens": 42},
+            }
+        },
+    }
+
+    event = _ui_event_from_stage_entry(
+        job_id="job-observe",
+        job=web_mod._RUN_JOBS["job-observe"],
+        stage_entry=stage_entry,
+    )
+
+    assert event["content"] == "summary"
+    assert event["metadata"]["trace_metadata"] == stage_entry["metadata"]
+
+
 @pytest.mark.anyio
 async def test_checkpoint_event_does_not_create_stage_identity():
     from crisai.apps import web as web_mod
@@ -531,6 +562,99 @@ def test_run_job_wraps_message_with_session_history(monkeypatch):
         ("user", "fresh request"),
         ("assistant", "ok"),
     ]
+
+
+def test_run_job_flushes_run_history_after_completion(monkeypatch):
+    persisted: list[dict[str, object]] = []
+
+    monkeypatch.setattr("crisai.apps.web.load_history", lambda session_name: [])
+    monkeypatch.setattr("crisai.apps.web.build_chat_input", lambda user_input, history, session_name=None: user_input)
+    monkeypatch.setattr("crisai.apps.web.save_history", lambda session_name, history: None)
+    monkeypatch.setattr("crisai.apps.web.update_session_memory", lambda session_name, history: None)
+    monkeypatch.setattr("crisai.apps.web.persist_reusable_deliverable", lambda **kwargs: kwargs["final_output"])
+    monkeypatch.setattr("crisai.apps.web._refresh_job_from_trace", lambda job_id: None)
+    monkeypatch.setattr("crisai.apps.web.persist_run_snapshot", lambda snapshot: persisted.append(snapshot))
+
+    async def _fake_run_with_routing(**kwargs):
+        return "done"
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run_with_routing)
+
+    @dataclass
+    class _Payload:
+        message: str = "fresh request"
+        mode: str = "auto"
+        agent: str = "auto"
+        review: bool = False
+        verbose: bool = False
+        session: str = "default"
+
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["job-complete"] = {
+        "status": "running",
+        "created_at": "2026-05-19T10:00:00+00:00",
+        "payload": _Payload(),
+        "decision": object(),
+        "decision_data": {"mode": "single"},
+        "request_contract": {},
+        "events": [],
+        "final_output": "",
+        "error": "",
+        "current_session": "default",
+        "run_id": "trace-1",
+    }
+
+    web_mod._run_async(web_mod._run_job("job-complete", _Payload(), decision=object()))
+
+    assert persisted
+    assert persisted[0]["status"] == "completed"
+    assert persisted[0]["final_output"] == "done"
+
+
+def test_run_job_flushes_run_history_after_failure(monkeypatch):
+    persisted: list[dict[str, object]] = []
+
+    monkeypatch.setattr("crisai.apps.web.load_history", lambda session_name: [])
+    monkeypatch.setattr("crisai.apps.web.build_chat_input", lambda user_input, history, session_name=None: user_input)
+    monkeypatch.setattr("crisai.apps.web._refresh_job_from_trace", lambda job_id: None)
+    monkeypatch.setattr("crisai.apps.web.persist_run_snapshot", lambda snapshot: persisted.append(snapshot))
+
+    async def _fake_run_with_routing(**kwargs):
+        raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run_with_routing)
+
+    @dataclass
+    class _Payload:
+        message: str = "fresh request"
+        mode: str = "auto"
+        agent: str = "auto"
+        review: bool = False
+        verbose: bool = False
+        session: str = "default"
+
+    from crisai.apps import web as web_mod
+
+    web_mod._RUN_JOBS["job-failed"] = {
+        "status": "running",
+        "created_at": "2026-05-19T10:00:00+00:00",
+        "payload": _Payload(),
+        "decision": object(),
+        "decision_data": {"mode": "single"},
+        "request_contract": {},
+        "events": [],
+        "final_output": "",
+        "error": "",
+        "current_session": "default",
+        "run_id": "trace-1",
+    }
+
+    web_mod._run_async(web_mod._run_job("job-failed", _Payload(), decision=object()))
+
+    assert persisted
+    assert persisted[0]["status"] == "failed"
+    assert "provider unavailable" in str(persisted[0]["error"])
 
 
 def test_to_http_exception_maps_max_turns_to_422():

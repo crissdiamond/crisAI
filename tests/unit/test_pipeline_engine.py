@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from crisai.cli import pipeline_display
 from crisai.cli.pipeline_engine import WorkflowEngine, _resolve_stage_timeout_seconds
 
 
@@ -302,6 +303,43 @@ async def test_workflow_session_processes_stage_output_before_trace_and_print(en
         },
     )
     assert fixture.output_calls == [("retrieval_planner", "clean stage output", True)]
+
+
+@pytest.mark.anyio
+async def test_workflow_session_adds_observability_to_stage_output_metadata(engine_fixture):
+    fixture = engine_fixture
+
+    async def observability_stage_runner(agent_id, agent, prompt):
+        del agent_id, agent, prompt
+        pipeline_display._emit_stage_observability(
+            "streaming_fallback",
+            {"streaming": {"attempted": True, "fallback": True, "fallback_reason": "sdk_incompatible"}},
+        )
+        pipeline_display._emit_stage_observability(
+            "provider_usage",
+            {"provider_usage": {"input_tokens": 7, "output_tokens": 3, "total_tokens": 10}},
+        )
+        return "stage output"
+
+    fixture.engine._stage_runner = observability_stage_runner
+
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+        await workflow.run_stage(
+            spec=fixture.retrieval_planner_spec,
+            ui_agent_id="retrieval_planner",
+            prompt="find context",
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
+            verbose=False,
+        )
+
+    stage_output = fixture.trace_calls[1]
+    assert stage_output[0] == "RETRIEVAL_PLANNER OUTPUT"
+    assert stage_output[2]["metadata"] == {
+        "observability": {
+            "streaming": {"attempted": True, "fallback": True, "fallback_reason": "sdk_incompatible"},
+            "provider_usage": {"input_tokens": 7, "output_tokens": 3, "total_tokens": 10},
+        }
+    }
 
 
 @pytest.mark.anyio

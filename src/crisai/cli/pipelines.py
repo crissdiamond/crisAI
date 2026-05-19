@@ -95,9 +95,13 @@ from .pipeline_display import (
     _run_agent_silently,
     _run_agent_with_progress,
     print_agent_output,
+    reset_stage_observability_agent_id,
+    reset_stage_observability_callback,
     sanitize_user_visible_text,
+    set_stage_observability_agent_id,
+    set_stage_observability_callback,
 )
-from .pipeline_engine import WorkflowEngine
+from .pipeline_engine import WorkflowEngine, _merge_stage_observability_metadata
 from .session_store import (
     load_session_anchors,
     load_session_memory,
@@ -720,7 +724,19 @@ async def run_single(
                 event_type="stage_start",
                 agent_id=agent_id,
             )
-            result = await _run_agent_silently(agent, prompt)
+            observability_events: list[tuple[str, dict[str, object]]] = []
+
+            def _record_observability(observed_agent_id: str, event_type: str, metadata: dict[str, object]) -> None:
+                if observed_agent_id == agent_id and metadata:
+                    observability_events.append((event_type, metadata))
+
+            observability_agent_token = set_stage_observability_agent_id(agent_id)
+            observability_callback_token = set_stage_observability_callback(_record_observability)
+            try:
+                result = await _run_agent_silently(agent, prompt)
+            finally:
+                reset_stage_observability_callback(observability_callback_token)
+                reset_stage_observability_agent_id(observability_agent_token)
             if session_name and agent_id == "retrieval_planner":
                 persist_session_source_candidates_from_output(session_name, result)
             append_trace(
@@ -730,6 +746,7 @@ async def run_single(
                 run_id=_get_run_id(environment),
                 event_type="workflow_output",
                 agent_id=agent_id,
+                metadata=_merge_stage_observability_metadata(None, observability_events),
             )
             append_trace_entry(
                 environment,

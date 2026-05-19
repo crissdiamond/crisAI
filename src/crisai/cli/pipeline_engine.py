@@ -7,6 +7,12 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mappin
 from contextlib import asynccontextmanager
 from typing import Any
 
+from .pipeline_display import (
+    reset_stage_observability_agent_id,
+    reset_stage_observability_callback,
+    set_stage_observability_agent_id,
+    set_stage_observability_callback,
+)
 from .workflow_support import WorkflowEnvironment
 
 StageRunner = Callable[[str, Any, str], Awaitable[str]]
@@ -149,6 +155,14 @@ class WorkflowSession:
             event_type="stage_start",
             agent_id=ui_agent_id,
         )
+        observability_events: list[tuple[str, dict[str, object]]] = []
+
+        def _record_observability(agent_id: str, event_type: str, metadata: dict[str, object]) -> None:
+            if agent_id == ui_agent_id and metadata:
+                observability_events.append((event_type, metadata))
+
+        observability_agent_token = set_stage_observability_agent_id(ui_agent_id)
+        observability_callback_token = set_stage_observability_callback(_record_observability)
         timeout_seconds = _resolve_stage_timeout_seconds()
         try:
             result = await asyncio.wait_for(
@@ -178,6 +192,9 @@ class WorkflowSession:
                 metadata={"error_type": type(exc).__name__},
             )
             raise
+        finally:
+            reset_stage_observability_callback(observability_callback_token)
+            reset_stage_observability_agent_id(observability_agent_token)
         if not str(result or "").strip():
             message = (
                 f"Stage {ui_agent_id} returned empty output. "
@@ -195,6 +212,7 @@ class WorkflowSession:
         trace_metadata: dict[str, Any] | None = None
         if output_processor is not None:
             trace_content, trace_metadata = output_processor(result)
+        trace_metadata = _merge_stage_observability_metadata(trace_metadata, observability_events)
         self.trace_event(
             trace_label,
             trace_content,
@@ -272,3 +290,21 @@ class WorkflowEngine:
                 trace_writer=self._trace_writer,
                 output_printer=self._output_printer,
             )
+
+
+def _merge_stage_observability_metadata(
+    metadata: dict[str, Any] | None,
+    observability_events: list[tuple[str, dict[str, object]]],
+) -> dict[str, Any] | None:
+    """Attach trace-safe stage observability to existing stage metadata."""
+    if not observability_events:
+        return metadata
+    merged: dict[str, Any] = dict(metadata or {})
+    observability = dict(merged.get("observability") if isinstance(merged.get("observability"), dict) else {})
+    for event_type, payload in observability_events:
+        if event_type in {"streaming_fallback", "provider_usage"}:
+            observability.update(payload)
+        else:
+            observability[event_type] = payload
+    merged["observability"] = observability
+    return merged

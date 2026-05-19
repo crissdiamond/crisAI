@@ -1,5 +1,18 @@
 schema_version: ui_theme_v1
 default_theme: ucl_dark
+stage_labels:
+  retrieval_planner: Retrieval planner
+  context_retrieval: Context retrieval
+  context_synthesizer: Context synthesizer
+  summary: Summary
+  design: Design
+  review: Review
+  orchestrator: Final orchestration
+  design_author: Design author
+  design_challenger: Design challenger
+  design_refiner: Design refiner
+  judge: Judge
+  final_output: Final output
 themes:
   ucl_dark:
     palette:
