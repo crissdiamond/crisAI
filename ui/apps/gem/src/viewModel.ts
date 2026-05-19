@@ -201,7 +201,13 @@ export function truncateStageLabel(label: string, sidebarWidth: number): string 
 }
 
 export function sidebarStages(stages: UiStageSummary[]): UiStageSummary[] {
-  return stages.slice(-12);
+  const terminalComplete = stages.some((stage) =>
+    stage.status === "complete" && (stage.key === "final_output" || stage.event?.event_type === "final_answer")
+  );
+  return stages
+    .filter((stage) => !isCheckpointStage(stage))
+    .filter((stage) => !(terminalComplete && stage.status === "pending" && stage.event === undefined))
+    .slice(-12);
 }
 
 export function resolveRunsListIndex(currentIndex: number, runCount: number, direction: NavDirection): number {
@@ -711,6 +717,12 @@ function colorNameForToken(value: string | undefined, fallback: InkColorName | u
   if (normalized.includes("fafafa") || normalized.includes("ffffff")) return "white";
   if (normalized.includes("1f1f2e") || normalized.includes("1f102f") || normalized.includes("361a54")) return "blue";
   return fallback ?? "white";
+}
+
+function isCheckpointStage(stage: UiStageSummary): boolean {
+  return stage.event?.event_type === "checkpoint_requested" ||
+    stage.event?.event_type === "checkpoint_decision" ||
+    stage.key.toLowerCase().includes("checkpoint");
 }
 
 function sessionMemoryPreviewLines(memory: UiSessionContext["memory"]): string[] {

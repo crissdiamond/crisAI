@@ -54,6 +54,7 @@ import {
   wrapPlainText,
   type GemTerminalTheme
 } from "../src/viewModel.js";
+import { deriveStageSummaries } from "@crisai/contracts";
 import type { UiEvent, UiRunSummary, UiSessionContext, UiStageSummary } from "@crisai/contracts";
 
 function uiEvent(overrides: Partial<UiEvent>): UiEvent {
@@ -346,6 +347,105 @@ test("stage pin targets resolve by sidebar position, exact key, and label substr
     ok: false,
     message: "No stage at position 0."
   });
+});
+
+test("sidebar stages hide stale expected-only pending stages after final answer", () => {
+  const expectedStages = [
+    { key: "retrieval_planner", label: "retrieval_planner" },
+    { key: "context_retrieval", label: "context_retrieval" },
+    { key: "context_synthesizer", label: "context_synthesizer" },
+    { key: "design", label: "design" },
+    { key: "orchestrator", label: "orchestrator" },
+    { key: "final_output", label: "final_output" }
+  ];
+  const events = [
+    uiEvent({
+      event_type: "stage_skipped",
+      title: "Context Synthesizer",
+      summary: "Context synthesizer skipped for summary fast path.",
+      agent_id: "context_synthesizer",
+      stage: "CONTEXT OUTPUT"
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      title: "Summary",
+      summary: "Summary answer.",
+      content: "Summary answer.",
+      agent_id: "summary",
+      stage: "SUMMARY OUTPUT"
+    }),
+    uiEvent({
+      event_type: "stage_skipped",
+      title: "Orchestrator",
+      summary: "Final orchestration skipped for summary fast path.",
+      agent_id: "orchestrator",
+      stage: "FINAL OUTPUT"
+    }),
+    uiEvent({
+      event_type: "final_answer",
+      title: "Final answer",
+      summary: "Run completed with a final answer.",
+      content: "Final summary.",
+      status: "completed",
+      agent_id: "final_output",
+      stage: "final_output"
+    })
+  ];
+
+  const keys = sidebarStages(deriveStageSummaries(events, expectedStages)).map((stage) => stage.key);
+
+  assert(!keys.includes("design"));
+  assert(keys.includes("summary"));
+  assert(keys.includes("final_output"));
+});
+
+test("sidebar stages keep expected pending stages for active runs", () => {
+  const stages: UiStageSummary[] = [
+    { key: "retrieval_planner", label: "retrieval planner", status: "complete", summary: "done" },
+    { key: "design", label: "design", status: "pending", summary: "" },
+    { key: "final_output", label: "final output", status: "pending", summary: "" }
+  ];
+
+  const keys = sidebarStages(stages).map((stage) => stage.key);
+
+  assert(keys.includes("design"));
+  assert(keys.includes("final_output"));
+});
+
+test("sidebar stages hide checkpoint decision rows from the progress rail", () => {
+  const expectedStages = [
+    { key: "retrieval_planner", label: "retrieval_planner" },
+    { key: "context_retrieval", label: "context_retrieval" },
+    { key: "design", label: "design" }
+  ];
+  const events = [
+    uiEvent({
+      event_type: "stage_output",
+      title: "Retrieval Planner",
+      summary: "Plan retrieval.",
+      agent_id: "retrieval_planner",
+      stage: "RETRIEVAL_PLANNER OUTPUT"
+    }),
+    uiEvent({
+      event_type: "checkpoint_requested",
+      title: "Retrieval checkpoint",
+      summary: "Retrieval evidence is ready for confirmation.",
+      agent_id: "retrieval_checkpoint",
+      stage: "retrieval_checkpoint"
+    }),
+    uiEvent({
+      event_type: "checkpoint_decision",
+      title: "Checkpoint decision",
+      summary: "Checkpoint decision: continue.",
+      agent_id: "retrieval_checkpoint",
+      stage: "retrieval_checkpoint"
+    })
+  ];
+
+  const keys = sidebarStages(deriveStageSummaries(events, expectedStages)).map((stage) => stage.key);
+
+  assert(!keys.includes("retrieval_checkpoint"));
+  assert(keys.includes("design"));
 });
 
 test("pinned stage content prefers event content and falls back to summary", () => {
