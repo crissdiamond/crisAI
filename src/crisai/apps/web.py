@@ -71,6 +71,7 @@ from crisai.orchestration.retrieval_checkpoint import (
     RetrievalCheckpointDecision,
     RetrievalCheckpointSnapshot,
 )
+from crisai.orchestration.task_contract import TaskContract
 from crisai.registry import Registry
 from crisai.ui_events import UiEvent, UiEventType, make_ui_event
 from crisai.workspace.safety import (
@@ -827,7 +828,7 @@ def _is_summary_contract(request_contract: Any | None) -> bool:
     if isinstance(request_contract, dict):
         task_contract = request_contract.get("task_contract")
         if isinstance(task_contract, dict):
-            return bool(task_contract.get("is_summary"))
+            return TaskContract.from_dict(task_contract).is_summary
     return False
 
 

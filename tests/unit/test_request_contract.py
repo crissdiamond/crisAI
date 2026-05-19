@@ -52,6 +52,33 @@ def test_request_contract_keeps_pasted_text_summary_source_free() -> None:
     assert contract.actions == ("summarize",)
 
 
+def test_request_contract_detects_source_inventory_as_main_ask() -> None:
+    contract = infer_request_contract(
+        "Find all the documents in my onedrive with Integration Strategy in the title and list the best 3 candidates",
+        registry_dir=REGISTRY_DIR,
+    )
+
+    assert contract.primary_intent == "retrieve_source"
+    assert contract.deliverable_type == "source_inventory"
+    assert contract.source_required is True
+    assert "personal_onedrive" in contract.source_families
+    assert "retrieve_source" in contract.actions
+    assert "summarize" not in contract.actions
+
+
+def test_request_contract_detects_source_inventory_newtest_drive_wording() -> None:
+    contract = infer_request_contract(
+        "Search for files called Integration Strategy on my drive and select the 3 most relevant ones.",
+        registry_dir=REGISTRY_DIR,
+    )
+
+    assert contract.primary_intent == "retrieve_source"
+    assert contract.deliverable_type == "source_inventory"
+    assert contract.source_required is True
+    assert "personal_onedrive" in contract.source_families
+    assert "retrieve_source" in contract.actions
+
+
 def test_bare_continue_contract_preserves_previous_source_lookup_context() -> None:
     history = [
         (

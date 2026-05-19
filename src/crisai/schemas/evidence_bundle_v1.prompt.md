@@ -5,6 +5,7 @@ Evidence bundle contract:
 - Each item must include `source`, `evidence_level`, `read_status`, `read_tool`, `content_excerpt`, and `raw_error`.
 - `source` must be an object with `source_type`, `title`, and at least one durable reference such as `open_url`, `read_handle`, `workspace_path`, or `content_id`.
 - Use `evidence_level: "content_read"` only after successful source text extraction. Use `read_failed` with raw tool error text when reading fails.
+- `evidence_role` is optional and defaults to `"primary"`. When a named-source summary reads nearby variants only as comparison context, mark those non-target items with `evidence_role: "supplemental"`.
 
 Example item shape:
 {
@@ -21,6 +22,7 @@ Example item shape:
       },
       "evidence_level": "content_read",
       "read_status": "read",
+      "evidence_role": "primary",
       "read_tool": "read_sharepoint_document_by_handle",
       "content_excerpt": "Short quoted or paraphrased excerpt from the read content.",
       "raw_error": ""

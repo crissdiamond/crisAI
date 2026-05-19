@@ -528,6 +528,7 @@ retrieval_constraints:
     personal_onedrive:
       - onedrive
       - one drive
+      - my drive
       - my onedrive
       - my one drive
       - personal onedrive

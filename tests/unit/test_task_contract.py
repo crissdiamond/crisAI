@@ -21,11 +21,36 @@ def test_infer_summary_contract_for_italian_document_request() -> None:
     assert contract.deliverable_type == "document_summary"
 
 
-def test_infer_general_contract_for_find_only_request() -> None:
+def test_infer_source_inventory_contract_for_find_only_request() -> None:
     contract = infer_task_contract("Find all Integration Strategy documents.", registry_dir=REGISTRY_DIR)
 
-    assert contract.primary_intent == "respond"
-    assert contract.deliverable_type == "general_answer"
+    assert contract.primary_intent == "retrieve_source"
+    assert contract.deliverable_type == "source_inventory"
+    assert contract.source_resolution == "matching_source"
+    assert contract.required_evidence_level == "metadata_read"
+
+
+def test_infer_source_inventory_contract_for_newtest_source_discovery_wording() -> None:
+    contract = infer_task_contract(
+        "Search for files called Integration Strategy on my drive and select the 3 most relevant ones.",
+        registry_dir=REGISTRY_DIR,
+    )
+
+    assert contract.primary_intent == "retrieve_source"
+    assert contract.deliverable_type == "source_inventory"
+    assert contract.source_resolution == "matching_source"
+    assert contract.required_evidence_level == "metadata_read"
+
+
+def test_ranking_language_without_source_context_is_not_source_inventory() -> None:
+    for message in (
+        "List the best approach for this implementation.",
+        "Show me relevant ones from the previous answer.",
+    ):
+        contract = infer_task_contract(message, registry_dir=REGISTRY_DIR)
+
+        assert contract.primary_intent != "retrieve_source"
+        assert contract.deliverable_type != "source_inventory"
 
 
 def test_infer_sourced_recommendation_contract_for_architecture_advice() -> None:

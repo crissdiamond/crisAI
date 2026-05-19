@@ -28,6 +28,19 @@ class TaskContract:
     success_criteria: tuple[str, ...] = field(default_factory=tuple)
     anti_goals: tuple[str, ...] = field(default_factory=tuple)
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> TaskContract:
+        """Build a task contract from a serialized run-state payload."""
+        return cls(
+            schema_version=_as_str(payload.get("schema_version"), default="task_contract_v1"),
+            primary_intent=_as_str(payload.get("primary_intent"), default="respond"),
+            deliverable_type=_as_str(payload.get("deliverable_type"), default="general_answer"),
+            source_resolution=_as_str(payload.get("source_resolution"), default="as_needed"),
+            required_evidence_level=_as_str(payload.get("required_evidence_level"), default="as_needed"),
+            success_criteria=_as_tuple(payload.get("success_criteria")),
+            anti_goals=_as_tuple(payload.get("anti_goals")),
+        )
+
     @property
     def is_summary(self) -> bool:
         """Return whether the main deliverable is a summary."""

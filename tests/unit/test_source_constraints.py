@@ -43,6 +43,29 @@ def test_infers_title_phrase_before_document_type() -> None:
     assert constraints.required_title_phrases == ("Integration Strategy",)
 
 
+def test_infers_trailing_version_tokens_after_document_type() -> None:
+    constraints = infer_source_fit_constraints(
+        "Please summarise the Integration Strategy full deck v3 1 in detail.",
+        registry_dir=REGISTRY_DIR,
+    )
+
+    assert constraints.required_title_phrases == ("Integration Strategy full v3 1",)
+    assert evidence_bundle_satisfies_constraints(
+        _bundle(
+            "UCL Integration Strategy full deck v3 1.pptx",
+            "https://liveuclac.sharepoint.com/sites/Architecture/Shared%20Documents/v3-1.pptx",
+        ),
+        constraints,
+    )
+    assert not evidence_bundle_satisfies_constraints(
+        _bundle(
+            "UCL Integration Strategy_Full Presentation v2_data.pptx",
+            "https://liveuclac.sharepoint.com/sites/Architecture/Shared%20Documents/v2-data.pptx",
+        ),
+        constraints,
+    )
+
+
 def test_infers_quoted_title_phrase_and_onedrive_scope() -> None:
     constraints = infer_source_fit_constraints(
         "Find all 'Integration Strategy' documents in my onedrive.",

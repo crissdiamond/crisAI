@@ -73,7 +73,9 @@ from crisai.orchestration.retrieval_checkpoint import (
     RetrievalCheckpointSnapshot,
 )
 from crisai.orchestration.source_constraints import (
+    SourceFitConstraints,
     evidence_bundle_satisfies_constraints,
+    evidence_item_satisfies_constraints,
     infer_source_fit_constraints,
     source_fit_failure_message,
 )
@@ -382,6 +384,8 @@ def _evidence_brief(bundle: EvidenceBundle) -> str:
         if metadata_bits:
             detail = f"{detail}; " + "; ".join(metadata_bits)
         line = f"- {item.evidence_level} / {item.read_status}: {detail}"
+        if item.evidence_role == "supplemental":
+            line = "- supplemental " + line[2:]
         if item.read_tool:
             line += f" via {item.read_tool}"
         lines.append(line)
@@ -410,8 +414,16 @@ def _validate_evidence_bundle(message: str, bundle: EvidenceBundle) -> None:
                 "matching content-read evidence. Failed source(s): " + ", ".join(unresolved[:5]) + "."
             )
     constraints = infer_source_fit_constraints(message)
-    if must_read and constraints.is_active and not evidence_bundle_satisfies_constraints(bundle, constraints):
-        raise WorkflowPolicyViolation(source_fit_failure_message(bundle, constraints))
+    if must_read and constraints.is_active:
+        if any(item.evidence_level == "content_read" and item.evidence_role == "supplemental" for item in bundle.items):
+            supplemental_violation = _supplemental_evidence_role_violation(bundle, constraints)
+            if supplemental_violation:
+                raise WorkflowPolicyViolation(supplemental_violation)
+        if not evidence_bundle_satisfies_constraints(bundle, constraints):
+            raise WorkflowPolicyViolation(source_fit_failure_message(bundle, constraints))
+        supplemental_violation = _supplemental_evidence_role_violation(bundle, constraints)
+        if supplemental_violation:
+            raise WorkflowPolicyViolation(supplemental_violation)
     conflict_message = latest_source_conflict_message(message, bundle, constraints)
     if must_read and conflict_message:
         raise WorkflowPolicyViolation(conflict_message)
@@ -444,6 +456,32 @@ def _evidence_source_identity(item: EvidenceItem) -> str:
         cleaned = (value or "").strip().lower()
         if cleaned:
             return cleaned
+    return ""
+
+
+def _supplemental_evidence_role_violation(bundle: EvidenceBundle, constraints: SourceFitConstraints) -> str:
+    """Return a policy violation when off-target reads are not marked supplemental."""
+    has_primary_match = False
+    off_target_primary: list[str] = []
+    for item in bundle.items:
+        if item.evidence_level != "content_read":
+            continue
+        if evidence_item_satisfies_constraints(item, constraints):
+            if item.evidence_role != "supplemental":
+                has_primary_match = True
+            continue
+        if item.evidence_role != "supplemental":
+            off_target_primary.append(item.source.title or _evidence_source_identity(item) or "unknown source")
+    if not has_primary_match:
+        return (
+            "Policy gate failed: no primary content-read evidence item matches the user's requested source. "
+            "Mark non-primary source variants as evidence_role='supplemental' only after reading the requested source."
+        )
+    if off_target_primary:
+        return (
+            "Policy gate failed: content-read source variant(s) do not match the user's requested source and must "
+            "be marked evidence_role='supplemental': " + ", ".join(off_target_primary[:5]) + "."
+        )
     return ""
 
 

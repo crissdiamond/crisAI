@@ -303,7 +303,6 @@ def test_run_history_snapshot_uses_summary_expected_stages():
             "reason": "summary",
         },
         "request_contract": contract.to_dict(),
-        "request_contract_is_summary": contract.is_summary,
         "events": [],
         "final_output": "done",
         "error": "",

@@ -130,6 +130,9 @@ def _object_title_phrases(
         start = max(0, index - 8)
         previous = [m.group(0) for m in token_matches[start:index]]
         phrase = _significant_suffix(previous, lexicon)
+        trailing = _trailing_version_suffix(token_matches[index + 1 : index + 5], lexicon)
+        if trailing:
+            phrase = f"{phrase} {trailing}".strip()
         if _is_useful_title_phrase(phrase):
             phrases.append(phrase)
     return phrases
@@ -147,6 +150,21 @@ def _significant_suffix(tokens: list[str], lexicon: LexiconTerms) -> str:
             continue
         chosen.append(token)
     chosen.reverse()
+    return _clean_phrase(" ".join(chosen))
+
+
+def _trailing_version_suffix(matches: list[re.Match[str]], lexicon: LexiconTerms) -> str:
+    chosen: list[str] = []
+    stop = lexicon.all_function_words | lexicon.prompt_noise_terms | lexicon.title_relation_terms
+    for match in matches:
+        token = match.group(0)
+        lowered = token.lower().strip("._-/")
+        if lowered in stop:
+            break
+        if re.fullmatch(r"v[0-9]+(?:[._-]?[0-9]+)?|[0-9]+", lowered):
+            chosen.append(token)
+            continue
+        break
     return _clean_phrase(" ".join(chosen))
 
 

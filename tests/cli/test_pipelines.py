@@ -424,6 +424,142 @@ Retrieved and read the selected deck.
     assert "evidence_bundle_v1" not in result
 
 
+def test_validated_evidence_text_rejects_unmarked_named_source_variant_read():
+    raw = """
+Retrieved and read the requested deck plus a nearby variant.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Please summarise the Integration Strategy full deck v3 1 in detail.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy full deck v3 1.pptx",
+        "open_url": "https://example.com/v3-1.pptx",
+        "read_handle": "sharepoint_doc:v3-1"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "inspect_sharepoint_powerpoint_by_handle",
+      "content_excerpt": "Requested deck slide text.",
+      "raw_error": ""
+    },
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy_Full Presentation v2_data.pptx",
+        "open_url": "https://example.com/v2-data.pptx",
+        "read_handle": "sharepoint_doc:v2"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "inspect_sharepoint_powerpoint_by_handle",
+      "content_excerpt": "Older variant slide text.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="evidence_role='supplemental'"):
+        pipelines._validated_evidence_text(
+            "Please summarise the Integration Strategy full deck v3 1 in detail.",
+            raw,
+        )
+
+
+def test_validated_evidence_text_accepts_supplemental_named_source_variant_read():
+    raw = """
+Retrieved and read the requested deck plus a nearby variant.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Please summarise the Integration Strategy full deck v3 1 in detail.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy full deck v3 1.pptx",
+        "open_url": "https://example.com/v3-1.pptx",
+        "read_handle": "sharepoint_doc:v3-1"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "inspect_sharepoint_powerpoint_by_handle",
+      "content_excerpt": "Requested deck slide text.",
+      "raw_error": ""
+    },
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy_Full Presentation v2_data.pptx",
+        "open_url": "https://example.com/v2-data.pptx",
+        "read_handle": "sharepoint_doc:v2"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "evidence_role": "supplemental",
+      "read_tool": "inspect_sharepoint_powerpoint_by_handle",
+      "content_excerpt": "Older variant slide text.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    result = pipelines._validated_evidence_text(
+        "Please summarise the Integration Strategy full deck v3 1 in detail.",
+        raw,
+    )
+
+    assert "## Validated Evidence Summary" in result
+    assert "supplemental content_read / read" in result
+    assert "evidence_bundle_v1" not in result
+
+
+def test_validated_evidence_text_rejects_all_supplemental_named_source_reads():
+    raw = """
+Retrieved a nearby variant.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Please summarise the Integration Strategy full deck v3 1 in detail.",
+  "items": [
+    {
+      "source": {
+        "source_type": "sharepoint_document",
+        "title": "UCL Integration Strategy_Full Presentation v2_data.pptx",
+        "open_url": "https://example.com/v2-data.pptx",
+        "read_handle": "sharepoint_doc:v2"
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "evidence_role": "supplemental",
+      "read_tool": "inspect_sharepoint_powerpoint_by_handle",
+      "content_excerpt": "Older variant slide text.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="no primary content-read evidence item"):
+        pipelines._validated_evidence_text(
+            "Please summarise the Integration Strategy full deck v3 1 in detail.",
+            raw,
+        )
+
+
 def test_validated_evidence_transport_keeps_bundle_in_metadata_not_prose():
     raw = """
 Retrieved and read the selected deck.

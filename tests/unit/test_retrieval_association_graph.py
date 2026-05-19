@@ -82,6 +82,22 @@ def test_graph_emits_task_contract_facts(registry_dir: Path):
     assert emits["required_evidence_level"] == "content_read"
 
 
+def test_graph_emits_source_inventory_contract_facts(registry_dir: Path):
+    graph = load_retrieval_association_graph(registry_dir)
+    assert graph is not None
+    seeds, _ = expand_retrieval_hints(
+        "Search for files called Integration Strategy on my drive and select the 3 most relevant ones.",
+        graph,
+    )
+    emits = collect_graph_emits(graph, seeds)
+
+    assert "intent.source_discovery" in seeds
+    assert emits["primary_intent"] == "retrieve_source"
+    assert emits["deliverable_type"] == "source_inventory"
+    assert emits["source_resolution"] == "matching_source"
+    assert emits["required_evidence_level"] == "metadata_read"
+
+
 def test_graph_emit_priority_keeps_options_paper_as_main_deliverable(registry_dir: Path):
     graph = load_retrieval_association_graph(registry_dir)
     assert graph is not None

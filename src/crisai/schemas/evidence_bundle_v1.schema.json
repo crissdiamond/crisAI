@@ -60,6 +60,10 @@
           "enum": ["search_hit_only", "metadata_read", "content_read", "read_failed"]
         },
         "read_status": { "type": "string", "minLength": 1 },
+        "evidence_role": {
+          "enum": ["primary", "supplemental"],
+          "default": "primary"
+        },
         "read_tool": { "type": "string" },
         "content_excerpt": { "type": "string" },
         "raw_error": { "type": "string" }

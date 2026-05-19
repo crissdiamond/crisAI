@@ -15,6 +15,10 @@ ALLOWED_EVIDENCE_LEVELS = {
     "content_read",
     "read_failed",
 }
+ALLOWED_EVIDENCE_ROLES = {
+    "primary",
+    "supplemental",
+}
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE)
 
 
@@ -88,6 +92,7 @@ class EvidenceItem:
     source: SourceReference
     evidence_level: str
     read_status: str
+    evidence_role: str = "primary"
     read_tool: str = ""
     content_excerpt: str = ""
     raw_error: str = ""
@@ -106,6 +111,7 @@ class EvidenceItem:
             source=source,
             evidence_level=str(data.get("evidence_level") or "").strip(),
             read_status=str(data.get("read_status") or "").strip(),
+            evidence_role=_evidence_role(data, source),
             read_tool=read_tool,
             content_excerpt=str(data.get("content_excerpt") or ""),
             raw_error=str(data.get("raw_error") or ""),
@@ -118,6 +124,9 @@ class EvidenceItem:
             raise ValueError(f"item.evidence_level must be one of: {allowed}.")
         if not self.read_status:
             raise ValueError("item.read_status is required.")
+        if self.evidence_role not in ALLOWED_EVIDENCE_ROLES:
+            allowed = ", ".join(sorted(ALLOWED_EVIDENCE_ROLES))
+            raise ValueError(f"item.evidence_role must be one of: {allowed}.")
         if self.evidence_level == "content_read":
             if not self.read_tool:
                 raise ValueError("content_read items must include read_tool.")
@@ -131,6 +140,7 @@ class EvidenceItem:
             "source": self.source.to_dict(),
             "evidence_level": self.evidence_level,
             "read_status": self.read_status,
+            "evidence_role": self.evidence_role,
             "read_tool": self.read_tool,
             "content_excerpt": self.content_excerpt,
             "raw_error": self.raw_error,
@@ -273,6 +283,11 @@ def _infer_source_type(read_tool: str) -> str:
     if "intranet" in tool:
         return "intranet_page"
     return "legacy_text"
+
+
+def _evidence_role(data: dict[str, Any], source: SourceReference) -> str:
+    role = str(data.get("evidence_role") or source.metadata.get("evidence_role") or "primary")
+    return role.strip().lower() or "primary"
 
 
 def request_requires_content_read(message: str) -> bool:

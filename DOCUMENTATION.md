@@ -844,6 +844,10 @@ Downstream agents receive a readable **Validated Evidence Summary** instead of a
 fenced JSON block. A document/deck/file summary requires at least one item with
 `evidence_level: "content_read"`; search hits, metadata rows, and failed reads
 are treated as candidates or gaps, not as source content.
+Evidence items may also carry `evidence_role: "primary"` or `"supplemental"`;
+the role defaults to primary. For named-source summaries, content read from
+nearby variants must be marked supplemental after the requested source is read,
+or excluded from the evidence bundle.
 
 For “latest”, “most recent”, or “likely master” source summaries, retrieval
 should include the top matching candidate metadata in the evidence bundle. If

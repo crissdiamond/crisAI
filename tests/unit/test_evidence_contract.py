@@ -91,6 +91,32 @@ def test_parse_evidence_bundle_accepts_legacy_string_source() -> None:
     assert bundle.items[0].source.metadata["normalised_from"] == "string_source"
 
 
+def test_evidence_item_defaults_to_primary_role() -> None:
+    bundle = EvidenceBundle.from_dict(_bundle())
+
+    item = bundle.items[0]
+    assert item.evidence_role == "primary"
+    assert item.to_dict()["evidence_role"] == "primary"
+
+
+def test_evidence_item_accepts_role_from_source_metadata() -> None:
+    payload = _bundle()
+    payload["items"][0]["source"]["metadata"] = {"evidence_role": "supplemental"}
+
+    bundle = EvidenceBundle.from_dict(payload)
+
+    assert bundle.items[0].evidence_role == "supplemental"
+    assert bundle.to_dict()["items"][0]["evidence_role"] == "supplemental"
+
+
+def test_evidence_item_rejects_invalid_role() -> None:
+    payload = _bundle()
+    payload["items"][0]["evidence_role"] = "candidate"
+
+    with pytest.raises(ValueError, match="evidence_role"):
+        EvidenceBundle.from_dict(payload)
+
+
 def test_evidence_bundle_rejects_invalid_level() -> None:
     payload = _bundle(level="made_up")
     with pytest.raises(ValueError, match="evidence_level"):

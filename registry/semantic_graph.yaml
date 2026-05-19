@@ -159,6 +159,44 @@ vertices:
       anti_goals:
         - Do not make candidate ranking the main answer.
         - Do not add unsupported caveats about unread content.
+  - id: intent.source_discovery
+    priority: 95
+    terms:
+      - find all
+      - search for files
+      - search files
+      - list all
+      - list all files
+      - list all documents
+      - best source candidates
+      - best file candidates
+      - best document candidates
+      - most relevant files
+      - most relevant documents
+      - relevant files
+      - relevant documents
+      - matching documents
+      - matching files
+      - documents available
+      - files available
+      - source inventory
+      - document inventory
+      - search results
+      - trova tutti
+      - elenca tutti
+      - migliori candidati
+    emits:
+      primary_intent: retrieve_source
+      deliverable_type: source_inventory
+      source_resolution: matching_source
+      required_evidence_level: metadata_read
+      success_criteria:
+        - Return the matching source inventory as the main answer.
+        - Include enough source identity for the user to choose or confirm a source.
+        - Keep any downstream analysis secondary to the discovered sources.
+      anti_goals:
+        - Do not replace the requested source list with a generic answer.
+        - Do not summarise source contents unless the user asks to read or summarise them.
   - id: deliverable.deck_summary
     priority: 60
     terms:
