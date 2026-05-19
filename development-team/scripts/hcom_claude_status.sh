@@ -32,7 +32,8 @@ if ! command -v hcom >/dev/null 2>&1; then
 fi
 
 HCOM_JSON="$(hcom list --json 2>/dev/null || echo "[]")"
-HCOM_JSON="$HCOM_JSON" python - "$LEASES" <<'PY'
+HCOM_EVENTS="$(hcom events --all --type life 2>/dev/null || true)"
+HCOM_JSON="$HCOM_JSON" HCOM_EVENTS="$HCOM_EVENTS" python - "$LEASES" <<'PY'
 import json
 import os
 import sys
@@ -51,6 +52,21 @@ live = {
     if str(agent.get("tool", "")).lower() == "claude"
     and str(agent.get("tag", "")).endswith("-review")
 }
+
+stopped: set[str] = set()
+for raw in (os.environ.get("HCOM_EVENTS") or "").splitlines():
+    try:
+        event = json.loads(raw)
+    except json.JSONDecodeError:
+        continue
+    if event.get("type") != "life":
+        continue
+    data = event.get("data")
+    if not isinstance(data, dict) or data.get("action") != "stopped":
+        continue
+    instance = event.get("instance")
+    if isinstance(instance, str) and instance:
+        stopped.add(instance)
 
 leases: dict[str, dict[str, str]] = {}
 if leases_path.exists():
@@ -81,7 +97,12 @@ for name in names:
         lease_state = f"{max(0, (expires_epoch - now) // 60)}m remaining"
     else:
         lease_state = "no lease"
-    status = agent.get("status") or lease.get("status") or "not-live"
+    if name in live:
+        status = agent.get("status") or lease.get("status") or "live"
+    elif name in stopped:
+        status = "inactive"
+    else:
+        status = lease.get("status") or "not-live"
     role = lease.get("role", "unknown")
     thread = lease.get("thread", "unknown")
     tag = agent.get("tag") or lease.get("tag", "")

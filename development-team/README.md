@@ -7,12 +7,15 @@ The default shape is:
 
 - one top-level Codex orchestrator;
 - runtime, Gem, and web Codex implementers;
-- on-demand Claude reviewers launched by the orchestrator when useful.
+- on-demand Claude reviewers launched by the orchestrator for review-required
+  work.
 
 Codex is the primary coder. Claude reviewers challenge, review, and may make
 small focused patches inside their assigned area when the orchestrator launches
-them. The Claude memory MCP server is the shared durable context layer across
-agent streams; hcom is used for concise coordination and bundles.
+them. For review-required work, Claude review is a gate: if the reviewer cannot
+launch or is provider-limited, the orchestrator pauses unless the user
+explicitly overrides. The Claude memory MCP server is the shared durable context
+layer across agent streams; hcom is used for concise coordination and bundles.
 
 ## Claude Memory MCP
 
@@ -112,7 +115,8 @@ Codex/Claude tool approval is required.
 
 By default, `scripts/hcom_start.sh` launches the standing Codex team only. Set
 `HCOM_TEAM_CLAUDE_MODE=persistent` to launch legacy always-on Claude reviewers.
-The recommended model is ephemeral Claude review:
+The recommended model is ephemeral but mandatory Claude review for
+review-required work:
 
 ```bash
 scripts/hcom_claude_review.sh --target-repo /path/to/crisAI --role gem_claude --thread gem-ui-review --task "Review the Gem UI diff and report UX risks."

@@ -124,4 +124,4 @@ shared_rules:
   git_write_owner: orchestrator_codex
   area_agents_git_access: read-only
   push_policy: explicit-user-request-only
-  default_review_policy: Claude reviewers are launched on demand by the orchestrator, kept alive while useful for related sequential work, and closed at orchestrator discretion.
+  default_review_policy: Claude reviewers are launched on demand by the orchestrator and are mandatory gates for review-required work. If a required reviewer cannot launch, the orchestrator pauses the task unless the user explicitly overrides.

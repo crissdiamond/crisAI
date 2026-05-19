@@ -231,7 +231,8 @@ For local development team work, start or resume the hcom team with:
 ```
 
 The default hcom team is Codex-only; Claude reviewers are launched on demand by
-the orchestrator for review tasks.
+the orchestrator for review tasks. For review-required work, unavailable Claude
+review pauses the task unless the user explicitly overrides.
 
 Attach to the managed tmux session separately:
 

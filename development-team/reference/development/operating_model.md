@@ -12,7 +12,7 @@ handles only; stable responsibility comes from the role assigned in
 - `runtime_codex`, `gem_codex`, and `web_codex`: run from the target repo root
   with area role context.
 - `runtime_claude`, `gem_claude`, and `web_claude`: ephemeral reviewers
-  launched by the orchestrator when review value justifies the cost.
+  launched by the orchestrator as mandatory gates for review-required work.
 
 The `launch/runtime`, `launch/gem`, and `launch/web` directories are launch
 context folders, not source roots and not Codex sandbox roots. Source code stays
@@ -100,6 +100,24 @@ visible temporary reviewer pane is worth the UI noise. Use
 lease. Leases are stale-session safety caps; the orchestrator still decides
 when to close or keep Claude alive for sequential related tasks.
 
+### Claude Review Gate
+
+Claude reviewers are ephemeral to avoid idle cost, not optional substitutes for
+review. The orchestrator must launch the relevant Claude reviewer before commit
+for review-required work, including runtime behaviour changes,
+security/authentication changes, routing or retrieval changes, shared UI
+contracts, hcom/development-team tooling, and larger UI changes.
+
+If a required Claude reviewer cannot launch, exits during startup, or reports a
+provider error such as rate limiting, the task pauses before commit. The
+orchestrator must report the reviewer role, thread, exact error, reset time when
+available, current changed files, completed checks, and the retry command. It
+must not replace Claude review with orchestrator self-review unless the user
+explicitly says to proceed without Claude for that task.
+
+For low-risk docs-only or mechanical changes, the orchestrator may skip Claude
+review, but should state why in the handoff or final task note.
+
 The launcher also sets `HCOM_HINTS` for the team. Direct hcom requests from the
 orchestrator or paired agent are actionable assignments: agents should proceed
 without asking the terminal user to confirm, and should not leave suggested
@@ -123,9 +141,8 @@ completion does not produce draft prompts like `wait for assignment` or
   unless delegation is not practical and the exception is explicit.
 - Area Codex agents are primary implementers and local coordinators.
 - Claude area agents are ephemeral reviewers. The orchestrator launches them
-  when independent challenge is useful, may keep them alive across related
-  sequential work, and closes them after push, abandonment, or when follow-up is
-  unlikely.
+  for review-required work, may keep them alive across related sequential work,
+  and closes them after push, abandonment, or when follow-up is unlikely.
 - Shared files such as `registry/*`, `prompts/*`, `README.md`,
   `DOCUMENTATION.md`, and `ui/packages/contracts/*` need explicit orchestrator
   ownership for the task.
