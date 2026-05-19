@@ -8,6 +8,7 @@ from typing import Any
 
 TRACE_FILE_NAME = "agent_trace.jsonl"
 _READ_HANDLE_VALUE_RE = re.compile(r'("read_handle"\s*:\s*)"[^"]*"', re.IGNORECASE)
+_BARE_READ_HANDLE_RE = re.compile(r"(?<![\w:])sharepoint_doc:[^\s\"'`<>{}\[\]]+", re.IGNORECASE)
 
 
 
@@ -93,4 +94,5 @@ def redact_trace_payload(value: Any) -> Any:
 
 def redact_trace_text(text: str) -> str:
     """Redact read-handle values embedded in text traces."""
-    return _READ_HANDLE_VALUE_RE.sub(r'\1"[redacted]"', text or "")
+    redacted = _READ_HANDLE_VALUE_RE.sub(r'\1"[redacted]"', text or "")
+    return _BARE_READ_HANDLE_RE.sub("[redacted-read-handle]", redacted)
