@@ -12,6 +12,8 @@ from crisai.orchestration import peer_judge
 from crisai.orchestration.exceptions import WorkflowValidationError
 from crisai.orchestration.retrieval_checkpoint import RetrievalCheckpointDecision
 
+REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
+
 
 class FakeWorkflowSession:
     """Test double for pipeline workflow orchestration."""
@@ -2004,6 +2006,55 @@ async def test_run_single_attaches_execution_time_to_stage_error(monkeypatch, tm
     assert observability["execution_time"]["started_at"]
     assert observability["execution_time"]["ended_at"]
     assert observability["execution_time"]["duration_ms"] >= 0
+
+
+@pytest.mark.anyio
+async def test_run_single_rejects_source_inventory_titles_that_miss_required_phrase(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str, dict]] = []
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(
+            root_dir=tmp_path,
+            trace_file=tmp_path / "trace.log",
+            runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
+            factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
+            run_id="test-run-id",
+        ),
+    )
+
+    async def _fake_run_agent_silently(agent, prompt: str) -> str:
+        del agent, prompt
+        return (
+            "| File | Location |\n"
+            "|---|---|\n"
+            "| [STOP - InfinityFinanceIntegrationDesign.docx]"
+            "(https://liveuclac-my.sharepoint.com/personal/user/doc.aspx) | OneDrive |\n"
+        )
+
+    def _capture_trace(log_file, stage, content, **kwargs):
+        del log_file
+        trace_calls.append((stage, content, kwargs))
+
+    monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
+    monkeypatch.setattr(pipelines, "append_trace", _capture_trace)
+
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="Rejected source title"):
+        await pipelines.run_single(
+            "Find all the documents on my onedrive with Integration Strategy in the title and list the best 3.",
+            "retrieval_planner",
+            settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path, registry_dir=REGISTRY_DIR),
+            server_specs={},
+            agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
+        )
+
+    stage_error = next(call for call in trace_calls if call[2].get("event_type") == "stage_error")
+    assert stage_error[0] == "RETRIEVAL_PLANNER OUTPUT_ERROR"
+    assert "Required title phrase(s): Integration Strategy." in stage_error[1]
+    assert "STOP - InfinityFinanceIntegrationDesign.docx" in stage_error[1]
+    assert stage_error[2]["metadata"]["error_type"] == "SourceFitConstraintViolation"
 
 
 @pytest.mark.anyio

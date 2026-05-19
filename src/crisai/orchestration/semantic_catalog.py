@@ -74,6 +74,7 @@ class RetrievalConstraintTerms:
 
     object_type_terms: frozenset[str]
     source_scope_markers: dict[str, frozenset[str]]
+    title_position_terms: frozenset[str] = dataclass_field(default_factory=frozenset)
     source_type_markers: dict[str, frozenset[str]] = dataclass_field(default_factory=dict)
     source_candidate_metadata_deny_keys: frozenset[str] = dataclass_field(default_factory=frozenset)
 
@@ -85,6 +86,7 @@ class LexiconTerms:
     function_words: dict[str, frozenset[str]]
     prompt_noise_terms: frozenset[str]
     title_relation_terms: frozenset[str]
+    forward_title_relation_terms: frozenset[str] = dataclass_field(default_factory=frozenset)
     continuation_intent_template: dict[str, str] = dataclass_field(default_factory=dict)
 
     @property
@@ -439,10 +441,14 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
             function_words=function_words,
             prompt_noise_terms=_as_frozenset(lexicon_block.get("prompt_noise_terms")),
             title_relation_terms=_as_frozenset(lexicon_block.get("title_relation_terms")),
+            forward_title_relation_terms=_as_frozenset(
+                lexicon_block.get("forward_title_relation_terms")
+            ),
             continuation_intent_template=_string_mapping(lexicon_block.get("continuation_intent_template")),
         ),
         retrieval_constraints=RetrievalConstraintTerms(
             object_type_terms=_as_frozenset(retrieval_block.get("object_type_terms")),
+            title_position_terms=_as_frozenset(retrieval_block.get("title_position_terms")),
             source_scope_markers=scope_markers,
             source_type_markers=type_markers,
             source_candidate_metadata_deny_keys=_as_frozenset(

@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .evidence_contract import EvidenceBundle, EvidenceItem
+from .evidence_contract import EvidenceBundle, EvidenceItem, SourceReference
 from .semantic_catalog import (
     LexiconTerms,
     RetrievalConstraintTerms,
@@ -46,6 +46,7 @@ def infer_source_fit_constraints(
     title_phrases = _unique_preserve_order(
         [
             *_quoted_phrases(text),
+            *_relation_title_phrases(text, catalog.retrieval_constraints, catalog.lexicon),
             *_object_title_phrases(text, catalog.retrieval_constraints, catalog.lexicon),
         ]
     )
@@ -105,6 +106,29 @@ def source_fit_failure_message(bundle: EvidenceBundle, constraints: SourceFitCon
     return " ".join(parts)
 
 
+def source_inventory_failure_message(content: str, constraints: SourceFitConstraints) -> str:
+    """Return a policy diagnostic when source inventory rows miss constraints."""
+    if not constraints.is_active:
+        return ""
+    candidates = _source_inventory_candidates(content)
+    if not candidates:
+        return ""
+    rejected = [
+        candidate.source.title
+        for candidate in candidates
+        if not evidence_item_satisfies_constraints(candidate, constraints)
+    ]
+    if not rejected:
+        return ""
+    parts = ["Policy gate failed: source inventory contains item(s) outside the user's source constraints."]
+    if constraints.required_title_phrases:
+        parts.append("Required title phrase(s): " + ", ".join(constraints.required_title_phrases) + ".")
+    if constraints.source_scopes:
+        parts.append("Required source scope(s): " + ", ".join(constraints.source_scopes) + ".")
+    parts.append("Rejected source title(s): " + ", ".join(rejected[:5]) + ".")
+    return " ".join(parts)
+
+
 def _quoted_phrases(text: str) -> list[str]:
     phrases: list[str] = []
     for match in re.finditer(r"[\"'`“”‘’]([^\"'`“”‘’]{2,80})[\"'`“”‘’]", text):
@@ -129,7 +153,12 @@ def _object_title_phrases(
             continue
         start = max(0, index - 8)
         previous = [m.group(0) for m in token_matches[start:index]]
-        phrase = _significant_suffix(previous, lexicon)
+        phrase = _significant_suffix(
+            previous,
+            lexicon,
+            title_position_terms=terms.title_position_terms,
+            extra_stop_tokens=lexicon.forward_title_relation_terms,
+        )
         trailing = _trailing_version_suffix(token_matches[index + 1 : index + 5], lexicon)
         if trailing:
             phrase = f"{phrase} {trailing}".strip()
@@ -138,13 +167,60 @@ def _object_title_phrases(
     return phrases
 
 
-def _significant_suffix(tokens: list[str], lexicon: LexiconTerms) -> str:
+def _relation_title_phrases(
+    text: str,
+    terms: RetrievalConstraintTerms,
+    lexicon: LexiconTerms,
+) -> list[str]:
+    token_matches = list(re.finditer(r"[A-Za-z0-9][A-Za-z0-9._&/-]*", text or ""))
+    if not token_matches:
+        return []
+    position_tokens = {
+        term
+        for term in terms.title_position_terms
+        if re.fullmatch(r"[a-z0-9._&/-]+", term)
+    }
+    forward_tokens = lexicon.forward_title_relation_terms
+    stop_tokens = terms.object_type_terms | lexicon.prompt_noise_terms
+    phrases: list[str] = []
+    for index, match in enumerate(token_matches):
+        relation_token = match.group(0).lower().strip("._-/")
+        if relation_token not in position_tokens and relation_token not in forward_tokens:
+            continue
+        if relation_token in forward_tokens:
+            phrase = _following_title_phrase(
+                token_matches[index + 1 : index + 7],
+                lexicon,
+                title_position_terms=terms.title_position_terms,
+                extra_stop_tokens=terms.object_type_terms,
+            )
+        else:
+            start = max(0, index - 10)
+            previous = [m.group(0) for m in token_matches[start:index]]
+            phrase = _significant_suffix(
+                previous,
+                lexicon,
+                title_position_terms=terms.title_position_terms,
+                extra_stop_tokens=stop_tokens,
+            )
+        if _is_useful_title_phrase(phrase):
+            phrases.append(phrase)
+    return phrases
+
+
+def _significant_suffix(
+    tokens: list[str],
+    lexicon: LexiconTerms,
+    *,
+    title_position_terms: frozenset[str] = frozenset(),
+    extra_stop_tokens: frozenset[str] = frozenset(),
+) -> str:
     chosen: list[str] = []
     noise = lexicon.all_function_words | lexicon.prompt_noise_terms
-    connectors = lexicon.all_function_words | lexicon.title_relation_terms
+    connectors = lexicon.all_function_words | title_position_terms
     for token in reversed(tokens):
         lowered = token.lower().strip("._-/")
-        if lowered in noise or lowered in connectors:
+        if lowered in noise or lowered in connectors or lowered in extra_stop_tokens:
             if chosen:
                 break
             continue
@@ -168,6 +244,32 @@ def _trailing_version_suffix(matches: list[re.Match[str]], lexicon: LexiconTerms
     return _clean_phrase(" ".join(chosen))
 
 
+def _following_title_phrase(
+    matches: list[re.Match[str]],
+    lexicon: LexiconTerms,
+    *,
+    title_position_terms: frozenset[str] = frozenset(),
+    extra_stop_tokens: frozenset[str] = frozenset(),
+) -> str:
+    chosen: list[str] = []
+    stop = (
+        lexicon.all_function_words
+        | lexicon.prompt_noise_terms
+        | lexicon.title_relation_terms
+        | title_position_terms
+        | extra_stop_tokens
+    )
+    for match in matches:
+        token = match.group(0)
+        lowered = token.lower().strip("._-/")
+        if lowered in stop:
+            if chosen:
+                break
+            continue
+        chosen.append(token)
+    return _clean_phrase(" ".join(chosen))
+
+
 def _source_scopes(text: str, terms: RetrievalConstraintTerms) -> list[str]:
     lowered = (text or "").lower()
     scopes: list[str] = []
@@ -180,16 +282,7 @@ def _source_scopes(text: str, terms: RetrievalConstraintTerms) -> list[str]:
 def _title_matches(item: EvidenceItem, constraints: SourceFitConstraints) -> bool:
     if not constraints.required_title_phrases:
         return True
-    haystack = _normalise_match_text(
-        " ".join(
-            [
-                item.source.title,
-                item.source.open_url,
-                item.source.location,
-                item.source.workspace_path,
-            ]
-        )
-    )
+    haystack = _normalise_match_text(item.source.title)
     return any(_phrase_tokens_match(phrase, haystack) for phrase in constraints.required_title_phrases)
 
 
@@ -227,6 +320,39 @@ def _normalise_match_text(text: str) -> str:
 def _clean_phrase(text: str) -> str:
     phrase = re.sub(r"\s+", " ", (text or "").strip(" \t\r\n,;:.!?()[]{}"))
     return phrase
+
+
+def _source_inventory_candidates(content: str) -> list[EvidenceItem]:
+    candidates: list[EvidenceItem] = []
+    seen: set[tuple[str, str]] = set()
+    for title, reference in _markdown_link_sources(content):
+        key = (_normalise_match_text(title), reference.strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(
+            EvidenceItem(
+                source=SourceReference(
+                    source_type="sharepoint_document" if "sharepoint" in reference.lower() else "source",
+                    title=title,
+                    open_url=reference,
+                    metadata={"normalised_from": "source_inventory_output"},
+                ),
+                evidence_level="metadata_read",
+                read_status="metadata_read",
+            )
+        )
+    return candidates
+
+
+def _markdown_link_sources(content: str) -> list[tuple[str, str]]:
+    sources: list[tuple[str, str]] = []
+    for match in re.finditer(r"\[([^\]\n]{2,240})\]\(([^)\s]{2,1000})\)", content or ""):
+        title = _clean_phrase(match.group(1))
+        reference = match.group(2).strip()
+        if title and reference:
+            sources.append((title, reference))
+    return sources
 
 
 def _is_useful_title_phrase(phrase: str) -> bool:

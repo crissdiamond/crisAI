@@ -376,7 +376,7 @@ lexicon:
       - about
       - with
       - in
-      - on
+      - "on"
       - from
       - to
       - nel
@@ -450,8 +450,14 @@ lexicon:
     - named
     - called
     - titled
-    - filename
-    - file name
+    - chiamato
+    - chiamata
+    - intitolato
+    - intitolata
+  forward_title_relation_terms:
+    - named
+    - called
+    - titled
     - chiamato
     - chiamata
     - intitolato
@@ -500,6 +506,11 @@ session_memory:
     - how
 
 retrieval_constraints:
+  title_position_terms:
+    - title
+    - name
+    - filename
+    - file name
   object_type_terms:
     - document
     - documents

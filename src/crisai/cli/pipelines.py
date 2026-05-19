@@ -79,6 +79,7 @@ from crisai.orchestration.source_constraints import (
     evidence_item_satisfies_constraints,
     infer_source_fit_constraints,
     source_fit_failure_message,
+    source_inventory_failure_message,
 )
 from crisai.orchestration.source_resolution import latest_source_conflict_message
 from crisai.orchestration.task_contract import (
@@ -760,6 +761,26 @@ async def run_single(
             finally:
                 reset_stage_observability_callback(observability_callback_token)
                 reset_stage_observability_agent_id(observability_agent_token)
+            if request_contract.deliverable_type == "source_inventory":
+                constraints = infer_source_fit_constraints(
+                    intent_message,
+                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                )
+                inventory_violation = source_inventory_failure_message(result, constraints)
+                if inventory_violation:
+                    append_trace_entry(
+                        environment,
+                        f"{agent_id.upper()} OUTPUT_ERROR",
+                        inventory_violation,
+                        event_type="stage_error",
+                        agent_id=agent_id,
+                        metadata=_merge_stage_observability_metadata(
+                            {"error_type": "SourceFitConstraintViolation"},
+                            observability_events,
+                            execution_time=_execution_time_metadata(started_at, started_monotonic),
+                        ),
+                    )
+                    raise WorkflowPolicyViolation(inventory_violation)
             if session_name and agent_id == "retrieval_planner":
                 persist_session_source_candidates_from_output(session_name, result)
             workflow_metadata = _merge_stage_observability_metadata(
