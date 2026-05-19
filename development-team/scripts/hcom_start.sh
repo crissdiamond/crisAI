@@ -10,7 +10,7 @@ DRY_RUN=0
 HEADLESS=0
 RESUME=0
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
-TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. If you are waiting for another agent, report that state via hcom and return to listening.}"
+TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
 TEAM_TERMINAL_EXPLICIT=0
 if [[ -n "$TEAM_TERMINAL" ]]; then

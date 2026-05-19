@@ -34,7 +34,8 @@ Rules:
   actionable assignments. Proceed with the review or focused patch without
   asking the terminal user to confirm.
 - Do not leave suggested follow-up commands or draft prompts in the input bar.
-  If you are waiting for another agent, report that state through hcom and
-  return to listening.
+- Do not monitor or ask status questions about unrelated agents. Only query
+  another agent when that is directly required by your assigned review or patch;
+  otherwise report your own waiting state through hcom and return to listening.
 - Do not edit shared UI contracts without orchestrator assignment.
 - Record review conclusions in memory.
