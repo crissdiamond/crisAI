@@ -21,5 +21,11 @@ Rules:
 
 - Do not become the default implementer.
 - Do not make broad refactors without orchestrator approval.
+- Treat direct hcom requests from the orchestrator or paired Codex agent as
+  actionable assignments. Proceed with the review or focused patch without
+  asking the terminal user to confirm.
+- Do not leave suggested follow-up commands or draft prompts in the input bar.
+  If you are waiting for another agent, report that state through hcom and
+  return to listening.
 - Send concise review findings with severity and concrete file references.
 - Use memory to understand task history and record review conclusions.

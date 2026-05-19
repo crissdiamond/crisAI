@@ -29,5 +29,11 @@ Review focus:
 Rules:
 
 - Keep token use focused on review, critique, and narrow fixes.
+- Treat direct hcom requests from the orchestrator or paired Codex agent as
+  actionable assignments. Proceed with the review or focused patch without
+  asking the terminal user to confirm.
+- Do not leave suggested follow-up commands or draft prompts in the input bar.
+  If you are waiting for another agent, report that state through hcom and
+  return to listening.
 - Do not edit shared UI contracts without orchestrator assignment.
 - Record review conclusions in memory.

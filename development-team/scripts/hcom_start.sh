@@ -10,6 +10,7 @@ DRY_RUN=0
 HEADLESS=0
 RESUME=0
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
+TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. If you are waiting for another agent, report that state via hcom and return to listening.}"
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
 TEAM_TERMINAL_EXPLICIT=0
 if [[ -n "$TEAM_TERMINAL" ]]; then
@@ -48,6 +49,11 @@ Terminal:
 Approvals:
   Tool auto-approval is enabled by default. Set HCOM_TEAM_TOOL_AUTO_APPROVE=0
   or pass --no-tool-auto-approve to keep Codex/Claude permission prompts.
+
+Message handling:
+  HCOM_TEAM_HINTS is appended to received hcom messages. The default tells
+  agents to treat direct hcom requests as actionable assignments and not wait
+  for terminal-user confirmation.
 EOF
 }
 
@@ -460,6 +466,7 @@ require_bin codex
 require_bin claude
 
 export HCOM_DIR="$HCOM_STATE_DIR"
+export HCOM_HINTS="$TEAM_HINTS"
 mkdir -p "$HCOM_DIR"
 TEAM_TERMINAL="$(default_team_terminal)"
 load_previous_assignments

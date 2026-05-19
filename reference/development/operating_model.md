@@ -76,6 +76,12 @@ launcher uses non-bypass modes: Codex receives `--ask-for-approval never
 Use `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
 tool approval is required.
 
+The launcher also sets `HCOM_HINTS` for the team. Direct hcom requests from the
+orchestrator or paired agent are actionable assignments: agents should proceed
+without asking the terminal user to confirm, and should not leave suggested
+follow-up commands or draft prompts in the input bar. If an agent is waiting for
+another agent, it should report that state through hcom and return to listening.
+
 ## Responsibilities
 
 - The orchestrator plans work, assigns tasks, integrates results, runs final
