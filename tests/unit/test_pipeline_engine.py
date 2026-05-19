@@ -94,6 +94,15 @@ def test_resolve_stage_timeout_falls_back_for_invalid_env(monkeypatch):
     assert _resolve_stage_timeout_seconds() == 300.0
 
 
+def _assert_execution_time(observability: dict) -> None:
+    assert observability["schema_version"] == "ui_stage_observability_v1"
+    execution_time = observability["execution_time"]
+    assert execution_time["started_at"]
+    assert execution_time["ended_at"]
+    assert isinstance(execution_time["duration_ms"], int)
+    assert execution_time["duration_ms"] >= 0
+
+
 @pytest.mark.anyio
 async def test_workflow_engine_opens_and_closes_shared_server_context(engine_fixture):
     fixture = engine_fixture
@@ -168,15 +177,15 @@ async def test_workflow_session_traces_timeout(monkeypatch, engine_fixture):
                 verbose=False,
             )
 
-    assert fixture.trace_calls[-1] == (
-        "RETRIEVAL_PLANNER OUTPUT_ERROR",
-        "Stage retrieval_planner timed out after 0.01s. Set CRISAI_AGENT_STAGE_TIMEOUT_SECONDS to tune this limit.",
-        {
-            "event_type": "stage_error",
-            "agent_id": "retrieval_planner",
-            "metadata": {"timeout_seconds": 0.01},
-        },
+    error = fixture.trace_calls[-1]
+    assert error[0] == "RETRIEVAL_PLANNER OUTPUT_ERROR"
+    assert error[1] == (
+        "Stage retrieval_planner timed out after 0.01s. Set CRISAI_AGENT_STAGE_TIMEOUT_SECONDS to tune this limit."
     )
+    assert error[2]["event_type"] == "stage_error"
+    assert error[2]["agent_id"] == "retrieval_planner"
+    assert error[2]["metadata"]["timeout_seconds"] == 0.01
+    _assert_execution_time(error[2]["metadata"]["observability"])
     assert fixture.output_calls == []
 
 
@@ -200,15 +209,13 @@ async def test_workflow_session_traces_stage_error_on_runner_exception(engine_fi
                 verbose=False,
             )
 
-    assert fixture.trace_calls[-1] == (
-        "RETRIEVAL_PLANNER OUTPUT_ERROR",
-        "Stage retrieval_planner failed: TypeError: bad model settings",
-        {
-            "event_type": "stage_error",
-            "agent_id": "retrieval_planner",
-            "metadata": {"error_type": "TypeError"},
-        },
-    )
+    error = fixture.trace_calls[-1]
+    assert error[0] == "RETRIEVAL_PLANNER OUTPUT_ERROR"
+    assert error[1] == "Stage retrieval_planner failed: TypeError: bad model settings"
+    assert error[2]["event_type"] == "stage_error"
+    assert error[2]["agent_id"] == "retrieval_planner"
+    assert error[2]["metadata"]["error_type"] == "TypeError"
+    _assert_execution_time(error[2]["metadata"]["observability"])
     assert fixture.output_calls == []
 
 
@@ -232,15 +239,13 @@ async def test_workflow_session_fails_closed_on_empty_stage_output(engine_fixtur
                 verbose=False,
             )
 
-    assert fixture.trace_calls[-1] == (
-        "RETRIEVAL_PLANNER OUTPUT_ERROR",
-        "Stage retrieval_planner returned empty output. This stage is required to produce a handoff or answer.",
-        {
-            "event_type": "stage_error",
-            "agent_id": "retrieval_planner",
-            "metadata": {"output_length": 0},
-        },
-    )
+    error = fixture.trace_calls[-1]
+    assert error[0] == "RETRIEVAL_PLANNER OUTPUT_ERROR"
+    assert error[1] == "Stage retrieval_planner returned empty output. This stage is required to produce a handoff or answer."
+    assert error[2]["event_type"] == "stage_error"
+    assert error[2]["agent_id"] == "retrieval_planner"
+    assert error[2]["metadata"]["output_length"] == 0
+    _assert_execution_time(error[2]["metadata"]["observability"])
     assert fixture.output_calls == []
 
 
@@ -258,23 +263,21 @@ async def test_workflow_session_traces_stage_lifecycle_and_prints_output(engine_
         )
 
     assert result == "retrieval_planner::find context"
-    assert fixture.trace_calls == [
-        (
-            "RETRIEVAL_PLANNER OUTPUT_START",
-            "Starting stage for retrieval_planner.",
-            {"event_type": "stage_start", "agent_id": "retrieval_planner", "metadata": None},
-        ),
-        (
-            "RETRIEVAL_PLANNER OUTPUT",
-            "retrieval_planner::find context",
-            {"event_type": "stage_output", "agent_id": "retrieval_planner", "metadata": None},
-        ),
-        (
-            "RETRIEVAL_PLANNER OUTPUT_END",
-            "Completed stage for retrieval_planner.",
-            {"event_type": "stage_end", "agent_id": "retrieval_planner", "metadata": None},
-        ),
-    ]
+    assert fixture.trace_calls[0] == (
+        "RETRIEVAL_PLANNER OUTPUT_START",
+        "Starting stage for retrieval_planner.",
+        {"event_type": "stage_start", "agent_id": "retrieval_planner", "metadata": None},
+    )
+    assert fixture.trace_calls[1][0] == "RETRIEVAL_PLANNER OUTPUT"
+    assert fixture.trace_calls[1][1] == "retrieval_planner::find context"
+    assert fixture.trace_calls[1][2]["event_type"] == "stage_output"
+    assert fixture.trace_calls[1][2]["agent_id"] == "retrieval_planner"
+    _assert_execution_time(fixture.trace_calls[1][2]["metadata"]["observability"])
+    assert fixture.trace_calls[2] == (
+        "RETRIEVAL_PLANNER OUTPUT_END",
+        "Completed stage for retrieval_planner.",
+        {"event_type": "stage_end", "agent_id": "retrieval_planner", "metadata": None},
+    )
     assert fixture.output_calls == [("retrieval_planner", "retrieval_planner::find context", True)]
 
 
@@ -293,17 +296,14 @@ async def test_workflow_session_processes_stage_output_before_trace_and_print(en
         )
 
     assert result == "retrieval_planner::find context"
-    assert fixture.trace_calls[1] == (
-        "RETRIEVAL_PLANNER OUTPUT",
-        "clean stage output",
-        {
-            "event_type": "stage_output",
-            "agent_id": "retrieval_planner",
-            "metadata": {"artifacts": {"raw_length": len("retrieval_planner::find context")}},
-        },
-    )
+    stage_output = fixture.trace_calls[1]
+    assert stage_output[0] == "RETRIEVAL_PLANNER OUTPUT"
+    assert stage_output[1] == "clean stage output"
+    assert stage_output[2]["event_type"] == "stage_output"
+    assert stage_output[2]["agent_id"] == "retrieval_planner"
+    assert stage_output[2]["metadata"]["artifacts"] == {"raw_length": len("retrieval_planner::find context")}
+    _assert_execution_time(stage_output[2]["metadata"]["observability"])
     assert fixture.output_calls == [("retrieval_planner", "clean stage output", True)]
-
 
 @pytest.mark.anyio
 async def test_workflow_session_adds_observability_to_stage_output_metadata(engine_fixture):
@@ -334,12 +334,33 @@ async def test_workflow_session_adds_observability_to_stage_output_metadata(engi
 
     stage_output = fixture.trace_calls[1]
     assert stage_output[0] == "RETRIEVAL_PLANNER OUTPUT"
-    assert stage_output[2]["metadata"] == {
-        "observability": {
-            "streaming": {"attempted": True, "fallback": True, "fallback_reason": "sdk_incompatible"},
-            "provider_usage": {"input_tokens": 7, "output_tokens": 3, "total_tokens": 10},
-        }
-    }
+    observability = stage_output[2]["metadata"]["observability"]
+    assert observability["streaming"] == {"attempted": True, "fallback": True, "fallback_reason": "sdk_incompatible"}
+    assert observability["provider_usage"] == {"input_tokens": 7, "output_tokens": 3, "total_tokens": 10}
+    _assert_execution_time(observability)
+
+
+@pytest.mark.anyio
+async def test_workflow_session_overwrites_stale_observability_schema(engine_fixture):
+    fixture = engine_fixture
+
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+        await workflow.run_stage(
+            spec=fixture.retrieval_planner_spec,
+            ui_agent_id="retrieval_planner",
+            prompt="find context",
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
+            verbose=False,
+            output_processor=lambda raw: (
+                raw,
+                {"observability": {"schema_version": "old_schema", "provider_usage": {"total_tokens": 2}}},
+            ),
+        )
+
+    observability = fixture.trace_calls[1][2]["metadata"]["observability"]
+    assert observability["schema_version"] == "ui_stage_observability_v1"
+    assert observability["provider_usage"] == {"total_tokens": 2}
+    _assert_execution_time(observability)
 
 
 @pytest.mark.anyio

@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 from .pipeline_display import (
@@ -21,6 +23,7 @@ OutputPrinter = Callable[..., None]
 ServerContextFactory = Callable[..., Any]
 StageOutputProcessor = Callable[[str], tuple[str, dict[str, Any] | None]]
 _DEFAULT_STAGE_TIMEOUT_SECONDS = 300.0
+_OBSERVABILITY_SCHEMA_VERSION = "ui_stage_observability_v1"
 
 
 def _resolve_stage_timeout_seconds() -> float:
@@ -164,6 +167,8 @@ class WorkflowSession:
         observability_agent_token = set_stage_observability_agent_id(ui_agent_id)
         observability_callback_token = set_stage_observability_callback(_record_observability)
         timeout_seconds = _resolve_stage_timeout_seconds()
+        started_at = _utc_now_iso()
+        started_monotonic = time.perf_counter()
         try:
             result = await asyncio.wait_for(
                 self._stage_runner(ui_agent_id, agent, prompt),
@@ -179,7 +184,11 @@ class WorkflowSession:
                 message,
                 event_type="stage_error",
                 agent_id=ui_agent_id,
-                metadata={"timeout_seconds": timeout_seconds},
+                metadata=_merge_stage_observability_metadata(
+                    {"timeout_seconds": timeout_seconds},
+                    observability_events,
+                    execution_time=_execution_time_metadata(started_at, started_monotonic),
+                ),
             )
             raise TimeoutError(message) from None
         except Exception as exc:
@@ -189,7 +198,11 @@ class WorkflowSession:
                 message,
                 event_type="stage_error",
                 agent_id=ui_agent_id,
-                metadata={"error_type": type(exc).__name__},
+                metadata=_merge_stage_observability_metadata(
+                    {"error_type": type(exc).__name__},
+                    observability_events,
+                    execution_time=_execution_time_metadata(started_at, started_monotonic),
+                ),
             )
             raise
         finally:
@@ -205,14 +218,22 @@ class WorkflowSession:
                 message,
                 event_type="stage_error",
                 agent_id=ui_agent_id,
-                metadata={"output_length": 0},
+                metadata=_merge_stage_observability_metadata(
+                    {"output_length": 0},
+                    observability_events,
+                    execution_time=_execution_time_metadata(started_at, started_monotonic),
+                ),
             )
             raise RuntimeError(message)
         trace_content = result
         trace_metadata: dict[str, Any] | None = None
         if output_processor is not None:
             trace_content, trace_metadata = output_processor(result)
-        trace_metadata = _merge_stage_observability_metadata(trace_metadata, observability_events)
+        trace_metadata = _merge_stage_observability_metadata(
+            trace_metadata,
+            observability_events,
+            execution_time=_execution_time_metadata(started_at, started_monotonic),
+        )
         self.trace_event(
             trace_label,
             trace_content,
@@ -295,19 +316,40 @@ class WorkflowEngine:
 def _merge_stage_observability_metadata(
     metadata: dict[str, Any] | None,
     observability_events: list[tuple[str, dict[str, object]]],
+    *,
+    execution_time: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Attach trace-safe stage observability to existing stage metadata."""
-    if not observability_events:
+    if not observability_events and execution_time is None:
         return metadata
     merged: dict[str, Any] = dict(metadata or {})
     existing_observability = merged.get("observability")
     observability: dict[str, Any] = (
         dict(existing_observability) if isinstance(existing_observability, dict) else {}
     )
+    observability["schema_version"] = _OBSERVABILITY_SCHEMA_VERSION
     for event_type, payload in observability_events:
         if event_type in {"streaming_fallback", "provider_usage"}:
             observability.update(payload)
         else:
             observability[event_type] = payload
+    if execution_time is not None:
+        observability["execution_time"] = execution_time
     merged["observability"] = observability
     return merged
+
+
+def _utc_now_iso() -> str:
+    """Return a UTC timestamp for stage observability metadata."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _execution_time_metadata(started_at: str, started_monotonic: float) -> dict[str, Any]:
+    """Return wall-clock timing metadata for one stage execution."""
+    ended_at = _utc_now_iso()
+    duration_ms = max(0, round((time.perf_counter() - started_monotonic) * 1000))
+    return {
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "duration_ms": duration_ms,
+    }

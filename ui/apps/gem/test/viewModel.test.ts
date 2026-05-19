@@ -4,6 +4,7 @@ import {
   buildRunListLines,
   buildEventLines,
   buildSessionContextPreviewLines,
+  aggregateTokenTotal,
   checkpointDecisionLines,
   clampScrollTop,
   buildPromptView,
@@ -49,12 +50,14 @@ import {
   runSummaryTitle,
   shouldBufferStartupPaste,
   sidebarStages,
+  stageSidebarLabel,
   stageVisual,
+  pinnedStageMetricsLine,
   truncateStageLabel,
   wrapPlainText,
   type GemTerminalTheme
 } from "../src/viewModel.js";
-import { deriveStageSummaries } from "@crisai/contracts";
+import { aggregateStageObservability, deriveStageSummaries, extractStageObservability } from "@crisai/contracts";
 import type { UiEvent, UiRunSummary, UiSessionContext, UiStageSummary } from "@crisai/contracts";
 
 function uiEvent(overrides: Partial<UiEvent>): UiEvent {
@@ -201,6 +204,191 @@ test("stage labels and event content wrap before they can exceed panel bounds", 
   const lines = buildEventLines([event], "Runtime event stream disconnected.", 18);
   assert(lines.length > 4);
   assert(lines.every((line) => line.length <= 18));
+});
+
+test("shared observability helpers safely extract and aggregate fixture events", () => {
+  const valid = uiEvent({
+    event_type: "stage_completed",
+    agent_id: "summary",
+    stage: "SUMMARY OUTPUT",
+    metadata: {
+      observability: {
+        schema_version: "ui_stage_observability_v1",
+        provider_usage: {
+          input_tokens: 120,
+          output_tokens: "30",
+          total_tokens: 150,
+          cached_tokens: 10,
+          reasoning_tokens: -1
+        },
+        execution_time: {
+          started_at: "2026-05-17T12:00:00Z",
+          ended_at: "2026-05-17T12:00:02Z",
+          duration_ms: 2345
+        },
+        streaming: {
+          attempted: true,
+          fallback: true,
+          fallback_reason: "provider stream unavailable",
+          ignored: "value"
+        }
+      }
+    }
+  });
+  const second = uiEvent({
+    event_type: "stage_completed",
+    agent_id: "design",
+    stage: "design",
+    metadata: {
+      observability: {
+        schema_version: "ui_stage_observability_v1",
+        provider_usage: {
+          input_tokens: 20,
+          output_tokens: 5,
+          total_tokens: 25,
+          cached_tokens: 0,
+          reasoning_tokens: 3
+        },
+        execution_time: {
+          duration_ms: "1000"
+        }
+      }
+    }
+  });
+  const earlierSummary = uiEvent({
+    event_type: "stage_output",
+    agent_id: "summary",
+    stage: "SUMMARY DELTA",
+    metadata: {
+      observability: {
+        schema_version: "ui_stage_observability_v1",
+        provider_usage: {
+          input_tokens: 999,
+          output_tokens: 999,
+          total_tokens: 999,
+          cached_tokens: 999,
+          reasoning_tokens: 999
+        },
+        execution_time: {
+          duration_ms: 9999
+        }
+      }
+    }
+  });
+  const invalid = uiEvent({
+    event_type: "stage_completed",
+    metadata: {
+      observability: {
+        schema_version: "wrong",
+        provider_usage: {
+          total_tokens: 999
+        }
+      }
+    }
+  });
+
+  assert.deepEqual(extractStageObservability(valid), {
+    schema_version: "ui_stage_observability_v1",
+    provider_usage: {
+      input_tokens: 120,
+      output_tokens: 30,
+      total_tokens: 150,
+      cached_tokens: 10
+    },
+    execution_time: {
+      started_at: "2026-05-17T12:00:00Z",
+      ended_at: "2026-05-17T12:00:02Z",
+      duration_ms: 2345
+    },
+    streaming: {
+      attempted: true,
+      fallback: true,
+      fallback_reason: "provider stream unavailable"
+    }
+  });
+  assert.equal(extractStageObservability(invalid), null);
+  assert.deepEqual(aggregateStageObservability([earlierSummary, valid, invalid, second]), {
+    provider_usage: {
+      input_tokens: 140,
+      output_tokens: 35,
+      total_tokens: 175,
+      cached_tokens: 10,
+      reasoning_tokens: 3
+    },
+    duration_ms: 3345,
+    stage_count: 2
+  });
+});
+
+test("Gem token and stage metrics format observability without overflowing panels", () => {
+  const event = uiEvent({
+    event_type: "stage_completed",
+    title: "Summary",
+    summary: "Summary complete.",
+    content: "Stage answer.",
+    agent_id: "summary",
+    stage: "summary",
+    metadata: {
+      observability: {
+        schema_version: "ui_stage_observability_v1",
+        provider_usage: {
+          input_tokens: 120,
+          output_tokens: 30,
+          total_tokens: 150,
+          cached_tokens: 10,
+          reasoning_tokens: 3
+        },
+        execution_time: {
+          duration_ms: 2345
+        }
+      }
+    }
+  });
+  const stage: UiStageSummary = {
+    key: "summary",
+    label: "Summary",
+    status: "complete",
+    summary: "Summary complete.",
+    event
+  };
+
+  assert.equal(aggregateTokenTotal([event]), "150");
+  assert.equal(aggregateTokenTotal([uiEvent({ event_type: "stage_completed" })]), "n/a");
+  assert.equal(
+    pinnedStageMetricsLine(stage, 80),
+    "Metrics: duration 2.3s · tokens 150 (in 120, out 30, cached 10, reasoning 3)"
+  );
+  assert.equal(pinnedStageMetricsLine(stage, 34).length, 34);
+  assert.equal(
+    pinnedStageContent([stage], "summary", 80),
+    "Metrics: duration 2.3s · tokens 150 (in 120, out 30, cached 10, reasoning 3)\n\nStage answer."
+  );
+});
+
+test("stage sidebar duration suffix appears only when it fits", () => {
+  const event = uiEvent({
+    event_type: "stage_completed",
+    agent_id: "summary",
+    stage: "summary",
+    metadata: {
+      observability: {
+        schema_version: "ui_stage_observability_v1",
+        execution_time: {
+          duration_ms: 2345
+        }
+      }
+    }
+  });
+  const stage: UiStageSummary = {
+    key: "summary",
+    label: "Summary",
+    status: "complete",
+    summary: "done",
+    event
+  };
+
+  assert.equal(stageSidebarLabel(stage, 24), "Summary 2.3s");
+  assert.equal(stageSidebarLabel(stage, 16), "Summary");
 });
 
 test("event lines keep informational notices separate from errors", () => {

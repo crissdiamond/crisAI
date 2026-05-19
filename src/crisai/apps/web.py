@@ -386,6 +386,13 @@ def _ui_event_from_stage_entry(
     if not summary:
         summary = content.splitlines()[0] if content else ""
     verbose_content = str(stage_entry.get("verbose_content") or content)
+    raw_metadata = stage_entry.get("metadata")
+    trace_metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+    observability = (
+        trace_metadata.get("observability")
+        if isinstance(trace_metadata.get("observability"), dict)
+        else None
+    )
     event = make_ui_event(
         event_type,
         run_id=job_id,
@@ -404,11 +411,8 @@ def _ui_event_from_stage_entry(
             "trace_stage": str(stage_entry.get("stage") or ""),
             "stage_key": stage_key,
             "stage_label": _stage_label(stage_key),
-            **(
-                {"trace_metadata": stage_entry["metadata"]}
-                if isinstance(stage_entry.get("metadata"), dict) and stage_entry.get("metadata")
-                else {}
-            ),
+            **({"observability": observability} if observability else {}),
+            **({"trace_metadata": trace_metadata} if trace_metadata else {}),
         },
     )
     return event.to_dict()

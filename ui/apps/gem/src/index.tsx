@@ -21,6 +21,7 @@ import {
   buildRunListLines,
   buildEventLines,
   buildSessionContextPreviewLines,
+  aggregateTokenTotal,
   checkpointDecisionLines,
   clampScrollTop,
   bufferStartupPaste,
@@ -62,6 +63,7 @@ import {
   resolveViewportDimension,
   runSummaryTitle,
   sidebarStages,
+  stageSidebarLabel,
   stageVisual,
   shouldBufferStartupPaste,
   truncateStageLabel,
@@ -229,7 +231,7 @@ function StageItem({
   selected: boolean;
 }) {
   const visual = stageVisual(stage.status, theme);
-  const shortLabel = truncateStageLabel(stage.label, sidebarWidth);
+  const shortLabel = stageSidebarLabel(stage, sidebarWidth);
 
   return (
     <Text
@@ -320,7 +322,7 @@ function GemApp() {
   const finalContent = useMemo(() => latestFinalContent(activeRun, activeEvents), [activeRun, activeEvents]);
   const finalLines = useMemo(() => renderMarkdownLines(finalContent, outputPanelWidth), [finalContent, outputPanelWidth]);
   const pinnedStageLines = useMemo(
-    () => renderMarkdownLines(pinnedStageContent(stages, effectiveSelectedKey), outputPanelWidth),
+    () => renderMarkdownLines(pinnedStageContent(stages, effectiveSelectedKey, outputPanelWidth), outputPanelWidth),
     [effectiveSelectedKey, outputPanelWidth, stages]
   );
   const liveStageEvent = useMemo(() => latestLiveStageEvent(activeEvents), [activeEvents]);
@@ -1170,10 +1172,13 @@ function buildStatusMetrics(events: UiEvent[], nowMs: number): StatusMetrics {
   const model = firstString(metadataItems, ["model_name", "model_ref", "provider"]) ?? "model:n/a";
   const tokens = firstNumber(metadataItems, ["total_tokens", "tokens", "token_count"]);
   const cost = firstNumber(metadataItems, ["cost_usd", "total_cost_usd", "cost"]);
+  const observedTokens = aggregateTokenTotal(events);
   return {
     model,
     elapsed: formatElapsed(elapsedMs),
-    tokens: tokens === null ? "n/a" : String(Math.round(tokens)),
+    tokens: observedTokens !== "n/a"
+      ? observedTokens
+      : tokens === null ? "n/a" : String(Math.round(tokens)),
     cost: cost === null ? "n/a" : `$${cost.toFixed(4)}`,
   };
 }

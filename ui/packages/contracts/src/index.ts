@@ -31,6 +31,39 @@ export type UiEvent = {
   metadata: Record<string, unknown>;
 };
 
+export type UiProviderUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  cached_tokens?: number;
+  reasoning_tokens?: number;
+};
+
+export type UiExecutionTime = {
+  started_at?: string;
+  ended_at?: string;
+  duration_ms?: number;
+};
+
+export type UiStreamingObservability = {
+  attempted?: boolean;
+  fallback?: boolean;
+  fallback_reason?: string;
+};
+
+export type UiStageObservability = {
+  schema_version: "ui_stage_observability_v1";
+  provider_usage?: UiProviderUsage;
+  execution_time?: UiExecutionTime;
+  streaming?: UiStreamingObservability;
+};
+
+export type UiObservabilityAggregate = {
+  provider_usage: Required<UiProviderUsage>;
+  duration_ms: number | null;
+  stage_count: number;
+};
+
 export type UiRunRequest = {
   message: string;
   mode?: string;
@@ -289,6 +322,66 @@ export function latestFinalContent(state: UiRunState | null, events: UiEvent[]):
   return finalEvent?.content || state?.final_output || "";
 }
 
+export function extractStageObservability(event: UiEvent): UiStageObservability | null {
+  const observability = recordValue(event.metadata.observability);
+  if (observability?.schema_version !== "ui_stage_observability_v1") {
+    return null;
+  }
+
+  const providerUsage = providerUsageValue(observability.provider_usage);
+  const executionTime = executionTimeValue(observability.execution_time);
+  const streaming = streamingValue(observability.streaming);
+  return {
+    schema_version: "ui_stage_observability_v1",
+    ...(providerUsage ? { provider_usage: providerUsage } : {}),
+    ...(executionTime ? { execution_time: executionTime } : {}),
+    ...(streaming ? { streaming } : {})
+  };
+}
+
+export function aggregateStageObservability(events: UiEvent[]): UiObservabilityAggregate {
+  const latestByStage = new Map<string, UiStageObservability>();
+  for (const event of events) {
+    const observability = extractStageObservability(event);
+    if (!observability) continue;
+    const stageIdentity = String(event.agent_id || event.stage || "").trim();
+    if (!stageIdentity) continue;
+    latestByStage.set(stageIdentity, observability);
+  }
+
+  const usage: Required<UiProviderUsage> = {
+    input_tokens: 0,
+    output_tokens: 0,
+    total_tokens: 0,
+    cached_tokens: 0,
+    reasoning_tokens: 0
+  };
+  let durationMs = 0;
+  let hasDuration = false;
+  let stageCount = 0;
+
+  for (const observability of latestByStage.values()) {
+    stageCount += 1;
+    if (observability.provider_usage) {
+      usage.input_tokens += observability.provider_usage.input_tokens ?? 0;
+      usage.output_tokens += observability.provider_usage.output_tokens ?? 0;
+      usage.total_tokens += observability.provider_usage.total_tokens ?? 0;
+      usage.cached_tokens += observability.provider_usage.cached_tokens ?? 0;
+      usage.reasoning_tokens += observability.provider_usage.reasoning_tokens ?? 0;
+    }
+    if (observability.execution_time?.duration_ms !== undefined) {
+      durationMs += observability.execution_time.duration_ms;
+      hasDuration = true;
+    }
+  }
+
+  return {
+    provider_usage: usage,
+    duration_ms: hasDuration ? durationMs : null,
+    stage_count: stageCount
+  };
+}
+
 export function resolveThemePalette(theme: UiTheme, preferredTheme?: string): Record<string, string> {
   const themeName = preferredTheme ?? theme.default_theme ?? Object.keys(theme.themes)[0];
   return theme.themes[themeName]?.palette ?? {};
@@ -322,6 +415,77 @@ function stageStatusFromEvent(event: UiEvent, fallback: UiStageStatus): UiStageS
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null;
+}
+
+function providerUsageValue(value: unknown): UiProviderUsage | undefined {
+  const record = recordValue(value);
+  if (!record) return undefined;
+  const usage: UiProviderUsage = {};
+  copyFiniteInteger(record, usage, "input_tokens");
+  copyFiniteInteger(record, usage, "output_tokens");
+  copyFiniteInteger(record, usage, "total_tokens");
+  copyFiniteInteger(record, usage, "cached_tokens");
+  copyFiniteInteger(record, usage, "reasoning_tokens");
+  return Object.keys(usage).length > 0 ? usage : undefined;
+}
+
+function executionTimeValue(value: unknown): UiExecutionTime | undefined {
+  const record = recordValue(value);
+  if (!record) return undefined;
+  const executionTime: UiExecutionTime = {};
+  const startedAt = stringValue(record.started_at);
+  const endedAt = stringValue(record.ended_at);
+  const durationMs = finiteNonNegativeNumber(record.duration_ms);
+  if (startedAt) executionTime.started_at = startedAt;
+  if (endedAt) executionTime.ended_at = endedAt;
+  if (durationMs !== null) executionTime.duration_ms = durationMs;
+  return Object.keys(executionTime).length > 0 ? executionTime : undefined;
+}
+
+function streamingValue(value: unknown): UiStreamingObservability | undefined {
+  const record = recordValue(value);
+  if (!record) return undefined;
+  const streaming: UiStreamingObservability = {};
+  if (typeof record.attempted === "boolean") {
+    streaming.attempted = record.attempted;
+  }
+  if (typeof record.fallback === "boolean") {
+    streaming.fallback = record.fallback;
+  }
+  const fallbackReason = stringValue(record.fallback_reason);
+  if (fallbackReason) {
+    streaming.fallback_reason = fallbackReason;
+  }
+  return Object.keys(streaming).length > 0 ? streaming : undefined;
+}
+
+function copyFiniteInteger<T extends keyof UiProviderUsage>(
+  source: Record<string, unknown>,
+  target: UiProviderUsage,
+  key: T
+): void {
+  const value = finiteNonNegativeInteger(source[key]);
+  if (value !== null) {
+    target[key] = value;
+  }
+}
+
+function finiteNonNegativeInteger(value: unknown): number | null {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(numberValue) && numberValue >= 0 ? Math.floor(numberValue) : null;
+}
+
+function finiteNonNegativeNumber(value: unknown): number | null {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : null;
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 export class CrisaiRuntimeClient {

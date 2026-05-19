@@ -211,6 +211,7 @@ def test_ui_event_from_stage_entry_preserves_trace_metadata_for_verbose_surfaces
     )
 
     assert event["content"] == "summary"
+    assert event["metadata"]["observability"] == stage_entry["metadata"]["observability"]
     assert event["metadata"]["trace_metadata"] == stage_entry["metadata"]
 
 

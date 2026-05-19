@@ -178,18 +178,11 @@ def _openai_streaming_construct_type_incompatible() -> bool:
 
 def _streaming_fallback_metadata() -> dict[str, object]:
     """Return trace-safe metadata for the known streaming fallback path."""
-    try:
-        openai_version = version("openai")
-    except PackageNotFoundError:
-        openai_version = ""
     return {
         "streaming": {
             "attempted": True,
             "fallback": True,
             "fallback_reason": "openai_streaming_construct_type_incompatible",
-            "provider": "openai",
-            "openai_version": openai_version,
-            "python_version": ".".join(str(part) for part in sys.version_info[:3]),
         }
     }
 

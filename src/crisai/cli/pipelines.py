@@ -5,6 +5,7 @@ from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_p
 apply_openai_agents_trace_export_patch()
 
 import os
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -101,7 +102,12 @@ from .pipeline_display import (
     set_stage_observability_agent_id,
     set_stage_observability_callback,
 )
-from .pipeline_engine import WorkflowEngine, _merge_stage_observability_metadata
+from .pipeline_engine import (
+    WorkflowEngine,
+    _execution_time_metadata,
+    _merge_stage_observability_metadata,
+    _utc_now_iso,
+)
 from .session_store import (
     load_session_anchors,
     load_session_memory,
@@ -732,8 +738,24 @@ async def run_single(
 
             observability_agent_token = set_stage_observability_agent_id(agent_id)
             observability_callback_token = set_stage_observability_callback(_record_observability)
+            started_at = _utc_now_iso()
+            started_monotonic = time.perf_counter()
             try:
                 result = await _run_agent_silently(agent, prompt)
+            except Exception as exc:
+                append_trace_entry(
+                    environment,
+                    f"{agent_id.upper()} OUTPUT_ERROR",
+                    f"Stage {agent_id} failed: {type(exc).__name__}: {exc}",
+                    event_type="stage_error",
+                    agent_id=agent_id,
+                    metadata=_merge_stage_observability_metadata(
+                        {"error_type": type(exc).__name__},
+                        observability_events,
+                        execution_time=_execution_time_metadata(started_at, started_monotonic),
+                    ),
+                )
+                raise
             finally:
                 reset_stage_observability_callback(observability_callback_token)
                 reset_stage_observability_agent_id(observability_agent_token)
@@ -746,7 +768,11 @@ async def run_single(
                 run_id=_get_run_id(environment),
                 event_type="workflow_output",
                 agent_id=agent_id,
-                metadata=_merge_stage_observability_metadata(None, observability_events),
+                metadata=_merge_stage_observability_metadata(
+                    None,
+                    observability_events,
+                    execution_time=_execution_time_metadata(started_at, started_monotonic),
+                ),
             )
             append_trace_entry(
                 environment,

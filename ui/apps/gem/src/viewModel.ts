@@ -1,4 +1,6 @@
 import {
+  aggregateStageObservability,
+  extractStageObservability,
   isCheckpointWaiting,
   isTerminalEvent,
   type UiEvent,
@@ -198,6 +200,18 @@ export function truncateStageLabel(label: string, sidebarWidth: number): string 
   const maxLabelLength = Math.max(6, sidebarWidth - 9);
   if (label.length <= maxLabelLength) return label;
   return `${label.slice(0, Math.max(1, maxLabelLength - 1))}…`;
+}
+
+export function stageSidebarLabel(stage: UiStageSummary, sidebarWidth: number): string {
+  const maxLabelLength = Math.max(6, sidebarWidth - 9);
+  const duration = formatStageDuration(stage);
+  if (duration) {
+    const labelWithDuration = `${stage.label} ${duration}`;
+    if (labelWithDuration.length <= maxLabelLength) {
+      return labelWithDuration;
+    }
+  }
+  return truncateStageLabel(stage.label, sidebarWidth);
 }
 
 export function sidebarStages(stages: UiStageSummary[]): UiStageSummary[] {
@@ -578,10 +592,44 @@ export function findStagePinTarget(stages: UiStageSummary[], input: string): Sta
   return { ok: false, message: `No stage: ${trimmed}.` };
 }
 
-export function pinnedStageContent(stages: UiStageSummary[], selectedStage: string | null): string {
+export function pinnedStageContent(stages: UiStageSummary[], selectedStage: string | null, width?: number): string {
   if (!selectedStage) return "";
   const pinnedStage = stages.find((stage) => stage.key === selectedStage);
-  return pinnedStage?.event?.content || pinnedStage?.summary || "";
+  if (!pinnedStage) return "";
+  const content = pinnedStage.event?.content || pinnedStage.summary || "";
+  const metricsLine = pinnedStageMetricsLine(pinnedStage, width);
+  return metricsLine ? `${metricsLine}\n\n${content}` : content;
+}
+
+export function aggregateTokenTotal(events: UiEvent[]): string {
+  const aggregate = aggregateStageObservability(events);
+  const total = aggregate.provider_usage.total_tokens;
+  return total > 0 ? String(total) : "n/a";
+}
+
+export function pinnedStageMetricsLine(stage: UiStageSummary, width = 80): string {
+  const observability = stage.event ? extractStageObservability(stage.event) : null;
+  if (!observability) return "";
+  const parts: string[] = [];
+  const duration = formatDurationMs(observability.execution_time?.duration_ms);
+  if (duration) {
+    parts.push(`duration ${duration}`);
+  }
+  const usage = observability.provider_usage;
+  if (usage) {
+    const tokenParts = [
+      usage.input_tokens !== undefined ? `in ${usage.input_tokens}` : "",
+      usage.output_tokens !== undefined ? `out ${usage.output_tokens}` : "",
+      usage.cached_tokens !== undefined ? `cached ${usage.cached_tokens}` : "",
+      usage.reasoning_tokens !== undefined ? `reasoning ${usage.reasoning_tokens}` : ""
+    ].filter(Boolean);
+    if (usage.total_tokens !== undefined || tokenParts.length > 0) {
+      const total = usage.total_tokens !== undefined ? String(usage.total_tokens) : "n/a";
+      parts.push(`tokens ${total}${tokenParts.length > 0 ? ` (${tokenParts.join(", ")})` : ""}`);
+    }
+  }
+  if (parts.length === 0) return "";
+  return boundedLine(`Metrics: ${parts.join(" · ")}`, width);
 }
 
 export function resolveNavCursorMove(
@@ -774,6 +822,25 @@ function shortUrl(value: string): string {
 function boundedLine(value: string, width: number): string {
   const usableWidth = Math.max(8, Math.floor(width));
   return value.length <= usableWidth ? value : `${value.slice(0, Math.max(1, usableWidth - 1))}…`;
+}
+
+function formatStageDuration(stage: UiStageSummary): string {
+  const observability = stage.event ? extractStageObservability(stage.event) : null;
+  return formatDurationMs(observability?.execution_time?.duration_ms);
+}
+
+function formatDurationMs(durationMs: number | undefined): string {
+  if (durationMs === undefined) return "";
+  if (durationMs < 1000) return `${Math.round(durationMs)}ms`;
+  const seconds = durationMs / 1000;
+  if (seconds < 60) return `${trimDecimal(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remaining = Math.round(seconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${remaining}`;
+}
+
+function trimDecimal(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, "");
 }
 
 function isDuplicateEventBody(summary: string, content: string): boolean {

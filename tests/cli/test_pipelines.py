@@ -1932,11 +1932,66 @@ async def test_run_single_attaches_observability_to_workflow_output(monkeypatch,
 
     workflow_output = next(call for call in trace_calls if call[2].get("event_type") == "workflow_output")
     assert result == "single output"
-    assert workflow_output[2]["metadata"] == {
-        "observability": {
-            "provider_usage": {"input_tokens": 8, "output_tokens": 4, "total_tokens": 12}
-        }
-    }
+    assert workflow_output[0] == "FINAL_OUTPUT"
+    assert workflow_output[1] == "single output"
+    assert workflow_output[2]["run_id"] == "test-run-id"
+    assert workflow_output[2]["agent_id"] == "retrieval_planner"
+    observability = workflow_output[2]["metadata"]["observability"]
+    assert observability["schema_version"] == "ui_stage_observability_v1"
+    assert observability["provider_usage"] == {"input_tokens": 8, "output_tokens": 4, "total_tokens": 12}
+    assert observability["execution_time"]["started_at"]
+    assert observability["execution_time"]["ended_at"]
+    assert observability["execution_time"]["duration_ms"] >= 0
+
+
+@pytest.mark.anyio
+async def test_run_single_attaches_execution_time_to_stage_error(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str, dict]] = []
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(
+            root_dir=tmp_path,
+            trace_file=tmp_path / "trace.log",
+            runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
+            factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
+            run_id="test-run-id",
+        ),
+    )
+
+    async def _fake_run_agent_silently(agent, prompt: str) -> str:
+        del agent, prompt
+        raise RuntimeError("provider failed")
+
+    def _capture_trace(log_file, stage, content, **kwargs):
+        del log_file
+        trace_calls.append((stage, content, kwargs))
+
+    monkeypatch.setattr(pipelines, "_run_agent_silently", _fake_run_agent_silently)
+    monkeypatch.setattr(pipelines, "append_trace", _capture_trace)
+
+    with pytest.raises(RuntimeError, match="provider failed"):
+        await pipelines.run_single(
+            "Find integration principles.",
+            "retrieval_planner",
+            settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+            server_specs={},
+            agent_specs={"retrieval_planner": SimpleNamespace(id="retrieval_planner", allowed_servers=[])},
+        )
+
+    stage_error = next(call for call in trace_calls if call[2].get("event_type") == "stage_error")
+    assert stage_error[0] == "RETRIEVAL_PLANNER OUTPUT_ERROR"
+    assert stage_error[1] == "Stage retrieval_planner failed: RuntimeError: provider failed"
+    assert stage_error[2]["run_id"] == "test-run-id"
+    assert stage_error[2]["agent_id"] == "retrieval_planner"
+    assert stage_error[2]["metadata"]["error_type"] == "RuntimeError"
+    observability = stage_error[2]["metadata"]["observability"]
+    assert observability["schema_version"] == "ui_stage_observability_v1"
+    assert observability["execution_time"]["started_at"]
+    assert observability["execution_time"]["ended_at"]
+    assert observability["execution_time"]["duration_ms"] >= 0
 
 
 @pytest.mark.anyio
