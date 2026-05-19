@@ -209,6 +209,77 @@ record_lease() {
 EOF
 }
 
+set_lease_status() {
+  local name="$1"
+  local status="$2"
+  [[ -f "$LEASES" ]] || return 0
+  python - "$LEASES" "$name" "$status" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+name = sys.argv[2]
+status = sys.argv[3]
+lines = path.read_text(encoding="utf-8").splitlines()
+current = ""
+updated = False
+for index, line in enumerate(lines):
+    if line.startswith("  ") and not line.startswith("    ") and line.endswith(":"):
+        current = line.strip()[:-1]
+    elif current == name and line.startswith("    status:"):
+        lines[index] = f"    status: {status}"
+        updated = True
+        break
+if updated:
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+}
+
+reviewer_transcript_path() {
+  local name="$1"
+  hcom list --stopped "$name" -v 2>/dev/null | sed -n 's/^  Transcript: //p' | head -n 1
+}
+
+reviewer_failure_summary() {
+  local name="$1"
+  local transcript
+  transcript="$(reviewer_transcript_path "$name")"
+  if [[ -n "$transcript" && -f "$transcript" ]]; then
+    python - "$transcript" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+for raw in path.read_text(encoding="utf-8").splitlines():
+    try:
+        entry = json.loads(raw)
+    except json.JSONDecodeError:
+        continue
+    message = entry.get("message")
+    if not isinstance(message, dict):
+        continue
+    if entry.get("isApiErrorMessage") or message.get("type") == "message":
+        error = entry.get("error")
+        status = entry.get("apiErrorStatus")
+        texts = []
+        for item in message.get("content") or []:
+            if isinstance(item, dict) and item.get("type") == "text":
+                texts.append(str(item.get("text") or ""))
+        if error or status or texts:
+            detail = " ".join(texts).strip()
+            pieces = []
+            if status:
+                pieces.append(f"status={status}")
+            if error:
+                pieces.append(f"error={error}")
+            if detail:
+                pieces.append(detail)
+            print("; ".join(pieces))
+PY
+  fi
+}
+
 require_bin hcom
 require_bin claude
 export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
@@ -260,4 +331,15 @@ if [[ -z "${name:-}" ]]; then
 fi
 
 record_lease "$name"
+stopped_event="$(hcom events --agent "$name" --action stopped --wait 3 2>/dev/null || true)"
+if [[ -n "$stopped_event" ]]; then
+  set_lease_status "$name" inactive
+  summary="$(reviewer_failure_summary "$name" || true)"
+  if [[ -n "$summary" ]]; then
+    echo "Reviewer $name exited during startup: $summary" >&2
+  else
+    echo "Reviewer $name exited during startup. Inspect with: hcom list --stopped $name -v" >&2
+  fi
+  exit 1
+fi
 echo "Started $ROLE reviewer as $name on thread '$THREAD' with a $LEASE_MINUTES minute lease."

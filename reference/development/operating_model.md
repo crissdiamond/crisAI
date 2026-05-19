@@ -94,6 +94,9 @@ visible temporary reviewer pane is worth the UI noise. Use
 `scripts/hcom_claude_close.sh` to close them by name, role, thread, or expired
 lease. Leases are stale-session safety caps; the orchestrator still decides
 when to close or keep Claude alive for sequential related tasks.
+If a reviewer exits immediately during startup, the review script marks its
+local lease inactive and reports the transcript-level failure, such as provider
+rate limiting. Treat that as no review having occurred.
 
 The launcher also sets `HCOM_HINTS` for the team. Direct hcom requests from the
 orchestrator or paired agent are actionable assignments: agents should proceed
