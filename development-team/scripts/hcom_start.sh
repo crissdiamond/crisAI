@@ -11,6 +11,8 @@ HEADLESS=0
 RESUME=0
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
+CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
+MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
 TEAM_TERMINAL_EXPLICIT=0
 if [[ -n "$TEAM_TERMINAL" ]]; then
@@ -54,6 +56,10 @@ Message handling:
   HCOM_TEAM_HINTS is appended to received hcom messages. The default tells
   agents to treat direct hcom requests as actionable assignments and not wait
   for terminal-user confirmation.
+  HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY is included in Claude bootstrap/system
+  instructions to prevent idle draft prompts in the input bar.
+  HCOM_TEAM_MEMORY_WRITE_POLICY is included in bootstrap instructions so agents
+  degrade gracefully when Claude memory is read-only.
 EOF
 }
 
@@ -127,6 +133,8 @@ Start by identifying your hcom session name, stable role, area, and peer from
 $ASSIGNMENTS when it exists. Use hcom for concise coordination and the Claude
 memory MCP server for durable task context. Do not store secrets in memory.
 EOF
+  printf '\nIf you are a Claude review agent, follow this idle prompt policy:\n%s\n' "$CLAUDE_IDLE_PROMPT_POLICY"
+  printf '\nFollow this memory policy:\n%s\n' "$MEMORY_WRITE_POLICY"
 }
 
 extract_names() {
@@ -377,6 +385,9 @@ launch_agent() {
   else
     cmd=(hcom "$provider" --tag "$tag" --dir "$dir" --hcom-prompt "$prompt" --go)
   fi
+  if [[ "$provider" == "claude" ]]; then
+    cmd+=(--hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY")
+  fi
   if [[ "$HEADLESS" -eq 1 ]]; then
     cmd+=(--headless)
   elif [[ -n "$TEAM_TERMINAL" && "$TEAM_TERMINAL" != "__crisai_tmux_direct__" ]]; then
@@ -466,7 +477,7 @@ require_bin codex
 require_bin claude
 
 export HCOM_DIR="$HCOM_STATE_DIR"
-export HCOM_HINTS="$TEAM_HINTS"
+export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
 mkdir -p "$HCOM_DIR"
 TEAM_TERMINAL="$(default_team_terminal)"
 load_previous_assignments

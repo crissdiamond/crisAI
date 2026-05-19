@@ -25,8 +25,17 @@ Rules:
   actionable assignments. Proceed with the review or focused patch without
   asking the terminal user to confirm.
 - Do not leave suggested follow-up commands or draft prompts in the input bar.
+- After onboarding or completing a task, do not draft idle prompts such as
+  `wait for assignment`, `check pending assignments`, or `check messages from
+  another agent`. Announce readiness through hcom when useful, then stop with
+  an empty input bar.
 - Do not monitor or ask status questions about unrelated agents. Only query
   another agent when that is directly required by your assigned review or patch;
   otherwise report your own waiting state through hcom and return to listening.
 - Send concise review findings with severity and concrete file references.
-- Use memory to understand task history and record review conclusions.
+- Challenge prose-only inter-stage handoffs, missing schema validation, and
+  runtime changes that make downstream agents infer source identity, evidence,
+  routing state, gates, retries, or checkpoint decisions from narrative text.
+- Use memory to understand task history. Record review conclusions in memory
+  when write access is available; if memory is read-only, include the intended
+  memory summary in your hcom handoff and continue.

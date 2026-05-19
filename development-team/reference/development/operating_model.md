@@ -90,6 +90,9 @@ follow-up commands or draft prompts in the input bar. Area agents should not
 monitor or ask status questions about unrelated agents. They should query
 another agent only when it is directly required by the assigned task; otherwise
 they should report their own waiting state through hcom and return to listening.
+Claude review agents also receive a bootstrap/system idle prompt policy so
+onboarding completion does not produce draft prompts like `wait for assignment`
+or `check pending assignments`.
 
 ## Responsibilities
 
@@ -149,13 +152,37 @@ Semantics are product configuration, not implementation shortcuts.
 - Any handoff or review that includes hardcoded semantic lists in Python should
   be treated as incomplete until the behaviour is registry-driven.
 
+## Structured Workflow Contracts
+
+Machine-critical workflow state must move between agents as structured,
+schema-backed contracts. Prose is acceptable for user-facing summaries and brief
+human context, but runtime behaviour must not depend on prose parsing when a
+contract can represent the state.
+
+- Use JSON schemas or typed runtime objects for routing decisions, task/request
+  contracts, source identities, evidence, retrieval handoffs, gates, retries,
+  and checkpoint decisions.
+- Keep raw machine contracts out of normal user-facing panels unless the surface
+  is explicitly verbose/debug-oriented.
+- Do not replace structured handoffs with prompt-only or prose-only shortcuts
+  because they are faster to implement.
+- Reviewers must challenge prose-only inter-stage handoffs, missing schema
+  validation, and any implementation that asks downstream agents to infer source
+  identity or policy state from narrative text.
+
 ## Shared Memory
 
 All agents should use the Claude memory MCP server as the durable task context
 layer. hcom messages should stay concise and point to memory entries, bundles,
 or files instead of replaying long context.
 
-Store in memory:
+Memory write access is best-effort. Some Claude worker sessions run with
+Claude memory in read-only mode. If a memory write is denied, the agent must not
+block, retry indefinitely, or ask the terminal user to fix it. The agent should
+include the intended memory summary in its hcom handoff or final report and
+continue the task.
+
+Store in memory when write access is available:
 
 - user goals and success criteria;
 - active task assignments;
@@ -171,20 +198,25 @@ Do not store secrets, API keys, auth tokens, or private credential material.
 1. The user asks the orchestrator for the next task or a specific change.
 2. The orchestrator reads `reference/TODO.md`, current repo state, hcom roster,
    and relevant memory.
-3. The orchestrator records task intent and assignments in memory.
+3. The orchestrator records task intent and assignments in memory when write
+   access is available, otherwise it includes the intended memory summary in the
+   hcom task thread.
 4. Area agents receive short hcom requests with scope, paths, expected checks,
    and memory/bundle references.
 5. Area Codex implements or plans; area Claude reviews or makes small patches
    when requested.
-6. Area Codex resolves review feedback and records a concise memory update.
+6. Area Codex resolves review feedback and records a concise memory update when
+   write access is available, otherwise it includes the intended memory summary
+   in the handoff.
 7. The orchestrator integrates, verifies, updates docs if needed, commits, and
-   records the final outcome in memory.
+   records the final outcome in memory when write access is available.
 
 ## Communication Rules
 
 - Use hcom threads for task coordination.
 - Use hcom bundles for file/event/transcript-heavy handoffs.
-- Use memory for durable cross-stream context.
+- Use memory for durable cross-stream context when available; use hcom handoffs
+  as the fallback when memory is read-only.
 - Lead handoffs with the role, area, task, status, changed files, checks, and
   open questions.
 - Keep one improvement active per area unless the orchestrator explicitly splits
