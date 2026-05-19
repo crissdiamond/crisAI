@@ -78,7 +78,7 @@ def _is_placeholder_env_value(value: str) -> bool:
     )
 
 
-def _env_keys(path: Path) -> set[str]:
+def _env_keys(path: Path, *, include_commented: bool = True) -> set[str]:
     """Extract active and commented dotenv-style assignment keys."""
     if not path.is_file():
         return set()
@@ -88,6 +88,8 @@ def _env_keys(path: Path) -> set[str]:
         if not stripped:
             continue
         if stripped.startswith("#"):
+            if not include_commented:
+                continue
             stripped = stripped[1:].strip()
         if "=" not in stripped:
             continue
@@ -465,8 +467,8 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
             ),
         ))
     else:
-        expected_keys = _env_keys(env_example)
-        local_keys = _env_keys(env_file)
+        expected_keys = _env_keys(env_example, include_commented=False)
+        local_keys = _env_keys(env_file, include_commented=False)
         missing_keys = sorted(expected_keys - local_keys)
         if missing_keys:
             warnings.append(DoctorIssue(

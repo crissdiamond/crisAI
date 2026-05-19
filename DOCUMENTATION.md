@@ -115,7 +115,11 @@ scripts/bootstrap.sh
 
 The bootstrap script handles the project environment: it runs the uv install,
 installs UI workspace dependencies when `npm` is available, creates `.env` from
-`.env.example` when missing, and creates the standard workspace folders.
+`.env.example` when missing, and creates the standard workspace folders. The
+supported office install path is clone plus bootstrap; wheel and `uv tool
+install` packaging is not a standalone deployment target yet because the
+repository supplies the default registry, prompts, runbooks, UI workspace, and
+starter workspace files.
 
 For troubleshooting, the manual equivalent is:
 
@@ -228,6 +232,8 @@ When the FastAPI runtime is protected by a static bearer token, set
 attach custom headers. The `./start web` launcher maps `CRISAI_API_KEY` to
 `VITE_CRISAI_API_KEY` for Vite. The same mapping exists from
 `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL`.
+Ink Gem reads `CRISAI_RUNTIME_URL` and `CRISAI_API_KEY` or the temporary
+`CRISAI_API_TOKEN` alias directly after `./start` sources `.env`.
 
 ---
 
@@ -843,7 +849,7 @@ workspace/inputs/strategy.md
 
 Agents should work with paths relative to the workspace root.
 
-The web app exposes `Knowledge`, `Tasks`, and `Staging` browser panes with read/edit support for text-based workspace files. React web can upload common document, image, spreadsheet, and text source files to `workspace/tasks/<task>/inputs/` or `workspace/knowledge/intake/`. It is intended for quick source intake, Markdown edits, and review, not as a replacement for a governed document management system.
+The web app exposes `Knowledge`, `Tasks`, and `Staging` browser panes with read/edit support for text-based workspace files. React web can upload common document, image, spreadsheet, and text source files to `workspace/tasks/<task>/inputs/` or `workspace/knowledge/intake/`. Uploads are limited to 25 MiB and accepted suffixes are `.csv`, `.docx`, `.gif`, `.jpeg`, `.jpg`, `.json`, `.md`, `.mmd`, `.pdf`, `.png`, `.pptx`, `.txt`, `.webp`, `.xlsx`, `.yaml`, and `.yml`. It is intended for quick source intake, Markdown edits, and review, not as a replacement for a governed document management system.
 
 ---
 

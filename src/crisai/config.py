@@ -130,6 +130,14 @@ def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> None:
             base[k] = v
 
 
+def _resolve_project_path(value: str | Path, root: Path) -> Path:
+    """Resolve absolute paths unchanged and relative paths below the project root."""
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    return path.resolve()
+
+
 def load_settings() -> Settings:
     """Load settings from multiple sources with hierarchical precedence.
 
@@ -199,9 +207,9 @@ def load_settings() -> Settings:
                 data[section][key] = val
 
     # Finalize directories and create them
-    workspace_dir = Path(data["general"]["workspace_dir"]).resolve()
-    log_dir = Path(data["general"]["log_dir"]).resolve()
-    registry_dir = Path(data["general"]["registry_dir"]).resolve()
+    workspace_dir = _resolve_project_path(data["general"]["workspace_dir"], root)
+    log_dir = _resolve_project_path(data["general"]["log_dir"], root)
+    registry_dir = _resolve_project_path(data["general"]["registry_dir"], root)
 
     workspace_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)

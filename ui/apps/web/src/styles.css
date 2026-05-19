@@ -11,6 +11,7 @@
   --color-success: #52c152;
   --color-error: #d50032;
   --color-warning: #ffca36;
+  --color-focus: var(--color-accent-blue);
   color: var(--color-text);
   background: var(--color-primary-dark);
   font-family: "DM Sans", "Aptos", "Segoe UI", Arial, sans-serif;
@@ -23,8 +24,14 @@ body {
 button,
 input,
 select,
+summary,
 textarea {
   font: inherit;
+}
+
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .app-shell {
@@ -34,6 +41,24 @@ textarea {
   gap: 16px;
   padding: 24px;
   box-sizing: border-box;
+}
+
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  transform: translateY(-160%);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: var(--color-primary-dark);
+  background: var(--color-bg);
+  font-weight: 700;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 
 .topbar,

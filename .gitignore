@@ -92,14 +92,6 @@ tests/.auth/
 tests/registry/
 tests/workspace/
 src/crisai/app/
---collect-only/
---fixtures/
---ignore=*/
---no-cov/
---tb=no/
---tb=short/
---timeout=*/
--q/
 
 # Local databases and OS artefacts
 *.sqlite

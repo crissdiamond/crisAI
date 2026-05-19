@@ -215,10 +215,9 @@ justification — they were selected for architectural coherence, not convenienc
 - **Experience layer — TypeScript**: The target surfaces are React (web), Ink
   (CLI), and React Native (mobile, planned). Shared API call logic, event
   contracts, stage state, checkpoint state, and theme tokens reduce duplication
-  across surfaces. The current stable CLI is Python/Typer and the current stable
-  web front end is static HTML/CSS/JS served by FastAPI. Experimental React and
-  Ink clients now exist under `ui/`, but they remain migration targets until
-  they reach parity with the stable surfaces.
+  across surfaces. The Python/Typer CLI remains available for runtime and
+  diagnostic workflows, while the active React web and Ink clients live under
+  `ui/` and connect through the FastAPI boundary.
 - **Source adapters — MCP over stdio**: Each source category (workspace,
   documents, Microsoft 365, authenticated web) has its own MCP server. The
   runtime issues tool calls; adapters are stateless and independently

@@ -220,11 +220,24 @@ INVALID-KEY=value
     assert _env_keys(env) == {"ACTIVE_KEY", "COMMENTED_KEY"}
 
 
+def test_env_keys_can_ignore_commented_placeholders(tmp_path: Path) -> None:
+    env = tmp_path / ".env.example"
+    env.write_text(
+        """
+ACTIVE_KEY=value
+# COMMENTED_KEY=value
+""",
+        encoding="utf-8",
+    )
+
+    assert _env_keys(env, include_commented=False) == {"ACTIVE_KEY"}
+
+
 def test_doctor_warns_when_env_missing_example_keys(tmp_path: Path) -> None:
     (tmp_path / ".env.example").write_text(
         """
 OPENAI_API_KEY=placeholder
-# CRISAI_AGENT_STAGE_TIMEOUT_SECONDS=300
+CRISAI_AGENT_STAGE_TIMEOUT_SECONDS=300
 """,
         encoding="utf-8",
     )
@@ -236,6 +249,22 @@ OPENAI_API_KEY=placeholder
     matching = next(w for w in warnings if ".env is missing key" in w.message)
     assert "CRISAI_AGENT_STAGE_TIMEOUT_SECONDS" in matching.message
     assert matching.hint is not None
+
+
+def test_doctor_ignores_missing_commented_example_keys(tmp_path: Path) -> None:
+    (tmp_path / ".env.example").write_text(
+        """
+OPENAI_API_KEY=placeholder
+# CRISAI_RUNTIME_URL=http://127.0.0.1:8000
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("OPENAI_API_KEY=real\n", encoding="utf-8")
+
+    errors, warnings = _check_env_setup(tmp_path)
+
+    assert errors == []
+    assert not any("CRISAI_RUNTIME_URL" in w.message for w in warnings)
 
 
 def test_doctor_warns_about_invalid_session_memory_env(tmp_path: Path, monkeypatch) -> None:

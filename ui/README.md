@@ -72,8 +72,9 @@ Current status:
   Mouse selection is deferred because Ink core does not provide reliable click
   handling across the terminal configurations crisAI supports.
   The bottom status bar shows the selected model when the runtime exposes it,
-  elapsed execution time, and token/cost placeholders until provider usage
-  telemetry is available. `/sessions` output is rendered as informational
+  elapsed execution time, aggregate total tokens when provider usage metadata is
+  present, `tokens: n/a` when it is absent, and cost as `n/a` unless the runtime
+  supplies cost metadata. `/sessions` output is rendered as informational
   notice text rather than as an error. By default, Gem uses the current terminal
   columns and rows. `CRISAI_GEM_WIDTH` and `CRISAI_GEM_HEIGHT` can still pin the
   terminal layout size for local testing; invalid or nonpositive values fall
@@ -83,11 +84,16 @@ Auth-aware local development:
 
 - React web reads `VITE_CRISAI_API_KEY` and also provides an in-page API key
   control backed by browser local storage for local development.
-- Ink Gem reads `CRISAI_API_KEY`.
+- React web also accepts `VITE_CRISAI_API_TOKEN` as a temporary compatibility
+  alias.
+- Ink Gem reads `CRISAI_API_KEY` or the temporary `CRISAI_API_TOKEN`
+  compatibility alias directly from the environment.
 - `./start web` maps `CRISAI_API_KEY` to `VITE_CRISAI_API_KEY` and
+  `CRISAI_API_TOKEN` to `VITE_CRISAI_API_TOKEN`, and maps
   `CRISAI_RUNTIME_URL` to `VITE_CRISAI_RUNTIME_URL` when the Vite-specific
   variables are not already set.
-- `VITE_CRISAI_API_TOKEN` and `CRISAI_API_TOKEN` are accepted as temporary
-  compatibility aliases.
 - Both still work without a token when the local FastAPI runtime does not
   require one.
+- React web exposes a per-run retrieval checkpoint toggle. Ink Gem currently
+  follows the runtime default and checkpoint slash-command flow rather than
+  exposing a separate start-run toggle.

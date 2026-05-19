@@ -101,6 +101,23 @@ class TestLoadSettings:
         settings = load_settings()
         assert settings.registry_dir == Path("/tmp/crisai_test_reg").resolve()
 
+    @mock.patch.dict(
+        "os.environ",
+        {
+            "CRISAI_WORKSPACE_DIR": "./custom-workspace",
+            "CRISAI_LOG_DIR": "custom-logs",
+            "CRISAI_REGISTRY_DIR": "custom-registry",
+            "OPENAI_API_KEY": "test-key",
+        },
+    )
+    def test_relative_directory_env_overrides_resolve_below_project_root(self):
+        """Relative runtime directories should not depend on process cwd."""
+        settings = load_settings()
+
+        assert settings.workspace_dir == (settings.root_dir / "custom-workspace").resolve()
+        assert settings.log_dir == (settings.root_dir / "custom-logs").resolve()
+        assert settings.registry_dir == (settings.root_dir / "custom-registry").resolve()
+
     @mock.patch.dict("os.environ", {"CRISAI_LOG_LEVEL": "DEBUG", "OPENAI_API_KEY": "test-key"})
     def test_log_level_respects_env_override(self):
         """CRISAI_LOG_LEVEL should override the default log level."""

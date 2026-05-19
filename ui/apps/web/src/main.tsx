@@ -41,6 +41,7 @@ function App() {
   const [newSessionName, setNewSessionName] = useState("");
   const [mode, setMode] = useState("auto");
   const [verbose, setVerbose] = useState(false);
+  const [retrievalCheckpoint, setRetrievalCheckpoint] = useState(true);
   const [run, setRun] = useState<UiRunState | null>(null);
   const [events, setEvents] = useState<UiEvent[]>([]);
   const [error, setError] = useState("");
@@ -141,6 +142,7 @@ function App() {
       session,
       mode,
       verbose,
+      retrieval_checkpoint: retrievalCheckpoint,
       agent: "auto",
       review: false
     });
@@ -173,6 +175,7 @@ function App() {
 
   return (
     <main className="app-shell">
+      <a className="skip-link" href="#run-composer">Skip to run prompt</a>
       <header className="topbar">
         <div>
           <p className="eyebrow">Architecture workstation</p>
@@ -195,7 +198,7 @@ function App() {
         </div>
       </header>
 
-      <form className="composer" onSubmit={submitRun}>
+      <form id="run-composer" className="composer" onSubmit={submitRun} tabIndex={-1}>
         <textarea
           value={message}
           onChange={(event) => setMessage(event.target.value)}
@@ -222,6 +225,14 @@ function App() {
           <label className="toggle">
             <input type="checkbox" checked={verbose} onChange={(event) => setVerbose(event.target.checked)} />
             Verbose
+          </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={retrievalCheckpoint}
+              onChange={(event) => setRetrievalCheckpoint(event.target.checked)}
+            />
+            Retrieval checkpoint
           </label>
           <button type="submit" disabled={latestStatus === "running" || latestStatus === "checkpoint_waiting"}>
             Run
