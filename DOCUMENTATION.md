@@ -143,6 +143,48 @@ After editing `.env`, run `uv run crisai doctor`. If doctor reports that `.env`
 is missing placeholders present in `.env.example`, add the placeholders without
 overwriting real credentials.
 
+### 2.8 Local cleanup and portable packaging
+
+The checkout can grow large after local installs and test runs because `.venv`,
+UI `node_modules`, Python caches, type-check caches, test caches, local hcom
+state, logs, and task workspaces are rebuildable local state.
+
+Use the cleanup helper to inspect selected targets without deleting anything:
+
+```bash
+scripts/clean_local.sh
+```
+
+Pass `--apply` to remove the default rebuildable artefacts. Dependency folders
+are separate because they are expensive to recreate:
+
+```bash
+scripts/clean_local.sh --deps --apply
+```
+
+Useful options:
+
+- `--all --apply`: remove rebuildable caches, dependency folders, hcom state,
+  and logs.
+- `--workspace-state --apply`: remove local task/cache/input/output workspace
+  state while keeping `workspace/knowledge/`.
+- `--hcom --apply`: remove local hcom state.
+
+The cleanup helper never removes `.env`, `.tokens`, `.auth`,
+`workspace/.auth`, or `workspace/knowledge/`.
+
+To package the standalone hcom development-team tooling for another machine:
+
+```bash
+scripts/package_development_team.sh
+```
+
+The default package path is `$HOME/crisai-development-team.zip`. The zip
+excludes local hcom databases, local session assignments, logs, temporary launch
+scripts, credentials, tokens, and auth caches. On the destination machine, unzip
+it and follow the packaged `README.md`; when using it outside a crisAI checkout,
+pass `--target-repo /path/to/crisAI` to the packaged hcom scripts.
+
 ---
 
 ## 3. Starting crisAI
