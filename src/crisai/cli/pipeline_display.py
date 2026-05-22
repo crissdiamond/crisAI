@@ -6,21 +6,19 @@ can be import-tested and unit-tested without a terminal or Rich console.
 
 from __future__ import annotations
 
-import collections.abc
 import contextlib
 import contextvars
 import importlib.metadata
 import io
 import os
 import sys
+from collections.abc import Callable, Mapping
 
 import agents
 
 from crisai import logging_utils as logging_utils_module
 from crisai.cli import display as display_module
 
-Callable = collections.abc.Callable
-Mapping = collections.abc.Mapping
 redirect_stderr = contextlib.redirect_stderr
 redirect_stdout = contextlib.redirect_stdout
 ContextVar = contextvars.ContextVar
