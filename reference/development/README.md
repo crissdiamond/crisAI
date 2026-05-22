@@ -11,16 +11,17 @@ crisAI can be developed by a small hcom-coordinated team:
 
 - one Codex orchestrator from the repository root;
 - runtime, Gem, and web Codex implementers;
-- on-demand Claude reviewers for review-required runtime, Gem, and web work;
+- on-demand reviewers for review-required runtime, Gem, and web work, with
+  Claude as the mandatory gate by default;
 - Claude memory MCP as the durable project context layer;
 - hcom for short coordination messages, bundles, events, and terminal sessions.
 
-Codex remains the main implementation agent. Claude reviewers are launched by
-the orchestrator as mandatory gates for review-required work, and may make
-small focused patches when requested. If a required Claude reviewer cannot
-launch, the task pauses unless the user explicitly overrides. The orchestrator
-owns planning, cross-area coordination, final integration, Git metadata writes,
-and Claude reviewer lifecycle.
+Codex remains the main implementation agent. Reviewers are launched by the
+orchestrator as mandatory gates for review-required work, and may make small
+focused patches when requested. If a required Claude reviewer cannot launch, the
+task pauses unless the user explicitly overrides. The orchestrator owns
+planning, cross-area coordination, final integration, Git metadata writes, and
+reviewer lifecycle.
 
 ## Architecture At A Glance
 
@@ -128,13 +129,16 @@ metadata is writable for commits and pushes. Area Codex agents keep
 `HCOM_TEAM_AREA_CODEX_SANDBOX=workspace-write` and must hand off Git writes to
 the orchestrator.
 
-Launch a Claude reviewer for review-required work:
+Launch a default reviewer for review-required work:
 
 ```bash
-scripts/hcom_claude_review.sh --role runtime_claude --thread runtime-review --task "Review the runtime diff and report risks."
-scripts/hcom_claude_status.sh
-scripts/hcom_claude_close.sh --thread runtime-review
+scripts/hcom_review.sh --role runtime_review --thread runtime-review --task "Review the runtime diff and report risks."
+scripts/hcom_review_status.sh
+scripts/hcom_review_close.sh --thread runtime-review
 ```
+
+Use `--provider antigravity` only with an hcom build that supports `hcom agy`;
+Antigravity is experimental and does not replace mandatory Claude review gates.
 
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. The orchestrator may keep
 a reviewer alive across related sequential tasks, but should close it after the

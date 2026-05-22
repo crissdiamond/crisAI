@@ -1,0 +1,32 @@
+# Review provider capability registry for the hcom development team.
+
+default_provider: claude
+
+roles:
+  runtime_review:
+    area: runtime
+    default_thread: runtime-review
+    claude_role: runtime_claude
+    tag: crisai-runtime-review
+  gem_review:
+    area: gem
+    default_thread: gem-ui-review
+    claude_role: gem_claude
+    tag: crisai-gem-review
+  web_review:
+    area: web
+    default_thread: web-ui-review
+    claude_role: web_claude
+    tag: crisai-web-review
+
+providers:
+  claude:
+    hcom_tool: claude
+    managed: true
+    mandatory_gate_supported: true
+  antigravity:
+    hcom_tool: agy
+    managed: true
+    mandatory_gate_supported: false
+    experimental: true
+    requires_hcom_tool_support: true

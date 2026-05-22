@@ -286,10 +286,10 @@ separately from this operator manual to avoid confusing it with crisAI's runtime
 multi-agent workflows. See
 `reference/development/README.md` for development-team setup and operating
 rules. When developing this repository locally, `./start hcom` starts or resumes
-the saved Codex team; the orchestrator launches Claude reviewers on demand. For
-review-required work, unavailable Claude review pauses the task unless the user
-explicitly overrides. Use `./start hcom-attach` to attach to the managed tmux
-session.
+the saved Codex team; the orchestrator launches reviewers on demand. Claude
+remains the mandatory review gate for review-required work unless the user
+explicitly changes that policy. Use `./start hcom-attach` to attach to the
+managed tmux session.
 
 ---
 
@@ -1301,6 +1301,7 @@ Individual provider keys can be omitted — tests that need the missing key skip
 
 | Test | Providers required | Contract |
 |---|---|---|
+| `test_provider_endpoint_is_reachable` | one per run (parametrized) | provider API host accepts a TCP connection; no LLM API call |
 | `test_single_agent_provider_responds` | one per run (parametrized) | non-empty output; `stage_output` trace entry |
 | `test_pipeline_all_stages_traced` | openai + deepseek | all core stages in trace with non-empty content |
 | `test_peer_judge_decision_contract` | openai + deepseek + gemini | judge trace entry; output contains `Decision:` |
@@ -1311,6 +1312,7 @@ Individual provider keys can be omitted — tests that need the missing key skip
 - `needs_retrieval=False` for peer mode — skips MCP retrieval stages.
 - `CRISAI_PEER_MAX_REFINEMENT_ROUNDS=0` and `CRISAI_PEER_MAX_ESCALATIONS=0` — peer test exits after the first judge decision.
 - Knowledge questions only — no MCP server connections needed.
+- Provider endpoint checks open only a short TCP connection to the API host; they do not send prompts, credentials, or model requests.
 
 ### Cheap model refs used
 

@@ -119,10 +119,15 @@ The recommended model is ephemeral but mandatory Claude review for
 review-required work:
 
 ```bash
-scripts/hcom_claude_review.sh --target-repo /path/to/crisAI --role gem_claude --thread gem-ui-review --task "Review the Gem UI diff and report UX risks."
-scripts/hcom_claude_status.sh --target-repo /path/to/crisAI
-scripts/hcom_claude_close.sh --target-repo /path/to/crisAI --thread gem-ui-review
+scripts/hcom_review.sh --target-repo /path/to/crisAI --role gem_review --thread gem-ui-review --task "Review the Gem UI diff and report UX risks."
+scripts/hcom_review_status.sh --target-repo /path/to/crisAI
+scripts/hcom_review_close.sh --target-repo /path/to/crisAI --thread gem-ui-review
 ```
+
+The generic review scripts default to Claude. Antigravity can be tested with
+`--provider antigravity` only when the target repository uses an hcom build with
+native `hcom agy` support; it is experimental and does not replace mandatory
+Claude review gates.
 
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. Use `tmux` only when a
 temporary visible Claude pane is useful. The orchestrator decides when to close
@@ -209,6 +214,10 @@ Both should be ignored by the target repository. This package includes
 - `reference/development/roles/`: role bootstrap prompts.
 - `launch/runtime`, `launch/gem`, `launch/web`: hcom area context folders.
 - `scripts/hcom_start.sh`: launch the team.
+- `scripts/hcom_review.sh`: launch a provider-backed ephemeral reviewer.
+- `scripts/hcom_review_status.sh`: inspect active provider-backed reviewers.
+- `scripts/hcom_review_close.sh`: close provider-backed reviewers by name,
+  role, thread, or expired lease.
 - `scripts/hcom_claude_review.sh`: launch an ephemeral Claude reviewer.
 - `scripts/hcom_claude_status.sh`: inspect active Claude reviewers.
 - `scripts/hcom_claude_close.sh`: close Claude reviewers by name, role, thread,

@@ -1,0 +1,46 @@
+# Review provider capability registry for the hcom development team.
+#
+# This file describes which external coding tools may satisfy development review
+# workflows. Scripts remain provider-aware because flags, lifecycle support, and
+# transcripts differ by tool.
+
+default_provider: claude
+
+roles:
+  runtime_review:
+    area: runtime
+    default_thread: runtime-review
+    claude_role: runtime_claude
+    tag: crisai-runtime-review
+  gem_review:
+    area: gem
+    default_thread: gem-ui-review
+    claude_role: gem_claude
+    tag: crisai-gem-review
+  web_review:
+    area: web
+    default_thread: web-ui-review
+    claude_role: web_claude
+    tag: crisai-web-review
+
+providers:
+  claude:
+    hcom_tool: claude
+    managed: true
+    mandatory_gate_supported: true
+    supports_system_prompt: true
+    supports_permission_mode_auto: true
+    supports_transcript_failure_summary: true
+    lifecycle_scripts:
+      review: scripts/hcom_claude_review.sh
+      status: scripts/hcom_claude_status.sh
+      close: scripts/hcom_claude_close.sh
+  antigravity:
+    hcom_tool: agy
+    managed: true
+    mandatory_gate_supported: false
+    experimental: true
+    supports_system_prompt: true
+    supports_permission_mode_auto: false
+    supports_transcript_failure_summary: false
+    requires_hcom_tool_support: true

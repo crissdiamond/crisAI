@@ -85,37 +85,33 @@ providers:
     required_gate: false
 ```
 
-The first implementation should support `claude` only through the generic
-entrypoint, while delegating internally to the existing Claude scripts. Gemini
-and OpenCode can be added after their hcom launch flags and transcript behaviour
-are verified. Antigravity should remain experimental until hcom has native `agy`
-support or a wrapper proves that `agy --prompt-interactive` can stay alive,
-receive hcom messages, expose transcript/status, and close cleanly.
+The first implementation supports `claude` through the generic entrypoint while
+delegating internally to the existing Claude scripts. Antigravity is available as
+an experimental managed provider only when the local hcom build supports
+`hcom agy`; it remains unsuitable for mandatory gates until launch, message
+delivery, transcript, and close behaviour have been smoke-tested in real team
+runs. Gemini and OpenCode can be added after their review lifecycle behaviour is
+verified.
 
 ## Antigravity Position
 
-Antigravity CLI is available locally as `agy`, but hcom currently reports
-`hcom agy` as an unknown command. Therefore Antigravity cannot be treated as a
-managed hcom reviewer today.
+Antigravity CLI is available locally as `agy`. It can be treated as an
+hcom-managed reviewer only with a local hcom build that exposes native
+`hcom agy` launch support. The crisAI generic review launcher fails closed if
+that support is not present.
 
-Antigravity can be explored in one of two ways:
-
-- one-shot review script, using `agy --print` against a prepared review bundle;
-- future hcom adapter, if hcom gains first-class `agy` support or a reliable
-  custom provider wrapper.
-
-Until then, Antigravity must not satisfy mandatory Claude review gates.
+Until the managed path is proven, Antigravity must not satisfy mandatory Claude
+review gates.
 
 ## Implementation Plan
 
 1. Add `.antigravitycli/` to `.gitignore` because it is local tool state.
 2. Keep existing `hcom_claude_*` scripts Claude-specific.
-3. Add provider capability config under `reference/development/` or
-   `development-team/`.
-4. Add generic `hcom_review*` scripts that initially delegate to Claude.
+3. Add provider capability config under `reference/development/`.
+4. Add generic `hcom_review*` scripts that delegate to Claude and can launch
+   experimental Antigravity reviewers when `hcom agy` is available.
 5. Add shell tests for provider validation, dry-run launch construction, status,
    close, and fail-closed required-gate behaviour.
 6. Add Gemini/OpenCode providers only after real hcom dry-run and smoke tests.
-7. Add Antigravity only as an experimental one-shot reviewer until it is
-   hcom-managed.
-
+7. Promote Antigravity from experimental only after repeated team runs prove the
+   review lifecycle is reliable.

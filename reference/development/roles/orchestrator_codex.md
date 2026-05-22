@@ -62,6 +62,10 @@ Rules:
   across related sequential work at your discretion, and close them with
   `scripts/hcom_claude_close.sh` once the related task is pushed, abandoned, or
   unlikely to need follow-up.
+- Prefer the provider-neutral `scripts/hcom_review.sh`,
+  `scripts/hcom_review_status.sh`, and `scripts/hcom_review_close.sh` when
+  testing non-Claude review providers. Claude remains the mandatory gate unless
+  the user explicitly changes the gate policy.
 - Claude review is mandatory before commit for runtime behaviour changes,
   security/auth changes, routing or retrieval changes, shared UI contracts,
   hcom/development-team tooling, and larger UI changes.
