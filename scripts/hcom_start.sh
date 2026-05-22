@@ -354,6 +354,27 @@ run_cmd() {
   "$@"
 }
 
+write_tmux_launch_script() {
+  local role="$1"
+  shift
+  local launch_dir script_path
+  launch_dir="$HCOM_DIR/.tmp/team_launch"
+  mkdir -p "$launch_dir"
+  script_path="$launch_dir/${role}.sh"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n'
+    printf 'cd %q\n' "$ROOT_DIR"
+    printf 'export HCOM_DIR=%q\n' "$HCOM_DIR"
+    printf 'export HCOM_HINTS=%q\n' "$HCOM_HINTS"
+    printf 'exec'
+    printf ' %q' "$@"
+    printf '\n'
+  } >"$script_path"
+  chmod 700 "$script_path"
+  printf '%s\n' "$script_path"
+}
+
 tool_auto_approval_args() {
   local role="$1"
   local provider="$2"
@@ -444,7 +465,13 @@ launch_agent() {
   prompt="$(role_prompt "$role_file" "$role")"
 
   if [[ "$RESUME" -eq 1 ]]; then
-    resume_target="${PREVIOUS_PROVIDER_SESSION_IDS[$role]:-${PREVIOUS_HCOM_NAMES[$role]:-}}"
+    if [[ "$provider" == "agy" ]]; then
+      # Antigravity hcom sessions do not currently resume reliably into a
+      # persistent terminal panel. Start visible reviewers fresh instead.
+      resume_target=""
+    else
+      resume_target="${PREVIOUS_PROVIDER_SESSION_IDS[$role]:-${PREVIOUS_HCOM_NAMES[$role]:-}}"
+    fi
   else
     resume_target=""
   fi
@@ -487,7 +514,9 @@ launch_agent() {
   printf 'Starting %s (%s)...\n' "$role" "$provider" >&2
   if [[ "$TEAM_TERMINAL" == "__crisai_tmux_direct__" && "$HEADLESS" -eq 0 ]]; then
     cmd+=(--run-here)
-    pane_id="$("$ROOT_DIR/scripts/hcom_tmux_command.sh" "$TEAM_TMUX_SESSION" "$(role_terminal_label "$role")" "${cmd[@]}")"
+    local launch_script
+    launch_script="$(write_tmux_launch_script "$role" "${cmd[@]}")"
+    pane_id="$("$ROOT_DIR/scripts/hcom_tmux_command.sh" "$TEAM_TMUX_SESSION" "$(role_terminal_label "$role")" bash "$launch_script")"
     name="$(name_from_hcom_list "$tag" "$provider" | head -n 1)"
   else
     output="$("${cmd[@]}" 2>&1)"
