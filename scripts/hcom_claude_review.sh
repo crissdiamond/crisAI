@@ -281,12 +281,13 @@ PY
 }
 
 require_bin hcom
-require_bin claude
+REVIEWER_TOOL="${HCOM_TEAM_REVIEWER_TOOL:-claude}"
+require_bin "$REVIEWER_TOOL"
 export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
 mkdir -p "$HCOM_DIR"
 
 PROMPT="$(role_prompt)"
-CMD=(hcom claude --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY" --go)
+CMD=(hcom "$REVIEWER_TOOL" --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY" --go)
 if [[ "$VISIBILITY" == "headless" ]]; then
   CMD+=(--headless)
 else
@@ -299,7 +300,7 @@ fi
 if [[ "$VISIBILITY" == "tmux" && "$DRY_RUN" -eq 0 ]]; then
   pane_id="$("$ROOT_DIR/scripts/hcom_tmux_command.sh" "$TEAM_TMUX_SESSION" "$LABEL" "${CMD[@]}")"
   sleep 1
-  name="$(hcom list --json | TAG="$TAG" python -c '
+  name="$(hcom list --json | TAG="$TAG" TOOL="$REVIEWER_TOOL" python -c '
 import json
 import os
 import sys
@@ -307,7 +308,7 @@ try:
     agents = json.load(sys.stdin)
 except json.JSONDecodeError:
     agents = []
-matches = [a for a in agents if a.get("tag") == os.environ["TAG"] and str(a.get("tool", "")).lower() == "claude"]
+matches = [a for a in agents if a.get("tag") == os.environ["TAG"] and str(a.get("tool", "")).lower() == os.environ["TOOL"].lower()]
 matches.sort(key=lambda a: a.get("created_at") or "")
 if matches:
     print(matches[-1].get("name", ""))
@@ -326,7 +327,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 if [[ -z "${name:-}" ]]; then
-  echo "Could not parse launched Claude reviewer name." >&2
+  echo "Could not parse launched $REVIEWER_TOOL reviewer name." >&2
   exit 1
 fi
 

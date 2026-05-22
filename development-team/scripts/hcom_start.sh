@@ -13,6 +13,7 @@ AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
 ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-access}"
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 CLAUDE_MODE="${HCOM_TEAM_CLAUDE_MODE:-ephemeral}"
+REVIEWER_TOOL="${HCOM_TEAM_REVIEWER_TOOL:-claude}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
 CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
@@ -371,7 +372,7 @@ tool_auto_approval_args() {
       fi
       printf '%s\n' --ask-for-approval never --sandbox "$sandbox"
       ;;
-    claude)
+    *)
       printf '%s\n' --permission-mode auto
       ;;
   esac
@@ -405,7 +406,7 @@ launch_agent() {
   else
     cmd=(hcom "$provider" --tag "$tag" --dir "$dir" --hcom-prompt "$prompt" --go)
   fi
-  if [[ "$provider" == "claude" ]]; then
+  if [[ "$provider" == "claude" || "$provider" == "$REVIEWER_TOOL" ]]; then
     cmd+=(--hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY")
   fi
   if [[ "$HEADLESS" -eq 1 ]]; then
@@ -499,7 +500,7 @@ if [[ "$CLAUDE_MODE" != "ephemeral" && "$CLAUDE_MODE" != "persistent" ]]; then
   exit 1
 fi
 if [[ "$CLAUDE_MODE" == "persistent" ]]; then
-  require_bin claude
+  require_bin "$REVIEWER_TOOL"
 fi
 
 export HCOM_DIR="$HCOM_STATE_DIR"
@@ -539,9 +540,9 @@ LAUNCHED_NAMES+=("$name")
 write_assignment "$name" gem_codex gem codex crisai-gem
 
 if [[ "$CLAUDE_MODE" == "persistent" ]]; then
-  name="$(launch_agent gem_claude claude crisai-gem gem reference/development/roles/gem_claude.md gem)"
+  name="$(launch_agent gem_claude "$REVIEWER_TOOL" crisai-gem gem reference/development/roles/gem_claude.md gem)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" gem_claude gem claude crisai-gem
+  write_assignment "$name" gem_claude gem "$REVIEWER_TOOL" crisai-gem
 fi
 
 name="$(launch_agent web_codex codex crisai-web web reference/development/roles/web_codex.md web)"
@@ -549,9 +550,9 @@ LAUNCHED_NAMES+=("$name")
 write_assignment "$name" web_codex web codex crisai-web
 
 if [[ "$CLAUDE_MODE" == "persistent" ]]; then
-  name="$(launch_agent web_claude claude crisai-web web reference/development/roles/web_claude.md web)"
+  name="$(launch_agent web_claude "$REVIEWER_TOOL" crisai-web web reference/development/roles/web_claude.md web)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" web_claude web claude crisai-web
+  write_assignment "$name" web_claude web "$REVIEWER_TOOL" crisai-web
 fi
 
 name="$(launch_agent runtime_codex codex crisai-runtime runtime reference/development/roles/runtime_codex.md runtime)"
@@ -559,9 +560,9 @@ LAUNCHED_NAMES+=("$name")
 write_assignment "$name" runtime_codex runtime codex crisai-runtime
 
 if [[ "$CLAUDE_MODE" == "persistent" ]]; then
-  name="$(launch_agent runtime_claude claude crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
+  name="$(launch_agent runtime_claude "$REVIEWER_TOOL" crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" runtime_claude runtime claude crisai-runtime
+  write_assignment "$name" runtime_claude runtime "$REVIEWER_TOOL" crisai-runtime
 fi
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
