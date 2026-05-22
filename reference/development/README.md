@@ -93,6 +93,8 @@ treat this as a design principle, not as a preference.
   session resume, Git authority, memory use, and UI definition of done.
 - [Agent roster](agent_roster.yaml): stable roles, ownership boundaries, and
   shared rules.
+- [Review provider design](review_provider_design.md): how to extend review
+  providers without weakening the Claude review gate.
 - [Role prompts](roles/): bootstrap instructions for each hcom-launched agent.
 - [UI engineering contract](ui_engineering_contract.md): expectations for Gem,
   web, and shared UI contract work.

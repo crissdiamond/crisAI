@@ -26,6 +26,7 @@ tests/logs/
 
 # Editor/agent local state
 .agents/
+.antigravitycli/
 .claude/
 .codex/
 .continue/
