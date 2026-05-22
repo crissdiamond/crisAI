@@ -26,7 +26,10 @@ providers:
     mandatory_gate_supported: true
   antigravity:
     hcom_tool: agy
-    managed: true
+    managed: false
     mandatory_gate_supported: false
     experimental: true
+    mode: manual_smoke_test_only
+    requires_interactive_oauth: true
+    model_selection_verified: false
     requires_hcom_tool_support: true

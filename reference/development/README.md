@@ -137,8 +137,11 @@ scripts/hcom_review_status.sh
 scripts/hcom_review_close.sh --thread runtime-review
 ```
 
-Use `--provider antigravity` only with an hcom build that supports `hcom agy`;
-Antigravity is experimental and does not replace mandatory Claude review gates.
+Antigravity review is intentionally disabled by default. The local `agy` CLI can
+require interactive OAuth/model selection and may default to Gemini, so it does
+not replace mandatory Claude review gates. Use `--provider antigravity` only for
+manual smoke tests with `HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1` after
+confirming the selected model and authentication path.
 
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. The orchestrator may keep
 a reviewer alive across related sequential tasks, but should close it after the

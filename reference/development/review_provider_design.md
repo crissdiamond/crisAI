@@ -81,7 +81,9 @@ providers:
   antigravity:
     command: agy
     managed: false
-    mode: one_shot_experimental
+    mode: manual_smoke_test_only
+    requires_interactive_oauth: true
+    model_selection_verified: false
     required_gate: false
 ```
 
@@ -95,12 +97,16 @@ verified.
 
 ## Antigravity Position
 
-Antigravity CLI is available locally as `agy`. It can be treated as an
-hcom-managed reviewer only with a local hcom build that exposes native
-`hcom agy` launch support. The crisAI generic review launcher fails closed if
-that support is not present.
+Antigravity CLI is available locally as `agy`, but the current observed launch
+path opens an interactive session, may require OAuth, and can default to a
+Gemini model. That is useful for manual experiments but not for a mandatory
+Claude review gate.
 
-Until the managed path is proven, Antigravity must not satisfy mandatory Claude
+Persistent Antigravity reviewers are blocked in `scripts/hcom_start.sh`, and
+ephemeral Antigravity reviewers require
+`HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1`. Until non-interactive
+authentication, Claude model selection, message delivery, transcript capture,
+and close behaviour are proven, Antigravity must not satisfy mandatory Claude
 review gates.
 
 ## Implementation Plan
@@ -109,7 +115,7 @@ review gates.
 2. Keep existing `hcom_claude_*` scripts Claude-specific.
 3. Add provider capability config under `reference/development/`.
 4. Add generic `hcom_review*` scripts that delegate to Claude and can launch
-   experimental Antigravity reviewers when `hcom agy` is available.
+   opt-in experimental Antigravity reviewers only for manual smoke tests.
 5. Add shell tests for provider validation, dry-run launch construction, status,
    close, and fail-closed required-gate behaviour.
 6. Add Gemini/OpenCode providers only after real hcom dry-run and smoke tests.

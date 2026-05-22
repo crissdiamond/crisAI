@@ -13,6 +13,7 @@ TASK=""
 LEASE_MINUTES="${HCOM_TEAM_REVIEW_LEASE_MINUTES:-180}"
 VISIBILITY="${HCOM_TEAM_REVIEW_VISIBILITY:-headless}"
 DRY_RUN=0
+ALLOW_EXPERIMENTAL_AGY="${HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW:-0}"
 
 usage() {
   cat <<'EOF'
@@ -135,6 +136,18 @@ case "$PROVIDER" in
     exit 2
     ;;
 esac
+
+if [[ "$PROVIDER" == "antigravity" && "$DRY_RUN" -eq 0 && "$ALLOW_EXPERIMENTAL_AGY" != "1" ]]; then
+  cat >&2 <<'EOF'
+Antigravity review is experimental and disabled by default.
+
+The local agy CLI can require interactive OAuth/model selection and may default
+to Gemini, so it does not satisfy mandatory Claude review gates. Set
+HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1 only for an explicit manual smoke
+test where that limitation is acceptable.
+EOF
+  exit 2
+fi
 
 require_bin() {
   local bin="$1"

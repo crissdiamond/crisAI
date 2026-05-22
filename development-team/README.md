@@ -124,10 +124,11 @@ scripts/hcom_review_status.sh --target-repo /path/to/crisAI
 scripts/hcom_review_close.sh --target-repo /path/to/crisAI --thread gem-ui-review
 ```
 
-The generic review scripts default to Claude. Antigravity can be tested with
-`--provider antigravity` only when the target repository uses an hcom build with
-native `hcom agy` support; it is experimental and does not replace mandatory
-Claude review gates.
+The generic review scripts default to Claude. Antigravity is disabled by
+default because `agy` can require interactive OAuth/model selection and may
+default to Gemini. Test it only with `--provider antigravity` and
+`HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1` after confirming the selected model;
+it does not replace mandatory Claude review gates.
 
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. Use `tmux` only when a
 temporary visible Claude pane is useful. The orchestrator decides when to close

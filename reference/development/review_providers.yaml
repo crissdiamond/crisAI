@@ -37,10 +37,13 @@ providers:
       close: scripts/hcom_claude_close.sh
   antigravity:
     hcom_tool: agy
-    managed: true
+    managed: false
     mandatory_gate_supported: false
     experimental: true
+    mode: manual_smoke_test_only
     supports_system_prompt: true
     supports_permission_mode_auto: false
     supports_transcript_failure_summary: false
+    requires_interactive_oauth: true
+    model_selection_verified: false
     requires_hcom_tool_support: true

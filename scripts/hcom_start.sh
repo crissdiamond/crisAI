@@ -72,8 +72,9 @@ Claude reviewers:
   closed at orchestrator discretion with scripts/hcom_claude_close.sh.
   Set HCOM_TEAM_CLAUDE_MODE=persistent to launch the legacy always-on Claude
   reviewers with the standing team.
-  HCOM_TEAM_REVIEW_PROVIDER defaults to claude. Set it to antigravity to launch
-  the persistent reviewer roles through hcom agy instead of Claude Code.
+  HCOM_TEAM_REVIEW_PROVIDER defaults to claude. Persistent Antigravity reviewers
+  are deliberately blocked because agy is currently interactive/OAuth-bound and
+  cannot satisfy mandatory Claude review gates.
 EOF
 }
 
@@ -502,6 +503,17 @@ if [[ "$CLAUDE_MODE" != "ephemeral" && "$CLAUDE_MODE" != "persistent" ]]; then
   exit 1
 fi
 REVIEW_PROVIDER_TOOL="$(review_provider_tool)"
+if [[ "$CLAUDE_MODE" == "persistent" && "$REVIEW_PROVIDER_TOOL" == "agy" ]]; then
+  cat >&2 <<'EOF'
+Persistent Antigravity reviewers are not supported.
+
+Antigravity currently starts as an interactive session and may default to Gemini
+or require OAuth/model selection, so it cannot satisfy the mandatory Claude
+review gate. Use the default ephemeral Claude review model, or run the
+experimental Antigravity review launcher explicitly after manual validation.
+EOF
+  exit 2
+fi
 if [[ "$CLAUDE_MODE" == "persistent" ]]; then
   require_bin "$REVIEW_PROVIDER_TOOL"
 fi
