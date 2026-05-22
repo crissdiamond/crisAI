@@ -8,11 +8,18 @@ from uuid import uuid4
 
 import typer
 
-from crisai.agents.factory import AgentFactory
-from crisai.runtime import MultiServerContext, RuntimeManager
-from crisai.tracing import TRACE_FILE_NAME, append_trace
+from crisai.agents import factory as factory_module
+from crisai import runtime as runtime_module
+from crisai import tracing as tracing_module
 
-from .display import print_agent_output
+from crisai.cli import display as display_module
+
+AgentFactory = factory_module.AgentFactory
+MultiServerContext = runtime_module.MultiServerContext
+RuntimeManager = runtime_module.RuntimeManager
+TRACE_FILE_NAME = tracing_module.TRACE_FILE_NAME
+append_trace = tracing_module.append_trace
+print_agent_output = display_module.print_agent_output
 
 
 @dataclass(slots=True)

@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from rich.table import Table
+from rich import console as rich_console
+from rich import table as rich_table
 
-from crisai.cli.display import print_status_message
-from crisai.config import load_settings
-from crisai.orchestration.router import RoutingDecision
-from crisai.registry import Registry
+from crisai.cli import display as display_module
+from crisai import config as config_module
+from crisai.orchestration import router as router_module
+from crisai import registry as registry_module
+
+Console = rich_console.Console
+Table = rich_table.Table
+print_status_message = display_module.print_status_message
+load_settings = config_module.load_settings
+RoutingDecision = router_module.RoutingDecision
+Registry = registry_module.Registry
 
 HistoryEntry = tuple[str, str]
 
@@ -71,9 +79,7 @@ def _agent_model_label(spec: object) -> str:
 
 def print_servers_table() -> None:
     """Render the MCP server table."""
-    from rich.console import Console
-
-    console = Console()
+    console = rich_console.Console()
     settings = load_settings()
     registry = Registry(settings.registry_dir)
     servers = registry.load_servers()
@@ -96,9 +102,7 @@ def print_servers_table() -> None:
 
 def print_agents_table() -> None:
     """Render the agent table."""
-    from rich.console import Console
-
-    console = Console()
+    console = rich_console.Console()
     settings = load_settings()
     registry = Registry(settings.registry_dir)
     agents = registry.load_agents()

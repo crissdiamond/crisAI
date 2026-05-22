@@ -11,12 +11,19 @@ from typing import Any
 
 import yaml
 
-from crisai.orchestration.request_contract import RequestContract
-from crisai.orchestration.retrieval_association_graph import (
-    DeterministicRetrievalContext,
-)
-from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
-from crisai.workspace.spaces import load_workspace_spaces
+from crisai.orchestration import request_contract as request_contract_module
+from crisai.orchestration import retrieval_association_graph as graph_module
+from crisai.workspace import artefact_validation as validation_module
+from crisai.workspace import spaces as spaces_module
+from crisai import config as config_module
+from crisai.orchestration import semantic_catalog as catalog_module
+
+RequestContract = request_contract_module.RequestContract
+DeterministicRetrievalContext = graph_module.DeterministicRetrievalContext
+validate_workspace_artefact_paths = validation_module.validate_workspace_artefact_paths
+load_workspace_spaces = spaces_module.load_workspace_spaces
+load_settings = config_module.load_settings
+load_semantic_catalog = catalog_module.load_semantic_catalog
 
 AUTHORIZED_WRITE_PATHS_ENV = "CRISAI_WORKSPACE_AUTHORIZED_WRITE_PATHS"
 
@@ -139,8 +146,7 @@ def _resolve_registry_dir(registry_dir: Path | None) -> Path:
     if registry_dir is not None:
         return registry_dir
     try:
-        from crisai.config import load_settings
-        return Path(load_settings().registry_dir)
+        return Path(config_module.load_settings().registry_dir)
     except Exception:  # noqa: BLE001
         return Path("registry")
 
@@ -266,9 +272,7 @@ def changed_paths(
 
 def has_intranet_fetch_evidence(context_retrieval_text: str) -> bool:
     """Best-effort check that retrieval output contains successful intranet fetches."""
-    from crisai.orchestration.semantic_catalog import load_semantic_catalog
-
-    verifier = load_semantic_catalog().peer_verifier
+    verifier = catalog_module.load_semantic_catalog().peer_verifier
     text = (context_retrieval_text or "").lower()
     if verifier.intranet_evidence_positive_marker not in text:
         return False

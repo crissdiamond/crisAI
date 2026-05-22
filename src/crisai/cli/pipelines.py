@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_patch
+from crisai import openai_agents_trace_compat as compat_module
 
-apply_openai_agents_trace_export_patch()
+compat_module.apply_openai_agents_trace_export_patch()
 
 import os
 import time
@@ -12,128 +12,148 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from crisai.agents.factory import AgentFactory
-from crisai.logging_utils import get_logger
-from crisai.orchestration.evidence_contract import (
-    EvidenceBundle,
-    EvidenceItem,
-    parse_evidence_bundle,
-    request_requires_content_read,
-)
-from crisai.orchestration.exceptions import WorkflowValidationError
-from crisai.orchestration.peer_contract import (
-    infer_peer_run_contract,
-    render_peer_run_contract,
-)
-from crisai.orchestration.peer_evidence import (
-    _build_peer_filesystem_evidence,
-    _build_peer_final_repair_prompt,
-    _format_runtime_changed_files_manifest,
-    _is_repairable_peer_verifier_failure,
-)
-from crisai.orchestration.peer_judge import (
-    _build_prompt_with_contract,
-    _extract_final_recommendation,
-    _judge_reason_excerpt,
-    _resolve_peer_max_escalations,
-    _resolve_peer_max_refinement_rounds,
-    _run_judge_with_acceptance_audit,
-    _trace_peer_flow_event,
-)
-from crisai.orchestration.peer_verifier import (
-    PeerVerificationViolation,
-    enforce_peer_final_deliverable_verification,
-)
-from crisai.orchestration.prompt_generation import (
-    build_author_prompt,
-    build_challenger_prompt,
-    build_context_retrieval_prompt,
-    build_context_retrieval_repair_prompt,
-    build_context_synthesizer_prompt,
-    build_design_prompt,
-    build_peer_final_prompt,
-    build_pipeline_final_prompt,
-    build_refiner_prompt,
-    build_retrieval_planner_prompt,
-    build_review_prompt,
-    build_single_retrieval_planner_prompt,
-    build_summary_prompt,
-)
-from crisai.orchestration.request_contract import (
-    RequestContract,
-    infer_request_contract,
-    render_request_contract_block,
-)
-from crisai.orchestration.retrieval_association_graph import (
-    DeterministicRetrievalContext,
-    deterministic_context_from_registry,
-    deterministic_context_trace_metadata,
-)
-from crisai.orchestration.retrieval_checkpoint import (
-    RetrievalCheckpointHandler,
-    RetrievalCheckpointSnapshot,
-)
-from crisai.orchestration.source_constraints import (
-    SourceFitConstraints,
-    evidence_bundle_satisfies_constraints,
-    evidence_item_satisfies_constraints,
-    infer_source_fit_constraints,
-    source_fit_failure_message,
-    source_inventory_failure_message,
-)
-from crisai.orchestration.source_resolution import latest_source_conflict_message
-from crisai.orchestration.task_contract import (
-    TaskContract,
-    infer_task_contract,
-    render_task_contract_block,
-)
-from crisai.runtime import MultiServerContext, RuntimeManager
-from crisai.tracing import TRACE_FILE_NAME, append_trace
+from crisai.agents import factory as factory_module
+from crisai import logging_utils as logging_utils_module
+from crisai.orchestration import evidence_contract as evidence_contract_module
+from crisai.orchestration import exceptions as exceptions_module
+from crisai.orchestration import peer_contract as peer_contract_module
+from crisai.orchestration import peer_evidence as peer_evidence_module
+from crisai.orchestration import peer_judge as peer_judge_module
+from crisai.orchestration import peer_verifier as peer_verifier_module
+from crisai.orchestration import prompt_generation as prompt_generation_module
+from crisai.orchestration import request_contract as request_contract_module
+from crisai.orchestration import retrieval_association_graph as graph_module
+from crisai.orchestration import retrieval_checkpoint as checkpoint_module
+from crisai.orchestration import source_constraints as constraints_module
+from crisai.orchestration import source_resolution as resolution_module
+from crisai.orchestration import task_contract as task_contract_module
+from crisai import runtime as runtime_module
+from crisai import tracing as tracing_module
 
-from .artefact_lifecycle import validate_task_artefacts_for_request
-from .chat_context import persist_session_source_candidates_from_output
-from .peer_transcript import PeerMessage, PeerRunResult, append_peer_message
-from .pipeline_display import (
-    _run_agent_silently,
-    _run_agent_with_progress,
-    print_agent_output,
-    reset_stage_observability_agent_id,
-    reset_stage_observability_callback,
-    sanitize_user_visible_text,
-    set_stage_observability_agent_id,
-    set_stage_observability_callback,
-)
-from .pipeline_engine import (
-    WorkflowEngine,
-    _execution_time_metadata,
-    _log_successful_agent_stage,
-    _merge_stage_observability_metadata,
-    _utc_now_iso,
-)
-from .session_store import (
-    load_session_anchors,
-    load_session_memory,
-    register_task_artefacts,
-    sanitize_session_name,
-)
-from .workflow_policy import (
-    WorkflowPolicyViolation,
-    changed_paths,
-    enforce_intranet_fetch_policy,
-    enforce_workspace_authorized_write_validation,
-    enforce_workspace_write_policy,
-    infer_workflow_policy,
-    snapshot_tree,
-    workspace_write_authorization_env,
-    workspace_write_authorization_from_contract,
-)
-from .workflow_support import (
-    WorkflowEnvironment,
-    _get_run_id,
-    collect_server_ids,
-    ensure_openai_api_key,
-    resolve_required_agents,
-)
+from crisai.cli import artefact_lifecycle as lifecycle_module
+from crisai.cli import chat_context as chat_context_module
+from crisai.cli import peer_transcript as peer_transcript_module
+from crisai.cli import pipeline_display as display_module
+from crisai.cli import pipeline_engine as engine_module
+from crisai.cli import session_store as session_store_module
+from crisai.cli import workflow_policy as policy_module
+from crisai.cli import workflow_support as support_module
+
+AgentFactory = factory_module.AgentFactory
+get_logger = logging_utils_module.get_logger
+
+EvidenceBundle = evidence_contract_module.EvidenceBundle
+EvidenceItem = evidence_contract_module.EvidenceItem
+parse_evidence_bundle = evidence_contract_module.parse_evidence_bundle
+request_requires_content_read = evidence_contract_module.request_requires_content_read
+
+WorkflowValidationError = exceptions_module.WorkflowValidationError
+
+infer_peer_run_contract = peer_contract_module.infer_peer_run_contract
+render_peer_run_contract = peer_contract_module.render_peer_run_contract
+
+_build_peer_filesystem_evidence = peer_evidence_module._build_peer_filesystem_evidence
+_build_peer_final_repair_prompt = peer_evidence_module._build_peer_final_repair_prompt
+_format_runtime_changed_files_manifest = peer_evidence_module._format_runtime_changed_files_manifest
+_is_repairable_peer_verifier_failure = peer_evidence_module._is_repairable_peer_verifier_failure
+
+_build_prompt_with_contract = peer_judge_module._build_prompt_with_contract
+_extract_final_recommendation = peer_judge_module._extract_final_recommendation
+_judge_reason_excerpt = peer_judge_module._judge_reason_excerpt
+_resolve_peer_max_escalations = peer_judge_module._resolve_peer_max_escalations
+_resolve_peer_max_refinement_rounds = peer_judge_module._resolve_peer_max_refinement_rounds
+_run_judge_with_acceptance_audit = peer_judge_module._run_judge_with_acceptance_audit
+_trace_peer_flow_event = peer_judge_module._trace_peer_flow_event
+
+PeerVerificationViolation = peer_verifier_module.PeerVerificationViolation
+enforce_peer_final_deliverable_verification = peer_verifier_module.enforce_peer_final_deliverable_verification
+
+build_author_prompt = prompt_generation_module.build_author_prompt
+build_challenger_prompt = prompt_generation_module.build_challenger_prompt
+build_context_retrieval_prompt = prompt_generation_module.build_context_retrieval_prompt
+build_context_retrieval_repair_prompt = prompt_generation_module.build_context_retrieval_repair_prompt
+build_context_synthesizer_prompt = prompt_generation_module.build_context_synthesizer_prompt
+build_design_prompt = prompt_generation_module.build_design_prompt
+build_peer_final_prompt = prompt_generation_module.build_peer_final_prompt
+build_pipeline_final_prompt = prompt_generation_module.build_pipeline_final_prompt
+build_refiner_prompt = prompt_generation_module.build_refiner_prompt
+build_retrieval_planner_prompt = prompt_generation_module.build_retrieval_planner_prompt
+build_review_prompt = prompt_generation_module.build_review_prompt
+build_single_retrieval_planner_prompt = prompt_generation_module.build_single_retrieval_planner_prompt
+build_summary_prompt = prompt_generation_module.build_summary_prompt
+
+RequestContract = request_contract_module.RequestContract
+infer_request_contract = request_contract_module.infer_request_contract
+render_request_contract_block = request_contract_module.render_request_contract_block
+
+DeterministicRetrievalContext = graph_module.DeterministicRetrievalContext
+deterministic_context_from_registry = graph_module.deterministic_context_from_registry
+deterministic_context_trace_metadata = graph_module.deterministic_context_trace_metadata
+
+RetrievalCheckpointHandler = checkpoint_module.RetrievalCheckpointHandler
+RetrievalCheckpointSnapshot = checkpoint_module.RetrievalCheckpointSnapshot
+
+SourceFitConstraints = constraints_module.SourceFitConstraints
+evidence_bundle_satisfies_constraints = constraints_module.evidence_bundle_satisfies_constraints
+evidence_item_satisfies_constraints = constraints_module.evidence_item_satisfies_constraints
+infer_source_fit_constraints = constraints_module.infer_source_fit_constraints
+source_fit_failure_message = constraints_module.source_fit_failure_message
+source_inventory_failure_message = constraints_module.source_inventory_failure_message
+
+latest_source_conflict_message = resolution_module.latest_source_conflict_message
+
+TaskContract = task_contract_module.TaskContract
+infer_task_contract = task_contract_module.infer_task_contract
+render_task_contract_block = task_contract_module.render_task_contract_block
+
+MultiServerContext = runtime_module.MultiServerContext
+RuntimeManager = runtime_module.RuntimeManager
+
+TRACE_FILE_NAME = tracing_module.TRACE_FILE_NAME
+append_trace = tracing_module.append_trace
+
+validate_task_artefacts_for_request = lifecycle_module.validate_task_artefacts_for_request
+persist_session_source_candidates_from_output = chat_context_module.persist_session_source_candidates_from_output
+
+PeerMessage = peer_transcript_module.PeerMessage
+PeerRunResult = peer_transcript_module.PeerRunResult
+append_peer_message = peer_transcript_module.append_peer_message
+
+_run_agent_silently = display_module._run_agent_silently
+_run_agent_with_progress = display_module._run_agent_with_progress
+print_agent_output = display_module.print_agent_output
+reset_stage_observability_agent_id = display_module.reset_stage_observability_agent_id
+reset_stage_observability_callback = display_module.reset_stage_observability_callback
+sanitize_user_visible_text = display_module.sanitize_user_visible_text
+set_stage_observability_agent_id = display_module.set_stage_observability_agent_id
+set_stage_observability_callback = display_module.set_stage_observability_callback
+
+WorkflowEngine = engine_module.WorkflowEngine
+_execution_time_metadata = engine_module._execution_time_metadata
+_log_successful_agent_stage = engine_module._log_successful_agent_stage
+_merge_stage_observability_metadata = engine_module._merge_stage_observability_metadata
+_utc_now_iso = engine_module._utc_now_iso
+
+load_session_anchors = session_store_module.load_session_anchors
+load_session_memory = session_store_module.load_session_memory
+register_task_artefacts = session_store_module.register_task_artefacts
+sanitize_session_name = session_store_module.sanitize_session_name
+
+WorkflowPolicyViolation = policy_module.WorkflowPolicyViolation
+changed_paths = policy_module.changed_paths
+enforce_intranet_fetch_policy = policy_module.enforce_intranet_fetch_policy
+enforce_workspace_authorized_write_validation = policy_module.enforce_workspace_authorized_write_validation
+enforce_workspace_write_policy = policy_module.enforce_workspace_write_policy
+infer_workflow_policy = policy_module.infer_workflow_policy
+snapshot_tree = policy_module.snapshot_tree
+workspace_write_authorization_env = policy_module.workspace_write_authorization_env
+workspace_write_authorization_from_contract = policy_module.workspace_write_authorization_from_contract
+
+WorkflowEnvironment = support_module.WorkflowEnvironment
+_get_run_id = support_module._get_run_id
+collect_server_ids = support_module.collect_server_ids
+ensure_openai_api_key = support_module.ensure_openai_api_key
+resolve_required_agents = support_module.resolve_required_agents
 
 logger = get_logger(__name__)
 

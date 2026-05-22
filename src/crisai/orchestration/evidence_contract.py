@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .semantic_catalog import load_semantic_catalog
-from .task_contract import infer_task_contract
+from crisai.orchestration import semantic_catalog as catalog_module
+from crisai.orchestration import task_contract as task_module
 
 ALLOWED_EVIDENCE_LEVELS = {
     "search_hit_only",
@@ -345,7 +345,7 @@ def _evidence_role(data: dict[str, Any], source: SourceReference) -> str:
 
 def request_requires_content_read(message: str) -> bool:
     """Return True for requests where metadata-only evidence is insufficient."""
-    contract = infer_task_contract(message)
+    contract = task_module.infer_task_contract(message)
     return contract.required_evidence_level == "content_read"
 
 
@@ -437,7 +437,7 @@ def _registry_source_type(source_type: str, *, open_url: str, workspace_path: st
     if not reference_text:
         return source_type
     try:
-        constraints = load_semantic_catalog().retrieval_constraints
+        constraints = catalog_module.load_semantic_catalog().retrieval_constraints
     except Exception:  # noqa: BLE001 - evidence parsing must still validate.
         return source_type
     markers_by_type = getattr(constraints, "source_type_markers", {})

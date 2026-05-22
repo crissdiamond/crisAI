@@ -9,16 +9,28 @@ from __future__ import annotations
 import io
 import os
 import sys
-from collections.abc import Callable, Mapping
-from contextlib import redirect_stderr, redirect_stdout
-from contextvars import ContextVar, Token
-from importlib.metadata import PackageNotFoundError, version
+import collections.abc
+import contextlib
+import contextvars
+import importlib.metadata
+import agents
 
-from agents import Runner
+from crisai import logging_utils as logging_utils_module
+from crisai.cli import display as display_module
 
-from crisai.logging_utils import get_logger
-
-from .display import AgentDisplayManager, print_agent_output, sanitize_user_visible_text
+Callable = collections.abc.Callable
+Mapping = collections.abc.Mapping
+redirect_stderr = contextlib.redirect_stderr
+redirect_stdout = contextlib.redirect_stdout
+ContextVar = contextvars.ContextVar
+Token = contextvars.Token
+PackageNotFoundError = importlib.metadata.PackageNotFoundError
+version = importlib.metadata.version
+Runner = agents.Runner
+get_logger = logging_utils_module.get_logger
+AgentDisplayManager = display_module.AgentDisplayManager
+print_agent_output = display_module.print_agent_output
+sanitize_user_visible_text = display_module.sanitize_user_visible_text
 
 __all__ = [
     "_DEFAULT_AGENT_MAX_TURNS",

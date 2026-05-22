@@ -1,37 +1,58 @@
 from __future__ import annotations
 
+import dataclasses
+import functools
+import pathlib
 import re
-from dataclasses import dataclass
-from functools import lru_cache
-from pathlib import Path
+from typing import Any
 
-from crisai.orchestration.peer_contract import PeerRunContract
-from crisai.orchestration.semantic_catalog import load_semantic_catalog
-from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
+from crisai.orchestration import peer_contract as peer_contract_module
+from crisai.orchestration import semantic_catalog as catalog_module
+from crisai.workspace import artefact_validation as validation_module
 
 _WORKSPACE_FILE_PATTERN = re.compile(r"(workspace/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)")
 
 
-@lru_cache(maxsize=1)
+@functools.lru_cache(maxsize=1)
 def _pattern_gap_line_regex() -> re.Pattern[str]:
-    pattern = load_semantic_catalog().peer_verifier.pattern_gap_line
+    """Return the regex pattern for parsing retrieval gap lines.
+
+    Returns:
+        A compiled regex pattern.
+    """
+    pattern = catalog_module.load_semantic_catalog().peer_verifier.pattern_gap_line
     return re.compile(pattern, re.IGNORECASE)
 
 
-@lru_cache(maxsize=1)
+@functools.lru_cache(maxsize=1)
 def _leaf_file_pattern_regex() -> re.Pattern[str]:
-    pattern = load_semantic_catalog().peer_verifier.leaf_file_pattern
+    """Return the regex pattern for matching leaf file names.
+
+    Returns:
+        A compiled regex pattern.
+    """
+    pattern = catalog_module.load_semantic_catalog().peer_verifier.leaf_file_pattern
     return re.compile(pattern, re.IGNORECASE)
 
 
-@lru_cache(maxsize=1)
+@functools.lru_cache(maxsize=1)
 def _leaf_file_terms() -> frozenset[str]:
-    return load_semantic_catalog().peer_verifier.leaf_file_terms
+    """Return the configured set of terms indicating leaf files.
+
+    Returns:
+        A frozenset of term strings.
+    """
+    return catalog_module.load_semantic_catalog().peer_verifier.leaf_file_terms
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class PeerVerificationResult:
-    """Structured verifier output for peer final deliverables."""
+    """Structured verifier output for peer final deliverables.
+
+    Attributes:
+        checked_files: A tuple of checked files.
+        violations: A tuple of verification violations.
+    """
 
     checked_files: tuple[str, ...]
     violations: tuple[str, ...]
@@ -42,7 +63,14 @@ class PeerVerificationViolation(RuntimeError):
 
 
 def _extract_workspace_file_paths(text: str) -> list[str]:
-    """Return deduplicated workspace-relative file paths mentioned in text."""
+    """Return deduplicated workspace-relative file paths mentioned in text.
+
+    Args:
+        text: The input text to parse.
+
+    Returns:
+        A list of unique workspace-relative file paths found in the text.
+    """
     seen: set[str] = set()
     ordered: list[str] = []
     for match in _WORKSPACE_FILE_PATTERN.findall(text or ""):
@@ -54,7 +82,15 @@ def _extract_workspace_file_paths(text: str) -> list[str]:
     return ordered
 
 
-def _read_text(path: Path) -> str:
+def _read_text(path: pathlib.Path) -> str:
+    """Read UTF-8 text from path, catching any errors.
+
+    Args:
+        path: Path to read from.
+
+    Returns:
+        Content string, or empty string on error.
+    """
     try:
         return path.read_text(encoding="utf-8")
     except Exception:
@@ -62,6 +98,14 @@ def _read_text(path: Path) -> str:
 
 
 def _is_placeholder_leaf_content(markdown_text: str) -> bool:
+    """Check if the markdown text contains placeholder content.
+
+    Args:
+        markdown_text: The markdown text to check.
+
+    Returns:
+        True if the text contains placeholder markers, False otherwise.
+    """
     lower = (markdown_text or "").lower()
     if "[grounded details to be added" in lower:
         return True
@@ -71,6 +115,14 @@ def _is_placeholder_leaf_content(markdown_text: str) -> bool:
 
 
 def _has_grounded_leaf_content(markdown_text: str) -> bool:
+    """Check if the leaf file has grounded detail fields.
+
+    Args:
+        markdown_text: The markdown text to check.
+
+    Returns:
+        True if grounded details are present and no placeholders, False otherwise.
+    """
     if "## Design overview" not in markdown_text:
         return False
     if _is_placeholder_leaf_content(markdown_text):
@@ -88,6 +140,14 @@ def _has_grounded_leaf_content(markdown_text: str) -> bool:
 
 
 def _markdown_front_matter_id(markdown_text: str) -> str | None:
+    """Extract front-matter id from markdown text.
+
+    Args:
+        markdown_text: The markdown text to check.
+
+    Returns:
+        The extracted ID as a string, or None.
+    """
     if not markdown_text.startswith("---"):
         return None
     marker = "\n---"
@@ -103,6 +163,14 @@ def _markdown_front_matter_id(markdown_text: str) -> str | None:
 
 
 def _extract_gap_patterns(markdown_text: str) -> set[str]:
+    """Extract gap pattern names from markdown text.
+
+    Args:
+        markdown_text: The gaps markdown content.
+
+    Returns:
+        A set of gap pattern name strings.
+    """
     patterns: set[str] = set()
     in_gaps_section = False
     for raw_line in (markdown_text or "").splitlines():
@@ -122,6 +190,14 @@ def _extract_gap_patterns(markdown_text: str) -> set[str]:
 
 
 def _pattern_name_from_leaf_path(rel_path: str) -> str | None:
+    """Retrieve pattern name from relative leaf path.
+
+    Args:
+        rel_path: Relative file path.
+
+    Returns:
+        Pattern name string or None if mismatch.
+    """
     match = _leaf_file_pattern_regex().search(rel_path)
     if not match:
         return None
@@ -131,21 +207,35 @@ def _pattern_name_from_leaf_path(rel_path: str) -> str | None:
 
 
 def _is_semantic_leaf_file(rel_path: str) -> bool:
-    """Return whether a file path matches configured leaf-file semantics."""
+    """Return whether a file path matches configured leaf-file semantics.
+
+    Args:
+        rel_path: The workspace-relative path of the file.
+
+    Returns:
+        True if the file matches leaf file semantics, False otherwise.
+    """
     if _leaf_file_pattern_regex().search(rel_path):
         return True
     terms = _leaf_file_terms()
     if not terms:
         return False
     # Match against filename in a separator-normalized form.
-    name = Path(rel_path).name.lower()
+    name = pathlib.Path(rel_path).name.lower()
     normalized = " ".join(name.replace("-", " ").replace("_", " ").split())
     return any(term in normalized for term in terms)
 
 
 def _requires_source_section(rel_path: str) -> bool:
-    """Return whether a markdown artefact must include a `## Source` section."""
-    name = Path(rel_path).name.lower()
+    """Return whether a markdown artefact must include a `## Source` section.
+
+    Args:
+        rel_path: The workspace-relative path of the file.
+
+    Returns:
+        True if a source section is required, False otherwise.
+    """
+    name = pathlib.Path(rel_path).name.lower()
     if "retrieval-gap" in name or "retrieval-gaps" in name:
         return False
     return _is_semantic_leaf_file(rel_path) or "index" in name
@@ -153,11 +243,11 @@ def _requires_source_section(rel_path: str) -> bool:
 
 def verify_peer_final_deliverable(
     *,
-    root_dir: Path,
-    contract: PeerRunContract,
+    root_dir: pathlib.Path,
+    contract: peer_contract_module.PeerRunContract,
     final_text: str,
     changed_paths: list[str],
-    registry_dir: Path | None = None,
+    registry_dir: pathlib.Path | None = None,
 ) -> PeerVerificationResult:
     """Verify peer final output claims against on-disk artefacts.
 
@@ -175,6 +265,9 @@ def verify_peer_final_deliverable(
         changed_paths: Markdown/text paths changed during the run (typically
             workspace-relative with forward slashes).
         registry_dir: Optional explicit registry directory for artefact profiles.
+
+    Returns:
+        A PeerVerificationResult containing checked files and any violations.
     """
     violations: list[str] = []
     mentioned_files = _extract_workspace_file_paths(final_text)
@@ -199,7 +292,7 @@ def verify_peer_final_deliverable(
         {
             path
             for path in (changed_paths or [])
-            if path.startswith("workspace/") and Path(path).suffix.lower() in {".md", ".txt"}
+            if path.startswith("workspace/") and pathlib.Path(path).suffix.lower() in {".md", ".txt"}
         }
     )
     if existing_files and normalized_changed:
@@ -254,7 +347,7 @@ def verify_peer_final_deliverable(
     # if a pattern is marked as missing grounded content in a gaps file, its
     # leaf file must not carry grounded detail content; conversely if the leaf
     # file is placeholder/stub, it should appear in retrieval gaps.
-    gap_files = [p for p in markdown_files if "retrieval-gaps" in Path(p).name]
+    gap_files = [p for p in markdown_files if "retrieval-gaps" in pathlib.Path(p).name]
     leaf_files = [p for p in markdown_files if _is_semantic_leaf_file(p)]
     if gap_files and leaf_files:
         gap_patterns: set[str] = set()
@@ -280,7 +373,7 @@ def verify_peer_final_deliverable(
                     "is not listed in retrieval gaps."
                 )
 
-    artefact_check = validate_workspace_artefact_paths(
+    artefact_check = validation_module.validate_workspace_artefact_paths(
         root_dir=root_dir,
         relative_paths=normalized_changed,
         registry_dir=registry_dir,
@@ -295,13 +388,27 @@ def verify_peer_final_deliverable(
 
 def enforce_peer_final_deliverable_verification(
     *,
-    root_dir: Path,
-    contract: PeerRunContract,
+    root_dir: pathlib.Path,
+    contract: peer_contract_module.PeerRunContract,
     final_text: str,
     changed_paths: list[str],
-    registry_dir: Path | None = None,
+    registry_dir: pathlib.Path | None = None,
 ) -> PeerVerificationResult:
-    """Raise when peer final output fails post-run filesystem verification."""
+    """Raise when peer final output fails post-run filesystem verification.
+
+    Args:
+        root_dir: Repository root containing ``workspace/`` and ``registry/``.
+        contract: Derived peer-run contract hints.
+        final_text: Final orchestrator prose that may cite workspace paths.
+        changed_paths: Markdown/text paths changed during the run.
+        registry_dir: Optional explicit registry directory.
+
+    Returns:
+        A PeerVerificationResult if validation succeeds.
+
+    Raises:
+        PeerVerificationViolation: If there are verification violations.
+    """
     result = verify_peer_final_deliverable(
         root_dir=root_dir,
         contract=contract,

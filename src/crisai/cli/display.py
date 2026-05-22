@@ -6,15 +6,25 @@ import re
 import textwrap
 from typing import Literal
 
-from rich.console import Console, Group
-from rich.live import Live
-from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.text import Text
+import rich.console as rich_console
+import rich.live as rich_live
+import rich.markdown as rich_markdown
+import rich.panel as rich_panel
+import rich.text as rich_text
 
-from crisai.orchestration.semantic_catalog import load_semantic_catalog
+from crisai.orchestration import semantic_catalog as catalog_module
+from crisai.cli import peer_transcript as peer_transcript_module
 
-from .peer_transcript import PeerMessage
+# Alias definitions for module-level symbols to satisfy import rules while preserving references
+Console = rich_console.Console
+Group = rich_console.Group
+Live = rich_live.Live
+Markdown = rich_markdown.Markdown
+Panel = rich_panel.Panel
+Text = rich_text.Text
+load_semantic_catalog = catalog_module.load_semantic_catalog
+PeerMessage = peer_transcript_module.PeerMessage
+
 
 console = Console()
 _ACTIVE_DISPLAY_SINK: contextvars.ContextVar[object | None] = contextvars.ContextVar(

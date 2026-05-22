@@ -6,18 +6,15 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from .evidence_contract import EvidenceBundle, EvidenceItem
-from .source_constraints import (
-    SourceFitConstraints,
-    evidence_item_satisfies_constraints,
-)
+from crisai.orchestration import evidence_contract as evidence_module
+from crisai.orchestration import source_constraints as constraints_module
 
 
 @dataclass(frozen=True, slots=True)
 class SourceCandidate:
     """Comparable source candidate extracted from an evidence bundle."""
 
-    item: EvidenceItem
+    item: evidence_module.EvidenceItem
     title: str
     modified_at: datetime | None
     version: int | None
@@ -32,8 +29,8 @@ class SourceCandidate:
 
 def latest_source_conflict_message(
     message: str,
-    bundle: EvidenceBundle,
-    constraints: SourceFitConstraints,
+    bundle: evidence_module.EvidenceBundle,
+    constraints: constraints_module.SourceFitConstraints,
 ) -> str | None:
     """Return a clarification message when latest/master signals conflict."""
     if not _asks_for_latest_or_master(message):
@@ -74,10 +71,10 @@ def _asks_for_latest_or_master(message: str) -> bool:
     return any(marker in text for marker in markers)
 
 
-def _candidate_items(bundle: EvidenceBundle, constraints: SourceFitConstraints) -> list[SourceCandidate]:
+def _candidate_items(bundle: evidence_module.EvidenceBundle, constraints: constraints_module.SourceFitConstraints) -> list[SourceCandidate]:
     candidates: list[SourceCandidate] = []
     for item in bundle.items:
-        if constraints.is_active and not evidence_item_satisfies_constraints(item, constraints):
+        if constraints.is_active and not constraints_module.evidence_item_satisfies_constraints(item, constraints):
             continue
         title = item.source.title.strip()
         if not title:
@@ -94,7 +91,7 @@ def _candidate_items(bundle: EvidenceBundle, constraints: SourceFitConstraints) 
     return candidates
 
 
-def _item_modified_at(item: EvidenceItem) -> datetime | None:
+def _item_modified_at(item: evidence_module.EvidenceItem) -> datetime | None:
     metadata = item.source.metadata
     for key in ("lastModifiedDateTime", "modifiedDateTime", "modified_at", "last_modified", "createdDateTime"):
         raw = metadata.get(key)

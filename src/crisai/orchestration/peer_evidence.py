@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from crisai.cli.workflow_policy import FileSnapshot, changed_paths, snapshot_tree
+from crisai.cli import workflow_policy
 
 
 def _build_peer_filesystem_evidence(
     *,
     root_dir: Path,
-    before_snapshot: dict[str, FileSnapshot],
+    before_snapshot: dict[str, workflow_policy.FileSnapshot],
     target_subdir: str | None,
     max_files: int = 20,
 ) -> str:
@@ -66,8 +66,8 @@ def _build_peer_filesystem_evidence(
                 break
         return candidates[:max_lines]
 
-    after_snapshot = snapshot_tree(root_dir, target_subdir)
-    changed = changed_paths(before_snapshot, after_snapshot)
+    after_snapshot = workflow_policy.snapshot_tree(root_dir, target_subdir)
+    changed = workflow_policy.changed_paths(before_snapshot, after_snapshot)
     changed_md = [
         p
         for p in changed

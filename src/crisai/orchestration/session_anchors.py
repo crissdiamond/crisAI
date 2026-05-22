@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .semantic_catalog import SemanticCatalog, load_semantic_catalog
+from crisai.orchestration import semantic_catalog as catalog_module
 
 
 @dataclass(frozen=True, slots=True)
@@ -355,7 +355,7 @@ def render_resolved_anchor_references(references: tuple[AnchorReference, ...]) -
 def _extract_table_anchors(
     markdown: str,
     *,
-    catalog: SemanticCatalog,
+    catalog: catalog_module.SemanticCatalog,
     source_turn: int,
 ) -> list[SessionAnchor]:
     anchors: list[SessionAnchor] = []
@@ -379,7 +379,7 @@ def _anchors_from_table(
     headers: list[str],
     rows: list[list[str]],
     *,
-    catalog: SemanticCatalog,
+    catalog: catalog_module.SemanticCatalog,
     source_turn: int,
 ) -> list[SessionAnchor]:
     anchors: list[SessionAnchor] = []
@@ -415,7 +415,7 @@ def _anchors_from_table(
 def _extract_heading_anchors(
     markdown: str,
     *,
-    catalog: SemanticCatalog,
+    catalog: catalog_module.SemanticCatalog,
     source_turn: int,
 ) -> list[SessionAnchor]:
     anchors: list[SessionAnchor] = []
@@ -453,7 +453,7 @@ def _extract_heading_anchors(
     return anchors
 
 
-def _table_kind_and_title_index(headers: list[str], catalog: SemanticCatalog) -> tuple[str, int | None]:
+def _table_kind_and_title_index(headers: list[str], catalog: catalog_module.SemanticCatalog) -> tuple[str, int | None]:
     lowered = [header.lower() for header in headers]
     for kind, terms in catalog.session_anchors.kinds.items():
         for idx, header in enumerate(lowered):
@@ -477,7 +477,7 @@ def _find_anchor_by_kind_and_order(anchors: tuple[SessionAnchor, ...], kind: str
     return None
 
 
-def _contains_preferred_marker(text: str, catalog: SemanticCatalog) -> bool:
+def _contains_preferred_marker(text: str, catalog: catalog_module.SemanticCatalog) -> bool:
     return any(marker in text for marker in catalog.session_anchors.preferred_markers)
 
 
@@ -602,5 +602,5 @@ def _optional_int(value: Any) -> int | None:
         return None
 
 
-def _load_catalog(registry_dir: Path | None) -> SemanticCatalog:
-    return load_semantic_catalog(str(registry_dir) if registry_dir is not None else None)
+def _load_catalog(registry_dir: Path | None) -> catalog_module.SemanticCatalog:
+    return catalog_module.load_semantic_catalog(str(registry_dir) if registry_dir is not None else None)

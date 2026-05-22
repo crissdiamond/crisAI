@@ -9,37 +9,44 @@ from typing import Any, cast
 
 import yaml
 
-from crisai.cli.display import sanitize_user_visible_text
-from crisai.cli.session_store import (
-    HistoryEntry,
-    SessionMemory,
-    load_session_anchors,
-    load_session_memory,
-    sanitize_session_name,
-    save_session_anchors,
-    save_session_memory,
-)
-from crisai.cli.text_loader import render_cli_text
-from crisai.config import load_settings
-from crisai.orchestration.retrieval_association_graph import (
-    collect_graph_emits,
-    deterministic_context_from_registry,
-    expand_retrieval_hints,
-    load_retrieval_association_graph,
-)
-from crisai.orchestration.semantic_catalog import (
-    LexiconTerms,
-    SessionMemoryTerms,
-    load_semantic_catalog,
-)
-from crisai.orchestration.session_anchors import (
-    SessionSourceCandidate,
-    extract_session_anchors_from_history,
-    render_anchor_registry,
-    render_resolved_anchor_references,
-    resolve_anchor_references,
-)
-from crisai.workspace.spaces import load_workspace_spaces
+from crisai.cli import display as display_module
+from crisai.cli import session_store as session_store_module
+from crisai.cli import text_loader as text_loader_module
+from crisai import config as config_module
+from crisai.orchestration import retrieval_association_graph as graph_module
+from crisai.orchestration import semantic_catalog as catalog_module
+from crisai.orchestration import session_anchors as anchors_module
+from crisai.workspace import spaces as spaces_module
+
+sanitize_user_visible_text = display_module.sanitize_user_visible_text
+
+HistoryEntry = session_store_module.HistoryEntry
+SessionMemory = session_store_module.SessionMemory
+load_session_anchors = session_store_module.load_session_anchors
+load_session_memory = session_store_module.load_session_memory
+sanitize_session_name = session_store_module.sanitize_session_name
+save_session_anchors = session_store_module.save_session_anchors
+save_session_memory = session_store_module.save_session_memory
+
+render_cli_text = text_loader_module.render_cli_text
+load_settings = config_module.load_settings
+
+collect_graph_emits = graph_module.collect_graph_emits
+deterministic_context_from_registry = graph_module.deterministic_context_from_registry
+expand_retrieval_hints = graph_module.expand_retrieval_hints
+load_retrieval_association_graph = graph_module.load_retrieval_association_graph
+
+LexiconTerms = catalog_module.LexiconTerms
+SessionMemoryTerms = catalog_module.SessionMemoryTerms
+load_semantic_catalog = catalog_module.load_semantic_catalog
+
+SessionSourceCandidate = anchors_module.SessionSourceCandidate
+extract_session_anchors_from_history = anchors_module.extract_session_anchors_from_history
+render_anchor_registry = anchors_module.render_anchor_registry
+render_resolved_anchor_references = anchors_module.render_resolved_anchor_references
+resolve_anchor_references = anchors_module.resolve_anchor_references
+
+load_workspace_spaces = spaces_module.load_workspace_spaces
 
 _DEFAULT_CONFIG = {
     "strategy": "deterministic",
@@ -392,9 +399,7 @@ def recall_session_memory(
 
 def load_history_for_recall(session_name: str) -> list[HistoryEntry]:
     """Load history lazily to keep recall test seams simple."""
-    from crisai.cli.session_store import load_history
-
-    return load_history(session_name)
+    return session_store_module.load_history(session_name)
 
 
 def build_session_context_package(

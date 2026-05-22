@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .request_contract import RequestContract, infer_request_contract
-from .retrieval_association_graph import deterministic_context_from_registry
-from .semantic_catalog import load_semantic_catalog
+from crisai.orchestration import request_contract as request_module
+from crisai.orchestration import retrieval_association_graph as graph_module
+from crisai.orchestration import semantic_catalog as catalog_module
 
 
 @dataclass
@@ -24,26 +24,65 @@ _LEGACY_AGENT_ALIASES = {"discovery": "retrieval_planner"}
 
 
 def _normalize_explicit_agent(agent_id: str | None) -> str | None:
+    """Normalizes the explicit agent ID, translating legacy names.
+
+    Args:
+        agent_id: The logical identifier of the agent, or None.
+
+    Returns:
+        The normalized agent identifier, or None.
+    """
     if agent_id is None:
         return None
     return _LEGACY_AGENT_ALIASES.get(agent_id, agent_id)
 
 
 def normalize_agent_id(agent_id: str | None) -> str | None:
-    """Return the registry agent id, mapping legacy ids (e.g. ``discovery``)."""
+    """Returns the registry agent id, mapping legacy IDs.
+
+    Args:
+        agent_id: The logical agent identifier, or None.
+
+    Returns:
+        The normalized registry agent identifier, or None.
+    """
     return _normalize_explicit_agent(agent_id)
 
 
 def _normalise(text: str) -> str:
+    """Normalizes input text by folding case, stripping, and collapsing spaces.
+
+    Args:
+        text: The raw input string.
+
+    Returns:
+        The normalized whitespace-collapsed lowercase string.
+    """
     return " ".join(text.lower().strip().split())
 
 
 def _contains_any(text: str, phrases: frozenset[str]) -> bool:
+    """Checks if any of the specified phrases are present in the text.
+
+    Args:
+        text: The string to search within.
+        phrases: A set of substring phrases to check.
+
+    Returns:
+        True if at least one phrase is found in the text, otherwise False.
+    """
     return any(phrase in text for phrase in phrases)
 
 
 def _is_native_document_export(text: str) -> bool:
-    """Return whether a request asks to export an existing artefact to a native file."""
+    """Returns whether a request asks to export an existing artefact to a native file.
+
+    Args:
+        text: The normalized query text.
+
+    Returns:
+        True if the request indicates a native document export request.
+    """
     markers = load_semantic_catalog().peer_contract
     return (
         _contains_any(text, markers.document_export_native_markers)
@@ -52,7 +91,15 @@ def _is_native_document_export(text: str) -> bool:
 
 
 def _deterministic_source_nudge(text: str, registry_dir: Path | None) -> bool:
-    """Return whether deterministic graph expansion points to a retrieval source."""
+    """Returns whether deterministic graph expansion points to a retrieval source.
+
+    Args:
+        text: The normalized query text.
+        registry_dir: The directory containing the registry configurations.
+
+    Returns:
+        True if the deterministic association graph indicates retrieval is required.
+    """
     if registry_dir is None:
         return False
     context, graph_loaded = deterministic_context_from_registry(text, registry_dir)
@@ -61,7 +108,16 @@ def _deterministic_source_nudge(text: str, registry_dir: Path | None) -> bool:
     return bool({"intranet", "sharepoint_docs", "workspace"} & set(context.suggested_sources))
 
 
-def _route_from_contract(contract: RequestContract, review_enabled: bool) -> RoutingDecision:
+def _route_from_contract(contract: request_module.RequestContract, review_enabled: bool) -> RoutingDecision:
+    """Infers the routing decision based on the request contract hints.
+
+    Args:
+        contract: The parsed request contract structure.
+        review_enabled: Whether peer/pipeline review features are enabled.
+
+    Returns:
+        The RoutingDecision containing intent, mode, agent, and flags.
+    """
     if contract.has_hint("retrieval_only"):
         return RoutingDecision(
             intent="discovery",
@@ -276,7 +332,15 @@ def _route_from_contract(contract: RequestContract, review_enabled: bool) -> Rou
     )
 
 
-def _single_agent_for_contract(contract: RequestContract) -> str:
+def _single_agent_for_contract(contract: request_module.RequestContract) -> str:
+    """Determines the single fallback agent based on request contract hints.
+
+    Args:
+        contract: The parsed request contract structure.
+
+    Returns:
+        The logical string identifier of the chosen agent.
+    """
     if contract.has_hint("native_document_export"):
         return "document_formatter"
     if contract.source_required or contract.has_hint("source_lookup"):
@@ -295,6 +359,16 @@ def _single_agent_for_contract(contract: RequestContract) -> str:
 
 
 def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | None = None) -> RoutingDecision:
+    """Infers the routing decision automatically from the raw user query text.
+
+    Args:
+        text: The normalized query string.
+        review_enabled: Whether peer/pipeline review features are enabled.
+        registry_dir: Optional path to the registry configurations.
+
+    Returns:
+        The inferred RoutingDecision.
+    """
     try:
         catalog = load_semantic_catalog(str(registry_dir)) if registry_dir is not None else load_semantic_catalog()
     except TypeError:
@@ -304,7 +378,7 @@ def _infer_auto_route(text: str, review_enabled: bool, *, registry_dir: Path | N
         context, graph_loaded = deterministic_context_from_registry(text, registry_dir)
         deterministic_context = context if graph_loaded else None
     deterministic_nudge = _deterministic_source_nudge(text, registry_dir)
-    contract = infer_request_contract(
+    contract = request_module.infer_request_contract(
         text,
         registry_dir=registry_dir,
         catalog=catalog,
@@ -327,6 +401,17 @@ def _apply_explicit_overrides(
     selected_agent: str | None,
     review_enabled: bool,
 ) -> RoutingDecision:
+    """Applies user-specified overrides (agent/mode) to a base RoutingDecision.
+
+    Args:
+        base: The automatically inferred RoutingDecision.
+        current_mode: The workflow mode explicitly requested by the user, if any.
+        selected_agent: The agent ID explicitly requested by the user, if any.
+        review_enabled: Whether review features are enabled.
+
+    Returns:
+        The modified RoutingDecision reflecting the overrides.
+    """
     if selected_agent is not None:
         return RoutingDecision(
             intent="explicit",
@@ -381,6 +466,18 @@ def decide_route(
     selected_agent: str | None = None,
     registry_dir: Path | None = None,
 ) -> RoutingDecision:
+    """Determines the final routing decision for a given user input.
+
+    Args:
+        user_input: The raw prompt text from the user.
+        review_enabled: Whether peer/pipeline review features are enabled.
+        current_mode: The workflow mode explicitly requested by the user, if any.
+        selected_agent: The agent ID explicitly requested by the user, if any.
+        registry_dir: Optional path to the registry configurations.
+
+    Returns:
+        The final RoutingDecision to execute the request.
+    """
     text = _normalise(user_input)
     base = _infer_auto_route(text, review_enabled=review_enabled, registry_dir=registry_dir)
     return _apply_explicit_overrides(
@@ -389,3 +486,10 @@ def decide_route(
         selected_agent=_normalize_explicit_agent(selected_agent),
         review_enabled=review_enabled,
     )
+
+
+# Expose loaded functions at module level for compatibility with unit test monkeypatching
+load_semantic_catalog = catalog_module.load_semantic_catalog
+deterministic_context_from_registry = graph_module.deterministic_context_from_registry
+
+

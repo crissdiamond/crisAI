@@ -8,20 +8,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .retrieval_association_graph import (
-    DeterministicRetrievalContext,
-    deterministic_context_from_registry,
-)
-from .semantic_catalog import SemanticCatalog, load_semantic_catalog
-from .session_anchors import (
-    AnchorReference,
-    AnchorRegistry,
-    ResolvedSourceReference,
-    SessionSourceCandidate,
-    resolve_anchor_references,
-    resolve_session_sources,
-)
-from .task_contract import TaskContract, infer_task_contract
+from crisai.orchestration import retrieval_association_graph as graph_module
+from crisai.orchestration import semantic_catalog as catalog_module
+from crisai.orchestration import session_anchors as anchors_module
+from crisai.orchestration import task_contract as task_module
 
 _WORKSPACE_PATH_RE = re.compile(r"`?(workspace/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`?")
 _SOURCE_NAME_RE = re.compile(
@@ -37,7 +27,7 @@ class RequestContract:
 
     schema_version: str
     workflow_preference: str
-    task_contract: TaskContract
+    task_contract: task_module.TaskContract
     source_required: bool
     source_families: tuple[str, ...] = field(default_factory=tuple)
     named_sources: tuple[str, ...] = field(default_factory=tuple)
@@ -47,8 +37,8 @@ class RequestContract:
     actions: tuple[str, ...] = field(default_factory=tuple)
     quality_gates: tuple[str, ...] = field(default_factory=tuple)
     route_hints: tuple[str, ...] = field(default_factory=tuple)
-    referenced_anchors: tuple[AnchorReference, ...] = field(default_factory=tuple)
-    resolved_sources: tuple[ResolvedSourceReference, ...] = field(default_factory=tuple)
+    referenced_anchors: tuple[anchors_module.AnchorReference, ...] = field(default_factory=tuple)
+    resolved_sources: tuple[anchors_module.ResolvedSourceReference, ...] = field(default_factory=tuple)
 
     @property
     def primary_intent(self) -> str:
@@ -98,20 +88,20 @@ def infer_request_contract(
     *,
     current_mode: str | None = None,
     registry_dir: Path | None = None,
-    catalog: SemanticCatalog | None = None,
-    deterministic_context: DeterministicRetrievalContext | None = None,
-    anchor_registry: AnchorRegistry | None = None,
-    source_candidates: tuple[SessionSourceCandidate, ...] = (),
+    catalog: catalog_module.SemanticCatalog | None = None,
+    deterministic_context: graph_module.DeterministicRetrievalContext | None = None,
+    anchor_registry: anchors_module.AnchorRegistry | None = None,
+    source_candidates: tuple[anchors_module.SessionSourceCandidate, ...] = (),
 ) -> RequestContract:
     """Infer an execution contract by combining task, source, output, and mode facts."""
     catalog = catalog or _load_catalog(registry_dir)
-    task_contract = infer_task_contract(message, registry_dir=registry_dir)
+    task_contract = task_module.infer_task_contract(message, registry_dir=registry_dir)
     text = _normalise(message)
     deterministic_context = deterministic_context or _deterministic_context(message, registry_dir)
 
     source_families = _source_families(text, catalog, deterministic_context)
     named_sources = _named_sources(message)
-    resolved_sources = resolve_session_sources(
+    resolved_sources = anchors_module.resolve_session_sources(
         message,
         source_candidates,
         registry_dir=registry_dir,
@@ -154,7 +144,7 @@ def infer_request_contract(
         source_families=source_families,
     )
     referenced_anchors = (
-        resolve_anchor_references(message, anchor_registry, registry_dir=registry_dir)
+        anchors_module.resolve_anchor_references(message, anchor_registry, registry_dir=registry_dir)
         if anchor_registry is not None
         else ()
     )
@@ -215,7 +205,7 @@ def render_request_contract_brief(
 
 def _merge_source_families(
     source_families: tuple[str, ...],
-    resolved_sources: tuple[ResolvedSourceReference, ...],
+    resolved_sources: tuple[anchors_module.ResolvedSourceReference, ...],
 ) -> tuple[str, ...]:
     families = list(source_families)
     for reference in resolved_sources:
@@ -228,7 +218,7 @@ def _merge_source_families(
 
 def _merge_named_sources(
     named_sources: tuple[str, ...],
-    resolved_sources: tuple[ResolvedSourceReference, ...],
+    resolved_sources: tuple[anchors_module.ResolvedSourceReference, ...],
 ) -> tuple[str, ...]:
     names = list(named_sources)
     for reference in resolved_sources:
@@ -238,16 +228,16 @@ def _merge_named_sources(
     return tuple(names)
 
 
-def _load_catalog(registry_dir: Path | None) -> SemanticCatalog:
+def _load_catalog(registry_dir: Path | None) -> catalog_module.SemanticCatalog:
     if registry_dir is None:
-        return load_semantic_catalog()
-    return load_semantic_catalog(str(registry_dir))
+        return catalog_module.load_semantic_catalog()
+    return catalog_module.load_semantic_catalog(str(registry_dir))
 
 
-def _deterministic_context(message: str, registry_dir: Path | None) -> DeterministicRetrievalContext | None:
+def _deterministic_context(message: str, registry_dir: Path | None) -> graph_module.DeterministicRetrievalContext | None:
     if registry_dir is None:
         return None
-    context, graph_loaded = deterministic_context_from_registry(message, registry_dir)
+    context, graph_loaded = graph_module.deterministic_context_from_registry(message, registry_dir)
     return context if graph_loaded else None
 
 
@@ -263,7 +253,7 @@ def _score_terms(text: str, terms: frozenset[str]) -> int:
     return sum(1 for term in terms if term in text)
 
 
-def _explicit_workflow_preference(message: str, catalog: SemanticCatalog) -> str | None:
+def _explicit_workflow_preference(message: str, catalog: catalog_module.SemanticCatalog) -> str | None:
     normalized = _normalise(message)
     interaction = getattr(catalog, "interaction", None)
     explicit_modes = getattr(interaction, "explicit_mode_patterns", {}) if interaction is not None else {}
@@ -273,7 +263,7 @@ def _explicit_workflow_preference(message: str, catalog: SemanticCatalog) -> str
     return None
 
 
-def _requires_retrieval_by_pattern(message: str, catalog: SemanticCatalog) -> bool:
+def _requires_retrieval_by_pattern(message: str, catalog: catalog_module.SemanticCatalog) -> bool:
     normalized = _normalise(message)
     interaction = getattr(catalog, "interaction", None)
     patterns = getattr(interaction, "retrieval_required_patterns", ()) if interaction is not None else ()
@@ -282,8 +272,8 @@ def _requires_retrieval_by_pattern(message: str, catalog: SemanticCatalog) -> bo
 
 def _source_families(
     text: str,
-    catalog: SemanticCatalog,
-    deterministic_context: DeterministicRetrievalContext | None,
+    catalog: catalog_module.SemanticCatalog,
+    deterministic_context: graph_module.DeterministicRetrievalContext | None,
 ) -> tuple[str, ...]:
     families: set[str] = set()
     if deterministic_context is not None and deterministic_context.is_active:
@@ -334,9 +324,9 @@ def _parent_subdir(path: str | None) -> str | None:
 
 def _route_hints(
     text: str,
-    catalog: SemanticCatalog,
+    catalog: catalog_module.SemanticCatalog,
     *,
-    task_contract: TaskContract,
+    task_contract: task_module.TaskContract,
     source_required: bool,
     output_path: str | None,
 ) -> tuple[str, ...]:
@@ -391,7 +381,7 @@ def _route_hints(
     return tuple(dict.fromkeys(hints))
 
 
-def _is_native_document_export(text: str, catalog: SemanticCatalog) -> bool:
+def _is_native_document_export(text: str, catalog: catalog_module.SemanticCatalog) -> bool:
     markers = getattr(catalog, "peer_contract", None)
     if markers is None:
         return False
@@ -406,7 +396,7 @@ def _actions(
     source_required: bool,
     output_path: str | None,
     route_hints: tuple[str, ...],
-    task_contract: TaskContract,
+    task_contract: task_module.TaskContract,
 ) -> tuple[str, ...]:
     actions: list[str] = []
     if source_required:

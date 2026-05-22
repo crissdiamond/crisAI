@@ -6,14 +6,9 @@ import os
 import re
 from typing import Any
 
-from crisai.orchestration.prompt_generation import (
-    build_judge_prompt,
-    build_judge_quality_gate_prompt,
-)
-from crisai.orchestration.retrieval_association_graph import (
-    DeterministicRetrievalContext,
-)
-from crisai.orchestration.semantic_catalog import load_semantic_catalog
+from crisai.orchestration import prompt_generation as prompt_module
+from crisai.orchestration import retrieval_association_graph as graph_module
+from crisai.orchestration import semantic_catalog as catalog_module
 
 _FINAL_RECOMMENDATION_PATTERNS = [
     r"(?:^|\n)(#+\s*Final recommendation\s*\n+.*)$",
@@ -26,6 +21,14 @@ _DEFAULT_PEER_MAX_ESCALATIONS = 1
 
 
 def _extract_final_recommendation(text: str) -> str:
+    """Extract final recommendation section from the text if present.
+
+    Args:
+        text: The raw output text.
+
+    Returns:
+        The extracted final recommendation or the original text.
+    """
     stripped = text.strip()
     for pattern in _FINAL_RECOMMENDATION_PATTERNS:
         match = re.search(pattern, stripped, flags=re.IGNORECASE | re.DOTALL)
@@ -37,12 +40,19 @@ def _extract_final_recommendation(text: str) -> str:
 
 
 def _parse_judge_decision(text: str) -> str:
-    """Parse judge output into ``accept``/``revise``/``rework``/``unknown``."""
+    """Parse judge output into ``accept``/``revise``/``rework``/``unknown``.
+
+    Args:
+        text: The raw judge output text.
+
+    Returns:
+        A string decision representing the parsed decision status.
+    """
     raw = (text or "").strip()
     if not raw:
         return "unknown"
     clean = raw.lower()
-    markers = load_semantic_catalog().peer_judge
+    markers = catalog_module.load_semantic_catalog().peer_judge
 
     # Strict contract-first parse:
     # first non-empty line should be "Decision: accept|revise|rework".
@@ -75,7 +85,15 @@ def _parse_judge_decision(text: str) -> str:
 
 
 def _judge_reason_excerpt(text: str, max_chars: int = 240) -> str:
-    """Return a compact reason excerpt from judge output."""
+    """Return a compact reason excerpt from judge output.
+
+    Args:
+        text: The raw judge output text.
+        max_chars: The maximum character length of the excerpt.
+
+    Returns:
+        A compact snippet string representing the reason.
+    """
     raw = (text or "").strip()
     if not raw:
         return ""
@@ -99,7 +117,11 @@ def _judge_reason_excerpt(text: str, max_chars: int = 240) -> str:
 
 
 def _resolve_peer_max_refinement_rounds() -> int:
-    """Return max extra refiner/judge rounds after the first judge pass."""
+    """Return max extra refiner/judge rounds after the first judge pass.
+
+    Returns:
+        The maximum refinement rounds as an integer.
+    """
     raw = os.getenv(
         "CRISAI_PEER_MAX_REFINEMENT_ROUNDS",
         str(_DEFAULT_PEER_MAX_REFINEMENT_ROUNDS),
@@ -112,7 +134,11 @@ def _resolve_peer_max_refinement_rounds() -> int:
 
 
 def _resolve_peer_max_escalations() -> int:
-    """Return max author/challenger escalation attempts after rework/revise loops."""
+    """Return max author/challenger escalation attempts after rework/revise loops.
+
+    Returns:
+        The maximum escalations as an integer.
+    """
     raw = os.getenv(
         "CRISAI_PEER_MAX_ESCALATIONS",
         str(_DEFAULT_PEER_MAX_ESCALATIONS),
@@ -131,17 +157,38 @@ def _trace_peer_flow_event(
     *,
     metadata: dict[str, Any] | None = None,
 ) -> None:
-    """Emit structured peer timeline events to the trace log."""
+    """Emit structured peer timeline events to the trace log.
+
+    Args:
+        workflow: The workflow object executing the pipeline.
+        stage: The stage name of the workflow.
+        content: The description or payload of the event.
+        metadata: Optional dictionary with extra metadata.
+    """
     tracer = getattr(workflow, "trace_event", None)
     if callable(tracer):
         tracer(stage, content, event_type="peer_timeline", metadata=metadata)
 
 
-def _build_prompt_with_contract(builder: Any, *args: Any, run_contract_text: str, **extra_kwargs: Any) -> str:
+def _build_prompt_with_contract(
+    builder: Any,
+    *args: Any,
+    run_contract_text: str,
+    **extra_kwargs: Any,
+) -> str:
     """Call prompt builders with optional run_contract support.
 
     Some tests monkeypatch legacy builder signatures that do not accept
     ``run_contract_text``. Fallback preserves compatibility.
+
+    Args:
+        builder: The prompt builder callable.
+        *args: Positional arguments for the builder.
+        run_contract_text: The run contract string to pass.
+        **extra_kwargs: Additional keyword arguments for the builder.
+
+    Returns:
+        The generated prompt string.
     """
     try:
         return builder(*args, run_contract_text=run_contract_text, **extra_kwargs)
@@ -162,13 +209,30 @@ async def _run_judge_with_acceptance_audit(
     quality_trace_label: str,
     run_contract_text: str = "",
     filesystem_evidence_text: str = "",
-    deterministic_context: DeterministicRetrievalContext | None = None,
+    deterministic_context: graph_module.DeterministicRetrievalContext | None = None,
     deterministic_advisory_enabled: bool = False,
 ) -> tuple[str, str]:
     """Run judge stage and validate accepts with a second-pass quality audit.
 
+    Args:
+        workflow: The workflow object executing the pipeline.
+        specs: Dictionary mapping stages to their agent/model specifications.
+        message: The current user message.
+        discovery_basis: The discovery foundation text.
+        challenger_text: The challenger prompt or output.
+        refiner_text: The refiner output.
+        verbose: Whether to print verbose output.
+        trace_label: Trace identifier for the first judge pass.
+        quality_trace_label: Trace identifier for the quality gate.
+        run_contract_text: The run contract context.
+        filesystem_evidence_text: Dynamic filesystem evidence.
+        deterministic_context: The canonical retrieval context.
+        deterministic_advisory_enabled: Whether deterministic advisory is enabled.
+
     Returns:
-        Tuple of (judge_text, parsed_decision).
+        A tuple containing:
+            - judge_text: The judge output.
+            - parsed_decision: The final resolved decision ("accept", "revise", "rework").
     """
     effective_refiner_text = refiner_text
     if filesystem_evidence_text.strip():
@@ -246,3 +310,10 @@ async def _run_judge_with_acceptance_audit(
         )
         return combined, quality_decision
     return judge_text, "accept"
+
+
+# Expose prompt builders at module level for compatibility with unit test monkeypatching
+build_judge_prompt = prompt_module.build_judge_prompt
+build_judge_quality_gate_prompt = prompt_module.build_judge_quality_gate_prompt
+
+

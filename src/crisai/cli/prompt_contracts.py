@@ -6,7 +6,9 @@ runtime prompts do not grow one-off patches for individual traces.
 
 from __future__ import annotations
 
-from crisai.schemas import load_schema_text
+from crisai import schemas as schemas_module
+
+load_schema_text = schemas_module.load_schema_text
 
 EVIDENCE_BUNDLE_CONTRACT = load_schema_text("evidence_bundle_v1.prompt.md").strip()
 

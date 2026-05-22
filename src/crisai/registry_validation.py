@@ -8,13 +8,11 @@ from typing import Any
 
 import yaml
 
-from crisai.agents.factory import AgentFactory
-from crisai.cli.prompt_contracts import PROMPT_CONTRACT_TOOL_REFERENCES
-from crisai.orchestration.retrieval_association_graph import (
-    load_retrieval_association_graph,
-)
-from crisai.orchestration.semantic_catalog import load_semantic_catalog
-from crisai.registry import Registry
+from crisai import registry as registry_module
+from crisai.agents import factory as factory_module
+from crisai.cli import prompt_contracts as prompt_contracts_module
+from crisai.orchestration import retrieval_association_graph as graph_module
+from crisai.orchestration import semantic_catalog as catalog_module
 
 _PLACEHOLDER_ENV_VALUES = {
     "your-openai-api-key",
@@ -131,7 +129,7 @@ def _validate_unique_ids(
 def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
     errors: list[DoctorIssue] = []
     warnings: list[DoctorIssue] = []
-    registry = Registry(registry_dir)
+    registry = registry_module.Registry(registry_dir)
 
     try:
         servers = registry.load_servers()
@@ -206,7 +204,7 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                 hint=f"Change `tools.allow` for server `{server.id}` in `registry/servers.yaml` to a YAML list.",
             ))
             continue
-        for tool_name in sorted(PROMPT_CONTRACT_TOOL_REFERENCES.get(server.id, frozenset())):
+        for tool_name in sorted(prompt_contracts_module.PROMPT_CONTRACT_TOOL_REFERENCES.get(server.id, frozenset())):
             if tool_name not in allowed_tools:
                 warnings.append(DoctorIssue(
                     message=(
@@ -294,8 +292,8 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
 
     catalog = None
     try:
-        load_semantic_catalog.cache_clear()
-        catalog = load_semantic_catalog(str(registry_dir))
+        catalog_module.load_semantic_catalog.cache_clear()
+        catalog = catalog_module.load_semantic_catalog(str(registry_dir))
     except Exception as exc:  # noqa: BLE001
         errors.append(DoctorIssue(
             message=f"semantic_catalog.yaml is invalid: {exc}",
@@ -303,7 +301,7 @@ def _validate_registry_files(registry_dir: Path) -> tuple[list[DoctorIssue], lis
         ))
 
     graph_path = registry_dir / "semantic_graph.yaml"
-    graph = load_retrieval_association_graph(registry_dir)
+    graph = graph_module.load_retrieval_association_graph(registry_dir)
     if graph is None:
         if not graph_path.is_file():
             errors.append(DoctorIssue(
@@ -420,7 +418,7 @@ def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[
     """Dry-build configured agent models without opening tools or calling APIs."""
     errors: list[DoctorIssue] = []
     warnings: list[DoctorIssue] = []
-    registry = Registry(registry_dir)
+    registry = registry_module.Registry(registry_dir)
     try:
         agents = registry.load_agents()
         models = registry.load_models()
@@ -431,7 +429,7 @@ def _validate_model_dry_build(root_dir: Path, registry_dir: Path) -> tuple[list[
         )], warnings
 
     try:
-        factory = AgentFactory(root_dir, model_specs=models)
+        factory = factory_module.AgentFactory(root_dir, model_specs=models)
     except Exception as exc:  # noqa: BLE001
         return [DoctorIssue(
             message=f"Could not initialise agent factory for model dry-build: {exc}",

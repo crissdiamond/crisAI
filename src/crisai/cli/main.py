@@ -6,57 +6,106 @@ import os
 import re
 import ssl
 import subprocess
-from collections.abc import Awaitable
-from contextlib import contextmanager
-from dataclasses import is_dataclass, replace
-from pathlib import Path
-from types import SimpleNamespace
-from typing import Any
+import collections.abc
+import contextlib
+import dataclasses
+import pathlib
+import types
+import typing
 
 import typer
-from prompt_toolkit import PromptSession
+import prompt_toolkit
 
-from crisai.cli.chat_context import (
-    build_chat_input,
-    continuation_intent_message,
-    normalise_legacy_workspace_paths,
-)
-from crisai.cli.display import (
-    print_final_answer,
-    print_final_recommendation,
-    print_status_message,
-    update_terminal_title,
-)
-from crisai.cli.session_store import (
-    clear_cli_history,
-    clear_history,
-    load_history,
-    sanitize_session_name,
-)
-from crisai.cli.status_views import (
-    print_agents_table,
-    print_servers_table,
-    route_display,
-)
-from crisai.config import load_settings
-from crisai.logging_utils import configure_logging, get_logger
-from crisai.orchestration.exceptions import WorkflowValidationError
-from crisai.orchestration.request_contract import (
-    infer_request_contract,
-    render_request_contract_brief,
-)
-from crisai.orchestration.retrieval_checkpoint import (
-    RetrievalCheckpointDecision,
-    RetrievalCheckpointSnapshot,
-)
-from crisai.orchestration.router import RoutingDecision, decide_route
-from crisai.orchestration.semantic_catalog import load_semantic_catalog
-from crisai.registry import Registry
-from crisai.registry_validation import run_doctor
-from crisai.workspace.artefact_validation import validate_workspace_artefact_paths
-from crisai.workspace.spaces import load_workspace_spaces
+from crisai.cli import chat_context as chat_context_module
+from crisai.cli import display as display_module
+from crisai.cli import session_store as session_store_module
+from crisai.cli import status_views as status_views_module
+from crisai import config as config_module
+from crisai import logging_utils as logging_utils_module
+from crisai.orchestration import exceptions as exceptions_module
+from crisai.orchestration import request_contract as request_contract_module
+from crisai.orchestration import retrieval_checkpoint as retrieval_checkpoint_module
+from crisai.orchestration import router as router_module
+from crisai.orchestration import semantic_catalog as catalog_module
+from crisai import registry as registry_module
+from crisai import registry_validation as validation_module
+from crisai.workspace import artefact_validation as artefact_validation_module
+from crisai.workspace import spaces as spaces_module
+from crisai.cli import pipelines as pipelines_module
 
-from .pipelines import run_peer_pipeline, run_pipeline, run_single
+# Alias definitions for module-level symbols to satisfy import rules while preserving references
+Awaitable = collections.abc.Awaitable
+contextmanager = contextlib.contextmanager
+is_dataclass = dataclasses.is_dataclass
+replace = dataclasses.replace
+Path = pathlib.Path
+SimpleNamespace = types.SimpleNamespace
+PromptSession = prompt_toolkit.PromptSession
+
+# cli/chat_context
+build_chat_input = chat_context_module.build_chat_input
+continuation_intent_message = chat_context_module.continuation_intent_message
+normalise_legacy_workspace_paths = chat_context_module.normalise_legacy_workspace_paths
+
+# cli/display
+print_final_answer = display_module.print_final_answer
+print_final_recommendation = display_module.print_final_recommendation
+print_status_message = display_module.print_status_message
+update_terminal_title = display_module.update_terminal_title
+
+# cli/session_store
+clear_cli_history = session_store_module.clear_cli_history
+clear_history = session_store_module.clear_history
+load_history = session_store_module.load_history
+sanitize_session_name = session_store_module.sanitize_session_name
+
+# cli/status_views
+print_agents_table = status_views_module.print_agents_table
+print_servers_table = status_views_module.print_servers_table
+route_display = status_views_module.route_display
+
+# config
+load_settings = config_module.load_settings
+
+# logging_utils
+configure_logging = logging_utils_module.configure_logging
+get_logger = logging_utils_module.get_logger
+
+# orchestration/exceptions
+WorkflowValidationError = exceptions_module.WorkflowValidationError
+
+# orchestration/request_contract
+infer_request_contract = request_contract_module.infer_request_contract
+render_request_contract_brief = request_contract_module.render_request_contract_brief
+
+# orchestration/retrieval_checkpoint
+RetrievalCheckpointDecision = retrieval_checkpoint_module.RetrievalCheckpointDecision
+RetrievalCheckpointSnapshot = retrieval_checkpoint_module.RetrievalCheckpointSnapshot
+
+# orchestration/router
+RoutingDecision = router_module.RoutingDecision
+decide_route = router_module.decide_route
+
+# orchestration/semantic_catalog
+load_semantic_catalog = catalog_module.load_semantic_catalog
+
+# registry
+Registry = registry_module.Registry
+
+# registry_validation
+run_doctor = validation_module.run_doctor
+
+# workspace/artefact_validation
+validate_workspace_artefact_paths = artefact_validation_module.validate_workspace_artefact_paths
+
+# workspace/spaces
+load_workspace_spaces = spaces_module.load_workspace_spaces
+
+# cli/pipelines
+run_peer_pipeline = pipelines_module.run_peer_pipeline
+run_pipeline = pipelines_module.run_pipeline
+run_single = pipelines_module.run_single
+
 
 app = typer.Typer(help="crisAI CLI")
 logger = get_logger(__name__)

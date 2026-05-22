@@ -6,12 +6,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .evidence_contract import EvidenceBundle, EvidenceItem, SourceReference
-from .semantic_catalog import (
-    LexiconTerms,
-    RetrievalConstraintTerms,
-    load_semantic_catalog,
-)
+from crisai.orchestration import evidence_contract as evidence_module
+from crisai.orchestration import semantic_catalog as catalog_module
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +35,7 @@ def infer_source_fit_constraints(
     """
     text = message or ""
     try:
-        catalog = load_semantic_catalog(str(registry_dir) if registry_dir is not None else None)
+        catalog = catalog_module.load_semantic_catalog(str(registry_dir) if registry_dir is not None else None)
     except Exception:  # noqa: BLE001 - fail open; retrieval still has prompt guidance.
         return SourceFitConstraints()
 
@@ -72,7 +68,7 @@ def render_source_fit_constraints(constraints: SourceFitConstraints) -> str:
 
 
 def evidence_bundle_satisfies_constraints(
-    bundle: EvidenceBundle,
+    bundle: evidence_module.EvidenceBundle,
     constraints: SourceFitConstraints,
 ) -> bool:
     """Return whether at least one content-read item satisfies active constraints."""
@@ -84,12 +80,12 @@ def evidence_bundle_satisfies_constraints(
     )
 
 
-def evidence_item_satisfies_constraints(item: EvidenceItem, constraints: SourceFitConstraints) -> bool:
+def evidence_item_satisfies_constraints(item: evidence_module.EvidenceItem, constraints: SourceFitConstraints) -> bool:
     """Return whether one evidence item satisfies inferred title and source scope."""
     return _title_matches(item, constraints) and _scope_matches(item, constraints)
 
 
-def source_fit_failure_message(bundle: EvidenceBundle, constraints: SourceFitConstraints) -> str:
+def source_fit_failure_message(bundle: evidence_module.EvidenceBundle, constraints: SourceFitConstraints) -> str:
     """Return a concise diagnostic for a failed source-fit validation."""
     titles = [
         item.source.title
@@ -140,8 +136,8 @@ def _quoted_phrases(text: str) -> list[str]:
 
 def _object_title_phrases(
     text: str,
-    terms: RetrievalConstraintTerms,
-    lexicon: LexiconTerms,
+    terms: catalog_module.RetrievalConstraintTerms,
+    lexicon: catalog_module.LexiconTerms,
 ) -> list[str]:
     token_matches = list(re.finditer(r"[A-Za-z0-9][A-Za-z0-9._&/-]*", text or ""))
     if not token_matches:
@@ -169,8 +165,8 @@ def _object_title_phrases(
 
 def _relation_title_phrases(
     text: str,
-    terms: RetrievalConstraintTerms,
-    lexicon: LexiconTerms,
+    terms: catalog_module.RetrievalConstraintTerms,
+    lexicon: catalog_module.LexiconTerms,
 ) -> list[str]:
     token_matches = list(re.finditer(r"[A-Za-z0-9][A-Za-z0-9._&/-]*", text or ""))
     if not token_matches:
@@ -210,7 +206,7 @@ def _relation_title_phrases(
 
 def _significant_suffix(
     tokens: list[str],
-    lexicon: LexiconTerms,
+    lexicon: catalog_module.LexiconTerms,
     *,
     title_position_terms: frozenset[str] = frozenset(),
     extra_stop_tokens: frozenset[str] = frozenset(),
@@ -229,7 +225,7 @@ def _significant_suffix(
     return _clean_phrase(" ".join(chosen))
 
 
-def _trailing_version_suffix(matches: list[re.Match[str]], lexicon: LexiconTerms) -> str:
+def _trailing_version_suffix(matches: list[re.Match[str]], lexicon: catalog_module.LexiconTerms) -> str:
     chosen: list[str] = []
     stop = lexicon.all_function_words | lexicon.prompt_noise_terms | lexicon.title_relation_terms
     for match in matches:
@@ -246,7 +242,7 @@ def _trailing_version_suffix(matches: list[re.Match[str]], lexicon: LexiconTerms
 
 def _following_title_phrase(
     matches: list[re.Match[str]],
-    lexicon: LexiconTerms,
+    lexicon: catalog_module.LexiconTerms,
     *,
     title_position_terms: frozenset[str] = frozenset(),
     extra_stop_tokens: frozenset[str] = frozenset(),
@@ -270,7 +266,7 @@ def _following_title_phrase(
     return _clean_phrase(" ".join(chosen))
 
 
-def _source_scopes(text: str, terms: RetrievalConstraintTerms) -> list[str]:
+def _source_scopes(text: str, terms: catalog_module.RetrievalConstraintTerms) -> list[str]:
     lowered = (text or "").lower()
     scopes: list[str] = []
     for scope, markers in sorted(terms.source_scope_markers.items()):
@@ -279,20 +275,20 @@ def _source_scopes(text: str, terms: RetrievalConstraintTerms) -> list[str]:
     return scopes
 
 
-def _title_matches(item: EvidenceItem, constraints: SourceFitConstraints) -> bool:
+def _title_matches(item: evidence_module.EvidenceItem, constraints: SourceFitConstraints) -> bool:
     if not constraints.required_title_phrases:
         return True
     haystack = _normalise_match_text(item.source.title)
     return any(_phrase_tokens_match(phrase, haystack) for phrase in constraints.required_title_phrases)
 
 
-def _scope_matches(item: EvidenceItem, constraints: SourceFitConstraints) -> bool:
+def _scope_matches(item: evidence_module.EvidenceItem, constraints: SourceFitConstraints) -> bool:
     if not constraints.source_scopes:
         return True
     return any(_item_matches_scope(item, scope) for scope in constraints.source_scopes)
 
 
-def _item_matches_scope(item: EvidenceItem, scope: str) -> bool:
+def _item_matches_scope(item: evidence_module.EvidenceItem, scope: str) -> bool:
     source = item.source
     haystack = f"{source.source_type} {source.open_url} {source.location} {source.workspace_path}".lower()
     if scope == "personal_onedrive":
@@ -322,8 +318,8 @@ def _clean_phrase(text: str) -> str:
     return phrase
 
 
-def _source_inventory_candidates(content: str) -> list[EvidenceItem]:
-    candidates: list[EvidenceItem] = []
+def _source_inventory_candidates(content: str) -> list[evidence_module.EvidenceItem]:
+    candidates: list[evidence_module.EvidenceItem] = []
     seen: set[tuple[str, str]] = set()
     for title, reference in _markdown_link_sources(content):
         key = (_normalise_match_text(title), reference.strip().lower())
@@ -331,8 +327,8 @@ def _source_inventory_candidates(content: str) -> list[EvidenceItem]:
             continue
         seen.add(key)
         candidates.append(
-            EvidenceItem(
-                source=SourceReference(
+            evidence_module.EvidenceItem(
+                source=evidence_module.SourceReference(
                     source_type="sharepoint_document" if "sharepoint" in reference.lower() else "source",
                     title=title,
                     open_url=reference,

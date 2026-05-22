@@ -9,15 +9,16 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from crisai.logging_utils import get_logger
+from crisai import logging_utils as logging_utils_module
+from crisai.cli import pipeline_display as display_module
+from crisai.cli import workflow_support as support_module
 
-from .pipeline_display import (
-    reset_stage_observability_agent_id,
-    reset_stage_observability_callback,
-    set_stage_observability_agent_id,
-    set_stage_observability_callback,
-)
-from .workflow_support import WorkflowEnvironment
+get_logger = logging_utils_module.get_logger
+reset_stage_observability_agent_id = display_module.reset_stage_observability_agent_id
+reset_stage_observability_callback = display_module.reset_stage_observability_callback
+set_stage_observability_agent_id = display_module.set_stage_observability_agent_id
+set_stage_observability_callback = display_module.set_stage_observability_callback
+WorkflowEnvironment = support_module.WorkflowEnvironment
 
 StageRunner = Callable[[str, Any, str], Awaitable[str]]
 TraceWriter = Callable[..., None]

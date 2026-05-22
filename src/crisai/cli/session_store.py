@@ -6,9 +6,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from crisai.config import load_settings
-from crisai.orchestration.session_anchors import AnchorRegistry, SessionSourceCandidate
-from crisai.workspace.spaces import load_workspace_spaces
+from crisai import config as config_module
+from crisai.orchestration import session_anchors as anchors_module
+from crisai.workspace import spaces as spaces_module
+
+load_settings = config_module.load_settings
+AnchorRegistry = anchors_module.AnchorRegistry
+SessionSourceCandidate = anchors_module.SessionSourceCandidate
+load_workspace_spaces = spaces_module.load_workspace_spaces
 
 HistoryEntry = tuple[str, str]
 

@@ -7,13 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from crisai.config import load_settings
-
-from .retrieval_association_graph import (
-    collect_graph_emits,
-    expand_retrieval_hints,
-    load_retrieval_association_graph,
-)
+from crisai import config
+from crisai.orchestration import retrieval_association_graph as graph_module
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,16 +106,16 @@ def render_task_contract_summary(contract: TaskContract) -> str:
 
 def _task_emits_from_graph(message: str, *, registry_dir: Path | None = None) -> dict[str, object]:
     root = _resolve_registry_dir(registry_dir)
-    graph = load_retrieval_association_graph(root)
-    activated, _terms = expand_retrieval_hints(message, graph)
-    return collect_graph_emits(graph, activated)
+    graph = graph_module.load_retrieval_association_graph(root)
+    activated, _terms = graph_module.expand_retrieval_hints(message, graph)
+    return graph_module.collect_graph_emits(graph, activated)
 
 
 def _resolve_registry_dir(registry_dir: Path | None) -> Path:
     if registry_dir is not None:
         return registry_dir
     try:
-        return Path(load_settings().registry_dir)
+        return Path(config.load_settings().registry_dir)
     except Exception:  # noqa: BLE001 - fail open when settings are unavailable in tests.
         return Path("registry")
 

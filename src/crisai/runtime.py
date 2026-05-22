@@ -11,7 +11,7 @@ from agents.mcp import (
     create_static_tool_filter,
 )
 
-from .registry import ServerSpec
+from crisai import registry
 
 
 def _mcp_client_session_timeout_seconds() -> float:
@@ -38,13 +38,20 @@ def _resolve_client_session_timeout_seconds(server_raw: dict[str, object]) -> fl
     by setting ``client_timeout_seconds`` in ``registry/servers.yaml``.
     """
     default_timeout = _mcp_client_session_timeout_seconds()
-    override = server_raw.get("client_timeout_seconds")
-    if override is None:
-        return default_timeout
-    try:
-        return max(float(str(override)), 10.0)
-    except (TypeError, ValueError):
-        return default_timeout
+    raw_val = server_raw.get("client_timeout_seconds")
+    if raw_val is not None:
+        try:
+            return float(str(raw_val))
+        except ValueError:
+            return default_timeout
+    return default_timeout
+
+
+def _build_stdio_env(literal: dict[str, object] | None) -> dict[str, str]:
+    merged = {}
+    if literal:
+        merged.update({str(k): str(v) for k, v in literal.items()})
+    return merged
 
 
 def _resolve_headers(raw: dict[str, object]) -> dict[str, str]:
@@ -70,7 +77,7 @@ class RuntimeManager:
     def __init__(self, root_dir: Path) -> None:
         self.root_dir = root_dir
 
-    def build_server(self, spec: ServerSpec, env_overrides: dict[str, str] | None = None):
+    def build_server(self, spec: registry.ServerSpec, env_overrides: dict[str, str] | None = None):
         allowed_tools = spec.raw.get("tools", {}).get("allow", [])
         timeout = _resolve_client_session_timeout_seconds(spec.raw)
         tool_filter = create_static_tool_filter(allowed_tool_names=allowed_tools)

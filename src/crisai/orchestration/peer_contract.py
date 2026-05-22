@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from crisai.orchestration.semantic_catalog import load_semantic_catalog
+from crisai.orchestration import semantic_catalog as catalog_module
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class PeerRunContract:
 
 def infer_peer_run_contract(message: str) -> PeerRunContract:
     """Infer a generic peer contract from the user request."""
-    markers = load_semantic_catalog().peer_contract
+    markers = catalog_module.load_semantic_catalog().peer_contract
     text = (message or "").lower()
     must_write_files = any(marker in text for marker in markers.file_write_markers)
     must_modify_code = any(marker in text for marker in markers.code_change_markers)

@@ -7,19 +7,18 @@ for router and peer subsystems that have not moved to graph-emitted facts yet.
 
 from __future__ import annotations
 
+import dataclasses
+import functools
+import pathlib
 import re
-from dataclasses import dataclass
-from dataclasses import field as dataclass_field
-from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 import yaml
 
-from crisai.config import load_settings
+from crisai import config as config_module
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class RouterTerms:
     discovery_terms: frozenset[str]
     design_terms: frozenset[str]
@@ -34,7 +33,7 @@ class RouterTerms:
     architecture_location_markers: frozenset[str]
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class PeerVerifierPatterns:
     pattern_gap_line: str
     leaf_file_pattern: str
@@ -46,7 +45,7 @@ class PeerVerifierPatterns:
     boilerplate_strip_patterns: tuple[re.Pattern[str], ...]
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class PeerContractMarkers:
     """Substring markers for infer_peer_run_contract (lowercased; spacing preserved)."""
 
@@ -59,7 +58,7 @@ class PeerContractMarkers:
     document_export_source_markers: frozenset[str]
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class PeerJudgeDecisionMarkers:
     """Substring markers for parsing peer judge decisions."""
 
@@ -68,37 +67,41 @@ class PeerJudgeDecisionMarkers:
     rework_markers: frozenset[str]
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class RetrievalConstraintTerms:
     """Terms used to infer generic source-fit constraints from user requests."""
 
     object_type_terms: frozenset[str]
     source_scope_markers: dict[str, frozenset[str]]
-    title_position_terms: frozenset[str] = dataclass_field(default_factory=frozenset)
-    source_type_markers: dict[str, frozenset[str]] = dataclass_field(default_factory=dict)
-    source_candidate_metadata_deny_keys: frozenset[str] = dataclass_field(default_factory=frozenset)
+    title_position_terms: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    source_type_markers: dict[str, frozenset[str]] = dataclasses.field(default_factory=dict)
+    source_candidate_metadata_deny_keys: frozenset[str] = dataclasses.field(default_factory=frozenset)
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class LexiconTerms:
     """Language-level prompt terms shared by semantic features."""
 
     function_words: dict[str, frozenset[str]]
     prompt_noise_terms: frozenset[str]
     title_relation_terms: frozenset[str]
-    forward_title_relation_terms: frozenset[str] = dataclass_field(default_factory=frozenset)
-    continuation_intent_template: dict[str, str] = dataclass_field(default_factory=dict)
+    forward_title_relation_terms: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    continuation_intent_template: dict[str, str] = dataclasses.field(default_factory=dict)
 
     @property
     def all_function_words(self) -> frozenset[str]:
-        """Return all configured standalone function words."""
+        """Return all configured standalone function words.
+
+        Returns:
+            A frozenset of all function words.
+        """
         terms: set[str] = set()
         for values in self.function_words.values():
             terms.update(values)
         return frozenset(terms)
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class InteractionPatterns:
     """Regex patterns for explicit mode detection and peer retrieval overrides."""
 
@@ -109,39 +112,39 @@ class InteractionPatterns:
     peer_retrieval_force_patterns: tuple[re.Pattern[str], ...]
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class ArtifactLifecycleTerms:
     """Terms and mappings used by generated artefact lifecycle helpers."""
 
-    persisted_deliverable_filenames: dict[str, str] = dataclass_field(default_factory=dict)
+    persisted_deliverable_filenames: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class SessionAnchorTerms:
     """Vocabulary used to extract and resolve user-visible session anchors."""
 
-    kinds: dict[str, frozenset[str]] = dataclass_field(default_factory=dict)
-    order_columns: frozenset[str] = dataclass_field(default_factory=frozenset)
-    title_columns: frozenset[str] = dataclass_field(default_factory=frozenset)
-    summary_columns: frozenset[str] = dataclass_field(default_factory=frozenset)
-    status_columns: frozenset[str] = dataclass_field(default_factory=frozenset)
-    preferred_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
+    kinds: dict[str, frozenset[str]] = dataclasses.field(default_factory=dict)
+    order_columns: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    title_columns: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    summary_columns: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    status_columns: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    preferred_markers: frozenset[str] = dataclasses.field(default_factory=frozenset)
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class SessionMemoryTerms:
     """Vocabulary used by deterministic session-memory extraction."""
 
-    decision_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
-    rejected_option_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
-    assumption_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
-    constraint_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
-    source_finding_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
-    next_action_markers: frozenset[str] = dataclass_field(default_factory=frozenset)
-    open_question_starters: frozenset[str] = dataclass_field(default_factory=frozenset)
+    decision_markers: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    rejected_option_markers: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    assumption_markers: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    constraint_markers: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    source_finding_markers: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    next_action_markers: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    open_question_starters: frozenset[str] = dataclasses.field(default_factory=frozenset)
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class SemanticCatalog:
     router: RouterTerms
     peer_verifier: PeerVerifierPatterns
@@ -150,9 +153,9 @@ class SemanticCatalog:
     lexicon: LexiconTerms
     retrieval_constraints: RetrievalConstraintTerms
     interaction: InteractionPatterns
-    artifact_lifecycle: ArtifactLifecycleTerms = dataclass_field(default_factory=ArtifactLifecycleTerms)
-    session_anchors: SessionAnchorTerms = dataclass_field(default_factory=SessionAnchorTerms)
-    session_memory: SessionMemoryTerms = dataclass_field(default_factory=SessionMemoryTerms)
+    artifact_lifecycle: ArtifactLifecycleTerms = dataclasses.field(default_factory=ArtifactLifecycleTerms)
+    session_anchors: SessionAnchorTerms = dataclasses.field(default_factory=SessionAnchorTerms)
+    session_memory: SessionMemoryTerms = dataclasses.field(default_factory=SessionMemoryTerms)
 
 
 class SemanticCatalogError(ValueError):
@@ -160,6 +163,14 @@ class SemanticCatalogError(ValueError):
 
 
 def _as_frozenset(values: Any) -> frozenset[str]:
+    """Convert input list values to a frozenset of lowercased strings.
+
+    Args:
+        values: The input collection.
+
+    Returns:
+        A frozenset of cleaned, lowercase string values.
+    """
     if not isinstance(values, list):
         return frozenset()
     clean = [str(v).strip().lower() for v in values if str(v).strip()]
@@ -167,7 +178,16 @@ def _as_frozenset(values: Any) -> frozenset[str]:
 
 
 def _peer_marker_phrases(values: Any) -> frozenset[str]:
-    """Lowercase peer-contract marker phrases; preserve trailing spaces (e.g. ``function ``)."""
+    """Lowercase peer-contract marker phrases; preserve trailing spaces.
+
+    For example, this preserves spaces in markers like ``function ``.
+
+    Args:
+        values: The input marker phrases list.
+
+    Returns:
+        A frozenset of cleaned marker phrases.
+    """
     if not isinstance(values, list):
         return frozenset()
     phrases: list[str] = []
@@ -180,7 +200,15 @@ def _peer_marker_phrases(values: Any) -> frozenset[str]:
 
 
 def _peer_contract_marker_field(data: dict[str, Any], field: str) -> frozenset[str]:
-    """Resolve one peer_contract marker list from catalog data."""
+    """Resolve one peer_contract marker list from catalog data.
+
+    Args:
+        data: The dictionary loaded from semantic catalog.
+        field: The key in the peer_contract section to load.
+
+    Returns:
+        A frozenset of marker phrases.
+    """
     raw_block = data.get("peer_contract")
     block: dict[str, Any] = raw_block if isinstance(raw_block, dict) else {}
     raw = block.get(field)
@@ -188,6 +216,14 @@ def _peer_contract_marker_field(data: dict[str, Any], field: str) -> frozenset[s
 
 
 def _source_scope_markers(values: Any) -> dict[str, frozenset[str]]:
+    """Convert input dictionary to mappings of scope to markers.
+
+    Args:
+        values: The raw scope markers dictionary.
+
+    Returns:
+        A dictionary mapping scope strings to a frozenset of marker strings.
+    """
     if not isinstance(values, dict):
         return {}
     result: dict[str, frozenset[str]] = {}
@@ -202,7 +238,14 @@ def _source_scope_markers(values: Any) -> dict[str, frozenset[str]]:
 
 
 def _string_mapping(values: Any) -> dict[str, str]:
-    """Return a clean string-to-string mapping from optional YAML data."""
+    """Return a clean string-to-string mapping from optional YAML data.
+
+    Args:
+        values: Raw dictionary mapping.
+
+    Returns:
+        A dictionary containing clean string-to-string mappings.
+    """
     if not isinstance(values, dict):
         return {}
     result: dict[str, str] = {}
@@ -215,6 +258,14 @@ def _string_mapping(values: Any) -> dict[str, str]:
 
 
 def _function_words(values: Any) -> dict[str, frozenset[str]]:
+    """Extract clean function words categorised by type.
+
+    Args:
+        values: Raw mapping of categories to word lists.
+
+    Returns:
+        A dictionary mapping categories to a frozenset of word strings.
+    """
     if not isinstance(values, dict):
         return {}
     result: dict[str, frozenset[str]] = {}
@@ -229,6 +280,14 @@ def _function_words(values: Any) -> dict[str, frozenset[str]]:
 
 
 def _anchor_kinds(values: Any) -> dict[str, frozenset[str]]:
+    """Parse anchor kind lists from raw dictionary.
+
+    Args:
+        values: Raw mapping of anchor kinds to term lists.
+
+    Returns:
+        A dictionary mapping kinds to frozensets of terms.
+    """
     if not isinstance(values, dict):
         return {}
     result: dict[str, frozenset[str]] = {}
@@ -245,6 +304,13 @@ def merge_semantic_catalog_dicts(base: dict[str, Any], overlay: dict[str, Any]) 
 
     Dict values merge recursively; non-dict values (including lists) replace
     the corresponding key in the result.
+
+    Args:
+        base: The base dictionary configuration.
+        overlay: The overlay dictionary containing modifications/extensions.
+
+    Returns:
+        The merged dictionary.
     """
     merged: dict[str, Any] = dict(base)
     for key, value in overlay.items():
@@ -256,6 +322,14 @@ def merge_semantic_catalog_dicts(base: dict[str, Any], overlay: dict[str, Any]) 
 
 
 def _validate_top_level(data: dict[str, Any]) -> None:
+    """Validate top-level keys in the semantic catalog YAML data.
+
+    Args:
+        data: The loaded YAML dictionary.
+
+    Raises:
+        SemanticCatalogError: If any mandatory top-level key is missing.
+    """
     for key in (
         "router",
         "peer_verifier",
@@ -271,6 +345,14 @@ def _validate_top_level(data: dict[str, Any]) -> None:
 
 
 def _validate_peer_contract_lists(peer_block: dict[str, Any]) -> None:
+    """Validate peer contract lists in the catalog block.
+
+    Args:
+        peer_block: The peer_contract dict block from the catalog.
+
+    Raises:
+        SemanticCatalogError: If any required marker list is missing or invalid.
+    """
     required = (
         "file_write_markers",
         "code_change_markers",
@@ -287,6 +369,14 @@ def _validate_peer_contract_lists(peer_block: dict[str, Any]) -> None:
 
 
 def _validate_peer_judge_lists(peer_block: dict[str, Any]) -> None:
+    """Validate peer judge decision markers in the catalog block.
+
+    Args:
+        peer_block: The peer_judge dict block from the catalog.
+
+    Raises:
+        SemanticCatalogError: If any required marker list is missing or invalid.
+    """
     required = ("accept_markers", "revise_markers", "rework_markers")
     for field in required:
         values = peer_block.get(field)
@@ -297,6 +387,17 @@ def _validate_peer_judge_lists(peer_block: dict[str, Any]) -> None:
 
 
 def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
+    """Build a SemanticCatalog object from dictionary data.
+
+    Args:
+        data: The raw dictionary parsed from the catalog YAML.
+
+    Returns:
+        The instantiated SemanticCatalog object.
+
+    Raises:
+        SemanticCatalogError: If the validation rules fail.
+    """
     _validate_top_level(data)
     _validate_peer_contract_lists(data["peer_contract"])
     _validate_peer_judge_lists(data["peer_judge"])
@@ -487,17 +588,24 @@ def _build_catalog(data: dict[str, Any]) -> SemanticCatalog:
     )
 
 
-@lru_cache(maxsize=8)
+@functools.lru_cache(maxsize=8)
 def load_semantic_catalog(registry_dir: str | None = None) -> SemanticCatalog:
-    """Load the semantic catalogue from ``<registry_dir>/semantic_catalog.yaml`` only.
+    """Load the semantic catalogue from ``<registry_dir>/semantic_catalog.yaml``.
 
-    There are no in-code term defaults: edit the YAML to tune router, verifier,
-    and peer-contract markers during testing.
+    Args:
+        registry_dir: Optional custom registry directory path string.
+
+    Returns:
+        The loaded and validated SemanticCatalog instance.
+
+    Raises:
+        FileNotFoundError: If the catalog YAML is missing.
+        SemanticCatalogError: If the YAML contents are invalid or cannot be parsed.
     """
     if registry_dir is None:
-        base_dir = load_settings().registry_dir
+        base_dir = config_module.load_settings().registry_dir
     else:
-        base_dir = Path(registry_dir)
+        base_dir = pathlib.Path(registry_dir)
     path = base_dir / "semantic_catalog.yaml"
     if not path.is_file():
         raise FileNotFoundError(
@@ -514,5 +622,17 @@ def load_semantic_catalog(registry_dir: str | None = None) -> SemanticCatalog:
 
 
 def build_semantic_catalog_from_dict(data: dict[str, Any]) -> SemanticCatalog:
-    """Build a ``SemanticCatalog`` from an in-memory dict (tests, tooling)."""
+    """Build a ``SemanticCatalog`` from an in-memory dict (tests, tooling).
+
+    Args:
+        data: In-memory dictionary configuration.
+
+    Returns:
+        The built SemanticCatalog instance.
+    """
     return _build_catalog(data)
+
+
+# Expose config function at module level for compatibility with unit test monkeypatching
+load_settings = config_module.load_settings
+
