@@ -249,7 +249,9 @@ uv run pytest tests/integration
 
 ### Smoke tests
 
-Smoke tests are opt-in because they can call real provider APIs. Set
+Smoke tests are opt-in because they can call real provider APIs. They also
+include a provider endpoint reachability check that opens a short TCP connection
+to each configured API host without sending credentials or prompts. Set
 `CRISAI_RUN_SMOKE_TESTS=1` and configure the required provider keys before
 running them:
 
@@ -272,6 +274,7 @@ uv run pytest tests/orchestration/test_peer_mode.py
 
 - The suite is intentionally network-free.
 - It does not call real OpenAI, Gemini, Anthropic, DeepSeek, or real MCP servers.
+- `tests/smoke/` is the exception: it is opt-in and may reach provider API hosts.
 - It relies on monkeypatching and lightweight fakes so orchestration and configuration behaviour can be checked deterministically.
 - Optional provider integrations should not break test collection when those runtime extras are not installed.
 - `tests/conftest.py` helps ensure `src/` is importable during local test runs.

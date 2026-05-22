@@ -17,6 +17,7 @@ Provider keys required per test:
 from __future__ import annotations
 
 import os
+import socket
 
 import pytest
 
@@ -27,6 +28,7 @@ from crisai.registry import AgentSpec
 
 from .conftest import (
     CHEAP_MODEL_REF,
+    PROVIDER_CONNECTIVITY_HOSTS,
     assert_stage_traced,
     read_trace,
     require_providers,
@@ -38,6 +40,28 @@ _PEER_QUESTION = "Draft a brief explanation of the strangler fig migration patte
 
 # Prompt file used for synthetic single-mode agents.
 _ORCHESTRATOR_PROMPT = "prompts/orchestrator.md"
+
+
+# ---------------------------------------------------------------------------
+# Network reachability — no provider API call
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.smoke
+@pytest.mark.timeout(15)
+@pytest.mark.parametrize("provider", list(PROVIDER_CONNECTIVITY_HOSTS))
+def test_provider_endpoint_is_reachable(provider: str) -> None:
+    """Configured provider endpoint accepts a TCP connection.
+
+    This is a low-cost office setup check: it validates DNS, internet access,
+    local firewall/proxy behaviour, and provider endpoint reachability without
+    sending credentials or calling an LLM API.
+    """
+    require_providers(provider)
+    host, port = PROVIDER_CONNECTIVITY_HOSTS[provider]
+
+    with socket.create_connection((host, port), timeout=5):
+        pass
 
 
 # ---------------------------------------------------------------------------

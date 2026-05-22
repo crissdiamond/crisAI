@@ -41,6 +41,14 @@ PROVIDER_KEY_ENV: dict[str, str] = {
     "deepseek": "DEEPSEEK_API_KEY",
 }
 
+# Provider API hosts used for cheap connectivity checks before real smoke calls.
+PROVIDER_CONNECTIVITY_HOSTS: dict[str, tuple[str, int]] = {
+    "openai": ("api.openai.com", 443),
+    "gemini": ("generativelanguage.googleapis.com", 443),
+    "anthropic": ("api.anthropic.com", 443),
+    "deepseek": ("api.deepseek.com", 443),
+}
+
 
 def require_smoke() -> None:
     """Skip unless CRISAI_RUN_SMOKE_TESTS=1."""
