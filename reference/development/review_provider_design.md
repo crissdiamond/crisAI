@@ -47,7 +47,7 @@ differ:
 Add a generic review entrypoint without renaming the existing Claude scripts:
 
 ```bash
-scripts/hcom_review.sh --provider claude --role runtime_review --thread <id> --task <text>
+scripts/hcom_review.sh --provider claude-code --role runtime_review --thread <id> --task <text>
 scripts/hcom_review_status.sh
 scripts/hcom_review_close.sh --thread <id>
 ```
@@ -57,9 +57,11 @@ example:
 
 ```yaml
 providers:
-  claude:
+  claude-code:
     hcom_tool: claude
     managed: true
+    ephemeral_supported: true
+    persistent_supported: true
     supports_system_prompt: true
     supports_permission_mode_auto: true
     supports_resume: true
@@ -81,19 +83,22 @@ providers:
   antigravity:
     command: agy
     managed: false
+    ephemeral_supported: experimental
+    persistent_supported: false
     mode: manual_smoke_test_only
     requires_interactive_oauth: true
     model_selection_verified: false
     required_gate: false
 ```
 
-The first implementation supports `claude` through the generic entrypoint while
-delegating internally to the existing Claude scripts. Antigravity is available as
-an experimental managed provider only when the local hcom build supports
-`hcom agy`; it remains unsuitable for mandatory gates until launch, message
-delivery, transcript, and close behaviour have been smoke-tested in real team
-runs. Gemini and OpenCode can be added after their review lifecycle behaviour is
-verified.
+The implementation supports `claude-code` through the generic entrypoint while
+delegating internally to the existing Claude scripts. The old provider spelling
+`claude` remains accepted as a compatibility alias. Antigravity is available
+only as an explicit manual smoke-test provider when the local hcom build
+supports `hcom agy`; it remains unsuitable for mandatory gates until launch,
+model selection, message delivery, transcript, and close behaviour have been
+smoke-tested in real team runs. Gemini and OpenCode can be added after their
+review lifecycle behaviour is verified.
 
 ## Antigravity Position
 

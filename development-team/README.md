@@ -111,12 +111,14 @@ repository itself as the target repository.
 
 Tool auto-approval is enabled by default for launched agents. Use
 `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
-Codex/Claude tool approval is required.
+Codex/reviewer tool approval is required.
 
 By default, `scripts/hcom_start.sh` launches the standing Codex team only. Set
-`HCOM_TEAM_CLAUDE_MODE=persistent` to launch legacy always-on Claude reviewers.
-The recommended model is ephemeral but mandatory Claude review for
-review-required work:
+`HCOM_TEAM_REVIEW_LIFECYCLE=persistent` to launch always-on reviewer agents.
+`HCOM_TEAM_CLAUDE_MODE` still works as a deprecated compatibility alias for the
+lifecycle setting. Choose the reviewer provider independently with
+`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. The recommended model is
+ephemeral but mandatory Claude Code review for review-required work:
 
 ```bash
 scripts/hcom_review.sh --target-repo /path/to/crisAI --role gem_review --thread gem-ui-review --task "Review the Gem UI diff and report UX risks."
@@ -124,7 +126,7 @@ scripts/hcom_review_status.sh --target-repo /path/to/crisAI
 scripts/hcom_review_close.sh --target-repo /path/to/crisAI --thread gem-ui-review
 ```
 
-The generic review scripts default to Claude. Antigravity is disabled by
+The generic review scripts default to Claude Code. Antigravity is disabled by
 default because `agy` can require interactive OAuth/model selection and may
 default to Gemini. Test it only with `--provider antigravity` and
 `HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1` after confirming the selected model;

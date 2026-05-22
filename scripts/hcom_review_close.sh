@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$PROVIDER" in
-  claude)
+  claude|claude-code|claude_code)
     exec "$ROOT_DIR/scripts/hcom_claude_close.sh" "${ARGS[@]}"
     ;;
   antigravity|agy|all)

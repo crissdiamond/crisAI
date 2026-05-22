@@ -12,7 +12,8 @@ RESUME=0
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
 ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-access}"
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
-CLAUDE_MODE="${HCOM_TEAM_CLAUDE_MODE:-ephemeral}"
+REVIEW_LIFECYCLE="${HCOM_TEAM_REVIEW_LIFECYCLE:-${HCOM_TEAM_CLAUDE_MODE:-ephemeral}}"
+REVIEW_PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
 CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
@@ -35,7 +36,7 @@ Usage: scripts/hcom_start.sh [--target-repo PATH] [--dry-run] [--headless] [--re
 Launches:
   - one Codex orchestrator from the target repo root
   - runtime Codex, Gem Codex, and web Codex from the target repo root
-  - Claude reviewers only when HCOM_TEAM_CLAUDE_MODE=persistent
+  - reviewer agents only when HCOM_TEAM_REVIEW_LIFECYCLE=persistent
 
 State:
   HCOM_DIR defaults to <target-repo>/.hcom.
@@ -66,12 +67,16 @@ Message handling:
   HCOM_TEAM_MEMORY_WRITE_POLICY is included in bootstrap instructions so agents
   degrade gracefully when Claude memory is read-only.
 
-Claude reviewers:
-  HCOM_TEAM_CLAUDE_MODE defaults to ephemeral. In ephemeral mode Claude
-  reviewers are launched on demand with scripts/hcom_claude_review.sh and are
-  closed at orchestrator discretion with scripts/hcom_claude_close.sh.
-  Set HCOM_TEAM_CLAUDE_MODE=persistent to launch the legacy always-on Claude
-  reviewers with the standing team.
+Reviewers:
+  HCOM_TEAM_REVIEW_LIFECYCLE defaults to ephemeral. In ephemeral mode only Codex
+  agents are permanent, and reviewers are launched on demand by the
+  orchestrator. Set it to persistent to launch reviewer agents with the standing
+  team. HCOM_TEAM_CLAUDE_MODE remains as a deprecated compatibility alias.
+
+  HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
+  claude-code and antigravity. Persistent Antigravity reviewers are deliberately
+  blocked because agy is currently interactive/OAuth-bound and cannot satisfy
+  mandatory Claude review gates.
 EOF
 }
 
@@ -377,6 +382,51 @@ tool_auto_approval_args() {
   esac
 }
 
+normalize_review_provider() {
+  case "$REVIEW_PROVIDER_RAW" in
+    claude | claude-code | claude_code)
+      printf 'claude-code\n'
+      ;;
+    antigravity | agy)
+      printf 'antigravity\n'
+      ;;
+    *)
+      echo "HCOM_TEAM_REVIEW_PROVIDER must be 'claude-code' or 'antigravity'." >&2
+      exit 1
+      ;;
+  esac
+}
+
+review_provider_tool() {
+  case "$REVIEW_PROVIDER" in
+    claude-code)
+      printf 'claude\n'
+      ;;
+    antigravity)
+      printf 'agy\n'
+      ;;
+  esac
+}
+
+validate_review_config() {
+  if [[ "$REVIEW_LIFECYCLE" != "ephemeral" && "$REVIEW_LIFECYCLE" != "persistent" ]]; then
+    echo "HCOM_TEAM_REVIEW_LIFECYCLE must be 'ephemeral' or 'persistent'." >&2
+    exit 1
+  fi
+  if [[ "$REVIEW_LIFECYCLE" == "persistent" && "$REVIEW_PROVIDER" == "antigravity" ]]; then
+    cat >&2 <<'EOF'
+Persistent Antigravity reviewers are not supported.
+
+Antigravity currently starts as an interactive session and may default to Gemini
+or require OAuth/model selection, so it cannot satisfy the mandatory Claude
+review gate. Use HCOM_TEAM_REVIEW_LIFECYCLE=ephemeral with the default
+claude-code provider, or run the experimental Antigravity review launcher
+explicitly after manual validation.
+EOF
+    exit 2
+  fi
+}
+
 launch_dir_for() {
   printf '%s\n' "$TARGET_REPO"
 }
@@ -405,7 +455,7 @@ launch_agent() {
   else
     cmd=(hcom "$provider" --tag "$tag" --dir "$dir" --hcom-prompt "$prompt" --go)
   fi
-  if [[ "$provider" == "claude" ]]; then
+  if [[ "$provider" == "claude" || "$provider" == "agy" ]]; then
     cmd+=(--hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY")
   fi
   if [[ "$HEADLESS" -eq 1 ]]; then
@@ -494,12 +544,11 @@ EOF
 
 require_bin hcom
 require_bin codex
-if [[ "$CLAUDE_MODE" != "ephemeral" && "$CLAUDE_MODE" != "persistent" ]]; then
-  echo "HCOM_TEAM_CLAUDE_MODE must be 'ephemeral' or 'persistent'." >&2
-  exit 1
-fi
-if [[ "$CLAUDE_MODE" == "persistent" ]]; then
-  require_bin claude
+REVIEW_PROVIDER="$(normalize_review_provider)"
+REVIEW_PROVIDER_TOOL="$(review_provider_tool)"
+validate_review_config
+if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
+  require_bin "$REVIEW_PROVIDER_TOOL"
 fi
 
 export HCOM_DIR="$HCOM_STATE_DIR"
@@ -538,30 +587,30 @@ name="$(launch_agent gem_codex codex crisai-gem gem reference/development/roles/
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" gem_codex gem codex crisai-gem
 
-if [[ "$CLAUDE_MODE" == "persistent" ]]; then
-  name="$(launch_agent gem_claude claude crisai-gem gem reference/development/roles/gem_claude.md gem)"
+if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
+  name="$(launch_agent gem_claude "$REVIEW_PROVIDER_TOOL" crisai-gem gem reference/development/roles/gem_claude.md gem)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" gem_claude gem claude crisai-gem
+  write_assignment "$name" gem_claude gem "$REVIEW_PROVIDER_TOOL" crisai-gem
 fi
 
 name="$(launch_agent web_codex codex crisai-web web reference/development/roles/web_codex.md web)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" web_codex web codex crisai-web
 
-if [[ "$CLAUDE_MODE" == "persistent" ]]; then
-  name="$(launch_agent web_claude claude crisai-web web reference/development/roles/web_claude.md web)"
+if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
+  name="$(launch_agent web_claude "$REVIEW_PROVIDER_TOOL" crisai-web web reference/development/roles/web_claude.md web)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" web_claude web claude crisai-web
+  write_assignment "$name" web_claude web "$REVIEW_PROVIDER_TOOL" crisai-web
 fi
 
 name="$(launch_agent runtime_codex codex crisai-runtime runtime reference/development/roles/runtime_codex.md runtime)"
 LAUNCHED_NAMES+=("$name")
 write_assignment "$name" runtime_codex runtime codex crisai-runtime
 
-if [[ "$CLAUDE_MODE" == "persistent" ]]; then
-  name="$(launch_agent runtime_claude claude crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
+if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
+  name="$(launch_agent runtime_claude "$REVIEW_PROVIDER_TOOL" crisai-runtime runtime reference/development/roles/runtime_claude.md runtime)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" runtime_claude runtime claude crisai-runtime
+  write_assignment "$name" runtime_claude runtime "$REVIEW_PROVIDER_TOOL" crisai-runtime
 fi
 
 if [[ "$DRY_RUN" -eq 0 ]]; then

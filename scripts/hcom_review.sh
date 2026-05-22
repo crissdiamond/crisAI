@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export HCOM_DIR="${HCOM_DIR:-$ROOT_DIR/.hcom}"
 STATE_DIR="${HCOM_DEVELOPMENT_DIR:-$ROOT_DIR/.hcom-development}"
 LEASES="${HCOM_REVIEW_LEASES:-$STATE_DIR/review_leases.local.yaml}"
-PROVIDER="${HCOM_TEAM_REVIEW_PROVIDER:-claude}"
+PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
 ROLE=""
 THREAD=""
 TASK=""
@@ -27,7 +27,7 @@ Roles:
   web_review
 
 Options:
-  --provider claude|antigravity
+  --provider claude-code|antigravity
   --task TEXT
   --lease-minutes N
   --visibility headless|tmux
@@ -38,7 +38,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --provider)
-      PROVIDER="$2"
+      PROVIDER_RAW="$2"
       shift 2
       ;;
     --role)
@@ -115,8 +115,9 @@ case "$ROLE" in
     ;;
 esac
 
-case "$PROVIDER" in
-  claude)
+case "$PROVIDER_RAW" in
+  claude | claude-code | claude_code)
+    PROVIDER="claude-code"
     CLAUDE_CMD=("$ROOT_DIR/scripts/hcom_claude_review.sh" \
       --role "$CLAUDE_ROLE" \
       --thread "$THREAD" \
@@ -132,7 +133,7 @@ case "$PROVIDER" in
     PROVIDER="antigravity"
     ;;
   *)
-    echo "Unsupported review provider: $PROVIDER" >&2
+    echo "Unsupported review provider: $PROVIDER_RAW" >&2
     exit 2
     ;;
 esac

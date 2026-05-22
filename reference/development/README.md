@@ -113,11 +113,12 @@ Fresh team launch:
 scripts/hcom_start.sh
 ```
 
-By default, launched Codex and Claude agents use non-bypass tool auto-approval
+By default, launched Codex and reviewer agents use non-bypass tool auto-approval
 so they can proceed without repeated permission prompts. The default team launch
-starts Codex agents only; Claude reviewers are ephemeral unless
-`HCOM_TEAM_CLAUDE_MODE=persistent` is set. Disable auto-approval when you want
-interactive tool approval:
+starts Codex agents only; reviewers are ephemeral unless
+`HCOM_TEAM_REVIEW_LIFECYCLE=persistent` is set. `HCOM_TEAM_CLAUDE_MODE` still
+works as a deprecated compatibility alias for the lifecycle setting. Disable
+auto-approval when you want interactive tool approval:
 
 ```bash
 scripts/hcom_start.sh --no-tool-auto-approve
@@ -129,7 +130,10 @@ metadata is writable for commits and pushes. Area Codex agents keep
 `HCOM_TEAM_AREA_CODEX_SANDBOX=workspace-write` and must hand off Git writes to
 the orchestrator.
 
-Launch a default reviewer for review-required work:
+Choose the reviewer provider independently with
+`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default
+and the only provider that currently satisfies mandatory review gates. Launch a
+default reviewer for review-required work:
 
 ```bash
 scripts/hcom_review.sh --role runtime_review --thread runtime-review --task "Review the runtime diff and report risks."

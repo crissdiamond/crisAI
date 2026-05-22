@@ -4,7 +4,7 @@
 # workflows. Scripts remain provider-aware because flags, lifecycle support, and
 # transcripts differ by tool.
 
-default_provider: claude
+default_provider: claude-code
 
 roles:
   runtime_review:
@@ -24,10 +24,12 @@ roles:
     tag: crisai-web-review
 
 providers:
-  claude:
+  claude-code:
     hcom_tool: claude
     managed: true
     mandatory_gate_supported: true
+    ephemeral_supported: true
+    persistent_supported: true
     supports_system_prompt: true
     supports_permission_mode_auto: true
     supports_transcript_failure_summary: true
@@ -40,6 +42,8 @@ providers:
     managed: false
     mandatory_gate_supported: false
     experimental: true
+    ephemeral_supported: experimental
+    persistent_supported: false
     mode: manual_smoke_test_only
     supports_system_prompt: true
     supports_permission_mode_auto: false

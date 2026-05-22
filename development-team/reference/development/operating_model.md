@@ -33,8 +33,16 @@ scripts/hcom_start.sh --target-repo /path/to/crisAI
 ```
 
 By default this starts the standing Codex team only: orchestrator, runtime,
-Gem, and web. Set `HCOM_TEAM_CLAUDE_MODE=persistent` only when intentionally
-debugging or running a long paired session with always-on Claude reviewers.
+Gem, and web. Set `HCOM_TEAM_REVIEW_LIFECYCLE=persistent` only when
+intentionally debugging or running a long paired session with always-on
+reviewer agents. `HCOM_TEAM_CLAUDE_MODE` still works as a deprecated
+compatibility alias for the lifecycle setting.
+
+Choose the reviewer provider independently with
+`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default
+and currently the only provider that satisfies mandatory review gates.
+Antigravity remains manual-smoke-test-only until authentication, model
+selection, hcom messaging, transcript capture, and close behaviour are proven.
 
 Always pass `--target-repo` when using the packaged scripts against an existing
 crisAI checkout. If omitted, the packaged script treats the development-team
