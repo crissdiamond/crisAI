@@ -14,8 +14,7 @@ fi
 
 HCOM_JSON="$(hcom list --json 2>/dev/null || echo "[]")"
 HCOM_EVENTS="$(hcom events --all --type life 2>/dev/null || true)"
-REVIEWER_TOOL="${HCOM_TEAM_REVIEWER_TOOL:-claude}"
-HCOM_JSON="$HCOM_JSON" HCOM_EVENTS="$HCOM_EVENTS" TOOL="$REVIEWER_TOOL" python - "$LEASES" <<'PY'
+HCOM_JSON="$HCOM_JSON" HCOM_EVENTS="$HCOM_EVENTS" python - "$LEASES" <<'PY'
 import json
 import os
 import sys
@@ -31,7 +30,7 @@ except json.JSONDecodeError:
 live = {
     agent.get("name"): agent
     for agent in agents
-    if str(agent.get("tool", "")).lower() == os.environ.get("TOOL", "claude").lower()
+    if str(agent.get("tool", "")).lower() == "claude"
     and str(agent.get("tag", "")).endswith("-review")
 }
 
@@ -64,11 +63,11 @@ if leases_path.exists():
 
 names = sorted(set(live) | set(leases))
 if not names:
-    print(f"No ephemeral {os.environ.get('TOOL', 'claude').capitalize()} reviewers found.")
+    print("No ephemeral Claude reviewers found.")
     raise SystemExit(0)
 
 now = int(time())
-print(f"{os.environ.get('TOOL', 'claude').capitalize()} reviewers:")
+print("Claude reviewers:")
 for name in names:
     lease = leases.get(name, {})
     agent = live.get(name, {})

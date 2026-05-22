@@ -128,9 +128,8 @@ if ! command -v hcom >/dev/null 2>&1; then
   echo "Missing required command: hcom" >&2
   exit 1
 fi
-REVIEWER_TOOL="${HCOM_TEAM_REVIEWER_TOOL:-claude}"
-if ! command -v "$REVIEWER_TOOL" >/dev/null 2>&1; then
-  echo "Missing required command: $REVIEWER_TOOL" >&2
+if ! command -v claude >/dev/null 2>&1; then
+  echo "Missing required command: claude" >&2
   exit 1
 fi
 
@@ -262,7 +261,7 @@ PY
 export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
 mkdir -p "$HCOM_DIR"
 PROMPT="$(role_prompt)"
-CMD=(hcom "$REVIEWER_TOOL" --tag "$TAG" --dir "$TARGET_REPO" --hcom-prompt "$PROMPT" --hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY" --go)
+CMD=(hcom claude --tag "$TAG" --dir "$TARGET_REPO" --hcom-prompt "$PROMPT" --hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY" --go)
 if [[ "$VISIBILITY" == "headless" ]]; then
   CMD+=(--headless)
 else
@@ -283,7 +282,7 @@ fi
 if [[ "$VISIBILITY" == "tmux" ]]; then
   pane_id="$("$TEAM_DIR/scripts/hcom_tmux_command.sh" "$TEAM_TMUX_SESSION" "$LABEL" "${CMD[@]}")"
   sleep 1
-  name="$(hcom list --json | TAG="$TAG" TOOL="$REVIEWER_TOOL" python -c 'import json, os, sys; agents=json.load(sys.stdin); matches=[a for a in agents if a.get("tag")==os.environ["TAG"] and str(a.get("tool","")).lower()==os.environ["TOOL"]]; matches.sort(key=lambda a: a.get("created_at") or ""); print(matches[-1].get("name","") if matches else "")')"
+  name="$(hcom list --json | TAG="$TAG" python -c 'import json, os, sys; agents=json.load(sys.stdin); matches=[a for a in agents if a.get("tag")==os.environ["TAG"] and str(a.get("tool","")).lower()=="claude"]; matches.sort(key=lambda a: a.get("created_at") or ""); print(matches[-1].get("name","") if matches else "")')"
   [[ -z "$pane_id" || -z "$name" ]] || tmux rename-window -t "$pane_id" "$LABEL(${name##*-})" >/dev/null 2>&1 || true
 else
   output="$("${CMD[@]}" 2>&1)"
@@ -291,10 +290,9 @@ else
   name="$(printf '%s\n' "$output" | extract_names | head -n 1)"
 fi
 if [[ -z "${name:-}" ]]; then
-  echo "Could not parse launched $REVIEWER_TOOL reviewer name." >&2
+  echo "Could not parse launched Claude reviewer name." >&2
   exit 1
 fi
-
 record_lease "$name"
 stopped_event="$(hcom events --agent "$name" --action stopped --wait 3 2>/dev/null || true)"
 if [[ -n "$stopped_event" ]]; then

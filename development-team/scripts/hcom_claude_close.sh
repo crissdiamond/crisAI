@@ -61,8 +61,7 @@ if ! command -v hcom >/dev/null 2>&1; then
 fi
 
 HCOM_JSON="$(hcom list --json 2>/dev/null || echo "[]")"
-REVIEWER_TOOL="${HCOM_TEAM_REVIEWER_TOOL:-claude}"
-mapfile -t TARGETS < <(HCOM_JSON="$HCOM_JSON" TOOL="$REVIEWER_TOOL" python - "$LEASES" "$NAME" "$ROLE" "$THREAD" "$EXPIRED" <<'PY'
+mapfile -t TARGETS < <(HCOM_JSON="$HCOM_JSON" python - "$LEASES" "$NAME" "$ROLE" "$THREAD" "$EXPIRED" <<'PY'
 import json
 import os
 import sys
@@ -95,7 +94,7 @@ if leases_path.exists():
 live_review_names = {
     agent.get("name")
     for agent in agents
-    if str(agent.get("tool", "")).lower() == os.environ.get("TOOL", "claude").lower()
+    if str(agent.get("tool", "")).lower() == "claude"
     and str(agent.get("tag", "")).endswith("-review")
 }
 
@@ -123,7 +122,7 @@ PY
 )
 
 if [[ "${#TARGETS[@]}" -eq 0 ]]; then
-  echo "No matching ephemeral ${REVIEWER_TOOL^} reviewers found."
+  echo "No matching ephemeral Claude reviewers found."
   exit 0
 fi
 
