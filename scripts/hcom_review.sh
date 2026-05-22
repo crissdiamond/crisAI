@@ -13,7 +13,8 @@ TASK=""
 LEASE_MINUTES="${HCOM_TEAM_REVIEW_LEASE_MINUTES:-180}"
 VISIBILITY="${HCOM_TEAM_REVIEW_VISIBILITY:-headless}"
 DRY_RUN=0
-ALLOW_EXPERIMENTAL_AGY="${HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW:-0}"
+ANTIGRAVITY_MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-claude-sonnet-4.6}"
+AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
 
 usage() {
   cat <<'EOF'
@@ -138,18 +139,6 @@ case "$PROVIDER_RAW" in
     ;;
 esac
 
-if [[ "$PROVIDER" == "antigravity" && "$DRY_RUN" -eq 0 && "$ALLOW_EXPERIMENTAL_AGY" != "1" ]]; then
-  cat >&2 <<'EOF'
-Antigravity review is experimental and disabled by default.
-
-The local agy CLI can require interactive OAuth/model selection and may default
-to Gemini, so it does not satisfy mandatory Claude review gates. Set
-HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1 only for an explicit manual smoke
-test where that limitation is acceptable.
-EOF
-  exit 2
-fi
-
 require_bin() {
   local bin="$1"
   if ! command -v "$bin" >/dev/null 2>&1; then
@@ -186,14 +175,12 @@ record_lease() {
 EOF
 }
 
-if [[ "$DRY_RUN" -eq 0 ]]; then
-  require_bin hcom
-  require_bin agy
-
-  if ! hcom agy --help >/dev/null 2>&1; then
-    echo "Antigravity review requires an hcom build with native 'agy' launch support." >&2
-    exit 1
+if [[ "$PROVIDER" == "antigravity" ]]; then
+  preflight_args=()
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    preflight_args+=(--dry-run)
   fi
+  "$ROOT_DIR/scripts/hcom_antigravity_preflight.sh" "${preflight_args[@]}" >/dev/null
 fi
 
 PROMPT="$(cat <<EOF
@@ -213,7 +200,10 @@ $TASK
 EOF
 )"
 
-CMD=(hcom agy --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "You are a crisAI development review agent. Do not ask the terminal user for next steps; communicate through hcom." --go)
+CMD=(hcom agy --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "You are a crisAI development review agent. Do not ask the terminal user for next steps; communicate through hcom." --model "$ANTIGRAVITY_MODEL" --go)
+if [[ "$AUTO_APPROVE_TOOLS" == "1" ]]; then
+  CMD+=(--dangerously-skip-permissions)
+fi
 if [[ "$VISIBILITY" == "headless" ]]; then
   CMD+=(--headless)
 fi

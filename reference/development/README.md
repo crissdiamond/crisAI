@@ -131,9 +131,13 @@ metadata is writable for commits and pushes. Area Codex agents keep
 the orchestrator.
 
 Choose the reviewer provider independently with
-`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default
-and the only provider that currently satisfies mandatory review gates. Launch a
-default reviewer for review-required work:
+`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
+Antigravity is supported when its reusable OAuth token is already present and
+`HCOM_TEAM_ANTIGRAVITY_MODEL` selects a Claude model, defaulting to
+`claude-sonnet-4.6`. The generic review launcher runs the same preflight before
+using Antigravity, so failed auth or non-Claude model selection fails before a
+broken reviewer pane is created. Launch a default reviewer for review-required
+work:
 
 ```bash
 scripts/hcom_review.sh --role runtime_review --thread runtime-review --task "Review the runtime diff and report risks."
@@ -141,11 +145,10 @@ scripts/hcom_review_status.sh
 scripts/hcom_review_close.sh --thread runtime-review
 ```
 
-Antigravity review is intentionally disabled by default. The local `agy` CLI can
-require interactive OAuth/model selection and may default to Gemini, so it does
-not replace mandatory Claude review gates. Use `--provider antigravity` only for
-manual smoke tests with `HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1` after
-confirming the selected model and authentication path.
+Use `./start hcom agy` when you want on-demand reviewers to use Antigravity, and
+`./start hcom all-up agy` when you want persistent reviewer sessions through
+Antigravity. If Antigravity prompts for OAuth, run `agy` once manually and retry
+after it can reopen without asking for authentication.
 
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. The orchestrator may keep
 a reviewer alive across related sequential tasks, but should close it after the

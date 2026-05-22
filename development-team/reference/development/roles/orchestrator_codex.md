@@ -57,19 +57,22 @@ Rules:
   instructions clearly include pushing.
 - Ask area agents for changed files, checks, and suggested Conventional Commit
   messages rather than letting them commit.
-- Claude reviewers are ephemeral by default. Launch them with
-  `scripts/hcom_claude_review.sh` for review-required work, keep them alive
-  across related sequential work at your discretion, and close them with
-  `scripts/hcom_claude_close.sh` once the related task is pushed, abandoned, or
+- Reviewers are ephemeral by default. Launch them with the provider-neutral
+  `scripts/hcom_review.sh` for review-required work, keep them alive across
+  related sequential work at your discretion, and close them with
+  `scripts/hcom_review_close.sh` once the related task is pushed, abandoned, or
   unlikely to need follow-up.
-- Claude review is mandatory before commit for runtime behaviour changes,
+- Claude-model review is mandatory before commit for runtime behaviour changes,
   security/auth changes, routing or retrieval changes, shared UI contracts,
   hcom/development-team tooling, and larger UI changes.
-- If a mandatory Claude reviewer cannot launch or exits during startup, pause
-  the task. Report the reviewer role, exact launch error, reset time when
+- Claude Code is the default reviewer provider. Antigravity may satisfy the same
+  review role only when `HCOM_TEAM_REVIEW_PROVIDER=antigravity` is configured
+  and preflight confirms a reusable OAuth token plus a Claude model.
+- If a mandatory reviewer cannot launch or exits during startup, pause the task.
+  Report the reviewer role, provider, exact launch error, reset time when
   provided, current repo state, and what is ready for review. Do not replace the
   reviewer with orchestrator review unless the user explicitly says to proceed
-  without Claude for that task.
+  without review for that task.
 - For low-risk docs-only or mechanical changes, you may skip Claude review, but
   state that decision and why in the handoff or final task note.
 - Do not keep Claude reviewers alive as passive listeners. If you keep one

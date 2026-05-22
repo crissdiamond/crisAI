@@ -39,15 +39,24 @@ providers:
       close: scripts/hcom_claude_close.sh
   antigravity:
     hcom_tool: agy
-    managed: false
-    mandatory_gate_supported: false
-    experimental: true
-    ephemeral_supported: experimental
-    persistent_supported: false
-    mode: manual_smoke_test_only
+    managed: true
+    mandatory_gate_supported: preflight_required
+    experimental: false
+    ephemeral_supported: true
+    persistent_supported: true
+    mode: hcom_managed_with_reusable_oauth
     supports_system_prompt: true
     supports_permission_mode_auto: false
+    supports_dangerously_skip_permissions: true
     supports_transcript_failure_summary: false
-    requires_interactive_oauth: true
+    requires_existing_oauth: true
+    requires_preflight: true
+    default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
+    default_model: claude-sonnet-4.6
     model_selection_verified: false
     requires_hcom_tool_support: true
+    lifecycle_scripts:
+      preflight: scripts/hcom_antigravity_preflight.sh
+      review: scripts/hcom_review.sh
+      status: scripts/hcom_review_status.sh
+      close: scripts/hcom_review_close.sh

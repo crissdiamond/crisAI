@@ -14,6 +14,7 @@ ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 REVIEW_LIFECYCLE="${HCOM_TEAM_REVIEW_LIFECYCLE:-${HCOM_TEAM_CLAUDE_MODE:-ephemeral}}"
 REVIEW_PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
+ANTIGRAVITY_MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-claude-sonnet-4.6}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
 CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
@@ -74,9 +75,9 @@ Reviewers:
   team. HCOM_TEAM_CLAUDE_MODE remains as a deprecated compatibility alias.
 
   HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
-  claude-code and antigravity. Persistent Antigravity reviewers are deliberately
-  blocked because agy is currently interactive/OAuth-bound and cannot satisfy
-  mandatory Claude review gates.
+  claude-code and antigravity. Antigravity reviewers require reusable local auth
+  and an explicit Claude model, defaulting to
+  HCOM_TEAM_ANTIGRAVITY_MODEL=claude-sonnet-4.6.
 EOF
 }
 
@@ -379,6 +380,18 @@ tool_auto_approval_args() {
     claude)
       printf '%s\n' --permission-mode auto
       ;;
+    agy)
+      printf '%s\n' --dangerously-skip-permissions
+      ;;
+  esac
+}
+
+tool_provider_args() {
+  local provider="$1"
+  case "$provider" in
+    agy)
+      printf '%s\n' --model "$ANTIGRAVITY_MODEL"
+      ;;
   esac
 }
 
@@ -413,18 +426,18 @@ validate_review_config() {
     echo "HCOM_TEAM_REVIEW_LIFECYCLE must be 'ephemeral' or 'persistent'." >&2
     exit 1
   fi
-  if [[ "$REVIEW_LIFECYCLE" == "persistent" && "$REVIEW_PROVIDER" == "antigravity" ]]; then
-    cat >&2 <<'EOF'
-Persistent Antigravity reviewers are not supported.
-
-Antigravity currently starts as an interactive session and may default to Gemini
-or require OAuth/model selection, so it cannot satisfy the mandatory Claude
-review gate. Use HCOM_TEAM_REVIEW_LIFECYCLE=ephemeral with the default
-claude-code provider, or run the experimental Antigravity review launcher
-explicitly after manual validation.
-EOF
-    exit 2
+  if [[ "$REVIEW_PROVIDER" == "antigravity" ]]; then
+    validate_antigravity_config "$DRY_RUN"
   fi
+}
+
+validate_antigravity_config() {
+  local dry_run="$1"
+  local args=()
+  if [[ "$dry_run" -eq 1 ]]; then
+    args+=(--dry-run)
+  fi
+  "$TARGET_REPO/scripts/hcom_antigravity_preflight.sh" "${args[@]}" >/dev/null
 }
 
 launch_dir_for() {
@@ -464,6 +477,9 @@ launch_agent() {
     cmd+=(--terminal "$(terminal_for_role "$role")")
   fi
   local tool_arg
+  while IFS= read -r tool_arg; do
+    cmd+=("$tool_arg")
+  done < <(tool_provider_args "$provider")
   while IFS= read -r tool_arg; do
     cmd+=("$tool_arg")
   done < <(tool_auto_approval_args "$role" "$provider")

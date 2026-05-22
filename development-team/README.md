@@ -117,8 +117,12 @@ By default, `scripts/hcom_start.sh` launches the standing Codex team only. Set
 `HCOM_TEAM_REVIEW_LIFECYCLE=persistent` to launch always-on reviewer agents.
 `HCOM_TEAM_CLAUDE_MODE` still works as a deprecated compatibility alias for the
 lifecycle setting. Choose the reviewer provider independently with
-`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. The recommended model is
-ephemeral but mandatory Claude Code review for review-required work:
+`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
+Antigravity is supported when the target repo preflight confirms reusable OAuth,
+native `hcom agy` support, and a Claude model selected through
+`HCOM_TEAM_ANTIGRAVITY_MODEL`, defaulting to `claude-sonnet-4.6`. The
+recommended operating model is ephemeral but mandatory review for
+review-required work:
 
 ```bash
 scripts/hcom_review.sh --target-repo /path/to/crisAI --role gem_review --thread gem-ui-review --task "Review the Gem UI diff and report UX risks."
@@ -126,11 +130,10 @@ scripts/hcom_review_status.sh --target-repo /path/to/crisAI
 scripts/hcom_review_close.sh --target-repo /path/to/crisAI --thread gem-ui-review
 ```
 
-The generic review scripts default to Claude Code. Antigravity is disabled by
-default because `agy` can require interactive OAuth/model selection and may
-default to Gemini. Test it only with `--provider antigravity` and
-`HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1` after confirming the selected model;
-it does not replace mandatory Claude review gates.
+The generic review scripts default to Claude Code. Use
+`HCOM_TEAM_REVIEW_PROVIDER=antigravity` or `--provider antigravity` only when
+`agy` can reopen without OAuth prompts. If Antigravity prompts for OAuth, run
+`agy` once manually and retry after the local token is reusable.
 
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. Use `tmux` only when a
 temporary visible Claude pane is useful. The orchestrator decides when to close

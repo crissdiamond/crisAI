@@ -286,9 +286,11 @@ separately from this operator manual to avoid confusing it with crisAI's runtime
 multi-agent workflows. See
 `reference/development/README.md` for development-team setup and operating
 rules. When developing this repository locally, `./start hcom` starts or resumes
-the saved Codex team; the orchestrator launches reviewers on demand. Claude
-remains the mandatory review gate for review-required work unless the user
-explicitly changes that policy. Use `./start hcom-attach` to attach to the
+the saved Codex team; the orchestrator launches reviewers on demand. Use
+`./start hcom all-up` for persistent reviewers, `./start hcom agy` to route
+reviewers through Antigravity with a Claude model, and
+`./start hcom all-up agy` for persistent Antigravity reviewers. Antigravity must
+pass reusable-auth preflight first. Use `./start hcom-attach` to attach to the
 managed tmux session.
 
 ---

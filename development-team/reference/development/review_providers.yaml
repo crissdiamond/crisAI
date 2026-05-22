@@ -28,12 +28,16 @@ providers:
     persistent_supported: true
   antigravity:
     hcom_tool: agy
-    managed: false
-    mandatory_gate_supported: false
-    experimental: true
-    ephemeral_supported: experimental
-    persistent_supported: false
-    mode: manual_smoke_test_only
-    requires_interactive_oauth: true
+    managed: true
+    mandatory_gate_supported: preflight_required
+    experimental: false
+    ephemeral_supported: true
+    persistent_supported: true
+    mode: hcom_managed_with_reusable_oauth
+    requires_existing_oauth: true
+    requires_preflight: true
+    default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
+    default_model: claude-sonnet-4.6
+    supports_dangerously_skip_permissions: true
     model_selection_verified: false
     requires_hcom_tool_support: true

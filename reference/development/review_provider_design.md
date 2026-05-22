@@ -23,8 +23,8 @@ Antigravity. They should not be added by making Claude scripts accept arbitrary
 tool names. That creates a false abstraction because provider capabilities
 differ:
 
-- hcom has native launchers for `claude`, `gemini`, `codex`, and `opencode`;
-- hcom does not currently have a native `agy` or `antigravity` launcher;
+- hcom has native launchers for `claude`, `gemini`, `codex`, `opencode`, and
+  `agy`;
 - provider flags differ, for example Claude supports `--permission-mode auto`
   while other tools may not;
 - session lifecycle, hooks, transcripts, and resume support differ;
@@ -81,48 +81,45 @@ providers:
     supports_resume: true
     required_gate: false
   antigravity:
-    command: agy
-    managed: false
-    ephemeral_supported: experimental
-    persistent_supported: false
-    mode: manual_smoke_test_only
-    requires_interactive_oauth: true
-    model_selection_verified: false
-    required_gate: false
+    hcom_tool: agy
+    managed: true
+    ephemeral_supported: true
+    persistent_supported: true
+    mode: hcom_managed_with_reusable_oauth
+    requires_existing_oauth: true
+    requires_preflight: true
+    default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
+    default_model: claude-sonnet-4.6
+    required_gate: preflight_required
 ```
 
 The implementation supports `claude-code` through the generic entrypoint while
 delegating internally to the existing Claude scripts. The old provider spelling
 `claude` remains accepted as a compatibility alias. Antigravity is available
-only as an explicit manual smoke-test provider when the local hcom build
-supports `hcom agy`; it remains unsuitable for mandatory gates until launch,
-model selection, message delivery, transcript, and close behaviour have been
-smoke-tested in real team runs. Gemini and OpenCode can be added after their
-review lifecycle behaviour is verified.
+through `hcom agy` when the preflight confirms reusable local OAuth and a Claude
+model. Gemini and OpenCode can be added after their review lifecycle behaviour
+is verified.
 
 ## Antigravity Position
 
-Antigravity CLI is available locally as `agy`, but the current observed launch
-path opens an interactive session, may require OAuth, and can default to a
-Gemini model. That is useful for manual experiments but not for a mandatory
-Claude review gate.
+Antigravity CLI is available locally as `agy`. The launcher never relies on
+Antigravity's default model selection: it passes
+`HCOM_TEAM_ANTIGRAVITY_MODEL`, defaulting to `claude-sonnet-4.6`, and the
+preflight rejects non-Claude model names. The OAuth token must already exist and
+be private; if Antigravity would prompt for OAuth, the launch fails before
+creating reviewer sessions.
 
-Persistent Antigravity reviewers are blocked in `scripts/hcom_start.sh`, and
-ephemeral Antigravity reviewers require
-`HCOM_TEAM_ALLOW_EXPERIMENTAL_AGY_REVIEW=1`. Until non-interactive
-authentication, Claude model selection, message delivery, transcript capture,
-and close behaviour are proven, Antigravity must not satisfy mandatory Claude
-review gates.
+Antigravity reviewers may run in ephemeral or persistent lifecycle mode. Because
+`agy` does not support Claude Code's `--permission-mode auto`, the launchers use
+`--dangerously-skip-permissions` only when team tool auto-approval is enabled.
 
 ## Implementation Plan
 
-1. Add `.antigravitycli/` to `.gitignore` because it is local tool state.
+1. Keep `.antigravitycli/` ignored because it is local tool state.
 2. Keep existing `hcom_claude_*` scripts Claude-specific.
-3. Add provider capability config under `reference/development/`.
-4. Add generic `hcom_review*` scripts that delegate to Claude and can launch
-   opt-in experimental Antigravity reviewers only for manual smoke tests.
+3. Keep provider capability config under `reference/development/`.
+4. Route generic `hcom_review*` scripts through provider-specific preflight and
+   launch arguments.
 5. Add shell tests for provider validation, dry-run launch construction, status,
    close, and fail-closed required-gate behaviour.
 6. Add Gemini/OpenCode providers only after real hcom dry-run and smoke tests.
-7. Promote Antigravity from experimental only after repeated team runs prove the
-   review lifecycle is reliable.

@@ -38,10 +38,12 @@ reviewer agents. `HCOM_TEAM_CLAUDE_MODE` still works as a deprecated
 compatibility alias for the lifecycle setting.
 
 Choose the reviewer provider independently with
-`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default
-and currently the only provider that satisfies mandatory review gates.
-Antigravity remains manual-smoke-test-only until authentication, model
-selection, hcom messaging, transcript capture, and close behaviour are proven.
+`HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
+Antigravity is allowed for the same reviewer lifecycle only after preflight
+confirms reusable local OAuth, native `hcom agy` launch support, and a Claude
+model selected through `HCOM_TEAM_ANTIGRAVITY_MODEL` (default:
+`claude-sonnet-4.6`). If the preflight fails, no reviewer has run and the
+orchestrator must pause before commit.
 
 Use resume only when continuing the same team context:
 
@@ -89,6 +91,9 @@ launcher gives the orchestrator Codex a Git-writer profile
 metadata is writable for commit and push operations. Area Codex agents receive
 `--ask-for-approval never --sandbox workspace-write`, and Claude receives
 `--permission-mode auto` when they are launched.
+Antigravity reviewers receive the configured Claude model and, when auto
+approval is enabled, `--dangerously-skip-permissions` because `agy` does not use
+Claude Code's `--permission-mode auto` flag.
 Use `--no-tool-auto-approve` or `HCOM_TEAM_TOOL_AUTO_APPROVE=0` when interactive
 tool approval is required. Override `HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX` or
 `HCOM_TEAM_AREA_CODEX_SANDBOX` when a different Codex sandbox profile is needed.
@@ -106,20 +111,23 @@ If a reviewer exits immediately during startup, the review script marks its
 local lease inactive and reports the transcript-level failure, such as provider
 rate limiting. Treat that as no review having occurred.
 
-### Claude Review Gate
+### Review Gate
 
-Claude reviewers are ephemeral to avoid idle cost, not optional substitutes for
-review. The orchestrator must launch the relevant Claude reviewer before commit
+Reviewers are ephemeral to avoid idle cost, not optional substitutes for review.
+The orchestrator must launch the relevant Claude-model reviewer before commit
 for review-required work, including runtime behaviour changes,
 security/authentication changes, routing or retrieval changes, shared UI
 contracts, hcom/development-team tooling, and larger UI changes.
 
-If a required Claude reviewer cannot launch, exits during startup, or reports a
-provider error such as rate limiting, the task pauses before commit. The
-orchestrator must report the reviewer role, thread, exact error, reset time when
-available, current changed files, completed checks, and the retry command. It
-must not replace Claude review with orchestrator self-review unless the user
-explicitly says to proceed without Claude for that task.
+Claude Code is the default reviewer provider. Antigravity may satisfy the same
+review role when `HCOM_TEAM_REVIEW_PROVIDER=antigravity` and preflight confirms
+reusable OAuth plus a Claude model. If a required reviewer cannot launch, exits
+during startup, or reports a provider error such as rate limiting, the task
+pauses before commit. The orchestrator must report the reviewer role, provider,
+thread, exact error, reset time when available, current changed files, completed
+checks, and the retry command. It must not replace reviewer challenge with
+orchestrator self-review unless the user explicitly says to proceed without
+review for that task.
 
 For low-risk docs-only or mechanical changes, the orchestrator may skip Claude
 review, but should state why in the handoff or final task note.
