@@ -13,7 +13,6 @@ TASK=""
 LEASE_MINUTES="${HCOM_TEAM_REVIEW_LEASE_MINUTES:-180}"
 VISIBILITY="${HCOM_TEAM_REVIEW_VISIBILITY:-headless}"
 DRY_RUN=0
-ANTIGRAVITY_MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-claude-sonnet-4.6}"
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
 
 usage() {
@@ -200,7 +199,7 @@ $TASK
 EOF
 )"
 
-CMD=(hcom agy --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "You are a crisAI development review agent. Do not ask the terminal user for next steps; communicate through hcom." --model "$ANTIGRAVITY_MODEL" --go)
+CMD=(hcom agy --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "You are a crisAI development review agent. Do not ask the terminal user for next steps; communicate through hcom." --go)
 if [[ "$AUTO_APPROVE_TOOLS" == "1" ]]; then
   CMD+=(--dangerously-skip-permissions)
 fi

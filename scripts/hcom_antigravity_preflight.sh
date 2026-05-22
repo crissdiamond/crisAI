@@ -3,7 +3,6 @@
 set -euo pipefail
 
 DRY_RUN=0
-MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-claude-sonnet-4.6}"
 TOKEN_PATH="${HCOM_TEAM_ANTIGRAVITY_TOKEN_PATH:-$HOME/.gemini/antigravity-cli/antigravity-oauth-token}"
 
 usage() {
@@ -14,9 +13,9 @@ Checks the local Antigravity setup required by hcom review launchers.
 The OAuth token content is never printed.
 
 Environment:
-  HCOM_TEAM_ANTIGRAVITY_MODEL       Claude model to request through hcom agy.
-                                   Default: claude-sonnet-4.6
   HCOM_TEAM_ANTIGRAVITY_TOKEN_PATH  Reusable Antigravity OAuth token path.
+  HCOM_TEAM_ANTIGRAVITY_MODEL       Deprecated: ignored because current agy
+                                   releases do not expose CLI model selection.
 EOF
 }
 
@@ -49,12 +48,13 @@ require_bin() {
 require_bin hcom
 require_bin agy
 
-shopt -s nocasematch
-if [[ "$MODEL" != *claude* ]]; then
-  echo "HCOM_TEAM_ANTIGRAVITY_MODEL must select a Claude model, got: $MODEL" >&2
-  exit 2
+if [[ -n "${HCOM_TEAM_ANTIGRAVITY_MODEL:-}" ]]; then
+  cat >&2 <<'EOF'
+Warning: HCOM_TEAM_ANTIGRAVITY_MODEL is ignored because current agy releases do
+not expose CLI model selection. Antigravity cannot satisfy mandatory
+Claude-model review gates until model selection is verifiable.
+EOF
 fi
-shopt -u nocasematch
 
 if ! hcom agy --help >/dev/null 2>&1; then
   echo "Antigravity review requires an hcom build with native 'agy' launch support." >&2
@@ -85,4 +85,4 @@ EOF
   fi
 fi
 
-echo "Antigravity preflight ok: model=$MODEL"
+echo "Antigravity preflight ok: reusable OAuth token present."

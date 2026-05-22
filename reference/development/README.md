@@ -132,12 +132,12 @@ the orchestrator.
 
 Choose the reviewer provider independently with
 `HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
-Antigravity is supported when its reusable OAuth token is already present and
-`HCOM_TEAM_ANTIGRAVITY_MODEL` selects a Claude model, defaulting to
-`claude-sonnet-4.6`. The generic review launcher runs the same preflight before
-using Antigravity, so failed auth or non-Claude model selection fails before a
-broken reviewer pane is created. Launch a default reviewer for review-required
-work:
+Antigravity is supported when its reusable OAuth token is already present.
+Current `agy` releases do not expose CLI model selection, so Antigravity launch
+cannot prove a Claude model and should not be used for mandatory Claude-model
+review gates. The generic review launcher runs the same preflight before using
+Antigravity, so failed auth is caught before a broken reviewer pane is created.
+Launch a default reviewer for review-required work:
 
 ```bash
 scripts/hcom_review.sh --role runtime_review --thread runtime-review --task "Review the runtime diff and report risks."

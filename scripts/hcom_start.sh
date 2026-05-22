@@ -13,7 +13,6 @@ ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 REVIEW_LIFECYCLE="${HCOM_TEAM_REVIEW_LIFECYCLE:-${HCOM_TEAM_CLAUDE_MODE:-ephemeral}}"
 REVIEW_PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
-ANTIGRAVITY_MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-claude-sonnet-4.6}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
 CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
@@ -74,9 +73,10 @@ Reviewers:
   team. HCOM_TEAM_CLAUDE_MODE remains as a deprecated compatibility alias.
 
   HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
-  claude-code and antigravity. Antigravity reviewers require reusable local auth
-  and an explicit Claude model, defaulting to
-  HCOM_TEAM_ANTIGRAVITY_MODEL=claude-sonnet-4.6.
+  claude-code and antigravity. Antigravity reviewers require reusable local auth.
+  Current agy releases do not expose CLI model selection, so Antigravity launch
+  cannot prove a Claude model and should not be used for mandatory Claude-model
+  review gates until that support exists.
 EOF
 }
 
@@ -380,7 +380,8 @@ tool_provider_args() {
   local provider="$1"
   case "$provider" in
     agy)
-      printf '%s\n' --model "$ANTIGRAVITY_MODEL"
+      # Current agy releases do not expose provider-specific launch flags.
+      return 0
       ;;
   esac
 }

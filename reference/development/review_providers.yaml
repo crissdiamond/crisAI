@@ -40,7 +40,7 @@ providers:
   antigravity:
     hcom_tool: agy
     managed: true
-    mandatory_gate_supported: preflight_required
+    mandatory_gate_supported: false
     experimental: false
     ephemeral_supported: true
     persistent_supported: true
@@ -51,8 +51,6 @@ providers:
     supports_transcript_failure_summary: false
     requires_existing_oauth: true
     requires_preflight: true
-    default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
-    default_model: claude-sonnet-4.6
     model_selection_verified: false
     requires_hcom_tool_support: true
     lifecycle_scripts:

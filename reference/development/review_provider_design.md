@@ -88,26 +88,24 @@ providers:
     mode: hcom_managed_with_reusable_oauth
     requires_existing_oauth: true
     requires_preflight: true
-    default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
-    default_model: claude-sonnet-4.6
-    required_gate: preflight_required
+    model_selection_verified: false
+    required_gate: false
 ```
 
 The implementation supports `claude-code` through the generic entrypoint while
 delegating internally to the existing Claude scripts. The old provider spelling
 `claude` remains accepted as a compatibility alias. Antigravity is available
-through `hcom agy` when the preflight confirms reusable local OAuth and a Claude
-model. Gemini and OpenCode can be added after their review lifecycle behaviour
-is verified.
+through `hcom agy` when the preflight confirms reusable local OAuth. Current
+`agy` releases do not expose CLI model selection, so Antigravity cannot prove a
+Claude model and should not satisfy mandatory Claude-model review gates. Gemini
+and OpenCode can be added after their review lifecycle behaviour is verified.
 
 ## Antigravity Position
 
-Antigravity CLI is available locally as `agy`. The launcher never relies on
-Antigravity's default model selection: it passes
-`HCOM_TEAM_ANTIGRAVITY_MODEL`, defaulting to `claude-sonnet-4.6`, and the
-preflight rejects non-Claude model names. The OAuth token must already exist and
-be private; if Antigravity would prompt for OAuth, the launch fails before
-creating reviewer sessions.
+Antigravity CLI is available locally as `agy`. Current `agy` releases do not
+accept a model-selection flag, so the launcher does not pass one. The OAuth
+token must already exist and be private; if Antigravity would prompt for OAuth,
+the launch fails before creating reviewer sessions.
 
 Antigravity reviewers may run in ephemeral or persistent lifecycle mode. Because
 `agy` does not support Claude Code's `--permission-mode auto`, the launchers use
