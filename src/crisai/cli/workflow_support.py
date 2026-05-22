@@ -8,10 +8,9 @@ from uuid import uuid4
 
 import typer
 
-from crisai.agents import factory as factory_module
 from crisai import runtime as runtime_module
 from crisai import tracing as tracing_module
-
+from crisai.agents import factory as factory_module
 from crisai.cli import display as display_module
 
 AgentFactory = factory_module.AgentFactory

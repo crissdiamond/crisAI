@@ -5,10 +5,10 @@ from collections.abc import Iterable
 from rich import console as rich_console
 from rich import table as rich_table
 
-from crisai.cli import display as display_module
 from crisai import config as config_module
-from crisai.orchestration import router as router_module
 from crisai import registry as registry_module
+from crisai.cli import display as display_module
+from crisai.orchestration import router as router_module
 
 Console = rich_console.Console
 Table = rich_table.Table

@@ -11,12 +11,12 @@ from typing import Any
 
 import yaml
 
+from crisai import config as config_module
 from crisai.orchestration import request_contract as request_contract_module
 from crisai.orchestration import retrieval_association_graph as graph_module
+from crisai.orchestration import semantic_catalog as catalog_module
 from crisai.workspace import artefact_validation as validation_module
 from crisai.workspace import spaces as spaces_module
-from crisai import config as config_module
-from crisai.orchestration import semantic_catalog as catalog_module
 
 RequestContract = request_contract_module.RequestContract
 DeterministicRetrievalContext = graph_module.DeterministicRetrievalContext

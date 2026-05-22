@@ -1,37 +1,37 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
-import re
-import ssl
-import subprocess
 import collections.abc
 import contextlib
 import dataclasses
+import logging
+import os
 import pathlib
+import re
+import ssl
+import subprocess
 import types
-import typing
+from typing import Any
 
-import typer
 import prompt_toolkit
+import typer
 
-from crisai.cli import chat_context as chat_context_module
-from crisai.cli import display as display_module
-from crisai.cli import session_store as session_store_module
-from crisai.cli import status_views as status_views_module
 from crisai import config as config_module
 from crisai import logging_utils as logging_utils_module
+from crisai import registry as registry_module
+from crisai import registry_validation as validation_module
+from crisai.cli import chat_context as chat_context_module
+from crisai.cli import display as display_module
+from crisai.cli import pipelines as pipelines_module
+from crisai.cli import session_store as session_store_module
+from crisai.cli import status_views as status_views_module
 from crisai.orchestration import exceptions as exceptions_module
 from crisai.orchestration import request_contract as request_contract_module
 from crisai.orchestration import retrieval_checkpoint as retrieval_checkpoint_module
 from crisai.orchestration import router as router_module
 from crisai.orchestration import semantic_catalog as catalog_module
-from crisai import registry as registry_module
-from crisai import registry_validation as validation_module
 from crisai.workspace import artefact_validation as artefact_validation_module
 from crisai.workspace import spaces as spaces_module
-from crisai.cli import pipelines as pipelines_module
 
 # Alias definitions for module-level symbols to satisfy import rules while preserving references
 Awaitable = collections.abc.Awaitable

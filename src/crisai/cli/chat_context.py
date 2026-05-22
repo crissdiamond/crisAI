@@ -9,10 +9,10 @@ from typing import Any, cast
 
 import yaml
 
+from crisai import config as config_module
 from crisai.cli import display as display_module
 from crisai.cli import session_store as session_store_module
 from crisai.cli import text_loader as text_loader_module
-from crisai import config as config_module
 from crisai.orchestration import retrieval_association_graph as graph_module
 from crisai.orchestration import semantic_catalog as catalog_module
 from crisai.orchestration import session_anchors as anchors_module

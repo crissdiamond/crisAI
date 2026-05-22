@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pathlib
 
-from crisai.cli import prompt_contracts as prompt_contracts_module
 from crisai import config as config_module
+from crisai.cli import prompt_contracts as prompt_contracts_module
 from crisai.orchestration import retrieval_association_graph as graph_module
 from crisai.orchestration import session_anchors as anchors_module
 from crisai.orchestration import source_constraints as constraints_module

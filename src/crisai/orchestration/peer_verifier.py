@@ -4,7 +4,6 @@ import dataclasses
 import functools
 import pathlib
 import re
-from typing import Any
 
 from crisai.orchestration import peer_contract as peer_contract_module
 from crisai.orchestration import semantic_catalog as catalog_module

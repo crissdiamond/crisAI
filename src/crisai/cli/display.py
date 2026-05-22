@@ -12,8 +12,8 @@ import rich.markdown as rich_markdown
 import rich.panel as rich_panel
 import rich.text as rich_text
 
-from crisai.orchestration import semantic_catalog as catalog_module
 from crisai.cli import peer_transcript as peer_transcript_module
+from crisai.orchestration import semantic_catalog as catalog_module
 
 # Alias definitions for module-level symbols to satisfy import rules while preserving references
 Console = rich_console.Console

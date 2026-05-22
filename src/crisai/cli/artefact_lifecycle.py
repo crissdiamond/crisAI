@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import re
 import pathlib
+import re
 
 from crisai import config as config_module
+from crisai.cli import session_store as session_store_module
 from crisai.orchestration import semantic_catalog as catalog_module
 from crisai.orchestration import session_anchors as anchors_module
 from crisai.orchestration import task_contract as task_contract_module
 from crisai.workspace import artefact_validation as validation_module
-
-from crisai.cli import session_store as session_store_module
 
 load_settings = config_module.load_settings
 
