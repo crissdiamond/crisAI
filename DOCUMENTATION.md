@@ -143,11 +143,11 @@ After editing `.env`, run `uv run crisai doctor`. If doctor reports that `.env`
 is missing placeholders present in `.env.example`, add the placeholders without
 overwriting real credentials.
 
-### 2.8 Local cleanup and portable packaging
+### 2.8 Local cleanup
 
 The checkout can grow large after local installs and test runs because `.venv`,
-UI `node_modules`, Python caches, type-check caches, test caches, local hcom
-state, logs, and task workspaces are rebuildable local state.
+UI `node_modules`, Python caches, type-check caches, test caches, logs, and task
+workspaces are rebuildable local state.
 
 Use the cleanup helper to inspect selected targets without deleting anything:
 
@@ -164,26 +164,12 @@ scripts/clean_local.sh --deps --apply
 
 Useful options:
 
-- `--all --apply`: remove rebuildable caches, dependency folders, hcom state,
-  and logs.
+- `--all --apply`: remove rebuildable caches, dependency folders, and logs.
 - `--workspace-state --apply`: remove local task/cache/input/output workspace
   state while keeping `workspace/knowledge/`.
-- `--hcom --apply`: remove local hcom state.
 
 The cleanup helper never removes `.env`, `.tokens`, `.auth`,
 `workspace/.auth`, or `workspace/knowledge/`.
-
-To package the standalone hcom development-team tooling for another machine:
-
-```bash
-scripts/package_development_team.sh
-```
-
-The default package path is `$HOME/crisai-development-team.zip`. The zip
-excludes local hcom databases, local session assignments, logs, temporary launch
-scripts, credentials, tokens, and auth caches. On the destination machine, unzip
-it and follow the packaged `README.md`; when using it outside a crisAI checkout,
-pass `--target-repo /path/to/crisAI` to the packaged hcom scripts.
 
 ---
 
@@ -279,19 +265,12 @@ Ink Gem reads `CRISAI_RUNTIME_URL` and `CRISAI_API_KEY` or the temporary
 
 ---
 
-## 3.1 Development model
+## 3.1 Repository development process
 
-The hcom/Codex/Claude process used to develop this repository is documented
-separately from this operator manual to avoid confusing it with crisAI's runtime
-multi-agent workflows. See
-`reference/development/README.md` for development-team setup and operating
-rules. When developing this repository locally, `./start hcom` starts or resumes
-the saved Codex team; the orchestrator launches reviewers on demand. Use
-`./start hcom all-up` for persistent reviewers, `./start hcom agy` to route
-reviewers through Antigravity with a Claude model, and
-`./start hcom all-up agy` for persistent Antigravity reviewers. Antigravity must
-pass reusable-auth preflight first. Use `./start hcom-attach` to attach to the
-managed tmux session.
+The multi-agent process used to develop this repository is intentionally
+documented outside the operator manual so it is not confused with crisAI's
+runtime multi-agent workflows. See `reference/development/README.md` for the
+development-team operating model.
 
 ---
 

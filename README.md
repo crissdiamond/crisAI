@@ -115,7 +115,7 @@ npm --prefix ui run build:gem
 
 See [TESTING.md](TESTING.md) for the suite layout and manual Graph login smoke test.
 
-## Local Cleanup And Packaging
+## Local Cleanup
 
 To inspect rebuildable local disk usage without deleting anything:
 
@@ -124,14 +124,6 @@ scripts/clean_local.sh
 ```
 
 Add `--apply` to remove selected rebuildable artefacts. Use `--deps --apply` only when you want to remove `.venv` and UI `node_modules`; bootstrap can recreate them.
-
-To package the standalone hcom development-team tooling:
-
-```bash
-scripts/package_development_team.sh
-```
-
-The default package path is `$HOME/crisai-development-team.zip`.
 
 ## Documentation
 
