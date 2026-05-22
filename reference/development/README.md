@@ -132,11 +132,13 @@ the orchestrator.
 
 Choose the reviewer provider independently with
 `HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
-Antigravity is supported when its reusable OAuth token is already present.
-Current `agy` releases do not expose CLI model selection, so Antigravity launch
-cannot prove a Claude model and should not be used for mandatory Claude-model
-review gates. The generic review launcher runs the same preflight before using
-Antigravity, so failed auth is caught before a broken reviewer pane is created.
+Antigravity is supported when its reusable OAuth token is already present and
+its persisted default model is a Claude model. Set that once with `agy`, enter
+`/model`, choose `Claude Sonnet 4.6 (Thinking)`, and confirm it appears in the
+Antigravity footer. This writes the user config at
+`~/.gemini/antigravity-cli/settings.json`. The generic review launcher verifies
+the active model with an `agy --print` probe before using Antigravity, so failed
+auth or a non-Claude default is caught before a broken reviewer pane is created.
 Launch a default reviewer for review-required work:
 
 ```bash
@@ -148,7 +150,9 @@ scripts/hcom_review_close.sh --thread runtime-review
 Use `./start hcom agy` when you want on-demand reviewers to use Antigravity, and
 `./start hcom all-up agy` when you want persistent reviewer sessions through
 Antigravity. If Antigravity prompts for OAuth, run `agy` once manually and retry
-after it can reopen without asking for authentication.
+after it can reopen without asking for authentication. If you intentionally use
+Antigravity with a different model for other work, switch it back to Claude
+before launching hcom review agents.
 
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. The orchestrator may keep
 a reviewer alive across related sequential tasks, but should close it after the

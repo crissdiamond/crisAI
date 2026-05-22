@@ -37,7 +37,7 @@ providers:
     requires_existing_oauth: true
     requires_preflight: true
     default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
-    default_model: claude-sonnet-4.6
+    default_model: Claude Sonnet 4.6
     supports_dangerously_skip_permissions: true
-    model_selection_verified: false
+    model_selection_verified: persisted_model_probe
     requires_hcom_tool_support: true

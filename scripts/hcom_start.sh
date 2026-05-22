@@ -73,10 +73,10 @@ Reviewers:
   team. HCOM_TEAM_CLAUDE_MODE remains as a deprecated compatibility alias.
 
   HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
-  claude-code and antigravity. Antigravity reviewers require reusable local auth.
-  Current agy releases do not expose CLI model selection, so Antigravity launch
-  cannot prove a Claude model and should not be used for mandatory Claude-model
-  review gates until that support exists.
+  claude-code and antigravity. Antigravity reviewers require reusable local auth
+  and a persisted Claude model selection in agy. Use `agy`, enter `/model`,
+  select the required Claude model, then rerun the launcher. The preflight
+  verifies the active agy model before any reviewer is launched.
 EOF
 }
 
@@ -380,7 +380,8 @@ tool_provider_args() {
   local provider="$1"
   case "$provider" in
     agy)
-      # Current agy releases do not expose provider-specific launch flags.
+      # agy has no public --model launch flag. The selected model is persisted
+      # by Antigravity and verified by scripts/hcom_antigravity_preflight.sh.
       return 0
       ;;
   esac

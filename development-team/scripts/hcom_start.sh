@@ -14,7 +14,6 @@ ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 REVIEW_LIFECYCLE="${HCOM_TEAM_REVIEW_LIFECYCLE:-${HCOM_TEAM_CLAUDE_MODE:-ephemeral}}"
 REVIEW_PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
-ANTIGRAVITY_MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-claude-sonnet-4.6}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
 CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
@@ -76,8 +75,9 @@ Reviewers:
 
   HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
   claude-code and antigravity. Antigravity reviewers require reusable local auth
-  and an explicit Claude model, defaulting to
-  HCOM_TEAM_ANTIGRAVITY_MODEL=claude-sonnet-4.6.
+  and a persisted Claude model selection in agy. Use `agy`, enter `/model`,
+  select the required Claude model, then rerun the launcher. The target repo
+  preflight verifies the active agy model before any reviewer is launched.
 EOF
 }
 
@@ -390,7 +390,9 @@ tool_provider_args() {
   local provider="$1"
   case "$provider" in
     agy)
-      printf '%s\n' --model "$ANTIGRAVITY_MODEL"
+      # agy has no public --model launch flag. The target repo preflight
+      # verifies the persisted Antigravity model selection before launch.
+      return 0
       ;;
   esac
 }

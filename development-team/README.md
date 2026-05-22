@@ -119,10 +119,11 @@ By default, `scripts/hcom_start.sh` launches the standing Codex team only. Set
 lifecycle setting. Choose the reviewer provider independently with
 `HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
 Antigravity is supported when the target repo preflight confirms reusable OAuth,
-native `hcom agy` support, and a Claude model selected through
-`HCOM_TEAM_ANTIGRAVITY_MODEL`, defaulting to `claude-sonnet-4.6`. The
-recommended operating model is ephemeral but mandatory review for
-review-required work:
+native `hcom agy` support, and an active persisted Claude model selection in
+`agy`. Set that once with `agy`, enter `/model`, choose
+`Claude Sonnet 4.6 (Thinking)`, and confirm it appears in the footer. The
+recommended operating model is ephemeral but mandatory review for review-required
+work:
 
 ```bash
 scripts/hcom_review.sh --target-repo /path/to/crisAI --role gem_review --thread gem-ui-review --task "Review the Gem UI diff and report UX risks."

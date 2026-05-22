@@ -4,6 +4,8 @@ set -euo pipefail
 
 DRY_RUN=0
 TOKEN_PATH="${HCOM_TEAM_ANTIGRAVITY_TOKEN_PATH:-$HOME/.gemini/antigravity-cli/antigravity-oauth-token}"
+MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-Claude Sonnet 4.6}"
+MODEL_PROBE_TIMEOUT="${HCOM_TEAM_ANTIGRAVITY_MODEL_PROBE_TIMEOUT:-60s}"
 
 usage() {
   cat <<'EOF'
@@ -14,8 +16,11 @@ The OAuth token content is never printed.
 
 Environment:
   HCOM_TEAM_ANTIGRAVITY_TOKEN_PATH  Reusable Antigravity OAuth token path.
-  HCOM_TEAM_ANTIGRAVITY_MODEL       Deprecated: ignored because current agy
-                                   releases do not expose CLI model selection.
+  HCOM_TEAM_ANTIGRAVITY_MODEL       Required active persisted agy model fragment.
+                                    Default: Claude Sonnet 4.6
+  HCOM_TEAM_ANTIGRAVITY_MODEL_PROBE_TIMEOUT
+                                    Timeout for the model verification probe.
+                                    Default: 60s
 EOF
 }
 
@@ -48,18 +53,55 @@ require_bin() {
 require_bin hcom
 require_bin agy
 
-if [[ -n "${HCOM_TEAM_ANTIGRAVITY_MODEL:-}" ]]; then
-  cat >&2 <<'EOF'
-Warning: HCOM_TEAM_ANTIGRAVITY_MODEL is ignored because current agy releases do
-not expose CLI model selection. Antigravity cannot satisfy mandatory
-Claude-model review gates until model selection is verifiable.
-EOF
-fi
-
 if ! hcom agy --help >/dev/null 2>&1; then
   echo "Antigravity review requires an hcom build with native 'agy' launch support." >&2
   exit 1
 fi
+
+normalize_model_text() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9]+/ /g; s/[[:space:]]+/ /g; s/^ //; s/ $//'
+}
+
+verify_active_model() {
+  local response normalized_response normalized_model
+  response="$(
+    timeout "$MODEL_PROBE_TIMEOUT" \
+      agy --print-timeout "$MODEL_PROBE_TIMEOUT" \
+        --print "Reply with only the human-readable name of the active model you are currently running." \
+      2>&1
+  )" || {
+    cat >&2 <<EOF
+Could not verify the active Antigravity model.
+
+agy output:
+$response
+
+Run \`agy\` manually, use \`/model\` to select a Claude model, then retry.
+EOF
+    exit 2
+  }
+
+  normalized_response="$(normalize_model_text "$response")"
+  normalized_model="$(normalize_model_text "$MODEL")"
+
+  if [[ "$normalized_response" != *claude* || "$normalized_response" != *"$normalized_model"* ]]; then
+    cat >&2 <<EOF
+Antigravity is authenticated, but the active persisted agy model is not the
+required Claude model.
+
+Required model fragment: $MODEL
+Probe response: $response
+
+Run \`agy\`, enter \`/model\`, select the required Claude model, confirm it is
+shown in the Antigravity footer, then retry. agy does not currently expose a
+public --model launch flag, so hcom uses the persisted Antigravity model
+selection and verifies it before launching reviewers.
+EOF
+    exit 2
+  fi
+}
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
   if [[ ! -s "$TOKEN_PATH" ]]; then
@@ -83,6 +125,8 @@ EOF
       fi
     fi
   fi
+
+  verify_active_model
 fi
 
-echo "Antigravity preflight ok: reusable OAuth token present."
+echo "Antigravity preflight ok: reusable OAuth token present; active agy model matches '$MODEL'."

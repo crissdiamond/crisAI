@@ -88,24 +88,31 @@ providers:
     mode: hcom_managed_with_reusable_oauth
     requires_existing_oauth: true
     requires_preflight: true
-    model_selection_verified: false
-    required_gate: false
+    model_selection_verified: persisted_model_probe
+    default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
+    default_model: Claude Sonnet 4.6
+    required_gate: true
 ```
 
 The implementation supports `claude-code` through the generic entrypoint while
 delegating internally to the existing Claude scripts. The old provider spelling
 `claude` remains accepted as a compatibility alias. Antigravity is available
-through `hcom agy` when the preflight confirms reusable local OAuth. Current
-`agy` releases do not expose CLI model selection, so Antigravity cannot prove a
-Claude model and should not satisfy mandatory Claude-model review gates. Gemini
-and OpenCode can be added after their review lifecycle behaviour is verified.
+through `hcom agy` when the preflight confirms reusable local OAuth and an
+active persisted Claude model. Gemini and OpenCode can be added after their
+review lifecycle behaviour is verified.
 
 ## Antigravity Position
 
 Antigravity CLI is available locally as `agy`. Current `agy` releases do not
-accept a model-selection flag, so the launcher does not pass one. The OAuth
-token must already exist and be private; if Antigravity would prompt for OAuth,
-the launch fails before creating reviewer sessions.
+accept a public model-selection launch flag, so the launcher does not pass one.
+Instead, set the default model in Antigravity itself: run `agy`, enter `/model`,
+select `Claude Sonnet 4.6 (Thinking)`, and confirm that model appears in the
+footer. Antigravity persists that choice in
+`~/.gemini/antigravity-cli/settings.json`; hcom preflight verifies it with a
+short `agy --print` probe before creating reviewer sessions.
+
+The OAuth token must already exist and be private; if Antigravity would prompt
+for OAuth, the launch fails before creating reviewer sessions.
 
 Antigravity reviewers may run in ephemeral or persistent lifecycle mode. Because
 `agy` does not support Claude Code's `--permission-mode auto`, the launchers use

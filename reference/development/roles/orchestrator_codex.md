@@ -65,12 +65,9 @@ Rules:
 - Claude-model review is mandatory before commit for runtime behaviour changes,
   security/auth changes, routing or retrieval changes, shared UI contracts,
   hcom/development-team tooling, and larger UI changes.
-- Claude Code is the default reviewer provider. Antigravity may be used for
-  non-gated review roles when `HCOM_TEAM_REVIEW_PROVIDER=antigravity` is
-  configured and preflight confirms reusable OAuth. Current `agy` releases do
-  not expose CLI model selection, so Antigravity cannot prove a Claude model and
-  must not satisfy mandatory Claude-model review gates until that support
-  exists.
+- Claude Code is the default reviewer provider. Antigravity may satisfy the same
+  review role when `HCOM_TEAM_REVIEW_PROVIDER=antigravity` is configured and
+  preflight confirms reusable OAuth plus an active persisted Claude model.
 - If a mandatory reviewer cannot launch or exits during startup, pause the task.
   Report the reviewer role, provider, exact launch error, reset time when
   provided, current repo state, and what is ready for review. Do not replace the

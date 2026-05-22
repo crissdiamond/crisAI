@@ -41,10 +41,11 @@ compatibility alias for the lifecycle setting.
 Choose the reviewer provider independently with
 `HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
 Antigravity is allowed for the same reviewer lifecycle only after preflight
-confirms reusable local OAuth, native `hcom agy` launch support, and a Claude
-model selected through `HCOM_TEAM_ANTIGRAVITY_MODEL` (default:
-`claude-sonnet-4.6`). If the preflight fails, no reviewer has run and the
-orchestrator must pause before commit.
+confirms reusable local OAuth, native `hcom agy` launch support, and an active
+persisted Claude model selection. Set the Antigravity default once with `agy`,
+enter `/model`, choose `Claude Sonnet 4.6 (Thinking)`, and confirm it appears in
+the footer. If the preflight fails, no reviewer has run and the orchestrator
+must pause before commit.
 
 Always pass `--target-repo` when using the packaged scripts against an existing
 crisAI checkout. If omitted, the packaged script treats the development-team
