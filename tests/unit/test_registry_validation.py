@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from crisai.registry_validation import (
@@ -445,3 +447,36 @@ def test_doctor_allows_ms_token_cache_path_outside_workspace(tmp_path: Path, mon
     result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
 
     assert not any("MS_TOKEN_CACHE_PATH points inside the workspace" in warning.message for warning in result.warnings)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_doctor_warns_when_token_cache_permissions_are_too_broad(tmp_path: Path, monkeypatch) -> None:
+    cache_dir = tmp_path / ".auth"
+    cache_dir.mkdir(mode=0o755)
+    cache_file = cache_dir / "msal_token_cache.json"
+    cache_file.write_text("{}", encoding="utf-8")
+    cache_file.chmod(0o644)
+    monkeypatch.delenv("MS_TOKEN_CACHE_PATH", raising=False)
+    monkeypatch.delenv("MS_TOKEN_INFO_PATH", raising=False)
+
+    result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
+
+    messages = "\n".join(w.message for w in result.warnings)
+    assert "Microsoft token cache directory is too permissive" in messages
+    assert "Microsoft token cache file is too permissive" in messages
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_doctor_accepts_private_token_cache_permissions(tmp_path: Path, monkeypatch) -> None:
+    cache_dir = tmp_path / ".auth"
+    cache_dir.mkdir(mode=0o700)
+    cache_dir.chmod(0o700)
+    cache_file = cache_dir / "msal_token_cache.json"
+    cache_file.write_text("{}", encoding="utf-8")
+    cache_file.chmod(0o600)
+    monkeypatch.delenv("MS_TOKEN_CACHE_PATH", raising=False)
+    monkeypatch.delenv("MS_TOKEN_INFO_PATH", raising=False)
+
+    result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
+
+    assert not any("Microsoft token cache" in warning.message for warning in result.warnings)

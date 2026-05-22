@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,8 @@ _SESSION_MEMORY_ENV_VARS = {
     "CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE": "true or false",
 }
 _TOKEN_CACHE_PATH_ENV_VARS = ("MS_TOKEN_CACHE_PATH", "MS_TOKEN_INFO_PATH")
+_EXPECTED_TOKEN_DIR_MODE = 0o700
+_EXPECTED_TOKEN_FILE_MODE = 0o600
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -409,6 +412,66 @@ def _configured_token_cache_path_warnings(root_dir: Path) -> list[DoctorIssue]:
     return warnings
 
 
+def _token_cache_candidate_paths(root_dir: Path) -> set[Path]:
+    """Return token cache paths that doctor can inspect when they exist."""
+    candidates = {
+        root_dir / ".auth" / "msal_token_cache.json",
+        root_dir / ".auth" / "msal_token_info.json",
+        root_dir / ".auth" / "sharepoint_token_cache.json",
+        root_dir / ".auth" / "sharepoint_token_info.json",
+        root_dir / ".auth" / "intranet_token_cache.json",
+        root_dir / ".auth" / "intranet_token_info.json",
+    }
+    for env_name in _TOKEN_CACHE_PATH_ENV_VARS:
+        raw = os.getenv(env_name, "").strip()
+        if raw:
+            candidates.add(Path(raw).expanduser())
+    return candidates
+
+
+def _mode_too_broad(path: Path, expected_mode: int) -> bool:
+    mode = stat.S_IMODE(path.stat().st_mode)
+    return bool(mode & ~expected_mode)
+
+
+def _token_cache_permission_warnings(root_dir: Path) -> list[DoctorIssue]:
+    """Warn when existing Microsoft token cache files are group/world readable."""
+    if os.name != "posix":
+        return []
+
+    warnings: list[DoctorIssue] = []
+    checked_dirs: set[Path] = set()
+    for raw_path in _token_cache_candidate_paths(root_dir):
+        path = raw_path.expanduser()
+        if path.parent.exists() and path.parent not in checked_dirs:
+            checked_dirs.add(path.parent)
+            try:
+                if _mode_too_broad(path.parent, _EXPECTED_TOKEN_DIR_MODE):
+                    warnings.append(DoctorIssue(
+                        message=f"Microsoft token cache directory is too permissive: {path.parent}",
+                        hint=f"Restrict it with `chmod 700 {path.parent}`.",
+                    ))
+            except OSError as exc:
+                warnings.append(DoctorIssue(
+                    message=f"Could not inspect token cache directory permissions: {path.parent} ({exc})",
+                    hint="Check local filesystem permissions and re-run `uv run crisai doctor`.",
+                ))
+        if not path.exists():
+            continue
+        try:
+            if _mode_too_broad(path, _EXPECTED_TOKEN_FILE_MODE):
+                warnings.append(DoctorIssue(
+                    message=f"Microsoft token cache file is too permissive: {path}",
+                    hint=f"Restrict it with `chmod 600 {path}`.",
+                ))
+        except OSError as exc:
+            warnings.append(DoctorIssue(
+                message=f"Could not inspect token cache file permissions: {path} ({exc})",
+                hint="Check local filesystem permissions and re-run `uv run crisai doctor`.",
+            ))
+    return warnings
+
+
 # ---------------------------------------------------------------------------
 # Model dry-build validation
 # ---------------------------------------------------------------------------
@@ -551,6 +614,7 @@ def run_doctor(root_dir: Path, registry_dir: Path, *, validate_models: bool = Fa
     errors.extend(hygiene_errors)
     warnings.extend(hygiene_warnings)
     warnings.extend(_configured_token_cache_path_warnings(root_dir))
+    warnings.extend(_token_cache_permission_warnings(root_dir))
 
     if validate_models:
         model_errors, model_warnings = _validate_model_dry_build(root_dir, registry_dir)

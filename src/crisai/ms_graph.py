@@ -22,6 +22,8 @@ import requests
 from dotenv import load_dotenv
 from msal import PublicClientApplication, SerializableTokenCache
 
+from crisai.secure_files import ensure_secure_directory, write_secure_text
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -61,7 +63,7 @@ def configure_workspace(workspace_root: Path, namespace: str = "default") -> Non
     """
     global _token_cache_path, _token_info_path
     cache_dir = workspace_root / ".auth"
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    ensure_secure_directory(cache_dir, harden_existing=True)
     if namespace == "default":
         default_cache = cache_dir / "msal_token_cache.json"
         default_info = cache_dir / "msal_token_info.json"
@@ -108,8 +110,7 @@ def _load_token_cache() -> SerializableTokenCache:
 def _save_token_cache(cache: SerializableTokenCache) -> None:
     assert _token_cache_path is not None
     if cache.has_state_changed:
-        _token_cache_path.parent.mkdir(parents=True, exist_ok=True)
-        _token_cache_path.write_text(cache.serialize(), encoding="utf-8")
+        write_secure_text(_token_cache_path, cache.serialize(), encoding="utf-8")
 
 
 def _build_app(cache: SerializableTokenCache) -> PublicClientApplication:
@@ -239,8 +240,7 @@ def _format_interactive_auth_failure(result: dict[str, Any] | None, scopes: list
 
 def write_token_info(info: dict[str, Any]) -> None:
     assert _token_info_path is not None
-    _token_info_path.parent.mkdir(parents=True, exist_ok=True)
-    _token_info_path.write_text(json.dumps(info, indent=2), encoding="utf-8")
+    write_secure_text(_token_info_path, json.dumps(info, indent=2), encoding="utf-8")
 
 
 def read_token_info() -> dict[str, Any]:

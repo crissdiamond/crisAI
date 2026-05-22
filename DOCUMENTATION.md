@@ -836,7 +836,8 @@ and web browsing/editing, including `.auth/`, `.tokens/`, `.secrets/`,
 `.cache/`, `.crisai/`, `chat_sessions/`, and `logs/`. These names are reserved
 for local auth, cache, session, and log state rather than business content.
 `uv run crisai doctor` warns when explicit Microsoft token-cache environment
-paths are configured inside the workspace.
+paths are configured inside the workspace, and on POSIX systems also warns when
+existing Microsoft token cache directories or files are group/world accessible.
 
 `registry/workspace_spaces.yaml` owns the canonical root names, named knowledge corpora, writable roots, task subdirectories, promotion roots, and enterprise-architecture vocabulary. Keep semantics there rather than hard-coding new workspace categories in Python.
 
@@ -1076,6 +1077,8 @@ For SharePoint, `intranet_list_pages` stores results at `workspace/.cache/intran
 ### Authentication behaviour
 
 - SharePoint (documents) and Intranet (site pages) have **independent Microsoft Graph token caches** — resetting or re-authenticating one does not affect the other
+- on POSIX systems, crisAI creates Microsoft token cache directories with `0700`
+  permissions and writes token cache/info files with `0600` permissions
 - if a cached token is missing or expired, crisAI triggers interactive Microsoft Entra authentication automatically (CLI and web)
 - on **WSL2**, crisAI uses the OAuth 2.0 **device code flow**: a URL (`https://microsoft.com/devicelogin`) and a short user code are printed to the terminal — open the URL in any browser and enter the code; no localhost redirect is required
 - your Azure AD app registration must have **"Allow public client flows"** enabled (App registrations → Authentication → Advanced settings) for the device code flow to work
