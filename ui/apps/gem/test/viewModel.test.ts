@@ -1008,6 +1008,14 @@ test("stage streaming content handles stage start resets and start-only events",
   const startOnly = [
     uiEvent({ event_type: "stage_started", agent_id: "summary", stage: "summary" })
   ];
+  const startWithLifecycleContent = [
+    uiEvent({
+      event_type: "stage_started",
+      content: "Starting summary...",
+      agent_id: "summary",
+      stage: "summary"
+    })
+  ];
   const withReset = [
     ...startOnly,
     uiEvent({
@@ -1026,7 +1034,47 @@ test("stage streaming content handles stage start resets and start-only events",
   ];
 
   assert.equal(stageStreamingContent(startOnly), "");
+  assert.equal(stageStreamingContent(startWithLifecycleContent), "");
   assert.equal(stageStreamingContent(withReset), "");
+});
+
+test("stage output appears when a stage has no live deltas", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_started",
+      title: "Summary started",
+      content: "Starting summary...",
+      agent_id: "summary",
+      stage: "summary"
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      timestamp: "2026-05-17T12:00:01Z",
+      title: "Summary output",
+      content: "Completed summary output",
+      agent_id: "summary",
+      stage: "summary"
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      timestamp: "2026-05-17T12:00:02Z",
+      title: "Design started",
+      content: "Starting design...",
+      agent_id: "design",
+      stage: "design"
+    })
+  ];
+  const eventLines = buildEventLines(events, "", 80);
+
+  const lines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    pinnedStageLines: [],
+    outputLines: stageStreamingContent(events) ? wrapPlainText(stageStreamingContent(events), 80) : [],
+    eventLines
+  });
+
+  assert.deepEqual(lines, ["Summary output", "Completed summary output", ""]);
 });
 
 test("normal event lines hide stage lifecycle noise while live output renders deltas", () => {

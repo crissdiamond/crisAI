@@ -751,7 +751,7 @@ export function stageStreamingContent(events: UiEvent[], selectedStage: string |
     const key = stageEventKey(event);
     if (key !== targetStage) continue;
     if (event.event_type === "stage_started") {
-      content = event.content || "";
+      content = "";
       continue;
     }
     if (event.event_type === "stage_delta") {
