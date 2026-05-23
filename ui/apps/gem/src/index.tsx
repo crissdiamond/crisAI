@@ -19,7 +19,6 @@ import {
   type UiStageSummary
 } from "@crisai/contracts";
 import {
-  activeStageWaitingLines,
   buildRunListLines,
   buildEventLines,
   buildSessionContextPreviewLines,
@@ -61,13 +60,13 @@ import {
   resolvePanelContentHeight,
   resolvePromptDeleteDirection,
   resolvePromptPasteInput,
+  resolveLiveStageMonitor,
   resolveStageFocusKey,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
   runSummaryTitle,
   sidebarStages,
-  stageStreamingContent,
   stageSidebarLabel,
   stageVisual,
   shouldBufferStartupPaste,
@@ -346,15 +345,17 @@ function GemApp() {
     }),
     [liveStageEvent, navFocusKey, navMode, selectedStage, visibleStages]
   );
-  const liveStageContent = useMemo(
-    () => stageStreamingContent(activeEvents, liveStageEvent?.agent_id ?? liveStageEvent?.stage ?? null),
-    [activeEvents, liveStageEvent]
+  const liveStageMonitor = useMemo(
+    () => resolveLiveStageMonitor({ events: activeEvents, liveStageEvent, width: outputPanelWidth }),
+    [activeEvents, liveStageEvent, outputPanelWidth]
   );
   const liveLines = useMemo(
-    () => liveStageContent
-      ? renderMarkdownLines(liveStageContent, outputPanelWidth)
-      : activeStageWaitingLines(liveStageEvent, outputPanelWidth),
-    [liveStageContent, liveStageEvent, outputPanelWidth]
+    () => liveStageMonitor.kind === "output"
+      ? renderMarkdownLines(liveStageMonitor.content, outputPanelWidth)
+      : liveStageMonitor.kind === "waiting"
+      ? liveStageMonitor.lines
+      : [],
+    [liveStageMonitor, outputPanelWidth]
   );
   const eventLines = useMemo(
     () => buildEventLines(activeEvents, error, outputPanelWidth, notice),

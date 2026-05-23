@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  activeStageContent,
   activeStageWaitingLines,
   buildRunListLines,
   buildEventLines,
@@ -47,6 +48,7 @@ import {
   resolvePanelContentHeight,
   resolvePromptDeleteDirection,
   resolvePromptPasteInput,
+  resolveLiveStageMonitor,
   resolveRunsListIndex,
   resolveStageFocusKey,
   resolveStageSidebarWidth,
@@ -999,6 +1001,110 @@ test("pipeline panel follows downstream stage after checkpoint even before delta
   assert(eventLines.join("\n").includes("Prior context retrieval output"));
   assert.deepEqual(panelLines, ["Waiting for context synthesizer output."]);
   assert(!panelLines.join("\n").includes("Prior context retrieval output"));
+});
+
+test("active-stage content uses same-stage output when no deltas are available", () => {
+  const firstOnly = [
+    uiEvent({
+      event_type: "stage_started",
+      agent_id: "future_agent_a",
+      stage: "future_agent_a"
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      content: "Agent A completed output",
+      agent_id: "future_agent_a",
+      stage: "future_agent_a"
+    })
+  ];
+  assert.equal(activeStageContent(firstOnly, "future_agent_a"), "Agent A completed output");
+
+  const secondStarted = [
+    ...firstOnly,
+    uiEvent({
+      event_type: "stage_started",
+      agent_id: "future_agent_b",
+      stage: "future_agent_b"
+    })
+  ];
+  const secondLive = secondStarted.at(-1)!;
+  assert.equal(activeStageContent(secondStarted, "future_agent_b"), "");
+  assert.deepEqual(activeStageWaitingLines(secondLive, 80), ["Waiting for future agent b output."]);
+
+  const secondOutput = [
+    ...secondStarted,
+    uiEvent({
+      event_type: "stage_output",
+      content: "Agent B completed output",
+      agent_id: "future_agent_b",
+      stage: "future_agent_b"
+    })
+  ];
+  assert.equal(activeStageContent(secondOutput, "future_agent_b"), "Agent B completed output");
+});
+
+test("live stage monitor retains completed output until the next agent starts", () => {
+  const firstStarted = uiEvent({
+    event_type: "stage_started",
+    agent_id: "future_agent_a",
+    stage: "future_agent_a"
+  });
+  const firstOutput = uiEvent({
+    event_type: "stage_output",
+    content: "Agent A completed output",
+    agent_id: "future_agent_a",
+    stage: "future_agent_a"
+  });
+  const firstEvents = [firstStarted, firstOutput];
+
+  assert.deepEqual(resolveLiveStageMonitor({
+    events: firstEvents,
+    liveStageEvent: firstStarted,
+    width: 80
+  }), { kind: "output", stageKey: "future_agent_a", content: "Agent A completed output" });
+
+  const secondStarted = uiEvent({
+    event_type: "stage_started",
+    agent_id: "future_agent_b",
+    stage: "future_agent_b"
+  });
+  assert.deepEqual(resolveLiveStageMonitor({
+    events: [...firstEvents, secondStarted],
+    liveStageEvent: secondStarted,
+    width: 80
+  }), { kind: "waiting", stageKey: "future_agent_b", lines: ["Waiting for future agent b output."] });
+});
+
+test("active-stage content resets for repeated same-key peer stages", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_started",
+      agent_id: "future_peer_reviser",
+      stage: "future_peer_reviser"
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      content: "First revision output",
+      agent_id: "future_peer_reviser",
+      stage: "future_peer_reviser"
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      agent_id: "future_peer_reviser",
+      stage: "future_peer_reviser"
+    })
+  ];
+
+  assert.equal(activeStageContent(events, "future_peer_reviser"), "");
+  assert.equal(activeStageContent([
+    ...events,
+    uiEvent({
+      event_type: "stage_delta",
+      content: "Second revision delta",
+      agent_id: "future_peer_reviser",
+      stage: "future_peer_reviser"
+    })
+  ], "future_peer_reviser"), "Second revision delta");
 });
 
 test("peer panel switches to running refiner before revise deltas arrive", () => {

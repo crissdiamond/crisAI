@@ -73,6 +73,17 @@ export type PanelTarget =
   | { kind: "active-stage"; stageKey: string }
   | { kind: "event-history" };
 
+export type LiveStageMonitorInput = {
+  events: UiEvent[];
+  liveStageEvent: Pick<UiEvent, "agent_id" | "stage"> | null;
+  width: number;
+};
+
+export type LiveStageMonitorState =
+  | { kind: "output"; stageKey: string; content: string }
+  | { kind: "waiting"; stageKey: string; lines: string[] }
+  | { kind: "idle" };
+
 export type CheckpointReleaseAction = "continue" | "redirect";
 
 export type CheckpointReleasedViewState = {
@@ -806,6 +817,27 @@ export function stageStreamingContent(events: UiEvent[], selectedStage: string |
   if (events.some(isTerminalEvent)) return "";
   const targetStage = selectedStage ?? latestStageDeltaKey(events);
   if (!targetStage) return "";
+  return stageLiveContentForTarget(events, targetStage, false);
+}
+
+export function activeStageContent(events: UiEvent[], activeStageKey: string | null): string {
+  if (events.some(isTerminalEvent) || !activeStageKey) return "";
+  return stageLiveContentForTarget(events, activeStageKey, true);
+}
+
+export function resolveLiveStageMonitor({
+  events,
+  liveStageEvent,
+  width
+}: LiveStageMonitorInput): LiveStageMonitorState {
+  const stageKey = liveStageEvent ? stageEventKey(liveStageEvent) : "";
+  if (!stageKey) return { kind: "idle" };
+  const content = activeStageContent(events, stageKey);
+  if (content) return { kind: "output", stageKey, content };
+  return { kind: "waiting", stageKey, lines: activeStageWaitingLines(liveStageEvent, width) };
+}
+
+function stageLiveContentForTarget(events: UiEvent[], targetStage: string, includeStageOutput: boolean): string {
   let content = "";
   for (const event of events) {
     const key = stageEventKey(event);
@@ -816,6 +848,9 @@ export function stageStreamingContent(events: UiEvent[], selectedStage: string |
     }
     if (event.event_type === "stage_delta") {
       content = mergeStageDeltaContent(content, event.content);
+    }
+    if (includeStageOutput && event.event_type === "stage_output") {
+      content = event.content;
     }
   }
   return content;
