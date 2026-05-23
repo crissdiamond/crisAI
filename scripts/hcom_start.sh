@@ -13,8 +13,8 @@ ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 REVIEW_LIFECYCLE="${HCOM_TEAM_REVIEW_LIFECYCLE:-${HCOM_TEAM_CLAUDE_MODE:-ephemeral}}"
 REVIEW_PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
-TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
-CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
+TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
+CLAUDE_PROMPT_SUGGESTIONS="${HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS:-false}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
 TEAM_TERMINAL_EXPLICIT=0
@@ -61,8 +61,9 @@ Message handling:
   HCOM_TEAM_HINTS is appended to received hcom messages. The default tells
   agents to treat direct hcom requests as actionable assignments and not wait
   for terminal-user confirmation.
-  HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY is included in Claude bootstrap/system
-  instructions to prevent idle draft prompts in the input bar.
+  HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS controls Claude Code prompt suggestions
+  for reviewer sessions. It defaults to false so idle reviewer panes do not
+  fill their input bar with suggested follow-up prompts.
   HCOM_TEAM_MEMORY_WRITE_POLICY is included in bootstrap instructions so agents
   degrade gracefully when Claude memory is read-only.
 
@@ -142,9 +143,6 @@ reference/development/session_assignments.local.yaml when it exists. Use hcom
 for concise coordination and the Claude memory MCP server for durable task
 context. Do not store secrets in memory.
 EOF
-  if [[ "$role" == *_claude ]]; then
-    printf '\nIf you are a Claude review agent, follow this idle prompt policy:\n%s\n' "$CLAUDE_IDLE_PROMPT_POLICY"
-  fi
   printf '\nFollow this memory policy:\n%s\n' "$MEMORY_WRITE_POLICY"
 }
 
@@ -367,6 +365,7 @@ write_tmux_launch_script() {
     printf 'cd %q\n' "$ROOT_DIR"
     printf 'export HCOM_DIR=%q\n' "$HCOM_DIR"
     printf 'export HCOM_HINTS=%q\n' "$HCOM_HINTS"
+    printf 'export CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=%q\n' "$CLAUDE_PROMPT_SUGGESTIONS"
     printf 'exec'
     printf ' %q' "$@"
     printf '\n'
@@ -483,7 +482,7 @@ launch_agent() {
     cmd=(hcom "$provider" --tag "$tag" --dir "$ROOT_DIR/$launch_dir" --hcom-prompt "$prompt" --go)
   fi
   if [[ "$provider" == "claude" || "$provider" == "agy" ]]; then
-    cmd+=(--hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY")
+    cmd+=(--hcom-system-prompt "$MEMORY_WRITE_POLICY")
   fi
   if [[ "$HEADLESS" -eq 1 ]]; then
     cmd+=(--headless)
@@ -585,6 +584,7 @@ fi
 
 export HCOM_DIR
 export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
+export CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION="$CLAUDE_PROMPT_SUGGESTIONS"
 mkdir -p "$HCOM_DIR"
 TEAM_TERMINAL="$(default_team_terminal)"
 load_previous_assignments

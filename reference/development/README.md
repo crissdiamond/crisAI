@@ -157,6 +157,10 @@ before launching hcom review agents.
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. The orchestrator may keep
 a reviewer alive across related sequential tasks, but should close it after the
 related task is pushed, abandoned, or unlikely to need follow-up.
+Claude Code prompt suggestions are disabled for reviewer sessions by default
+with `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false`; set
+`HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS=true` only if you explicitly want Claude's
+idle prompt suggestions visible while debugging reviewer panes.
 If the reviewer cannot launch or exits during startup, treat that as no review:
 pause before commit, report the exact provider or startup error, and retry only
 when the blocker is resolved or the user explicitly overrides the gate.

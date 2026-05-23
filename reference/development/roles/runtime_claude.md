@@ -24,11 +24,6 @@ Rules:
 - Treat direct hcom requests from the orchestrator or paired Codex agent as
   actionable assignments. Proceed with the review or focused patch without
   asking the terminal user to confirm.
-- Do not leave suggested follow-up commands or draft prompts in the input bar.
-- After onboarding or completing a task, do not draft idle prompts such as
-  `wait for assignment`, `check pending assignments`, or `check messages from
-  another agent`. Announce readiness through hcom when useful, then stop with
-  an empty input bar.
 - Do not monitor or ask status questions about unrelated agents. Only query
   another agent when that is directly required by your assigned review or patch;
   otherwise report your own waiting state through hcom and return to listening.

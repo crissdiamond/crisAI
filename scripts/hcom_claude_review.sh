@@ -10,8 +10,8 @@ TEAM_TMUX_SESSION="${HCOM_TEAM_TMUX_SESSION:-crisai-hcom}"
 VISIBILITY="${HCOM_TEAM_CLAUDE_VISIBILITY:-headless}"
 MAX_LEASE_MINUTES="${HCOM_TEAM_CLAUDE_MAX_LEASE_MINUTES:-180}"
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
-TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not leave suggested follow-up commands or draft prompts in the input bar. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
-CLAUDE_IDLE_PROMPT_POLICY="${HCOM_TEAM_CLAUDE_IDLE_PROMPT_POLICY:-When you finish onboarding or a task, do not draft idle prompts such as 'wait for assignment', 'check pending assignments', or 'check messages from another agent'. Do not ask the terminal user what to do next. Report readiness or waiting state via hcom when useful, then stop with an empty input bar.}"
+TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
+CLAUDE_PROMPT_SUGGESTIONS="${HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS:-false}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
 ROLE=""
 THREAD=""
@@ -158,12 +158,11 @@ Lease minutes: $LEASE_MINUTES
 
 The orchestrator owns your lifecycle. Work only on the assigned review or small
 patch. When done, send the handoff through hcom and wait for the orchestrator to
-close or renew the review session. Do not draft idle prompts in the input bar.
+close or renew the review session.
 
 Review assignment:
 $TASK
 EOF
-  printf '\nIf you are a Claude review agent, follow this idle prompt policy:\n%s\n' "$CLAUDE_IDLE_PROMPT_POLICY"
   printf '\nFollow this memory policy:\n%s\n' "$MEMORY_WRITE_POLICY"
 }
 
@@ -283,10 +282,11 @@ PY
 require_bin hcom
 require_bin claude
 export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
+export CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION="$CLAUDE_PROMPT_SUGGESTIONS"
 mkdir -p "$HCOM_DIR"
 
 PROMPT="$(role_prompt)"
-CMD=(hcom claude --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "$CLAUDE_IDLE_PROMPT_POLICY $MEMORY_WRITE_POLICY" --go)
+CMD=(hcom claude --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "$MEMORY_WRITE_POLICY" --go)
 if [[ "$VISIBILITY" == "headless" ]]; then
   CMD+=(--headless)
 else
