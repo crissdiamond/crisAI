@@ -10,7 +10,7 @@ TEAM_TMUX_SESSION="${HCOM_TEAM_TMUX_SESSION:-crisai-hcom}"
 VISIBILITY="${HCOM_TEAM_CLAUDE_VISIBILITY:-headless}"
 MAX_LEASE_MINUTES="${HCOM_TEAM_CLAUDE_MAX_LEASE_MINUTES:-180}"
 AUTO_APPROVE_TOOLS="${HCOM_TEAM_TOOL_AUTO_APPROVE:-1}"
-TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
+TEAM_HINTS="${HCOM_TEAM_HINTS:-Direct hcom requests are assignments; act or reply via hcom, without waiting for terminal-user input.}"
 CLAUDE_PROMPT_SUGGESTIONS="${HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS:-false}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
 ROLE=""
@@ -281,7 +281,7 @@ PY
 
 require_bin hcom
 require_bin claude
-export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
+export HCOM_HINTS="$TEAM_HINTS"
 export CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION="$CLAUDE_PROMPT_SUGGESTIONS"
 mkdir -p "$HCOM_DIR"
 

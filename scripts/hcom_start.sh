@@ -14,7 +14,7 @@ ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 REVIEW_LIFECYCLE="${HCOM_TEAM_REVIEW_LIFECYCLE:-${HCOM_TEAM_CLAUDE_MODE:-ephemeral}}"
 REVIEW_PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
-TEAM_HINTS="${HCOM_TEAM_HINTS:-When you receive a direct hcom request from the orchestrator or your paired agent, treat it as an actionable assignment and proceed without asking the terminal user to confirm. Do not monitor or ask status questions about unrelated agents. Only query another agent when that is directly required by your assigned task; otherwise report your own waiting state via hcom and return to listening.}"
+TEAM_HINTS="${HCOM_TEAM_HINTS:-Direct hcom requests are assignments; act or reply via hcom, without waiting for terminal-user input.}"
 CLAUDE_PROMPT_SUGGESTIONS="${HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS:-false}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
@@ -61,9 +61,8 @@ Approvals:
   HCOM_TEAM_AREA_CODEX_SANDBOX, defaulting to workspace-write.
 
 Message handling:
-  HCOM_TEAM_HINTS is appended to received hcom messages. The default tells
-  agents to treat direct hcom requests as actionable assignments and not wait
-  for terminal-user confirmation.
+  HCOM_TEAM_HINTS is appended to every received hcom message. Keep it short:
+  the default only reminds agents that direct hcom requests are assignments.
   HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS controls Claude Code prompt suggestions
   for reviewer sessions. It defaults to false so idle reviewer panes do not
   fill their input bar with suggested follow-up prompts.
@@ -608,7 +607,7 @@ if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
 fi
 
 export HCOM_DIR
-export HCOM_HINTS="$TEAM_HINTS $MEMORY_WRITE_POLICY"
+export HCOM_HINTS="$TEAM_HINTS"
 export CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION="$CLAUDE_PROMPT_SUGGESTIONS"
 mkdir -p "$HCOM_DIR"
 TEAM_TERMINAL="$(default_team_terminal)"

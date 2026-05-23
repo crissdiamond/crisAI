@@ -136,12 +136,10 @@ review for that task.
 For low-risk docs-only or mechanical changes, the orchestrator may skip Claude
 review, but should state why in the handoff or final task note.
 
-The launcher also sets `HCOM_HINTS` for the team. Direct hcom requests from the
-orchestrator or paired agent are actionable assignments: agents should proceed
-without asking the terminal user to confirm. Area agents should not monitor or
-ask status questions about unrelated agents. They should query another agent
-only when it is directly required by the assigned task; otherwise they should
-report their own waiting state through hcom and return to listening.
+The launcher also sets a short `HCOM_HINTS` value for the team. hcom appends
+that value to every delivered message, so it must remain concise to avoid
+wasting tokens and polluting transcripts. Longer behavioural and memory
+policies belong in one-time role bootstrap content, not repeated message hints.
 
 Claude Code prompt suggestions are disabled for Claude reviewer sessions by
 default through `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false`. Override with
