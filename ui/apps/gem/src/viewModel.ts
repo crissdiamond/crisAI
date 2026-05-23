@@ -390,11 +390,36 @@ export function normalizePromptInput(input: string): string {
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 }
 
-export function resolvePromptPasteInput(input: string, rawSequence = ""): string {
-  if (rawSequence.includes("\x1b[200~") || input.startsWith("[200~")) {
-    return rawSequence || `\x1b${input}`;
+function mergePromptPasteFragments(first: string, second: string): string {
+  const maxOverlap = Math.min(first.length, second.length);
+  for (let length = maxOverlap; length > 0; length -= 1) {
+    if (first.endsWith(second.slice(0, length))) {
+      return `${first}${second.slice(length)}`;
+    }
   }
-  return input;
+  return `${first}${second}`;
+}
+
+export function resolvePromptPasteInput(input: string, rawSequence = ""): string {
+  const rawHasPasteStart = rawSequence.includes("\x1b[200~");
+  const rawHasPasteEnd = rawSequence.includes("\x1b[201~");
+  const inputHasStrippedPasteStart = input.startsWith("[200~");
+  if (!rawHasPasteStart && !inputHasStrippedPasteStart) {
+    return input;
+  }
+  if (rawHasPasteStart && !inputHasStrippedPasteStart && input.length <= 1) {
+    return input;
+  }
+  const rebuiltInput = inputHasStrippedPasteStart ? `\x1b${input}` : input;
+  if (!rawHasPasteStart) {
+    return rebuiltInput;
+  }
+  const rawText = normalizePromptInput(rawSequence);
+  const inputText = normalizePromptInput(rebuiltInput);
+  if (!rawHasPasteEnd && !inputHasStrippedPasteStart && rawText.length > 0 && inputText.length > 0) {
+    return mergePromptPasteFragments(rawText, inputText);
+  }
+  return rawText.length >= inputText.length && rawText.length > 0 ? rawSequence : rebuiltInput;
 }
 
 export function shouldBufferStartupPaste(rawSequence: string): boolean {

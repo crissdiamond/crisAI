@@ -687,7 +687,7 @@ function GemApp() {
       return;
     }
     if (!key.ctrl && input) {
-      const normalized = normalizePromptInput(input);
+      const normalized = normalizePromptInput(resolvePromptPasteInput(input, lastInputSequenceRef.current));
       if (!normalized) return;
       setHistoryCursor(null);
       historyDraftRef.current = "";

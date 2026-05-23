@@ -1305,6 +1305,62 @@ test("startup paste preserves first line when Ink strips the leading escape", ()
   assert.equal(fromRaw.cursor, "First line\nSecond line".length);
 });
 
+test("single-line bracketed paste recovery preserves prefix characters", () => {
+  const raw = "\u001b[200~First characters stay\u001b[201~";
+  const strippedInput = "st characters stay";
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(strippedInput, raw));
+
+  assert.equal(inserted.text, "First characters stay");
+  assert.equal(inserted.cursor, "First characters stay".length);
+});
+
+test("partial raw bracketed paste marker does not override fuller Ink input", () => {
+  const rawPrefixOnly = "\u001b[200~";
+  const strippedInput = "[200~First characters stay\u001b[201~";
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(strippedInput, rawPrefixOnly));
+
+  assert.equal(inserted.text, "First characters stay");
+  assert.equal(inserted.cursor, "First characters stay".length);
+});
+
+test("split multi-line bracketed paste rejoins raw prefix with later Ink input", () => {
+  const missingPrefix = "Use the pipeline.\r\n\r\nSearch workspace/context before prod";
+  const remainingInput = "uction before answering.";
+  const rawPrefix = `\u001b[200~${missingPrefix}`;
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(remainingInput, rawPrefix));
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before production before answering."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("split multi-line bracketed paste deduplicates overlapping fragments", () => {
+  const rawPrefix = "\u001b[200~Use the pipeline.\r\n\r\nSearch workspace/context before prod";
+  const overlappingInput = "production before answering.";
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(overlappingInput, rawPrefix));
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before production before answering."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("stale raw bracketed paste does not override ordinary typing", () => {
+  const staleRaw = "\u001b[200~previous paste\u001b[201~";
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput("x", staleRaw));
+
+  assert.equal(inserted.text, "x");
+  assert.equal(inserted.cursor, 1);
+});
+
 test("startup paste replay buffers only raw bracketed paste and cancels on normal handling", () => {
   const raw = "\u001b[200~First line\r\nSecond line\u001b[201~";
   const empty = { pendingSequence: null };
