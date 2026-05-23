@@ -246,7 +246,7 @@ def snapshot_tree(root: Path, target_subdir: str | None) -> dict[str, FileSnapsh
                 snapshot[str(path.relative_to(root))] = (
                     stat.st_mtime_ns,
                     stat.st_size,
-                    sha1(path.read_bytes()).hexdigest(),
+                    sha1(path.read_bytes(), usedforsecurity=False).hexdigest(),
                 )
             except OSError:
                 continue

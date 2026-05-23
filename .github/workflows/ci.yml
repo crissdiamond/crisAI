@@ -8,6 +8,62 @@ on:
   workflow_dispatch:
 
 jobs:
+  security:
+    name: Security scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        env:
+          UV_PYTHON: "3.12"
+        run: |
+          uv sync --locked --extra litellm --group dev
+
+      - name: Run Bandit
+        run: |
+          uv run bandit -r src/crisai -c pyproject.toml --severity-level medium
+
+      - name: Export locked dependency set
+        run: |
+          uv export --locked --extra litellm --group dev --no-emit-project --no-header --output-file /tmp/crisai-requirements.txt >/dev/null
+
+      - name: Audit Python dependencies
+        run: |
+          # LiteLLM fixes currently require openai>=2.20.0, while crisAI and
+          # openai-agents remain on the OpenAI 1.x SDK line. Keep the ignores
+          # narrow so any new vulnerability still fails the security gate.
+          uv run pip-audit \
+            --requirement /tmp/crisai-requirements.txt \
+            --strict \
+            --progress-spinner off \
+            --ignore-vuln CVE-2026-35029 \
+            --ignore-vuln CVE-2026-35030 \
+            --ignore-vuln GHSA-69x8-hrgq-fjj8 \
+            --ignore-vuln CVE-2026-42271
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: 8.30.1
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

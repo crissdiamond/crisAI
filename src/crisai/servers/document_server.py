@@ -255,7 +255,9 @@ def _cosine_similarity(left: dict[str, float], right: dict[str, float]) -> float
 
 def _stable_chunk_id(path: str, chunk_index: int, text: str) -> str:
     """Build a stable chunk identifier from path, index, and content."""
-    digest = hashlib.sha1(f"{path}:{chunk_index}:{text}".encode()).hexdigest()[:12]
+    digest = hashlib.sha1(  # nosec B324 # stable content ID, not a security digest.
+        f"{path}:{chunk_index}:{text}".encode()
+    ).hexdigest()[:12]
     return f"chunk-{digest}"
 
 

@@ -7,8 +7,8 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree
 
+from defusedxml import ElementTree
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 

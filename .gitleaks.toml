@@ -1,0 +1,26 @@
+title = "crisAI gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Empty environment placeholders in the tracked example file"
+paths = ['''^\.env\.example$''']
+regexes = ['''(?m)^[A-Z0-9_]+=$''']
+condition = "AND"
+
+[[allowlists]]
+description = "Local runtime state, generated artefacts, and dependency caches ignored by git"
+paths = [
+  '''^\.auth/''',
+  '''^\.secrets/''',
+  '''^\.tokens/''',
+  '''^\.venv/''',
+  '''^ui/node_modules/''',
+  '''^ui/.*/node_modules/''',
+  '''^ui/.*/dist/''',
+  '''^workspace/\.auth/''',
+  '''^workspace/\.cache/''',
+  '''^workspace/outputs/''',
+  '''^workspace/tasks/''',
+]

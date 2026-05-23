@@ -87,7 +87,6 @@ The main product gaps are:
 | TODO-003 | P0 | todo | Persistent retrieval cache | Repeated source reads during iterative tasks waste time and tokens. Evidence bundles can be reused when the query and source revision are unchanged. | Evidence bundles are cached by query fingerprint, source identity, and source revision/hash. Cache hits are visible in trace metadata. Stale entries are invalidated using provider revision metadata where available, such as ETag, source version, Graph `lastModifiedDateTime`, content hash, or configurable TTL expiry. |
 | TODO-026 | P0 | todo | Product and repository rename | `crisAI` was the prototype name. Before broader team adoption, the project should use a professional product, repository, package, CLI, docs, log, and MCP identity such as `Architecture Assistant`, `architecture-assistant`, `architecture_assistant`, and `arch-assistant`. Doing this early avoids team-facing churn later. | Rename the GitHub repository, Python package, CLI entry point, docs, UI labels, MCP server names, log labels, and setup instructions. Decide explicitly whether to keep a temporary `crisai` compatibility alias or remove it for a clean first team clone. Full test suite, doctor, packaging, and install-from-clone flow pass under the new name. |
 | TODO-042 | P1 | todo | Rate limiting on execution endpoints | `/api/run` and `/api/v1/runs` trigger LLM calls with no request-rate guard. A misconfigured client or accidental loop could exhaust the model provider budget before the user notices. VISION Principle 8 requires token spend to be rate-guarded. | Execution endpoints enforce a configurable per-key or per-IP rate limit (e.g. N requests per minute). Limit breach returns 429 with a `Retry-After` header. Limits are configured via registry or env var. Tests cover limit enforcement and bypass attempts. |
-| TODO-043 | P1 | todo | CI security scanning | The CI workflow runs linting, type checks, and tests but has no security scans. Dependency vulnerabilities, SAST issues, and accidental secret commits are not detected in CI. | Add `bandit` (Python SAST), `pip-audit` (dependency vulnerability check), and `gitleaks` or `detect-secrets` (secret scanning) as CI steps. Failures block merge. Configuration excludes known false positives. |
 | TODO-004 | P1 | todo | Authenticated website retrieval MCP | Enterprise architecture work often depends on protected vendor portals, internal web apps, design standards sites, and architecture repositories that are not SharePoint pages. crisAI needs a read-only OAuth/OIDC website source connector with strict scope controls. | Add an `authenticated_web` MCP server with login/auth-status, allow-listed hosts, OAuth/OIDC auth-code or device flow, URL fetch, optional rendered-page fetch for JS-heavy pages, link extraction, content normalization, source references, and tests with mocked OAuth and HTTP responses. |
 | TODO-005 | P1 | todo | Token and cost tracking per stage | Cost needs to be visible for model pairing, pipeline tuning, and user trust. This should precede dynamic model selection so model decisions are based on measured usage. | Trace events include provider/model/token/cost metadata when available. CLI or doctor can summarise spend by run, stage, and agent. Missing provider usage data degrades gracefully. |
 | TODO-030 | P1 | todo | Trace and log secret redaction and retention controls | Traces and logs intentionally contain agent stage content and source excerpts. They are ignored by git, but the configured `redact_secrets` policy is not yet enforced as a general write-time redaction layer. | All trace/log writers pass through a shared redaction function for API keys, bearer tokens, Microsoft auth payloads, client secrets, and configured secret patterns. Redaction is tested. Optional retention controls can cap age/size of local trace and MCP log files. Documentation states that traces may still contain sensitive business content. |
@@ -135,41 +134,38 @@ The main product gaps are:
 4. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
    Once auth is in place, rate-guarding the execution endpoints prevents token
    exhaustion from misconfigured clients or loops.
-5. Implement `TODO-043` (CI security scanning) as a one-time workflow change.
-   Add bandit, pip-audit, and secret scanning to CI so vulnerabilities and
-   accidentally staged secrets are caught at merge time, not after deployment.
-6. Implement `TODO-005` next, before the source connector engineering track.
+5. Implement `TODO-005` next, before the source connector engineering track.
    VISION near-term direction places cost tracking at #4, before authenticated
    website MCP. Measuring cost early lets model pairing and pipeline decisions
    be informed by real usage data.
-7. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
+6. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
    cached evidence can participate in the same confirmation flow.
-8. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+7. Implement `TODO-017` (source connector capability contract) before `TODO-004`
     and `TODO-012`. Both new source adapters should be built against the contract
     from the start rather than retrofitted later.
-9. Implement `TODO-004` after the capability contract is in place. It creates
+8. Implement `TODO-004` after the capability contract is in place. It creates
     the secure generic pattern for OAuth-protected web sources before site-specific
     adapters proliferate.
-10. Implement `TODO-025` with the web UX track, ideally before the full web
+9. Implement `TODO-025` with the web UX track, ideally before the full web
     rebuild, because structured editing is a contained high-value feature for
     non-technical architecture users.
     **Note:** design `TODO-025` with the future web architecture
     (`TODO-019`) in mind. If the scope cannot be carried forward with minimal rework
     when the rebuild happens, consider advancing `TODO-019` to a design phase first
     to avoid duplicating effort.
-11. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+10. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
     enterprise architecture quality track.
-12. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
+11. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
     assurance automation. The roles directory and assurance operating model
     define who can review, who can approve, which artefacts require sign-off,
     and how asynchronous document movement should be audited.
-13. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
+12. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
     Dynamic model selection and API fallback should be built together so model
     choices and failure behaviour are governed by the same registry policy.
-14. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
+13. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
     should consume the shared event contract instead of carrying removed UI
     implementations.
-15. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+14. Treat `TODO-019` as the final alignment step for CLI workflow changes that
     affect user-visible execution semantics.
 
 ## Done
@@ -181,6 +177,7 @@ Completed items should move here with the merge commit or PR reference.
 | TODO-001 | Human checkpoint after retrieval | `b1959b9 feat(pipeline): add retrieval checkpoint` |
 | TODO-002 | Streaming stage output | `461461e feat(ui): stream stage output in clients` |
 | TODO-002A | Browser viewport pass for streaming card | `fix(web): bound streaming viewport layout` |
+| TODO-043 | CI security scanning | `ci: add security scanning gates` |
 | TODO-041 | API authentication and authorisation guard (Phase 1 — static bearer token) | `2ea5457 feat(security): add Bearer token auth guard`, `800e2d7 fix(security): harden api bearer comparison` |
 | TODO-024 | Web document upload | `a2b3f5c docs(todo): mark TODO-041 done and update sequencing` |
 | TODO-036 | Routing decision transparency | `feat(ui): expose request contract before execution` |

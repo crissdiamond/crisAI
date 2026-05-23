@@ -324,7 +324,10 @@ def deterministic_context_from_registry(
     if path.is_file():
         try:
             payload = path.read_text(encoding="utf-8")
-            graph_version = sha1(payload.encode("utf-8")).hexdigest()[:12]
+            graph_version = sha1(
+                payload.encode("utf-8"),
+                usedforsecurity=False,
+            ).hexdigest()[:12]
         except OSError:
             graph_version = "unreadable"
     graph = load_retrieval_association_graph(registry_dir)

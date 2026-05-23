@@ -338,6 +338,13 @@ uv run crisai validate-artefacts -p workspace/knowledge_staging/patterns/example
 
 `uv run crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, and tracked secret/cache hygiene. Use `uv run crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
 
+The CI workflow also has a dedicated security scanning job. It runs Bandit
+against `src/crisai`, audits the locked uv dependency set with pip-audit, and
+blocks suspected secret leaks with Gitleaks using `.gitleaks.toml`. The
+pip-audit step narrowly ignores current LiteLLM advisories while crisAI remains
+on the OpenAI 1.x SDK line; remove those ignores when the dependency stack can
+move to OpenAI 2.x-compatible LiteLLM versions.
+
 The same validator runs automatically as part of the **peer post-run verifier** for Markdown files touched in that workflow (`src/crisai/orchestration/peer_verifier.py` calling `validate_workspace_artefact_paths`).
 
 Generated task artefacts are also registered automatically in the active task manifest when agents write Markdown under `workspace/tasks/<task>/artefacts/`. Reusable chat-only deliverables such as options papers, architecture recommendations, assessments, and HLDs are saved to that folder so later turns can use the concrete artefact rather than relying on transcript memory.

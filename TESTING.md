@@ -211,6 +211,33 @@ npm --prefix ui run build:web
 npm --prefix ui run build:gem
 ```
 
+CI includes a separate security scanning job. Run the same Python checks
+locally from the repo root with:
+
+```bash
+uv run bandit -r src/crisai -c pyproject.toml --severity-level medium
+uv export --locked --extra litellm --group dev --no-emit-project --no-header --output-file /tmp/crisai-requirements.txt >/dev/null
+uv run pip-audit \
+  --requirement /tmp/crisai-requirements.txt \
+  --strict \
+  --progress-spinner off \
+  --ignore-vuln CVE-2026-35029 \
+  --ignore-vuln CVE-2026-35030 \
+  --ignore-vuln GHSA-69x8-hrgq-fjj8 \
+  --ignore-vuln CVE-2026-42271
+```
+
+Secret scanning runs in CI through Gitleaks using `.gitleaks.toml`. To mirror
+that locally, install the Gitleaks CLI and run:
+
+```bash
+gitleaks detect --source . --config .gitleaks.toml --redact --verbose
+```
+
+The pip-audit ignores are limited to current LiteLLM advisories whose fixed
+versions require the OpenAI 2.x SDK line. Remove those ignores when crisAI and
+the agents SDK can move from OpenAI 1.x to 2.x-compatible LiteLLM releases.
+
 For a clean-install smoke check, also verify the supported launch modes:
 
 ```bash
