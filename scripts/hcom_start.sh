@@ -14,6 +14,11 @@ ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 REVIEW_LIFECYCLE="${HCOM_TEAM_REVIEW_LIFECYCLE:-${HCOM_TEAM_CLAUDE_MODE:-ephemeral}}"
 REVIEW_PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
+REVIEW_MODEL_FAMILY="${HCOM_TEAM_REVIEW_MODEL_FAMILY:-}"
+REVIEW_MODEL="${HCOM_TEAM_REVIEW_MODEL:-${HCOM_TEAM_ANTIGRAVITY_MODEL:-}}"
+if [[ -z "$REVIEW_MODEL" && "$REVIEW_MODEL_FAMILY" == "gemini" ]]; then
+  REVIEW_MODEL="gemini-3-flash-preview"
+fi
 TEAM_HINTS="${HCOM_TEAM_HINTS:-Direct hcom requests are assignments; act or reply via hcom, without waiting for terminal-user input.}"
 CLAUDE_PROMPT_SUGGESTIONS="${HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS:-false}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
@@ -76,10 +81,9 @@ Reviewers:
   team. HCOM_TEAM_CLAUDE_MODE remains as a deprecated compatibility alias.
 
   HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
-  claude-code and antigravity. Antigravity reviewers require reusable local auth
-  and a persisted Claude model selection in agy. Use `agy`, enter `/model`,
-  select the required Claude model, then rerun the launcher. The preflight
-  verifies the active agy model before any reviewer is launched.
+  claude-code and antigravity. Antigravity reviewers require reusable local
+  auth. Set HCOM_TEAM_REVIEW_MODEL to pass an explicit model to `hcom agy
+  --model`; otherwise the preflight verifies the persisted agy model.
 EOF
 }
 
@@ -419,8 +423,9 @@ tool_provider_args() {
   local provider="$1"
   case "$provider" in
     agy)
-      # agy has no public --model launch flag. The selected model is persisted
-      # by Antigravity and verified by scripts/hcom_antigravity_preflight.sh.
+      if [[ -n "$REVIEW_MODEL" ]]; then
+        printf '%s\n' --model "$REVIEW_MODEL"
+      fi
       return 0
       ;;
   esac
@@ -455,6 +460,14 @@ review_provider_tool() {
 validate_review_config() {
   if [[ "$REVIEW_LIFECYCLE" != "ephemeral" && "$REVIEW_LIFECYCLE" != "persistent" ]]; then
     echo "HCOM_TEAM_REVIEW_LIFECYCLE must be 'ephemeral' or 'persistent'." >&2
+    exit 1
+  fi
+  if [[ -n "$REVIEW_MODEL_FAMILY" && "$REVIEW_MODEL_FAMILY" != "claude" && "$REVIEW_MODEL_FAMILY" != "gemini" ]]; then
+    echo "HCOM_TEAM_REVIEW_MODEL_FAMILY must be 'claude' or 'gemini' when set." >&2
+    exit 1
+  fi
+  if [[ -n "$REVIEW_MODEL_FAMILY" && "$REVIEW_PROVIDER" != "antigravity" ]]; then
+    echo "HCOM_TEAM_REVIEW_MODEL_FAMILY is only supported with HCOM_TEAM_REVIEW_PROVIDER=antigravity." >&2
     exit 1
   fi
   if [[ "$REVIEW_PROVIDER" == "antigravity" ]]; then

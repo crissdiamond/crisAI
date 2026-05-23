@@ -88,26 +88,39 @@ providers:
     mode: hcom_managed_with_reusable_oauth
     requires_existing_oauth: true
     requires_preflight: true
-    model_selection_verified: persisted_model_probe
+    model_selection_verified: explicit_hcom_model_or_persisted_model_probe
+    model_family_env: HCOM_TEAM_REVIEW_MODEL_FAMILY
+    model_env: HCOM_TEAM_REVIEW_MODEL
     default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
     default_model: Claude Sonnet 4.6
+    gemini_default_model: gemini-3-flash-preview
     required_gate: true
 ```
 
 The implementation supports `claude-code` through the generic entrypoint while
 delegating internally to the existing Claude scripts. The old provider spelling
 `claude` remains accepted as a compatibility alias. Antigravity is available
-through `hcom agy` when the preflight confirms reusable local OAuth and an
-active persisted Claude model. Gemini and OpenCode can be added after their
-review lifecycle behaviour is verified.
+through `hcom agy` when the preflight confirms reusable local OAuth plus either
+an explicit review model or a verified persisted agy model. Native hcom Gemini
+and OpenCode providers can be added after their review lifecycle behaviour is
+verified.
 
 ## Antigravity Position
 
-Antigravity CLI is available locally as `agy`. Current `agy` releases do not
-accept a public model-selection launch flag, so the launcher does not pass one.
-Instead, set the default model in Antigravity itself: run `agy`, enter `/model`,
-select `Claude Sonnet 4.6 (Thinking)`, and confirm that model appears in the
-footer. Antigravity persists that choice in
+Antigravity CLI is available locally as `agy`. hcom exposes Antigravity model
+selection through `hcom agy --model`, so crisAI can launch explicit review
+models when `HCOM_TEAM_REVIEW_MODEL` is set. Gemini review mode uses
+`gemini-3-flash-preview` by default through:
+
+```bash
+./start hcom agy gemini
+./start hcom all-up agy gemini
+```
+
+When no explicit review model is configured, the launcher uses the persisted
+Antigravity model. For the Claude path, set the default model in Antigravity
+itself: run `agy`, enter `/model`, select `Claude Sonnet 4.6 (Thinking)`, and
+confirm that model appears in the footer. Antigravity persists that choice in
 `~/.gemini/antigravity-cli/settings.json`; hcom preflight verifies it with a
 short `agy --print` probe before creating reviewer sessions.
 

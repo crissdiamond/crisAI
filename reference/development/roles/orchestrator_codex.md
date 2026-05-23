@@ -62,12 +62,13 @@ Rules:
   related sequential work at your discretion, and close them with
   `scripts/hcom_review_close.sh` once the related task is pushed, abandoned, or
   unlikely to need follow-up.
-- Claude-model review is mandatory before commit for runtime behaviour changes,
-  security/auth changes, routing or retrieval changes, shared UI contracts,
-  hcom/development-team tooling, and larger UI changes.
+- Independent reviewer-model review is mandatory before commit for runtime
+  behaviour changes, security/auth changes, routing or retrieval changes,
+  shared UI contracts, hcom/development-team tooling, and larger UI changes.
 - Claude Code is the default reviewer provider. Antigravity may satisfy the same
   review role when `HCOM_TEAM_REVIEW_PROVIDER=antigravity` is configured and
-  preflight confirms reusable OAuth plus an active persisted Claude model.
+  preflight confirms reusable OAuth plus either an explicit review model or a
+  verified persisted agy model.
 - If a mandatory reviewer cannot launch or exits during startup, pause the task.
   Report the reviewer role, provider, exact launch error, reset time when
   provided, current repo state, and what is ready for review. Do not replace the

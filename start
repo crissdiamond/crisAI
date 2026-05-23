@@ -53,6 +53,8 @@ case "$MODE" in
     HCOM_START_ARGS=()
     HCOM_LIFECYCLE="ephemeral"
     HCOM_PROVIDER="claude-code"
+    HCOM_MODEL_FAMILY=""
+    HCOM_REVIEW_MODEL="${HCOM_TEAM_REVIEW_MODEL:-}"
     while [ "$#" -gt 0 ]; do
       case "$1" in
         all-up)
@@ -63,6 +65,11 @@ case "$MODE" in
           HCOM_PROVIDER="antigravity"
           shift
           ;;
+        gemini)
+          HCOM_MODEL_FAMILY="gemini"
+          HCOM_REVIEW_MODEL="${HCOM_REVIEW_MODEL:-gemini-3-flash-preview}"
+          shift
+          ;;
         --)
           shift
           HCOM_START_ARGS+=("$@")
@@ -70,14 +77,25 @@ case "$MODE" in
           ;;
         *)
           echo "Unknown hcom option: $1" >&2
-          echo "Usage: ./start hcom [all-up] [agy] [-- scripts/hcom_start.sh args]" >&2
+          echo "Usage: ./start hcom [all-up] [agy [gemini]] [-- scripts/hcom_start.sh args]" >&2
           exit 2
           ;;
       esac
     done
+    if [ "$HCOM_MODEL_FAMILY" = "gemini" ] && [ "$HCOM_PROVIDER" != "antigravity" ]; then
+      echo "hcom gemini reviewers require the agy/antigravity provider." >&2
+      echo "Usage: ./start hcom [all-up] agy gemini [-- scripts/hcom_start.sh args]" >&2
+      exit 2
+    fi
 
     export HCOM_TEAM_REVIEW_LIFECYCLE="$HCOM_LIFECYCLE"
     export HCOM_TEAM_REVIEW_PROVIDER="$HCOM_PROVIDER"
+    if [ -n "$HCOM_MODEL_FAMILY" ]; then
+      export HCOM_TEAM_REVIEW_MODEL_FAMILY="$HCOM_MODEL_FAMILY"
+    fi
+    if [ -n "$HCOM_REVIEW_MODEL" ]; then
+      export HCOM_TEAM_REVIEW_MODEL="$HCOM_REVIEW_MODEL"
+    fi
     if has_hcom_assignments; then
       scripts/hcom_start.sh --resume "${HCOM_START_ARGS[@]}"
     else
@@ -100,6 +118,8 @@ case "$MODE" in
     echo "  hcom          Start or resume the hcom development team"
     echo "  hcom all-up   Start/resume Codex plus persistent reviewers"
     echo "  hcom agy      Use Antigravity for reviewer launches"
+    echo "  hcom agy gemini"
+    echo "                Use Antigravity reviewers with gemini-3-flash-preview"
     echo "  hcom-attach   Attach to the hcom tmux session"
     exit 2
     ;;

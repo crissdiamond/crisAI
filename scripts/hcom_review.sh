@@ -7,6 +7,11 @@ export HCOM_DIR="${HCOM_DIR:-$ROOT_DIR/.hcom}"
 STATE_DIR="${HCOM_DEVELOPMENT_DIR:-$ROOT_DIR/.hcom-development}"
 LEASES="${HCOM_REVIEW_LEASES:-$STATE_DIR/review_leases.local.yaml}"
 PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
+REVIEW_MODEL_FAMILY="${HCOM_TEAM_REVIEW_MODEL_FAMILY:-}"
+REVIEW_MODEL="${HCOM_TEAM_REVIEW_MODEL:-${HCOM_TEAM_ANTIGRAVITY_MODEL:-}}"
+if [[ -z "$REVIEW_MODEL" && "$REVIEW_MODEL_FAMILY" == "gemini" ]]; then
+  REVIEW_MODEL="gemini-3-flash-preview"
+fi
 ROLE=""
 THREAD=""
 TASK=""
@@ -32,6 +37,10 @@ Options:
   --lease-minutes N
   --visibility headless|tmux
   --dry-run
+
+Environment:
+  HCOM_TEAM_REVIEW_MODEL_FAMILY=claude|gemini
+  HCOM_TEAM_REVIEW_MODEL=<model id>
 EOF
 }
 
@@ -138,6 +147,15 @@ case "$PROVIDER_RAW" in
     ;;
 esac
 
+if [[ -n "$REVIEW_MODEL_FAMILY" && "$REVIEW_MODEL_FAMILY" != "claude" && "$REVIEW_MODEL_FAMILY" != "gemini" ]]; then
+  echo "HCOM_TEAM_REVIEW_MODEL_FAMILY must be 'claude' or 'gemini' when set." >&2
+  exit 2
+fi
+if [[ -n "$REVIEW_MODEL_FAMILY" && "$PROVIDER" != "antigravity" ]]; then
+  echo "HCOM_TEAM_REVIEW_MODEL_FAMILY is only supported with --provider antigravity." >&2
+  exit 2
+fi
+
 require_bin() {
   local bin="$1"
   if ! command -v "$bin" >/dev/null 2>&1; then
@@ -200,6 +218,9 @@ EOF
 )"
 
 CMD=(hcom agy --tag "$TAG" --dir "$ROOT_DIR" --hcom-prompt "$PROMPT" --hcom-system-prompt "You are a crisAI development review agent. Do not ask the terminal user for next steps; communicate through hcom." --go)
+if [[ -n "$REVIEW_MODEL" ]]; then
+  CMD+=(--model "$REVIEW_MODEL")
+fi
 if [[ "$AUTO_APPROVE_TOOLS" == "1" ]]; then
   CMD+=(--dangerously-skip-permissions)
 fi
