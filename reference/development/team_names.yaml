@@ -1,0 +1,12 @@
+# Stable hcom base names for the crisAI development team.
+#
+# hcom combines these base names with launch tags for display and addressing,
+# for example `crisai-gem-lina`. Keep values lowercase and shell-safe.
+names:
+  orchestrator_codex: cris
+  gem_codex: lina
+  gem_claude: alex
+  web_codex: luke
+  web_claude: lori
+  runtime_codex: bili
+  runtime_claude: alle

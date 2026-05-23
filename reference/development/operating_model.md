@@ -75,10 +75,11 @@ from WSL. Override this with `--terminal PRESET_OR_COMMAND` or
 `HCOM_TEAM_TERMINAL` when a different hcom terminal backend is preferred. The
 default tmux session is `crisai-hcom`, configurable with
 `HCOM_TEAM_TMUX_SESSION`. Default tmux windows are named and ordered as:
-`orchestrator(<hcom_name>)`, `gem_codex(<hcom_name>)`,
-`web_codex(<hcom_name>)`, and `run_codex(<hcom_name>)`. Persistent Claude mode
-adds `gem_claude(<hcom_name>)`, `web_claude(<hcom_name>)`, and
-`run_claude(<hcom_name>)`. Attach with `scripts/hcom_attach.sh` or
+`orchestrator(cris)`, `gem_codex(lina)`, `web_codex(luke)`, and
+`run_codex(bili)`. Persistent Claude mode adds `gem_claude(alex)`,
+`web_claude(lori)`, and `run_claude(alle)`. These static base names live in
+`reference/development/team_names.yaml`; set `HCOM_TEAM_NAMES_REGISTRY` to use
+a different registry. Attach with `scripts/hcom_attach.sh` or
 `tmux attach -t crisai-hcom`, switch windows with `Ctrl-\` then the window
 number, `Ctrl-\` then `n` or `p`, or `Ctrl-\` then `w`, and detach without
 stopping the team with `Ctrl-\` then `d`. `Ctrl-b` remains a secondary prefix if

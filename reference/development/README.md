@@ -130,6 +130,12 @@ metadata is writable for commits and pushes. Area Codex agents keep
 `HCOM_TEAM_AREA_CODEX_SANDBOX=workspace-write` and must hand off Git writes to
 the orchestrator.
 
+Stable hcom base names are configured in
+`reference/development/team_names.yaml`. The launcher reads that registry and
+passes the configured name to hcom with `--hcom-name` on fresh launches. Override
+the registry path with `HCOM_TEAM_NAMES_REGISTRY` when testing a different
+mapping.
+
 Choose the reviewer provider independently with
 `HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
 Antigravity is supported when its reusable OAuth token is already present and
@@ -178,12 +184,13 @@ default tmux session is `crisai-hcom`; override it with
 
 The tmux windows are created in this order:
 
-1. `orchestrator(<hcom_name>)`
-2. `gem_codex(<hcom_name>)`
-3. `web_codex(<hcom_name>)`
-4. `run_codex(<hcom_name>)`
+1. `orchestrator(cris)`
+2. `gem_codex(lina)`
+3. `web_codex(luke)`
+4. `run_codex(bili)`
 
-Persistent Claude mode adds Claude reviewer windows.
+Persistent Claude mode adds `gem_claude(alex)`, `web_claude(lori)`, and
+`run_claude(alle)`.
 
 Attach to the team session with the helper:
 
