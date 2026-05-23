@@ -239,6 +239,18 @@ def _append_job_event(job_id: str, event: UiEvent) -> None:
     job.setdefault("events", []).append(event.to_dict())
 
 
+def _stage_delta_observability() -> dict[str, object]:
+    """Return trace-safe streaming metadata for live stage deltas."""
+    return {
+        "schema_version": "ui_stage_observability_v1",
+        "streaming": {
+            "attempted": True,
+            # Live deltas are emitted only from the streamed path; fallback runs emit trace metadata later.
+            "fallback": False,
+        },
+    }
+
+
 def _append_stage_delta_event(job_id: str, agent_id: str, delta: str) -> None:
     """Append a coalesced streaming text update for one running stage."""
     if not delta:
@@ -272,6 +284,7 @@ def _append_stage_delta_event(job_id: str, agent_id: str, delta: str) -> None:
                 "content_length": len(content),
                 "stage_key": agent_id,
                 "stage_label": _stage_label(agent_id),
+                "observability": _stage_delta_observability(),
             },
         ),
     )

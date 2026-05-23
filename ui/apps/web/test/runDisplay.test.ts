@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseMarkdownBlocks, shouldShowTranscriptEvent } from "../src/runDisplay.js";
+import {
+  latestLiveStageEvent,
+  liveRunStatus,
+  liveStageDisplayName,
+  parseMarkdownBlocks,
+  shouldShowTranscriptEvent
+} from "../src/runDisplay.js";
 
 test("normal transcript hides internal transport while verbose keeps debug events", () => {
   assert.equal(shouldShowTranscriptEvent({ event_type: "routing_decision" }, false), false);
@@ -14,6 +20,34 @@ test("normal transcript hides internal transport while verbose keeps debug event
 test("stream deltas and final answers stay out of transcript event list", () => {
   assert.equal(shouldShowTranscriptEvent({ event_type: "stage_delta" }, true), false);
   assert.equal(shouldShowTranscriptEvent({ event_type: "final_answer" }, true), false);
+});
+
+test("live stage helper selects active stream deltas until a terminal event arrives", () => {
+  const started = { event_type: "stage_started" as const, content: "", title: "Plan", agent_id: "retrieval_planner" };
+  const firstDelta = {
+    event_type: "stage_delta" as const,
+    content: "Searching",
+    title: "Plan",
+    agent_id: "retrieval_planner"
+  };
+  const secondDelta = {
+    event_type: "stage_delta" as const,
+    content: "Reading",
+    title: "Read",
+    agent_id: "context_retrieval"
+  };
+
+  assert.equal(latestLiveStageEvent([started, firstDelta, secondDelta]), secondDelta);
+  assert.equal(latestLiveStageEvent([started, firstDelta, { event_type: "run_completed" as const }]), null);
+  assert.equal(latestLiveStageEvent([started, firstDelta, { event_type: "run_failed" as const }]), null);
+});
+
+test("live stage labels and status stay user-facing", () => {
+  assert.equal(liveStageDisplayName({ title: "Retrieve sources", agent_id: "context_retrieval" }), "Retrieve sources");
+  assert.equal(liveStageDisplayName({ agent_id: "context_retrieval" }), "Context retrieval");
+  assert.equal(liveRunStatus(false, { title: "Retrieve sources" }), "Running Retrieve sources.");
+  assert.equal(liveRunStatus(true, { title: "Retrieve sources" }), "Decision needed: review retrieved sources.");
+  assert.equal(liveRunStatus(false, null), "");
 });
 
 test("final answer markdown parses into semantic blocks", () => {

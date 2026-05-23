@@ -30,6 +30,31 @@ export function shouldShowTranscriptEvent(event: Pick<UiEvent, "event_type">, ve
   return !normalTranscriptHiddenEventTypes.has(event.event_type);
 }
 
+export function latestLiveStageEvent<T extends Pick<UiEvent, "event_type">>(events: T[]): T | null {
+  const terminal = [...events]
+    .reverse()
+    .find((event) => event.event_type === "run_completed" || event.event_type === "run_failed");
+  if (terminal) return null;
+  return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
+}
+
+export function liveStageDisplayName(event: Pick<UiEvent, "agent_id" | "stage" | "title">): string {
+  return event.title || humanizeLabel(event.agent_id ?? event.stage ?? "stage");
+}
+
+export function liveRunStatus(
+  checkpointWaiting: boolean,
+  liveStageEvent: Pick<UiEvent, "agent_id" | "stage" | "title"> | null
+): string {
+  if (checkpointWaiting) {
+    return "Decision needed: review retrieved sources.";
+  }
+  if (liveStageEvent) {
+    return `Running ${liveStageDisplayName(liveStageEvent)}.`;
+  }
+  return "";
+}
+
 export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   const blocks: MarkdownBlock[] = [];
@@ -100,6 +125,11 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
     blocks.push({ type: "paragraph", children: parseInlineMarkdown(paragraphLines.join(" ")) });
   }
   return blocks;
+}
+
+function humanizeLabel(value: string): string {
+  const label = value.replaceAll("_", " ").trim();
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : "Stage";
 }
 
 export function parseInlineMarkdown(value: string): MarkdownInlineToken[] {

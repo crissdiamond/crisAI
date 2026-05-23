@@ -482,6 +482,12 @@ def test_append_stage_delta_event_coalesces_streaming_updates():
     assert events[0]["agent_id"] == "summary"
     assert events[0]["content"].startswith("short output that crosses the streaming threshold")
     assert events[0]["metadata"]["partial"] is True
+    assert events[0]["metadata"]["observability"] == {
+        "schema_version": "ui_stage_observability_v1",
+        "streaming": {"attempted": True, "fallback": False},
+    }
+    assert "raw" not in events[0]["metadata"]["observability"]["streaming"]
+    assert "payload" not in events[0]["metadata"]["observability"]["streaming"]
 
 
 def test_run_endpoint_returns_execution_payload(monkeypatch):

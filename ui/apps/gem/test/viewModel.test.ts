@@ -50,6 +50,7 @@ import {
   runSummaryTitle,
   shouldBufferStartupPaste,
   sidebarStages,
+  stageStreamingContent,
   stageSidebarLabel,
   stageVisual,
   pinnedStageMetricsLine,
@@ -904,6 +905,174 @@ test("panel lines keep selected stage pinned while live output changes", () => {
   assert.deepEqual(selected, ["retrieval output"]);
   assert.deepEqual(released, ["new live delta"]);
   assert.deepEqual(events, ["event output"]);
+});
+
+test("stage streaming content accumulates incremental live deltas for the active stage", () => {
+  const events = [
+    uiEvent({ event_type: "stage_started", agent_id: "retrieval", stage: "retrieval" }),
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:01Z",
+      agent_id: "retrieval",
+      stage: "retrieval",
+      content: "Finding"
+    }),
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:02Z",
+      agent_id: "retrieval",
+      stage: "retrieval",
+      content: " sources"
+    }),
+    uiEvent({ event_type: "stage_started", timestamp: "2026-05-17T12:00:03Z", agent_id: "summary", stage: "summary" }),
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:04Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "Drafting"
+    })
+  ];
+
+  assert.equal(stageStreamingContent(events), "Drafting");
+  assert.equal(stageStreamingContent(events, "retrieval"), "Finding sources");
+});
+
+test("stage streaming content handles cumulative snapshots and stops after terminal events", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:01Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "Draft"
+    }),
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:02Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "Draft answer"
+    })
+  ];
+
+  assert.equal(stageStreamingContent(events), "Draft answer");
+  assert.equal(stageStreamingContent([...events, uiEvent({ event_type: "run_completed" })]), "");
+});
+
+test("stage streaming content preserves word boundaries for whitespace-free incremental chunks", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:01Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "Drafting"
+    }),
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:02Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "a plan"
+    })
+  ];
+
+  assert.equal(stageStreamingContent(events), "Drafting a plan");
+});
+
+test("stage streaming content does not treat shared-prefix chunks as cumulative snapshots", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:01Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "The"
+    }),
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:02Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "Therefore we conclude"
+    })
+  ];
+
+  assert.equal(stageStreamingContent(events), "The Therefore we conclude");
+});
+
+test("stage streaming content handles stage start resets and start-only events", () => {
+  const startOnly = [
+    uiEvent({ event_type: "stage_started", agent_id: "summary", stage: "summary" })
+  ];
+  const withReset = [
+    ...startOnly,
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:01Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "First"
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      timestamp: "2026-05-17T12:00:02Z",
+      agent_id: "summary",
+      stage: "summary"
+    })
+  ];
+
+  assert.equal(stageStreamingContent(startOnly), "");
+  assert.equal(stageStreamingContent(withReset), "");
+});
+
+test("normal event lines hide stage lifecycle noise while live output renders deltas", () => {
+  const lines = buildEventLines([
+    uiEvent({
+      event_type: "stage_started",
+      title: "Summary started",
+      agent_id: "summary",
+      stage: "summary"
+    }),
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:01Z",
+      title: "Summary delta",
+      content: "Drafting",
+      agent_id: "summary",
+      stage: "summary"
+    })
+  ], "", 80);
+
+  assert.deepEqual(lines, ["No output yet."]);
+});
+
+test("stage streaming content remains bounded at narrow and normal terminal widths", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:01Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: "Drafting a long streamed response with enough words to require wrapping inside the Gem output pane."
+    }),
+    uiEvent({
+      event_type: "stage_delta",
+      timestamp: "2026-05-17T12:00:02Z",
+      agent_id: "summary",
+      stage: "summary",
+      content: " It continues with another chunk that should stay inside the scrollable transcript region."
+    })
+  ];
+
+  for (const viewportWidth of [80, 132]) {
+    const sidebarWidth = resolveStageSidebarWidth(viewportWidth);
+    const outputWidth = resolveOutputPanelWidth(viewportWidth, sidebarWidth);
+    const lines = wrapPlainText(stageStreamingContent(events), outputWidth);
+    assert(lines.length > 1);
+    assert(lines.every((line) => line.length <= outputWidth));
+  }
 });
 
 test("nav cursor movement clamps and recovers when current key is missing", () => {

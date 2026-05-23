@@ -17,7 +17,14 @@ import {
   type UiWorkspaceFileRecord,
   type UiWorkspaceUploadTarget
 } from "@crisai/contracts";
-import { parseMarkdownBlocks, shouldShowTranscriptEvent, type MarkdownInlineToken } from "./runDisplay.js";
+import {
+  latestLiveStageEvent,
+  liveRunStatus,
+  liveStageDisplayName,
+  parseMarkdownBlocks,
+  shouldShowTranscriptEvent,
+  type MarkdownInlineToken
+} from "./runDisplay.js";
 import "./styles.css";
 
 const apiKeyStorageKey = "crisai_api_key";
@@ -616,11 +623,7 @@ function Transcript({
   onCheckpoint: (action: "continue" | "redirect" | "stop", instruction?: string) => Promise<void>;
 }) {
   const visibleEvents = events.filter((event) => shouldShowTranscriptEvent(event, verbose));
-  const liveStatus = checkpointWaiting
-    ? "Decision needed: review retrieved sources."
-    : liveStageEvent
-      ? `Running ${liveStageEvent.title || humanizeLabel(liveStageEvent.agent_id ?? liveStageEvent.stage ?? "stage")}.`
-      : "";
+  const liveStatus = liveRunStatus(checkpointWaiting, liveStageEvent);
 
   return (
     <section className="transcript" aria-label="Run transcript">
@@ -629,12 +632,12 @@ function Transcript({
       </p>
       {events.length === 0 ? <p>No output yet.</p> : null}
       {liveStageEvent ? (
-        <article className="event-card streaming-card">
+        <article className="event-card streaming-card" aria-labelledby="streaming-card-heading">
           <header>
-            <h2>{liveStageEvent.title}</h2>
+            <h2 id="streaming-card-heading">{liveStageDisplayName(liveStageEvent)}</h2>
             <span>streaming</span>
           </header>
-          <pre>{liveStageEvent.content}</pre>
+          <pre aria-label={`Live output from ${liveStageDisplayName(liveStageEvent)}`}>{liveStageEvent.content}</pre>
         </article>
       ) : null}
       {visibleEvents.map((event, index) => (
@@ -800,12 +803,6 @@ function renderInlineMarkdown(tokens: MarkdownInlineToken[]): React.ReactNode[] 
     }
     return token.value;
   });
-}
-
-function latestLiveStageEvent(events: UiEvent[]): UiEvent | null {
-  const terminal = [...events].reverse().find((event) => isTerminalEvent(event));
-  if (terminal) return null;
-  return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
 }
 
 function hasSessionContextContent(context: UiSessionContext): boolean {

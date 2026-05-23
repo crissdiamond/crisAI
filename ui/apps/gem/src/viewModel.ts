@@ -678,6 +678,25 @@ export function resolvePanelLines({
   return outputLines.length > 0 ? outputLines : eventLines;
 }
 
+export function stageStreamingContent(events: UiEvent[], selectedStage: string | null = null): string {
+  if (events.some(isTerminalEvent)) return "";
+  const targetStage = selectedStage ?? latestStageDeltaKey(events);
+  if (!targetStage) return "";
+  let content = "";
+  for (const event of events) {
+    const key = stageEventKey(event);
+    if (key !== targetStage) continue;
+    if (event.event_type === "stage_started") {
+      content = event.content || "";
+      continue;
+    }
+    if (event.event_type === "stage_delta") {
+      content = mergeStageDeltaContent(content, event.content);
+    }
+  }
+  return content;
+}
+
 export function stageVisual(status: UiStageStatus, theme: GemTerminalTheme) {
   const icon =
     status === "failed" ? "!" :
@@ -703,6 +722,7 @@ const normalPanelHiddenEventTypes = new Set<UiEvent["event_type"]>([
   "run_created",
   "routing_decision",
   "task_contract",
+  "stage_started",
   "checkpoint_decision",
   "run_completed"
 ]);
@@ -742,6 +762,41 @@ function shouldShowNormalPanelEvent(event: UiEvent): boolean {
     return false;
   }
   return !normalPanelHiddenEventTypes.has(event.event_type);
+}
+
+function latestStageDeltaKey(events: UiEvent[]): string | null {
+  for (const event of [...events].reverse()) {
+    if (event.event_type !== "stage_delta") continue;
+    const key = stageEventKey(event);
+    if (key) return key;
+  }
+  return null;
+}
+
+function stageEventKey(event: UiEvent): string {
+  return String(event.agent_id ?? event.stage ?? "").trim();
+}
+
+function mergeStageDeltaContent(current: string, next: string): string {
+  if (!next) return current;
+  if (!current) return next;
+  if (next === current || isCumulativeStageDelta(current, next)) return next;
+  if (current.endsWith(next)) return current;
+  const separator = needsStageDeltaSeparator(current, next) ? " " : "";
+  return `${current}${separator}${next}`;
+}
+
+function isCumulativeStageDelta(current: string, next: string): boolean {
+  if (!next.startsWith(current)) return false;
+  const remainder = next.slice(current.length);
+  if (!remainder) return true;
+  return /^\s/.test(remainder);
+}
+
+function needsStageDeltaSeparator(current: string, next: string): boolean {
+  if (!current || !next) return false;
+  if (/\s$/.test(current) || /^\s/.test(next)) return false;
+  return /[\p{L}\p{N}]$/u.test(current) && /^[\p{L}\p{N}]/u.test(next);
 }
 
 function checkpointEventLines(event: UiEvent, width: number): string[] {

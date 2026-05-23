@@ -63,6 +63,7 @@ import {
   resolveViewportDimension,
   runSummaryTitle,
   sidebarStages,
+  stageStreamingContent,
   stageSidebarLabel,
   stageVisual,
   shouldBufferStartupPaste,
@@ -325,10 +326,10 @@ function GemApp() {
     () => renderMarkdownLines(pinnedStageContent(stages, effectiveSelectedKey, outputPanelWidth), outputPanelWidth),
     [effectiveSelectedKey, outputPanelWidth, stages]
   );
-  const liveStageEvent = useMemo(() => latestLiveStageEvent(activeEvents), [activeEvents]);
+  const liveStageContent = useMemo(() => stageStreamingContent(activeEvents), [activeEvents]);
   const liveLines = useMemo(
-    () => renderMarkdownLines(liveStageEvent?.content ?? "", outputPanelWidth),
-    [liveStageEvent, outputPanelWidth]
+    () => renderMarkdownLines(liveStageContent, outputPanelWidth),
+    [liveStageContent, outputPanelWidth]
   );
   const eventLines = useMemo(
     () => buildEventLines(activeEvents, error, outputPanelWidth, notice),
@@ -1129,12 +1130,6 @@ function GemApp() {
       </Box>
     </Box>
   );
-}
-
-function latestLiveStageEvent(events: UiEvent[]): UiEvent | null {
-  const terminal = [...events].reverse().find((event) => isTerminalEvent(event));
-  if (terminal) return null;
-  return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
 }
 
 function isCheckpointCommand(command: string): boolean {
