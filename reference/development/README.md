@@ -138,13 +138,13 @@ mapping.
 
 Choose the reviewer provider independently with
 `HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
-Antigravity is supported when its reusable OAuth token is already present and
-its persisted default model is a Claude model. Set that once with `agy`, enter
-`/model`, choose `Claude Sonnet 4.6 (Thinking)`, and confirm it appears in the
-Antigravity footer. This writes the user config at
-`~/.gemini/antigravity-cli/settings.json`. The generic review launcher verifies
-the active model with an `agy --print` probe before using Antigravity, so failed
-auth or a non-Claude default is caught before a broken reviewer pane is created.
+Antigravity is supported when its reusable OAuth token is already present. The
+starter updates the persisted Antigravity model in
+`~/.gemini/antigravity-cli/settings.json`, seeds isolated reviewer homes under
+`.hcom/antigravity-homes/`, and verifies the active model with an `agy --print`
+probe before using Antigravity. Reviewer homes copy auth, settings, and
+onboarding state only; conversations and brain artifacts are intentionally not
+copied.
 Launch a default reviewer for review-required work:
 
 ```bash
@@ -155,10 +155,10 @@ scripts/hcom_review_close.sh --thread runtime-review
 
 Use `./start hcom agy` when you want on-demand reviewers to use Antigravity, and
 `./start hcom all-up agy` when you want persistent reviewer sessions through
-Antigravity. If Antigravity prompts for OAuth, run `agy` once manually and retry
-after it can reopen without asking for authentication. If you intentionally use
-Antigravity with a different model for other work, switch it back to Claude
-before launching hcom review agents.
+Antigravity. These default to the Claude reviewer profile. Use
+`./start hcom agy gemini` or `./start hcom all-up agy gemini` for the Gemini
+reviewer profile. If Antigravity prompts for OAuth, run `agy` once manually and
+retry after it can reopen without asking for authentication.
 
 `HCOM_TEAM_CLAUDE_VISIBILITY=headless` is the default. The orchestrator may keep
 a reviewer alive across related sequential tasks, but should close it after the

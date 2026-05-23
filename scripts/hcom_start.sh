@@ -77,9 +77,9 @@ Reviewers:
 
   HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
   claude-code and antigravity. Antigravity reviewers require reusable local auth
-  and a persisted Claude model selection in agy. Use `agy`, enter `/model`,
-  select the required Claude model, then rerun the launcher. The preflight
-  verifies the active agy model before any reviewer is launched.
+  and a requested model selection in agy. The preflight updates Antigravity's
+  persisted settings model, then verifies the active agy model before any
+  reviewer is launched.
 EOF
 }
 
@@ -139,12 +139,24 @@ role_prompt() {
   local role="${2:-}"
   cat "$ROOT_DIR/$role_file"
   printf '\n\n'
-  cat <<'EOF'
+  if [[ "$role" == *_claude ]]; then
+    cat <<'EOF'
+Startup mode for reviewer agents:
+
+- Do not inspect files, run commands, create artifacts, or review anything at
+  startup.
+- Wait for a direct hcom request from the orchestrator or paired Codex agent.
+- Once assigned, read only the context needed for that specific request.
+- Report waiting state through hcom if needed, then return to listening.
+EOF
+  else
+    cat <<'EOF'
 Start by identifying your hcom session name, stable role, area, and peer from
 reference/development/session_assignments.local.yaml when it exists. Use hcom
 for concise coordination and the Claude memory MCP server for durable task
 context. Do not store secrets in memory.
 EOF
+  fi
   printf '\nFollow this memory policy:\n%s\n' "$MEMORY_WRITE_POLICY"
 }
 
@@ -494,7 +506,13 @@ launch_agent() {
     resume_target=""
   fi
 
-  local cmd
+  local cmd agy_home
+  if [[ "$provider" == "agy" ]]; then
+    agy_home="$("$ROOT_DIR/scripts/hcom_antigravity_home.sh" "$role")"
+  else
+    agy_home=""
+  fi
+
   if [[ -n "$resume_target" ]]; then
     cmd=(hcom r "$resume_target" --tag "$tag" --dir "$ROOT_DIR/$launch_dir" --hcom-prompt "$prompt" --go)
   else
@@ -522,6 +540,9 @@ launch_agent() {
   done < <(tool_auto_approval_args "$role" "$provider")
   if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
     cmd+=("${EXTRA_ARGS[@]}")
+  fi
+  if [[ -n "$agy_home" ]]; then
+    cmd=(env "HOME=$agy_home" "${cmd[@]}")
   fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     run_cmd "${cmd[@]}"

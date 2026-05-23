@@ -67,7 +67,7 @@ Rules:
   hcom/development-team tooling, and larger UI changes.
 - Claude Code is the default reviewer provider. Antigravity may satisfy the same
   review role when `HCOM_TEAM_REVIEW_PROVIDER=antigravity` is configured and
-  preflight confirms reusable OAuth plus an active persisted Claude model.
+  preflight confirms reusable OAuth plus the requested active model.
 - If a mandatory reviewer cannot launch or exits during startup, pause the task.
   Report the reviewer role, provider, exact launch error, reset time when
   provided, current repo state, and what is ready for review. Do not replace the

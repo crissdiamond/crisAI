@@ -51,9 +51,13 @@ providers:
     supports_transcript_failure_summary: false
     requires_existing_oauth: true
     requires_preflight: true
-    model_selection_verified: persisted_model_probe
+    model_selection_verified: persisted_model_update_then_probe
+    session_isolation: role_scoped_antigravity_home
     default_model_env: HCOM_TEAM_ANTIGRAVITY_MODEL
-    default_model: Claude Sonnet 4.6
+    default_model: Claude Sonnet 4.6 (Thinking)
+    model_profiles:
+      claude: Claude Sonnet 4.6 (Thinking)
+      gemini: Gemini 3.5 Flash (Medium)
     requires_hcom_tool_support: true
     lifecycle_scripts:
       preflight: scripts/hcom_antigravity_preflight.sh
