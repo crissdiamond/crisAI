@@ -43,7 +43,7 @@ The main product gaps are:
 - pipeline runs now include a retrieval checkpoint and expose the initial
   routing/task-contract decision before agent execution;
 - stage output now streams through the shared v1 event contract into React web
-  and Ink Gem, with browser viewport verification still tracked separately;
+  and Ink Gem, with the streaming card viewport pass complete;
 - retrieval does not persist validated evidence across iterative runs;
 - the prototype name `crisAI` is not yet aligned with a professional product,
   repository, package, and CLI identity for team adoption;
@@ -84,7 +84,6 @@ The main product gaps are:
 
 | ID | Priority | Status | Item | Rationale | Definition of Done |
 |---|---:|---|---|---|---|
-| TODO-002A | P0 | todo | Browser viewport pass for streaming card | TODO-002's first implementation bounds the nested streaming output in CSS, but the sandbox could not launch Chromium because required system dependencies such as `libnspr4.so` were unavailable. The residual risk is mobile touch scroll trapping inside the nested streaming output region. | Chrome DevTools mobile emulation at 360px and a desktop viewport confirm the streaming card remains bounded, checkpoint controls stay reachable, and nested scrolling does not trap the user. Record the tested browser, viewport sizes, and outcome. |
 | TODO-003 | P0 | todo | Persistent retrieval cache | Repeated source reads during iterative tasks waste time and tokens. Evidence bundles can be reused when the query and source revision are unchanged. | Evidence bundles are cached by query fingerprint, source identity, and source revision/hash. Cache hits are visible in trace metadata. Stale entries are invalidated using provider revision metadata where available, such as ETag, source version, Graph `lastModifiedDateTime`, content hash, or configurable TTL expiry. |
 | TODO-026 | P0 | todo | Product and repository rename | `crisAI` was the prototype name. Before broader team adoption, the project should use a professional product, repository, package, CLI, docs, log, and MCP identity such as `Architecture Assistant`, `architecture-assistant`, `architecture_assistant`, and `arch-assistant`. Doing this early avoids team-facing churn later. | Rename the GitHub repository, Python package, CLI entry point, docs, UI labels, MCP server names, log labels, and setup instructions. Decide explicitly whether to keep a temporary `crisai` compatibility alias or remove it for a clean first team clone. Full test suite, doctor, packaging, and install-from-clone flow pass under the new name. |
 | TODO-042 | P1 | todo | Rate limiting on execution endpoints | `/api/run` and `/api/v1/runs` trigger LLM calls with no request-rate guard. A misconfigured client or accidental loop could exhaust the model provider budget before the user notices. VISION Principle 8 requires token spend to be rate-guarded. | Execution endpoints enforce a configurable per-key or per-IP rate limit (e.g. N requests per minute). Limit breach returns 429 with a `Retry-After` header. Limits are configured via registry or env var. Tests cover limit enforcement and bypass attempts. |
@@ -110,6 +109,7 @@ The main product gaps are:
 | TODO-039 | P1 | todo | Configurable Gem themes and templates | Gem should use UCL-aligned defaults, but teams and organisations may need alternate terminal palettes, layout density, and component templates without editing Python code. | Add registry/config-backed Gem theme and layout templates with defaults for UCL dark, UCL light, and high-contrast. `crisai gem` loads the selected template from config, validates required tokens, falls back safely, and documents how teams can customise colours/backgrounds while preserving accessibility. Tests cover template loading, fallback, and token validation. |
 | TODO-040 | P1 | in-progress | React web and Ink Gem on shared UI contract | The shared `ui_event_v1` and `/api/v1/runs` contract now backs the active React web and Ink Gem clients. The remaining gap is product-quality depth across stage rendering, checkpoint UX, final output, error states, install docs, accessibility, and CI checks. Current follow-ups include aligning toggle markup with the UCL switch pattern, adding alert live-region semantics, deciding whether Gem should expose the same per-run retrieval checkpoint toggle as React web, and documenting upload limits in the UI. | React web and Ink Gem consume `/api/v1/runs`, `/api/v1/runs/{id}`, `/api/v1/runs/{id}/events`, `/api/v1/runs/{id}/checkpoint`, and `/api/v1/ui/theme` with production-quality stage rendering, checkpoint UX, final output, error states, install docs, and CI type checks. |
 | TODO-040A | P1 | todo | Web stage rail follows active run stage | React web shows the latest live stage in the streaming card, but the stage rail is not a selected or focused-stage control and does not auto-scroll to the current running stage. With many stages, the active stage can be outside the visible rail viewport even while live output is correct. | During an active run, the stage rail visibly tracks the currently running stage without disrupting keyboard navigation or user-selected detail views. Long stage lists keep the active stage reachable and visible across mobile and desktop viewports. Tests or manual viewport evidence cover many-stage runs, overflow handling, and reduced-motion behaviour. |
+| TODO-040B | P1 | todo | Visible checkpoint indicator while streaming | When checkpoint state and live stage streaming coexist, React web exposes the decision through status text and an aria-live region, and controls remain reachable by scroll and keyboard. Sighted users may still miss that a decision is waiting because the checkpoint panel can start below the streaming card. | Add an above-the-fold checkpoint indicator, such as a sticky banner or status strip, that appears while a checkpoint is waiting during live streaming. The indicator must not cover input or transcript content, must preserve keyboard access to checkpoint controls, and must be verified at mobile and desktop viewports. |
 | TODO-022 | P1 | todo | Peer workflow partial recovery | If a challenger, refiner, or judge stage times out or fails mid-run, the whole peer workflow terminates hard with no output saved. Given the cost of peer runs, partial save and graceful degradation to the last completed stage are important. VISION Principle 3 (user control at costly decisions) applies directly: peer runs are the highest-cost execution path. | When a non-retrieval peer stage fails, the workflow saves the last successfully completed stage output, traces the failure with stage identity, and surfaces a recoverable error to the user rather than discarding all upstream work. Behaviour is test-covered. |
 | TODO-013 | P2 | todo | Dynamic model selection | Routing and task criticality should influence model tier instead of using only static agent assignments. | Model policy remains in registry/config. Router/task contract can select a model tier for supported agents. Decisions are traced and test-covered. |
 | TODO-014 | P2 | todo | Incremental workspace semantic index | `document_server` has a local context index, but it is rebuilt manually/on demand and is not a persistent, incremental workspace knowledge service. | Add an incremental index updated on writes or explicit rebuild. Retrieval uses the index when fresh and falls back safely when stale/missing. Include freshness metadata and tests. |
@@ -142,36 +142,34 @@ The main product gaps are:
    VISION near-term direction places cost tracking at #4, before authenticated
    website MCP. Measuring cost early lets model pairing and pipeline decisions
    be informed by real usage data.
-7. Clear `TODO-002A` before more streaming-card polish, because it verifies the
-   residual mobile/desktop viewport risk left after the stage-streaming work.
-8. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
+7. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
    cached evidence can participate in the same confirmation flow.
-9. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+8. Implement `TODO-017` (source connector capability contract) before `TODO-004`
     and `TODO-012`. Both new source adapters should be built against the contract
     from the start rather than retrofitted later.
-10. Implement `TODO-004` after the capability contract is in place. It creates
+9. Implement `TODO-004` after the capability contract is in place. It creates
     the secure generic pattern for OAuth-protected web sources before site-specific
     adapters proliferate.
-11. Implement `TODO-025` with the web UX track, ideally before the full web
+10. Implement `TODO-025` with the web UX track, ideally before the full web
     rebuild, because structured editing is a contained high-value feature for
     non-technical architecture users.
     **Note:** design `TODO-025` with the future web architecture
     (`TODO-019`) in mind. If the scope cannot be carried forward with minimal rework
     when the rebuild happens, consider advancing `TODO-019` to a design phase first
     to avoid duplicating effort.
-12. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+11. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
     enterprise architecture quality track.
-13. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
+12. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
     assurance automation. The roles directory and assurance operating model
     define who can review, who can approve, which artefacts require sign-off,
     and how asynchronous document movement should be audited.
-14. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
+13. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
     Dynamic model selection and API fallback should be built together so model
     choices and failure behaviour are governed by the same registry policy.
-15. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
+14. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
     should consume the shared event contract instead of carrying removed UI
     implementations.
-16. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+15. Treat `TODO-019` as the final alignment step for CLI workflow changes that
     affect user-visible execution semantics.
 
 ## Done
@@ -182,6 +180,7 @@ Completed items should move here with the merge commit or PR reference.
 |---|---|---|
 | TODO-001 | Human checkpoint after retrieval | `b1959b9 feat(pipeline): add retrieval checkpoint` |
 | TODO-002 | Streaming stage output | `461461e feat(ui): stream stage output in clients` |
+| TODO-002A | Browser viewport pass for streaming card | `fix(web): bound streaming viewport layout` |
 | TODO-041 | API authentication and authorisation guard (Phase 1 — static bearer token) | `2ea5457 feat(security): add Bearer token auth guard`, `800e2d7 fix(security): harden api bearer comparison` |
 | TODO-024 | Web document upload | `a2b3f5c docs(todo): mark TODO-041 done and update sequencing` |
 | TODO-036 | Routing decision transparency | `feat(ui): expose request contract before execution` |
