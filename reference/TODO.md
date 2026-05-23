@@ -42,7 +42,8 @@ The main product gaps are:
 
 - pipeline runs now include a retrieval checkpoint and expose the initial
   routing/task-contract decision before agent execution;
-- long stages do not stream output, so users cannot judge progress early;
+- stage output now streams through the shared v1 event contract into React web
+  and Ink Gem, with browser viewport verification still tracked separately;
 - retrieval does not persist validated evidence across iterative runs;
 - the prototype name `crisAI` is not yet aligned with a professional product,
   repository, package, and CLI identity for team adoption;
@@ -64,8 +65,8 @@ The main product gaps are:
 - the web file editor is Markdown/text-oriented, which is too technical for
   users who want structured editing of architecture artefacts without Markdown
   knowledge;
-- web UX follows CLI concepts but does not yet provide full streaming,
-  checkpoint, and peer transcript parity.
+- web UX follows CLI concepts and now consumes streamed stage output, but still
+  needs deeper checkpoint, error-state, and peer transcript parity.
 - shared UI schemas, v1 runtime events, React web, and Ink Gem now own the
   active UI surface; remaining work should focus on parity depth, polish,
   accessibility, and operational resilience.
@@ -83,7 +84,6 @@ The main product gaps are:
 
 | ID | Priority | Status | Item | Rationale | Definition of Done |
 |---|---:|---|---|---|---|
-| TODO-002 | P0 | todo | Streaming stage output | Streaming is the largest interactive UX improvement that does not require changing pipeline semantics. Users can see progress and abort earlier. The shared v1 web API now emits `stage_delta` events; React web and Ink Gem consume the shared event contract, but broader UX polish and token/cost telemetry remain open. | React web and Ink Gem stream per-stage output without exposing machine evidence JSON. Trace output remains complete. Runtime telemetry is shown consistently across supported clients. |
 | TODO-002A | P0 | todo | Browser viewport pass for streaming card | TODO-002's first implementation bounds the nested streaming output in CSS, but the sandbox could not launch Chromium because required system dependencies such as `libnspr4.so` were unavailable. The residual risk is mobile touch scroll trapping inside the nested streaming output region. | Chrome DevTools mobile emulation at 360px and a desktop viewport confirm the streaming card remains bounded, checkpoint controls stay reachable, and nested scrolling does not trap the user. Record the tested browser, viewport sizes, and outcome. |
 | TODO-003 | P0 | todo | Persistent retrieval cache | Repeated source reads during iterative tasks waste time and tokens. Evidence bundles can be reused when the query and source revision are unchanged. | Evidence bundles are cached by query fingerprint, source identity, and source revision/hash. Cache hits are visible in trace metadata. Stale entries are invalidated using provider revision metadata where available, such as ETag, source version, Graph `lastModifiedDateTime`, content hash, or configurable TTL expiry. |
 | TODO-026 | P0 | todo | Product and repository rename | `crisAI` was the prototype name. Before broader team adoption, the project should use a professional product, repository, package, CLI, docs, log, and MCP identity such as `Architecture Assistant`, `architecture-assistant`, `architecture_assistant`, and `arch-assistant`. Doing this early avoids team-facing churn later. | Rename the GitHub repository, Python package, CLI entry point, docs, UI labels, MCP server names, log labels, and setup instructions. Decide explicitly whether to keep a temporary `crisai` compatibility alias or remove it for a clean first team clone. Full test suite, doctor, packaging, and install-from-clone flow pass under the new name. |
@@ -141,10 +141,10 @@ The main product gaps are:
    VISION near-term direction places cost tracking at #4, before authenticated
    website MCP. Measuring cost early lets model pairing and pipeline decisions
    be informed by real usage data.
-7. Implement `TODO-002` next because it improves perceived performance and gives
-   users earlier visibility into long-running stages.
-8. Implement `TODO-003` after checkpoint semantics are stable, so cached evidence
-   can participate in the same confirmation flow.
+7. Clear `TODO-002A` before more streaming-card polish, because it verifies the
+   residual mobile/desktop viewport risk left after the stage-streaming work.
+8. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
+   cached evidence can participate in the same confirmation flow.
 9. Implement `TODO-017` (source connector capability contract) before `TODO-004`
     and `TODO-012`. Both new source adapters should be built against the contract
     from the start rather than retrofitted later.
@@ -180,6 +180,7 @@ Completed items should move here with the merge commit or PR reference.
 | ID | Item | Reference |
 |---|---|---|
 | TODO-001 | Human checkpoint after retrieval | `b1959b9 feat(pipeline): add retrieval checkpoint` |
+| TODO-002 | Streaming stage output | `461461e feat(ui): stream stage output in clients` |
 | TODO-041 | API authentication and authorisation guard (Phase 1 — static bearer token) | `2ea5457 feat(security): add Bearer token auth guard`, `800e2d7 fix(security): harden api bearer comparison` |
 | TODO-024 | Web document upload | `a2b3f5c docs(todo): mark TODO-041 done and update sequencing` |
 | TODO-036 | Routing decision transparency | `feat(ui): expose request contract before execution` |
