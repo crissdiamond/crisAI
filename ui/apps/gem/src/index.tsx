@@ -59,6 +59,7 @@ import {
   resolvePanelContentHeight,
   resolvePromptDeleteDirection,
   resolvePromptPasteInput,
+  resolveStageFocusKey,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
@@ -328,6 +329,17 @@ function GemApp() {
     [effectiveSelectedKey, outputPanelWidth, stages]
   );
   const liveStageEvent = useMemo(() => latestLiveStageEvent(activeEvents), [activeEvents]);
+  // Keep rail auto-follow separate from output selection so live stages do not
+  // replace a user-pinned pane.
+  const stageFocusKey = useMemo(
+    () => resolveStageFocusKey({
+      visibleStages,
+      selectedStage,
+      navFocusKey: navMode ? navFocusKey : null,
+      liveStageEvent
+    }),
+    [liveStageEvent, navFocusKey, navMode, selectedStage, visibleStages]
+  );
   const liveStageContent = useMemo(
     () => stageStreamingContent(activeEvents, liveStageEvent?.agent_id ?? liveStageEvent?.stage ?? null),
     [activeEvents, liveStageEvent]
@@ -1058,7 +1070,7 @@ function GemApp() {
               stage={stage}
               sidebarWidth={stageSidebarWidth}
               theme={terminalTheme}
-              selected={stage.key === effectiveSelectedKey}
+              selected={stage.key === stageFocusKey}
             />
           ))}
         </Box>

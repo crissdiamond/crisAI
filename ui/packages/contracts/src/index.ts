@@ -328,7 +328,9 @@ export function latestLiveStageEvent<T extends Pick<UiEvent, "event_type">>(even
     .reverse()
     .find((event) => event.event_type === "run_completed" || event.event_type === "run_failed");
   if (terminal) return null;
-  return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
+  return [...events]
+    .reverse()
+    .find((event) => event.event_type === "stage_started" || event.event_type === "stage_delta") ?? null;
 }
 
 export function extractStageObservability(event: UiEvent): UiStageObservability | null {

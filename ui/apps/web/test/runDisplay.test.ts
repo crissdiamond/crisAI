@@ -22,7 +22,7 @@ test("stream deltas and final answers stay out of transcript event list", () => 
   assert.equal(shouldShowTranscriptEvent({ event_type: "final_answer" }, true), false);
 });
 
-test("live stage helper selects active stream deltas until a terminal event arrives", () => {
+test("live stage helper selects active stage starts and stream deltas until a terminal event arrives", () => {
   const started = { event_type: "stage_started" as const, content: "", title: "Plan", agent_id: "retrieval_planner" };
   const firstDelta = {
     event_type: "stage_delta" as const,
@@ -37,6 +37,7 @@ test("live stage helper selects active stream deltas until a terminal event arri
     agent_id: "context_retrieval"
   };
 
+  assert.equal(latestLiveStageEvent([started]), started);
   assert.equal(latestLiveStageEvent([started, firstDelta, secondDelta]), secondDelta);
   assert.equal(latestLiveStageEvent([started, firstDelta, { event_type: "run_completed" as const }]), null);
   assert.equal(latestLiveStageEvent([started, firstDelta, { event_type: "run_failed" as const }]), null);

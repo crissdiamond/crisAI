@@ -664,6 +664,25 @@ export function resolveNavCursorAfterPrune(visibleStages: UiStageSummary[], prev
   return visibleStages[fallbackIndex]?.key ?? null;
 }
 
+export function resolveStageFocusKey({
+  visibleStages,
+  selectedStage,
+  navFocusKey,
+  liveStageEvent
+}: {
+  visibleStages: UiStageSummary[];
+  selectedStage: string | null;
+  navFocusKey: string | null;
+  liveStageEvent: Pick<UiEvent, "agent_id" | "stage"> | null;
+}): string | null {
+  if (navFocusKey !== null) return navFocusKey;
+  if (selectedStage !== null) return selectedStage;
+  if (!liveStageEvent) return null;
+  const liveStageKey = stageEventKey(liveStageEvent);
+  if (!liveStageKey) return null;
+  return visibleStages.some((stage) => stage.key === liveStageKey) ? liveStageKey : null;
+}
+
 export function resolvePanelLines({
   showEvents,
   selectedStage,
@@ -773,7 +792,7 @@ function latestStageDeltaKey(events: UiEvent[]): string | null {
   return null;
 }
 
-function stageEventKey(event: UiEvent): string {
+function stageEventKey(event: Pick<UiEvent, "agent_id" | "stage">): string {
   return String(event.agent_id ?? event.stage ?? "").trim();
 }
 

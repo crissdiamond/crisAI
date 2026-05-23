@@ -44,6 +44,7 @@ import {
   resolvePromptDeleteDirection,
   resolvePromptPasteInput,
   resolveRunsListIndex,
+  resolveStageFocusKey,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
@@ -1102,6 +1103,49 @@ test("nav cursor prune recovery keeps prior index proximity", () => {
   assert.equal(resolveNavCursorAfterPrune(stages, -1), "one");
   assert.equal(resolveNavCursorAfterPrune(stages, null), "three");
   assert.equal(resolveNavCursorAfterPrune([], 1), null);
+});
+
+test("stage rail focus follows the latest live stage unless the user pins or navigates", () => {
+  const visibleStages: UiStageSummary[] = [
+    { key: "retrieval_planner", label: "Retrieval planner", status: "complete", summary: "" },
+    { key: "context_retrieval", label: "Context retrieval", status: "running", summary: "" },
+    { key: "summary", label: "Summary", status: "pending", summary: "" }
+  ];
+  const liveStageEvent = uiEvent({
+    event_type: "stage_started",
+    agent_id: "context_retrieval",
+    stage: "context_retrieval"
+  });
+
+  assert.equal(resolveStageFocusKey({
+    visibleStages,
+    selectedStage: null,
+    navFocusKey: null,
+    liveStageEvent
+  }), "context_retrieval");
+  assert.equal(resolveStageFocusKey({
+    visibleStages,
+    selectedStage: "retrieval_planner",
+    navFocusKey: null,
+    liveStageEvent
+  }), "retrieval_planner");
+  assert.equal(resolveStageFocusKey({
+    visibleStages,
+    selectedStage: "retrieval_planner",
+    navFocusKey: "summary",
+    liveStageEvent
+  }), "summary");
+  // Defend against non-visible runtime events becoming sidebar focus targets.
+  assert.equal(resolveStageFocusKey({
+    visibleStages,
+    selectedStage: null,
+    navFocusKey: null,
+    liveStageEvent: uiEvent({
+      event_type: "checkpoint_requested",
+      agent_id: "retrieval_checkpoint",
+      stage: "retrieval_checkpoint"
+    })
+  }), null);
 });
 
 test("checkpoint copy is phrased as a user decision with consequences", () => {
