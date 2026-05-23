@@ -390,13 +390,20 @@ class EvidenceValidationCapture:
     """Capture parsed evidence transport from a retrieval stage output."""
 
     intent_message: str
+    require_evidence_bundle: bool = False
+    require_retrieval_structure: bool = False
     transport: ValidatedEvidenceTransport | None = None
     error: WorkflowPolicyViolation | None = None
 
     def process(self, raw_text: str) -> tuple[str, dict[str, Any] | None]:
         """Parse evidence output and keep validation failures available to callers."""
         try:
-            self.transport = _validated_evidence_transport(self.intent_message, raw_text)
+            self.transport = _validated_evidence_transport(
+                self.intent_message,
+                raw_text,
+                require_evidence_bundle=self.require_evidence_bundle,
+                require_retrieval_structure=self.require_retrieval_structure,
+            )
         except WorkflowPolicyViolation as exc:
             self.error = exc
             self.transport = ValidatedEvidenceTransport(
@@ -440,6 +447,25 @@ def _evidence_brief(bundle: EvidenceBundle) -> str:
     if bundle.gaps:
         lines.append("- Gaps: " + "; ".join(gap for gap in bundle.gaps if gap))
     return "\n".join(lines)
+
+
+def _requires_retrieval_evidence_contract(request_contract: RequestContract) -> bool:
+    """Return whether the retrieval stage must provide structured evidence."""
+    return bool(request_contract.source_required or "source_evidence" in request_contract.quality_gates)
+
+
+def _validate_retrieval_output_structure(retrieval_text: str) -> None:
+    """Require the context retrieval prose sections promised by the prompt."""
+    lowered = retrieval_text.lower()
+    required_sections = ("## retrieval summary", "## retrieved sources")
+    missing = [section for section in required_sections if section not in lowered]
+    if not missing:
+        return
+    raise WorkflowPolicyViolation(
+        "Policy gate failed: context retrieval must return retrieval handoff sections "
+        "including `## Retrieval Summary` and `## Retrieved Sources`; it must not return "
+        "the final user-facing answer in place of source evidence."
+    )
 
 
 def _validate_evidence_bundle(message: str, bundle: EvidenceBundle) -> None:
@@ -529,7 +555,13 @@ def _supplemental_evidence_role_violation(bundle: EvidenceBundle, constraints: S
     return ""
 
 
-def _validated_evidence_transport(message: str, retrieval_text: str) -> ValidatedEvidenceTransport:
+def _validated_evidence_transport(
+    message: str,
+    retrieval_text: str,
+    *,
+    require_evidence_bundle: bool = False,
+    require_retrieval_structure: bool = False,
+) -> ValidatedEvidenceTransport:
     """Parse evidence once and keep machine transport separate from prose.
 
     For document-summary/source-read requests, the bundle is mandatory and must
@@ -537,13 +569,15 @@ def _validated_evidence_transport(message: str, retrieval_text: str) -> Validate
     retrieval output is accepted.
     """
     prose = sanitize_user_visible_text(retrieval_text)
+    if require_retrieval_structure:
+        _validate_retrieval_output_structure(prose)
     must_read = request_requires_content_read(message)
     try:
         bundle = parse_evidence_bundle(retrieval_text)
     except ValueError as exc:
-        if must_read:
+        if must_read or require_evidence_bundle:
             raise WorkflowPolicyViolation(
-                "Policy gate failed: this request requires content-read evidence, "
+                "Policy gate failed: this request requires structured source evidence, "
                 f"but context retrieval did not return a valid evidence bundle. {exc}"
             ) from exc
         return ValidatedEvidenceTransport(prose=prose, bundle=None, evidence_brief="")
@@ -937,6 +971,7 @@ async def run_pipeline(
     )
 
     engine = _create_workflow_engine(environment, server_specs)
+    require_retrieval_evidence = _requires_retrieval_evidence_contract(request_contract)
 
     async with engine.session(specs.values()) as workflow:
         workflow.start_workflow(
@@ -1020,7 +1055,11 @@ async def run_pipeline(
                     metadata={"fallback_reason": "empty_output"},
                 )
 
-            evidence_capture = EvidenceValidationCapture(retrieval_intent_message)
+            evidence_capture = EvidenceValidationCapture(
+                retrieval_intent_message,
+                require_evidence_bundle=require_retrieval_evidence,
+                require_retrieval_structure=require_retrieval_evidence,
+            )
 
             context_retrieval_text = await workflow.run_stage(
                 spec=specs["context_retrieval"],
@@ -1037,7 +1076,9 @@ async def run_pipeline(
                 verbose=verbose,
                 output_processor=evidence_capture.process,
             )
-            if evidence_capture.error is not None and request_requires_content_read(retrieval_intent_message):
+            if evidence_capture.error is not None and (
+                request_requires_content_read(retrieval_intent_message) or require_retrieval_evidence
+            ):
                 _trace_workflow_policy_event(
                     workflow,
                     "EVIDENCE_CONTRACT_REPAIR",
@@ -1045,7 +1086,11 @@ async def run_pipeline(
                     event_type="policy_signal",
                     metadata={"validation_error": str(evidence_capture.error)},
                 )
-                repair_capture = EvidenceValidationCapture(retrieval_intent_message)
+                repair_capture = EvidenceValidationCapture(
+                    retrieval_intent_message,
+                    require_evidence_bundle=require_retrieval_evidence,
+                    require_retrieval_structure=require_retrieval_evidence,
+                )
                 context_retrieval_text = await workflow.run_stage(
                     spec=specs["context_retrieval"],
                     ui_agent_id="context_retrieval",

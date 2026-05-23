@@ -363,7 +363,18 @@ def build_context_retrieval_prompt(
     )
     blocks = [_section("User request", message)]
     if task_contract is not None:
-        blocks.append(_section("Task Contract", task_module.render_task_contract_summary(task_contract)))
+        blocks.append(_section("Task Contract (downstream/final-only)", task_module.render_task_contract_summary(task_contract)))
+        blocks.append(
+            _section(
+                "Context retrieval stage contract",
+                (
+                    "The Task Contract above describes the downstream final user-facing answer, not this retrieval stage. "
+                    "This stage must only collect and hand off evidence. Do not satisfy the final deliverable here, "
+                    "even when the Task Contract describes a user-facing final answer. Return retrieval sections and "
+                    "the evidence contract only; leave interpretation and final wording to later stages."
+                ),
+            )
+        )
     blocks.append(_section("Source Fit Constraints", constraints_module.render_source_fit_constraints(source_constraints)))
     if resolved_sources:
         blocks.append(_section("Resolved Session Sources", anchors_module.render_resolved_sources(resolved_sources)))
@@ -395,7 +406,7 @@ def build_context_retrieval_prompt(
             "For SharePoint (not OneDrive-only) use `search_sharepoint_site_documents` or site-scoped search after `list_sites`. "
             "When the user asks for a summary of a document/deck/file, read the content first and mark the item `content_read`; if the read fails, mark it `read_failed` and include the raw error. "
             "For document/deck/file summary requests, always end with the required fenced `evidence_bundle_v1` JSON block; never rely on prose-only retrieval notes. "
-            "Do not draft, recommend, or optimise the final design response.",
+            "Do not draft the final user-facing answer.",
             prompt_contracts_module.SHAREPOINT_READ_HANDLE_CONTRACT,
             prompt_contracts_module.RETRIEVAL_EVIDENCE_POLICY_CONTRACT,
             prompt_contracts_module.LINK_FORMATTING_CONTRACT,
@@ -430,7 +441,7 @@ def build_context_retrieval_repair_prompt(
             _section("Validation error", validation_error),
             "Task:\nRepair the retrieval evidence contract for the same user request. "
             "If the previous output does not contain enough source metadata and content evidence to construct a valid bundle, use the available retrieval tools again before answering. "
-            "Return concise grounded retrieval prose, then end with a fenced `json` block containing `schema_version: \"evidence_bundle_v1\"`. "
+            "Return concise grounded retrieval prose using `## Retrieval Summary`, `## Retrieved Sources`, `## Retrieval Gaps`, and `## Tool Notes`, then end with a fenced `json` block containing `schema_version: \"evidence_bundle_v1\"`. "
             "For document/deck/file summary requests, the bundle must include at least one `content_read` item backed by a successful read or inspect tool call. "
             "Do not draft the final answer; only provide retrieval findings and the evidence bundle.",
             prompt_contracts_module.SHAREPOINT_READ_HANDLE_CONTRACT,
