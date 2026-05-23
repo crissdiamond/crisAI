@@ -19,6 +19,50 @@ runs the uv install, installs UI workspace dependencies when npm is available,
 copies `.env.example` to `.env` when missing, and creates the standard workspace
 and log folders.
 
+## Team member onboarding checklist
+
+Use this path for a new teammate joining an existing crisAI checkout or team
+branch:
+
+1. Confirm prerequisites:
+   - `uv --version`
+   - `python --version`
+   - `node --version` and `npm --version` if they will use Gem or web
+2. Run `scripts/bootstrap.sh` from the repository root.
+3. Open `.env` and choose one model-provider setup:
+   - Default registry: set `OPENAI_API_KEY`, `GEMINI_API_KEY`, and
+     `DEEPSEEK_API_KEY`.
+   - One provider: copy one of `registry/examples/agents.*.yaml` over
+     `registry/agents.yaml`, then set that provider key.
+4. For local API clients, leave `CRISAI_API_KEY` empty only when the API stays
+   bound to `127.0.0.1`. Set a long random value before team or network use.
+5. Run `uv run crisai doctor`. Resolve errors first, then warnings that apply to
+   your setup. Missing Microsoft token-cache permission warnings only matter if
+   you use Microsoft Graph retrieval.
+6. After changing model refs or providers, run `uv run crisai doctor --models`.
+   This dry-builds configured agents without calling provider APIs.
+7. Run the cheapest functional check for your intended surface:
+   - Runtime only: `uv run crisai list-agents`
+   - API: `./start api`
+   - Gem: start the API, then `./start gem`
+   - Web: start the API, then `./start web`
+8. Optional provider smoke tests are disabled by default because they can spend
+   tokens. Enable them only when provider keys are configured and a live-provider
+   check is intentional:
+
+   ```bash
+   CRISAI_RUN_SMOKE_TESTS=1 uv run pytest tests/smoke -q
+   ```
+
+9. Try a short example run after `doctor` is clean enough for your setup:
+
+   ```bash
+   uv run crisai ask --message "Summarise what crisAI is for in three bullets."
+   ```
+
+If `doctor` reports that `.env` is missing keys from `.env.example`, copy only
+the missing key names into `.env`. Do not overwrite existing local secrets.
+
 ## Troubleshooting setup manually
 
 Use these commands only when you need to inspect or repair what bootstrap would

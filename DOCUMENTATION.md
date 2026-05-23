@@ -141,7 +141,9 @@ available patch release.
 
 After editing `.env`, run `uv run crisai doctor`. If doctor reports that `.env`
 is missing placeholders present in `.env.example`, add the placeholders without
-overwriting real credentials.
+overwriting real credentials. For a team-member first run, use
+`runbooks/01-setup.md`; it walks through prerequisites, provider-key choices,
+`doctor`, optional provider smoke tests, and a short example run.
 
 ### 2.8 Local cleanup
 
@@ -336,7 +338,7 @@ uv run crisai validate-artefacts
 uv run crisai validate-artefacts -p workspace/knowledge_staging/patterns/example.md
 ```
 
-`uv run crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, and tracked secret/cache hygiene. Use `uv run crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
+`uv run crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, first-run environment override values, and tracked secret/cache hygiene. Use `uv run crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
 
 The CI workflow also has a dedicated security scanning job. It runs Bandit
 against `src/crisai`, audits the locked uv dependency set with pip-audit, and

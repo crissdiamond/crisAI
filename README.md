@@ -72,6 +72,10 @@ Check the installation after editing `.env` or registry files:
 uv run crisai doctor
 ```
 
+For a team-member first run, follow the onboarding checklist in
+[runbooks/01-setup.md](runbooks/01-setup.md). It covers prerequisites, provider
+keys, `doctor`, optional provider smoke tests, and a short example run.
+
 ## Start
 
 Run the FastAPI backend first, then attach a client:

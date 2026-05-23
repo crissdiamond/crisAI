@@ -22,14 +22,13 @@ _PLACEHOLDER_ENV_VALUES = {
     "your-deepseek-api-key",
     "<your-key>",
 }
-_SESSION_MEMORY_ENV_VARS = {
-    "CRISAI_SESSION_MEMORY_STRATEGY": "deterministic or agentic",
-    "CRISAI_SESSION_MEMORY_AGENT_ID": "a registered agent id such as memory_summarizer",
-    "CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS": "a non-negative integer",
-    "CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS": "an integer >= 1000",
-    "CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS": "an integer >= 500",
-    "CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE": "true or false",
+_BOOLEAN_ENV_VARS = {
+    "CRISAI_RETRIEVAL_CHECKPOINT_ENABLED",
+    "CRISAI_TERMINAL_TITLE_ENABLED",
+    "CRISAI_DETERMINISTIC_MCP_ADVISORY",
+    "CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE",
 }
+_BOOLEAN_ENV_VALUES = {"1", "0", "true", "false", "yes", "no", "on", "off"}
 _TOKEN_CACHE_PATH_ENV_VARS = ("MS_TOKEN_CACHE_PATH", "MS_TOKEN_INFO_PATH")
 _EXPECTED_TOKEN_DIR_MODE = 0o700
 _EXPECTED_TOKEN_FILE_MODE = 0o600
@@ -58,6 +57,32 @@ class DoctorResult:
     errors: tuple[DoctorIssue, ...]
     warnings: tuple[DoctorIssue, ...]
     info: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class EnvValueSpec:
+    """Validation rule for a local operator environment variable."""
+
+    value_type: str
+    minimum: int | float
+    description: str
+    inclusive: bool = True
+
+
+_NUMERIC_ENV_VARS = {
+    "CRISAI_AGENT_MAX_TURNS": EnvValueSpec("int", 1, "a positive integer"),
+    "CRISAI_AGENT_STAGE_TIMEOUT_SECONDS": EnvValueSpec("float", 0, "a positive number of seconds", inclusive=False),
+    "CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS": EnvValueSpec("int", 0, "a non-negative integer"),
+    "CRISAI_MCP_CLIENT_TIMEOUT_SECONDS": EnvValueSpec("float", 10, "a number of seconds >= 10"),
+    "CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS": EnvValueSpec("int", 0, "a non-negative integer"),
+    "CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS": EnvValueSpec("int", 1000, "an integer >= 1000"),
+    "CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS": EnvValueSpec("int", 500, "an integer >= 500"),
+    "CRISAI_WORKSPACE_MAX_WRITE_BYTES": EnvValueSpec("int", 1024, "an integer >= 1024"),
+    "CRISAI_DIAGRAM_MAX_WRITE_BYTES": EnvValueSpec("int", 1024, "an integer >= 1024"),
+    "INTRANET_PAGE_CACHE_TTL_HOURS": EnvValueSpec("int", 1, "a positive integer"),
+    "CRISAI_PEER_MAX_REFINEMENT_ROUNDS": EnvValueSpec("int", 0, "a non-negative integer"),
+    "CRISAI_PEER_MAX_ESCALATIONS": EnvValueSpec("int", 0, "a non-negative integer"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +123,43 @@ def _env_keys(path: Path, *, include_commented: bool = True) -> set[str]:
         if key and key.replace("_", "").isalnum() and not key[0].isdigit():
             keys.add(key)
     return keys
+
+
+def _env_value_is_valid(raw: str, spec: EnvValueSpec) -> bool:
+    """Return whether an environment value satisfies a numeric spec."""
+    try:
+        if spec.value_type == "int":
+            value: int | float = int(raw)
+        else:
+            value = float(raw)
+    except ValueError:
+        return False
+    if not spec.inclusive:
+        return value > spec.minimum
+    return value >= spec.minimum
+
+
+def _operator_env_value_warnings() -> list[DoctorIssue]:
+    """Validate first-run operator environment overrides."""
+    warnings: list[DoctorIssue] = []
+    for name in sorted(_BOOLEAN_ENV_VARS):
+        raw = os.getenv(name)
+        if raw is None or raw.strip().lower() in _BOOLEAN_ENV_VALUES:
+            continue
+        warnings.append(DoctorIssue(
+            message=f"{name} should be true or false.",
+            hint=f"Update `{name}` in `.env`, or remove it to use the default.",
+        ))
+
+    for name, spec in sorted(_NUMERIC_ENV_VARS.items()):
+        raw = os.getenv(name)
+        if raw is None or _env_value_is_valid(raw.strip(), spec):
+            continue
+        warnings.append(DoctorIssue(
+            message=f"{name} should be {spec.description}.",
+            hint=f"Update `{name}` in `.env`, or remove it to use the default.",
+        ))
+    return warnings
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +259,7 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                 if key_value and not _is_placeholder_env_value(key_value):
                     continue
                 warnings.append(DoctorIssue(
-                    message=f"Server '{server.id}' expects unset or placeholder environment variable: {api_key_env}",
+                    message=f"Server '{server.id}' expects environment variable '{api_key_env}' to be set, but it is currently unset or a placeholder.",
                     hint=f"Add a real `{api_key_env}=<your-key>` value to your `.env` file.",
                 ))
         allowed_tools = server.raw.get("tools", {}).get("allow", [])
@@ -252,7 +314,7 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
             if key_value and not _is_placeholder_env_value(key_value):
                 continue
             warnings.append(DoctorIssue(
-                message=f"Model '{model.id}' expects unset or placeholder environment variable: {model.api_key_env}",
+                message=f"Model '{model.id}' expects environment variable '{model.api_key_env}' to be set, but it is currently unset or a placeholder.",
                 hint=f"Add a real `{model.api_key_env}=<your-key>` value to your `.env` file.",
             ))
 
@@ -381,7 +443,7 @@ def _tracked_secret_like_paths(root_dir: Path) -> tuple[list[DoctorIssue], list[
             hint="Ensure `git` is available and this directory is a valid git repository.",
         ))
         return errors, warnings
-    risky_prefixes = (".auth/", "workspace/.auth/", "logs/")
+    risky_prefixes = (".auth/", ".tokens/", "workspace/.auth/", "workspace/.tokens/", "logs/")
     risky_tokens = ("token_cache", ".token")
     for line in result.stdout.splitlines():
         if line == ".env" or line.startswith(risky_prefixes) or any(token in line for token in risky_tokens):
@@ -400,7 +462,10 @@ def _configured_token_cache_path_warnings(root_dir: Path) -> list[DoctorIssue]:
         raw = os.getenv(env_name, "").strip()
         if not raw:
             continue
-        path = Path(raw).expanduser().resolve()
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            path = root_dir / path
+        path = path.resolve()
         if path == workspace_dir or workspace_dir in path.parents:
             warnings.append(DoctorIssue(
                 message=f"{env_name} points inside the workspace: {path}",
@@ -414,18 +479,30 @@ def _configured_token_cache_path_warnings(root_dir: Path) -> list[DoctorIssue]:
 
 def _token_cache_candidate_paths(root_dir: Path) -> set[Path]:
     """Return token cache paths that doctor can inspect when they exist."""
-    candidates = {
+    raw_candidates = {
         root_dir / ".auth" / "msal_token_cache.json",
         root_dir / ".auth" / "msal_token_info.json",
         root_dir / ".auth" / "sharepoint_token_cache.json",
         root_dir / ".auth" / "sharepoint_token_info.json",
         root_dir / ".auth" / "intranet_token_cache.json",
         root_dir / ".auth" / "intranet_token_info.json",
+        root_dir / ".tokens" / "msal_token_cache.json",
+        root_dir / ".tokens" / "msal_token_info.json",
+        root_dir / ".tokens" / "sharepoint_token_cache.json",
+        root_dir / ".tokens" / "sharepoint_token_info.json",
+        root_dir / ".tokens" / "intranet_token_cache.json",
+        root_dir / ".tokens" / "intranet_token_info.json",
     }
     for env_name in _TOKEN_CACHE_PATH_ENV_VARS:
         raw = os.getenv(env_name, "").strip()
         if raw:
-            candidates.add(Path(raw).expanduser())
+            raw_candidates.add(Path(raw).expanduser())
+    candidates: set[Path] = set()
+    for raw_path in raw_candidates:
+        path = raw_path.expanduser()
+        if not path.is_absolute():
+            path = root_dir / path
+        candidates.add(path.resolve())
     return candidates
 
 
@@ -441,8 +518,7 @@ def _token_cache_permission_warnings(root_dir: Path) -> list[DoctorIssue]:
 
     warnings: list[DoctorIssue] = []
     checked_dirs: set[Path] = set()
-    for raw_path in _token_cache_candidate_paths(root_dir):
-        path = raw_path.expanduser()
+    for path in _token_cache_candidate_paths(root_dir):
         if path.parent.exists() and path.parent not in checked_dirs:
             checked_dirs.add(path.parent)
             try:
@@ -556,32 +632,7 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
             hint="Use `CRISAI_SESSION_MEMORY_STRATEGY=deterministic` or `CRISAI_SESSION_MEMORY_STRATEGY=agentic` in `.env`.",
         ))
 
-    for name, minimum in (
-        ("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", 1),
-        ("CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS", 0),
-        ("CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS", 1000),
-        ("CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS", 500),
-    ):
-        raw = os.getenv(name)
-        if raw is None:
-            continue
-        try:
-            value = int(raw)
-        except ValueError:
-            value = minimum - 1
-        if value < minimum:
-            detail = _SESSION_MEMORY_ENV_VARS.get(name, f"an integer >= {minimum}")
-            warnings.append(DoctorIssue(
-                message=f"{name} should be {detail}.",
-                hint=f"Update `{name}` in `.env`, or remove it to use the default.",
-            ))
-
-    raw_nudge = os.getenv("CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE")
-    if raw_nudge and raw_nudge.strip().lower() not in {"1", "0", "true", "false", "yes", "no", "on", "off"}:
-        warnings.append(DoctorIssue(
-            message="CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE should be true or false.",
-            hint="Use `CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE=true` or remove it to use the registry default.",
-        ))
+    warnings.extend(_operator_env_value_warnings())
 
     return errors, warnings
 
