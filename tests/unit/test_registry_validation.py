@@ -140,6 +140,25 @@ def test_validation_warns_when_prompt_contract_tool_is_not_allowed(tmp_path: Pat
     assert any("inspect_powerpoint_document" in w.message for w in warnings)
 
 
+def test_validation_reports_invalid_model_pricing(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    models_path = registry_dir / "models.yaml"
+    models_payload = yaml.safe_load(models_path.read_text(encoding="utf-8"))
+    models_payload["models"][0]["pricing"] = {
+        "currency": "USD",
+        "unit": "per_1m_tokens",
+        "input": -1,
+        "output": 1,
+    }
+    models_path.write_text(yaml.safe_dump(models_payload), encoding="utf-8")
+
+    errors, _warnings = _validate_registry_cross_references(root, registry_dir)
+
+    assert any("Model 'openai_fast' has invalid pricing metadata" in error.message for error in errors)
+
+
 def test_doctor_reports_unknown_model_ref(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     registry_dir = tmp_path / "registry"

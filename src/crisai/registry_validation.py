@@ -14,6 +14,7 @@ from crisai.agents import factory as factory_module
 from crisai.cli import prompt_contracts as prompt_contracts_module
 from crisai.orchestration import retrieval_association_graph as graph_module
 from crisai.orchestration import semantic_catalog as catalog_module
+from crisai.orchestration.usage_cost import ModelPricing
 
 _PLACEHOLDER_ENV_VALUES = {
     "your-openai-api-key",
@@ -249,11 +250,20 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
             ))
         if model.api_key_env:
             key_value = os.getenv(model.api_key_env, "")
-            if key_value and not _is_placeholder_env_value(key_value):
-                continue
-            warnings.append(DoctorIssue(
-                message=f"Model '{model.id}' expects unset or placeholder environment variable: {model.api_key_env}",
-                hint=f"Add a real `{model.api_key_env}=<your-key>` value to your `.env` file.",
+            if not key_value or _is_placeholder_env_value(key_value):
+                warnings.append(DoctorIssue(
+                    message=f"Model '{model.id}' expects unset or placeholder environment variable: {model.api_key_env}",
+                    hint=f"Add a real `{model.api_key_env}=<your-key>` value to your `.env` file.",
+                ))
+        try:
+            ModelPricing.from_mapping(model.extra.get("pricing"))
+        except ValueError as exc:
+            errors.append(DoctorIssue(
+                message=f"Model '{model.id}' has invalid pricing metadata: {exc}",
+                hint=(
+                    "Use `pricing: {currency: USD, unit: per_1m_tokens, input: <rate>, output: <rate>}` "
+                    "with optional non-negative `cached_input` and `reasoning` rates, or remove the pricing block."
+                ),
             ))
 
     return errors, warnings

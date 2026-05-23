@@ -227,8 +227,11 @@ normal user-visible content. Provider token counters are included only when the
 SDK returns usage data; missing usage remains absent rather than estimated.
 Clients consume `metadata.observability` when it declares
 `schema_version: ui_stage_observability_v1`, with optional provider usage
-including SDK-reported request and token counters, execution timing, and
-streaming details.
+including SDK-reported request and token counters, execution timing, streaming
+details, trace-safe model identity, and estimated cost. Cost metadata uses
+`schema_version: usage_cost_v1` and is emitted only when the provider returned
+usage counters and the selected `registry/models.yaml` entry has valid pricing.
+When either side is missing, cost is omitted rather than guessed.
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show

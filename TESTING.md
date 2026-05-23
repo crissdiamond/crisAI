@@ -262,6 +262,13 @@ uv run pytest tests/unit
 uv run pytest tests/cli
 ```
 
+Stage observability, token usage, and registry-backed cost telemetry are covered
+by focused runtime tests:
+
+```bash
+uv run pytest tests/unit/test_usage_cost.py tests/unit/test_pipeline_engine.py tests/cli/test_pipelines.py tests/unit/test_registry_validation.py
+```
+
 ### Orchestration sequencing tests
 
 ```bash
