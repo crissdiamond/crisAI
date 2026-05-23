@@ -19,9 +19,9 @@ import {
   type UiStageSummary
 } from "@crisai/contracts";
 import {
+  activeStageWaitingLines,
   buildRunListLines,
   buildEventLines,
-  buildPostCheckpointFallbackLines,
   buildSessionContextPreviewLines,
   aggregateTokenTotal,
   checkpointDecisionLines,
@@ -330,6 +330,10 @@ function GemApp() {
     () => renderMarkdownLines(pinnedStageContent(stages, effectiveSelectedKey, outputPanelWidth), outputPanelWidth),
     [effectiveSelectedKey, outputPanelWidth, stages]
   );
+  const selectedStageLines = useMemo(
+    () => renderMarkdownLines(pinnedStageContent(stages, selectedStage, outputPanelWidth), outputPanelWidth),
+    [outputPanelWidth, selectedStage, stages]
+  );
   const liveStageEvent = useMemo(() => latestLiveStageEvent(activeEvents), [activeEvents]);
   // Keep rail auto-follow separate from output selection so live stages do not
   // replace a user-pinned pane.
@@ -347,25 +351,23 @@ function GemApp() {
     [activeEvents, liveStageEvent]
   );
   const liveLines = useMemo(
-    () => renderMarkdownLines(liveStageContent, outputPanelWidth),
-    [liveStageContent, outputPanelWidth]
+    () => liveStageContent
+      ? renderMarkdownLines(liveStageContent, outputPanelWidth)
+      : activeStageWaitingLines(liveStageEvent, outputPanelWidth),
+    [liveStageContent, liveStageEvent, outputPanelWidth]
   );
   const eventLines = useMemo(
     () => buildEventLines(activeEvents, error, outputPanelWidth, notice),
     [activeEvents, error, notice, outputPanelWidth]
   );
-  const fallbackEventLines = useMemo(
-    () => buildPostCheckpointFallbackLines(activeEvents, outputPanelWidth, notice),
-    [activeEvents, notice, outputPanelWidth]
-  );
   const outputLines = finalLines.length > 0 ? finalLines : liveLines;
   const livePanelLines = resolvePanelLines({
     showEvents,
-    selectedStage: effectiveSelectedKey,
-    pinnedStageLines,
+    selectedStage,
+    activeStageKey: liveStageEvent?.agent_id ?? liveStageEvent?.stage ?? null,
+    pinnedStageLines: selectedStageLines,
     outputLines,
-    eventLines,
-    fallbackEventLines: fallbackEventLines ?? undefined
+    eventLines
   });
   const runListLines = useMemo(
     () => buildRunListLines(runHistory, selectedRunIndex, outputPanelWidth, runHistoryLoading, runHistoryFailure),

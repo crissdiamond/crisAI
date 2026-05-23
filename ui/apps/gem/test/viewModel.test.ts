@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  activeStageWaitingLines,
   buildRunListLines,
   buildEventLines,
-  buildPostCheckpointFallbackLines,
   buildSessionContextPreviewLines,
   aggregateTokenTotal,
   checkpointDecisionLines,
@@ -43,6 +43,7 @@ import {
   resolveNavCursorMove,
   resolveOutputPanelWidth,
   resolvePanelLines,
+  resolvePanelTarget,
   resolvePanelContentHeight,
   resolvePromptDeleteDirection,
   resolvePromptPasteInput,
@@ -911,6 +912,33 @@ test("panel lines keep selected stage pinned while live output changes", () => {
   assert.deepEqual(events, ["event output"]);
 });
 
+test("panel target follows events view, manual pin, active stage, then history", () => {
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: true,
+    selectedStage: null,
+    activeStageKey: "author",
+    outputLines: ["Author output"]
+  }), { kind: "events" });
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: false,
+    selectedStage: "reviewer",
+    activeStageKey: "author",
+    outputLines: ["Author output"]
+  }), { kind: "pinned-stage", stageKey: "reviewer" });
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey: "author",
+    outputLines: ["Waiting for author output."]
+  }), { kind: "active-stage", stageKey: "author" });
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey: null,
+    outputLines: []
+  }), { kind: "event-history" });
+});
+
 test("checkpoint release state returns live pane defaults after continue or redirect", () => {
   assert.deepEqual(checkpointReleasedViewState("continue"), {
     selectedStage: null,
@@ -930,7 +958,7 @@ test("checkpoint release state returns live pane defaults after continue or redi
   });
 });
 
-test("post-checkpoint fallback does not surface retrieval output while downstream stage is starting", () => {
+test("pipeline panel follows downstream stage after checkpoint even before deltas arrive", () => {
   const events = [
     uiEvent({
       event_type: "stage_output",
@@ -957,53 +985,104 @@ test("post-checkpoint fallback does not surface retrieval output while downstrea
     })
   ];
   const eventLines = buildEventLines(events, "", 80);
-  const fallbackLines = buildPostCheckpointFallbackLines(events, 80);
+  const liveStageEvent = events.at(-1)!;
+  const outputLines = activeStageWaitingLines(liveStageEvent, 80);
   const panelLines = resolvePanelLines({
     showEvents: false,
     selectedStage: null,
+    activeStageKey: "context_synthesizer",
     pinnedStageLines: [],
-    outputLines: [],
-    eventLines,
-    fallbackEventLines: fallbackLines ?? undefined
+    outputLines,
+    eventLines
   });
 
   assert(eventLines.join("\n").includes("Prior context retrieval output"));
-  assert.deepEqual(panelLines, ["Continuing after source review; waiting for downstream output."]);
+  assert.deepEqual(panelLines, ["Waiting for context synthesizer output."]);
   assert(!panelLines.join("\n").includes("Prior context retrieval output"));
 });
 
-test("post-checkpoint fallback releases once downstream output arrives", () => {
+test("peer panel switches to running refiner before revise deltas arrive", () => {
   const events = [
     uiEvent({
-      event_type: "stage_output",
-      title: "Context retrieval",
-      content: "Prior context retrieval output",
-      agent_id: "context_retrieval",
-      stage: "context_retrieval"
-    }),
-    uiEvent({
-      event_type: "checkpoint_decision",
-      title: "Checkpoint decision",
-      agent_id: "retrieval_checkpoint",
-      stage: "retrieval_checkpoint",
-      metadata: { action: "continue" }
+      event_type: "stage_delta",
+      title: "Judge",
+      content: "Judge feedback",
+      agent_id: "judge",
+      stage: "judge"
     }),
     uiEvent({
       event_type: "stage_started",
-      title: "Context",
-      agent_id: "context_synthesizer",
-      stage: "context_synthesizer"
-    }),
-    uiEvent({
-      event_type: "stage_output",
-      title: "Context",
-      content: "Downstream context output",
-      agent_id: "context_synthesizer",
-      stage: "context_synthesizer"
+      title: "Refiner",
+      agent_id: "peer_refiner",
+      stage: "peer_refiner"
     })
   ];
+  const liveStageEvent = events.at(-1)!;
+  const outputLines = stageStreamingContent(events, liveStageEvent.agent_id ?? liveStageEvent.stage)
+    ? wrapPlainText(stageStreamingContent(events, liveStageEvent.agent_id ?? liveStageEvent.stage), 80)
+    : activeStageWaitingLines(liveStageEvent, 80);
+  const panelLines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey: "peer_refiner",
+    pinnedStageLines: [],
+    outputLines,
+    eventLines: buildEventLines(events, "", 80)
+  });
 
-  assert.equal(buildPostCheckpointFallbackLines(events, 80), null);
+  assert.deepEqual(panelLines, ["Waiting for peer refiner output."]);
+  assert(!panelLines.join("\n").includes("Judge feedback"));
+});
+
+test("active-stage panel selection is generic for unknown future agents", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_output",
+      title: "Known stage",
+      content: "Previous known output",
+      agent_id: "known_agent",
+      stage: "known_agent"
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      title: "Future Specialist",
+      agent_id: "future_quantum_mapper",
+      stage: "future_quantum_mapper"
+    })
+  ];
+  const liveStageEvent = events.at(-1)!;
+  const activeStageKey = liveStageEvent.agent_id ?? liveStageEvent.stage;
+  const outputLines = activeStageWaitingLines(liveStageEvent, 80);
+  const panelLines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey,
+    pinnedStageLines: [],
+    outputLines,
+    eventLines: buildEventLines(events, "", 80)
+  });
+
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey,
+    outputLines
+  }), { kind: "active-stage", stageKey: "future_quantum_mapper" });
+  assert.deepEqual(panelLines, ["Waiting for future quantum mapper output."]);
+  assert(!panelLines.join("\n").includes("Previous known output"));
+});
+
+test("manual stage pin blocks active-stage panel switching", () => {
+  const panelLines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: "context_retrieval",
+    activeStageKey: "context_synthesizer",
+    pinnedStageLines: ["Pinned retrieval output"],
+    outputLines: ["Waiting for context synthesizer output."],
+    eventLines: ["Context retrieval", "Prior context retrieval output"]
+  });
+
+  assert.deepEqual(panelLines, ["Pinned retrieval output"]);
 });
 
 test("stage streaming content accumulates incremental live deltas for the active stage", () => {

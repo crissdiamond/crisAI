@@ -54,11 +54,24 @@ export type StagePinResult =
 export type PanelLinesInput = {
   showEvents: boolean;
   selectedStage: string | null;
+  activeStageKey?: string | null;
   pinnedStageLines: string[];
   outputLines: string[];
   eventLines: string[];
-  fallbackEventLines?: string[];
 };
+
+export type PanelTargetInput = {
+  showEvents: boolean;
+  selectedStage: string | null;
+  activeStageKey: string | null;
+  outputLines: string[];
+};
+
+export type PanelTarget =
+  | { kind: "events" }
+  | { kind: "pinned-stage"; stageKey: string }
+  | { kind: "active-stage"; stageKey: string }
+  | { kind: "event-history" };
 
 export type CheckpointReleaseAction = "continue" | "redirect";
 
@@ -753,19 +766,40 @@ export function resolveStageFocusKey({
   return visibleStages.some((stage) => stage.key === liveStageKey) ? liveStageKey : null;
 }
 
+export function resolvePanelTarget({
+  showEvents,
+  selectedStage,
+  activeStageKey,
+  outputLines
+}: PanelTargetInput): PanelTarget {
+  if (showEvents) return { kind: "events" };
+  if (selectedStage !== null) return { kind: "pinned-stage", stageKey: selectedStage };
+  if (activeStageKey !== null || outputLines.length > 0) {
+    return { kind: "active-stage", stageKey: activeStageKey ?? "final_output" };
+  }
+  return { kind: "event-history" };
+}
+
 export function resolvePanelLines({
   showEvents,
   selectedStage,
+  activeStageKey = null,
   pinnedStageLines,
   outputLines,
-  eventLines,
-  fallbackEventLines
+  eventLines
 }: PanelLinesInput): string[] {
-  if (showEvents) return eventLines;
-  if (selectedStage !== null) {
+  const target = resolvePanelTarget({
+    showEvents,
+    selectedStage,
+    activeStageKey,
+    outputLines
+  });
+  if (target.kind === "events") return eventLines;
+  if (target.kind === "pinned-stage") {
     return pinnedStageLines.length > 0 ? pinnedStageLines : ["No output for selected stage yet."];
   }
-  return outputLines.length > 0 ? outputLines : fallbackEventLines ?? eventLines;
+  if (target.kind === "active-stage") return outputLines;
+  return eventLines;
 }
 
 export function stageStreamingContent(events: UiEvent[], selectedStage: string | null = null): string {
@@ -785,6 +819,16 @@ export function stageStreamingContent(events: UiEvent[], selectedStage: string |
     }
   }
   return content;
+}
+
+export function activeStageWaitingLines(
+  liveStageEvent: Pick<UiEvent, "agent_id" | "stage"> | null,
+  width: number
+): string[] {
+  if (!liveStageEvent) return [];
+  const key = stageEventKey(liveStageEvent);
+  if (!key) return [];
+  return wrapPlainText(`Waiting for ${formatStageKeyForNotice(key)} output.`, width);
 }
 
 export function stageVisual(status: UiStageStatus, theme: GemTerminalTheme) {
@@ -847,58 +891,11 @@ export function buildEventLines(events: UiEvent[], error: string, width: number,
   return lines.length > 0 ? lines : ["No output yet."];
 }
 
-export function buildPostCheckpointFallbackLines(
-  events: UiEvent[],
-  width: number,
-  notice = ""
-): string[] | null {
-  const lastDecisionIndex = findLastCheckpointContinueDecisionIndex(events);
-  if (lastDecisionIndex === -1) return null;
-  const afterDecision = events.slice(lastDecisionIndex + 1);
-  if (!afterDecision.some(isDownstreamStageStart)) return null;
-  if (afterDecision.some(isDownstreamVisibleOutput) || events.some(isTerminalEvent)) return null;
-
-  const lines = wrapPlainText("Continuing after source review; waiting for downstream output.", width);
-  if (notice) {
-    lines.push(...wrapPlainText(`Info: ${notice}`, width));
-  }
-  return lines;
-}
-
 function shouldShowNormalPanelEvent(event: UiEvent): boolean {
   if (event.event_type === "final_answer" || event.event_type === "stage_delta") {
     return false;
   }
   return !normalPanelHiddenEventTypes.has(event.event_type);
-}
-
-function findLastCheckpointContinueDecisionIndex(events: UiEvent[]): number {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (event.event_type !== "checkpoint_decision") continue;
-    const action = checkpointDecisionAction(event);
-    return action === "continue" || action === "redirect" ? index : -1;
-  }
-  return -1;
-}
-
-function checkpointDecisionAction(event: UiEvent): string {
-  const action = event.metadata.action;
-  return typeof action === "string" ? action : "";
-}
-
-function isDownstreamStageStart(event: UiEvent): boolean {
-  return event.event_type === "stage_started" && !isCheckpointEvent(event);
-}
-
-function isDownstreamVisibleOutput(event: UiEvent): boolean {
-  return (event.event_type === "stage_output" || event.event_type === "stage_delta" || event.event_type === "final_answer") &&
-    !isCheckpointEvent(event);
-}
-
-function isCheckpointEvent(event: Pick<UiEvent, "agent_id" | "stage">): boolean {
-  const key = stageEventKey(event).toLowerCase();
-  return key.includes("checkpoint");
 }
 
 function latestStageDeltaKey(events: UiEvent[]): string | null {
@@ -912,6 +909,10 @@ function latestStageDeltaKey(events: UiEvent[]): string | null {
 
 function stageEventKey(event: Pick<UiEvent, "agent_id" | "stage">): string {
   return String(event.agent_id ?? event.stage ?? "").trim();
+}
+
+function formatStageKeyForNotice(key: string): string {
+  return key.replace(/[_-]+/g, " ");
 }
 
 function mergeStageDeltaContent(current: string, next: string): string {
