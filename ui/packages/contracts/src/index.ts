@@ -323,6 +323,14 @@ export function latestFinalContent(state: UiRunState | null, events: UiEvent[]):
   return finalEvent?.content || state?.final_output || "";
 }
 
+export function latestLiveStageEvent<T extends Pick<UiEvent, "event_type">>(events: T[]): T | null {
+  const terminal = [...events]
+    .reverse()
+    .find((event) => event.event_type === "run_completed" || event.event_type === "run_failed");
+  if (terminal) return null;
+  return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
+}
+
 export function extractStageObservability(event: UiEvent): UiStageObservability | null {
   const observability = recordValue(event.metadata.observability);
   if (observability?.schema_version !== "ui_stage_observability_v1") {

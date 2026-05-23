@@ -1,4 +1,6 @@
-import type { UiEvent } from "@crisai/contracts";
+import { latestLiveStageEvent, type UiEvent } from "@crisai/contracts";
+
+export { latestLiveStageEvent };
 
 export type MarkdownInlineToken =
   | { type: "text"; value: string }
@@ -28,14 +30,6 @@ export function shouldShowTranscriptEvent(event: Pick<UiEvent, "event_type">, ve
     return true;
   }
   return !normalTranscriptHiddenEventTypes.has(event.event_type);
-}
-
-export function latestLiveStageEvent<T extends Pick<UiEvent, "event_type">>(events: T[]): T | null {
-  const terminal = [...events]
-    .reverse()
-    .find((event) => event.event_type === "run_completed" || event.event_type === "run_failed");
-  if (terminal) return null;
-  return [...events].reverse().find((event) => event.event_type === "stage_delta") ?? null;
 }
 
 export function liveStageDisplayName(event: Pick<UiEvent, "agent_id" | "stage" | "title">): string {

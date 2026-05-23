@@ -8,6 +8,7 @@ import {
   deriveStageSummaries,
   isTerminalEvent,
   latestFinalContent,
+  latestLiveStageEvent,
   resolveThemePalette,
   type UiEvent,
   type UiRunDetail,
@@ -326,7 +327,11 @@ function GemApp() {
     () => renderMarkdownLines(pinnedStageContent(stages, effectiveSelectedKey, outputPanelWidth), outputPanelWidth),
     [effectiveSelectedKey, outputPanelWidth, stages]
   );
-  const liveStageContent = useMemo(() => stageStreamingContent(activeEvents), [activeEvents]);
+  const liveStageEvent = useMemo(() => latestLiveStageEvent(activeEvents), [activeEvents]);
+  const liveStageContent = useMemo(
+    () => stageStreamingContent(activeEvents, liveStageEvent?.agent_id ?? liveStageEvent?.stage ?? null),
+    [activeEvents, liveStageEvent]
+  );
   const liveLines = useMemo(
     () => renderMarkdownLines(liveStageContent, outputPanelWidth),
     [liveStageContent, outputPanelWidth]
