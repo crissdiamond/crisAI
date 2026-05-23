@@ -102,8 +102,10 @@ This allows examples such as:
 
 crisAI uses **uv** as the supported setup path. uv creates and manages the
 project `.venv`; users should not create, activate, or install into it
-manually. The preferred local interpreter is Python 3.14, pinned by
-`.python-version`, while the package still supports Python 3.10+.
+manually. The preferred local interpreter is Python 3.13, pinned by
+`.python-version`, while the package still supports Python 3.10+. Python 3.14
+is not the default local runtime while OpenAI streaming support remains
+incompatible with the current locked SDK versions.
 
 First-time setup (full step-by-step, including `.env`, is in the repository **README** and `runbooks/01-setup.md`):
 
@@ -136,7 +138,7 @@ For troubleshooting, the manual equivalent is:
    uv sync --extra litellm --group dev
    ```
 
-Use `uv python upgrade 3.14` to update the local 3.14 interpreter to the latest
+Use `uv python upgrade 3.13` to update the local 3.13 interpreter to the latest
 available patch release.
 
 After editing `.env`, run `uv run crisai doctor`. If doctor reports that `.env`

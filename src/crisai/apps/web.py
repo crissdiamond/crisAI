@@ -48,6 +48,8 @@ from crisai.cli.main import (
     _run_with_routing,
 )
 from crisai.cli.pipeline_display import (
+    _openai_streaming_construct_type_incompatible,
+    _streaming_fallback_metadata,
     reset_stage_stream_callback,
     set_stage_stream_callback,
 )
@@ -251,6 +253,23 @@ def _stage_delta_observability() -> dict[str, object]:
     }
 
 
+def _stage_start_observability() -> dict[str, object]:
+    """Return expected streaming delivery metadata for a just-started stage."""
+    if _openai_streaming_construct_type_incompatible():
+        streaming = dict(cast(dict[str, object], _streaming_fallback_metadata()["streaming"]))
+        streaming["expected_delivery"] = "completion_only"
+    else:
+        streaming = {
+            "attempted": True,
+            "fallback": False,
+            "expected_delivery": "delta",
+        }
+    return {
+        "schema_version": "ui_stage_observability_v1",
+        "streaming": streaming,
+    }
+
+
 def _append_stage_delta_event(job_id: str, agent_id: str, delta: str) -> None:
     """Append a coalesced streaming text update for one running stage."""
     if not delta:
@@ -406,6 +425,8 @@ def _ui_event_from_stage_entry(
         if isinstance(trace_metadata.get("observability"), dict)
         else None
     )
+    if observability is None and source_event == "stage_start":
+        observability = _stage_start_observability()
     event = make_ui_event(
         event_type,
         run_id=job_id,
