@@ -3,8 +3,10 @@
 set -euo pipefail
 
 DRY_RUN=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOKEN_PATH="${HCOM_TEAM_ANTIGRAVITY_TOKEN_PATH:-$HOME/.gemini/antigravity-cli/antigravity-oauth-token}"
-MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-Claude Sonnet 4.6}"
+MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
+MODEL_FRAGMENT="${HCOM_TEAM_ANTIGRAVITY_MODEL_FRAGMENT:-}"
 MODEL_PROBE_TIMEOUT="${HCOM_TEAM_ANTIGRAVITY_MODEL_PROBE_TIMEOUT:-60s}"
 
 usage() {
@@ -16,8 +18,11 @@ The OAuth token content is never printed.
 
 Environment:
   HCOM_TEAM_ANTIGRAVITY_TOKEN_PATH  Reusable Antigravity OAuth token path.
-  HCOM_TEAM_ANTIGRAVITY_MODEL       Required active persisted agy model fragment.
-                                    Default: Claude Sonnet 4.6
+  HCOM_TEAM_ANTIGRAVITY_MODEL       Persisted agy model to set before launch.
+                                    Default: Claude Sonnet 4.6 (Thinking)
+  HCOM_TEAM_ANTIGRAVITY_MODEL_FRAGMENT
+                                    Probe fragment to verify after setting the model.
+                                    Defaults to the model with parenthetical text stripped.
   HCOM_TEAM_ANTIGRAVITY_MODEL_PROBE_TIMEOUT
                                     Timeout for the model verification probe.
                                     Default: 60s
@@ -64,8 +69,21 @@ normalize_model_text() {
     | sed -E 's/[^a-z0-9]+/ /g; s/[[:space:]]+/ /g; s/^ //; s/ $//'
 }
 
+model_probe_fragment() {
+  if [[ -n "$MODEL_FRAGMENT" ]]; then
+    printf '%s\n' "$MODEL_FRAGMENT"
+  else
+    printf '%s\n' "$MODEL" | sed -E 's/[[:space:]]*\([^)]*\)//g; s/[[:space:]]+$//'
+  fi
+}
+
+set_active_model() {
+  "$SCRIPT_DIR/hcom_antigravity_model.sh" set "$MODEL" >/dev/null
+}
+
 verify_active_model() {
-  local response normalized_response normalized_model
+  local response probe_fragment normalized_response normalized_model
+  probe_fragment="$(model_probe_fragment)"
   response="$(
     timeout "$MODEL_PROBE_TIMEOUT" \
       agy --print-timeout "$MODEL_PROBE_TIMEOUT" \
@@ -78,26 +96,25 @@ Could not verify the active Antigravity model.
 agy output:
 $response
 
-Run \`agy\` manually, use \`/model\` to select a Claude model, then retry.
+Check Antigravity authentication and local settings, then retry.
 EOF
     exit 2
   }
 
   normalized_response="$(normalize_model_text "$response")"
-  normalized_model="$(normalize_model_text "$MODEL")"
+  normalized_model="$(normalize_model_text "$probe_fragment")"
 
-  if [[ "$normalized_response" != *claude* || "$normalized_response" != *"$normalized_model"* ]]; then
+  if [[ "$normalized_response" != *"$normalized_model"* ]]; then
     cat >&2 <<EOF
 Antigravity is authenticated, but the active persisted agy model is not the
-required Claude model.
+required model.
 
-Required model fragment: $MODEL
+Required model setting: $MODEL
+Required probe fragment: $probe_fragment
 Probe response: $response
 
-Run \`agy\`, enter \`/model\`, select the required Claude model, confirm it is
-shown in the Antigravity footer, then retry. agy does not currently expose a
-public --model launch flag, so hcom uses the persisted Antigravity model
-selection and verifies it before launching reviewers.
+hcom updated the Antigravity settings file before this probe. If this still
+fails, verify the requested model name is accepted by the installed agy version.
 EOF
     exit 2
   fi
@@ -126,6 +143,7 @@ EOF
     fi
   fi
 
+  set_active_model
   verify_active_model
 fi
 

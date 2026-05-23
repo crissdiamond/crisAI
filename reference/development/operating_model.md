@@ -40,13 +40,12 @@ compatibility alias for the lifecycle setting.
 Choose the reviewer provider independently with
 `HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
 Antigravity is allowed for the same reviewer lifecycle only after preflight
-confirms reusable local OAuth, native `hcom agy` launch support, and an active
-persisted Claude model selection. Set the Antigravity default once with `agy`,
-enter `/model`, choose `Claude Sonnet 4.6 (Thinking)`, and confirm it appears in
-the footer. The current `agy` CLI does not expose a public `--model` launch
-flag, so hcom verifies the persisted model before launch instead of passing a
-model argument. If the preflight fails, no reviewer has run and the orchestrator
-must pause before commit.
+confirms reusable local OAuth, native `hcom agy` launch support, and the
+requested persisted model selection. The current `agy` CLI does not expose a
+public `--model` launch flag, so the starter updates
+`~/.gemini/antigravity-cli/settings.json` before launch and then verifies the
+active model with an `agy --print` probe. If the preflight fails, no reviewer
+has run and the orchestrator must pause before commit.
 
 Use resume only when continuing the same team context:
 
@@ -125,7 +124,7 @@ contracts, hcom/development-team tooling, and larger UI changes.
 
 Claude Code is the default reviewer provider. Antigravity may satisfy the same
 review role when `HCOM_TEAM_REVIEW_PROVIDER=antigravity` and preflight confirms
-reusable OAuth plus an active Claude model. If a required reviewer cannot
+reusable OAuth plus the requested active model. If a required reviewer cannot
 launch, exits during startup, or reports a provider error such as rate limiting,
 the task pauses before commit. The orchestrator must report the reviewer role, provider,
 thread, exact error, reset time when available, current changed files, completed

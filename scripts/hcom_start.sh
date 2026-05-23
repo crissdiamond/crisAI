@@ -77,9 +77,9 @@ Reviewers:
 
   HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
   claude-code and antigravity. Antigravity reviewers require reusable local auth
-  and a persisted Claude model selection in agy. Use `agy`, enter `/model`,
-  select the required Claude model, then rerun the launcher. The preflight
-  verifies the active agy model before any reviewer is launched.
+  and a requested model selection in agy. The preflight updates Antigravity's
+  persisted settings model, then verifies the active agy model before any
+  reviewer is launched.
 EOF
 }
 

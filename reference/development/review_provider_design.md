@@ -98,18 +98,18 @@ The implementation supports `claude-code` through the generic entrypoint while
 delegating internally to the existing Claude scripts. The old provider spelling
 `claude` remains accepted as a compatibility alias. Antigravity is available
 through `hcom agy` when the preflight confirms reusable local OAuth and an
-active persisted Claude model. Gemini and OpenCode can be added after their
-review lifecycle behaviour is verified.
+active persisted model matching the requested reviewer profile. OpenCode can be
+added after its review lifecycle behaviour is verified.
 
 ## Antigravity Position
 
 Antigravity CLI is available locally as `agy`. Current `agy` releases do not
 accept a public model-selection launch flag, so the launcher does not pass one.
-Instead, set the default model in Antigravity itself: run `agy`, enter `/model`,
-select `Claude Sonnet 4.6 (Thinking)`, and confirm that model appears in the
-footer. Antigravity persists that choice in
-`~/.gemini/antigravity-cli/settings.json`; hcom preflight verifies it with a
-short `agy --print` probe before creating reviewer sessions.
+Instead, hcom sets the default model in Antigravity's persisted settings before
+launch. Antigravity stores that choice in
+`~/.gemini/antigravity-cli/settings.json`; hcom preflight updates the `model`
+key atomically and verifies it with a short `agy --print` probe before creating
+reviewer sessions.
 
 The OAuth token must already exist and be private; if Antigravity would prompt
 for OAuth, the launch fails before creating reviewer sessions.
