@@ -29,7 +29,7 @@ Workspace context should move through three states.
 | State | Meaning | Typical Location |
 |---|---|---|
 | Raw source | Original documents, pages, or files used as evidence. | External source system, uploaded input area, or source document folder |
-| Extracted evidence | Machine-readable extraction from the raw source, with provenance and confidence metadata. | `workspace/staging/` |
+| Extracted evidence | Machine-readable extraction from the raw source, with provenance and confidence metadata. | `workspace/knowledge_staging/` |
 | Validated knowledge | Reviewed, approved, reusable context for crisAI agents. | `workspace/knowledge/` |
 
 Agents may use raw source and extracted evidence for a specific task, but
@@ -49,6 +49,10 @@ Start with a bounded source set. Examples:
 - integration and data patterns;
 - governance process documents;
 - data ownership and stewardship documents;
+- enterprise data models;
+- system-specific conceptual, logical, and physical data models;
+- canonical data models, interface schemas, mappings, payload definitions, and
+  reporting semantic models;
 - glossary, data catalogue, lineage, and reporting documentation;
 - role and contact directories;
 - intranet pages or SharePoint pages that describe process or standards.
@@ -103,6 +107,11 @@ Classify each source using agreed categories. Useful initial categories include:
 - architecture decision;
 - approved design;
 - data architecture guidance;
+- enterprise data model;
+- system-specific data model;
+- canonical data model;
+- reporting semantic model;
+- interface schema or payload model;
 - data glossary;
 - lineage or data-flow reference;
 - governance process;
@@ -112,6 +121,101 @@ Classify each source using agreed categories. Useful initial categories include:
 - unknown.
 
 Unknown or ambiguous sources should be kept in staging until clarified.
+
+## Data Model Context
+
+Enterprise and system-specific data models are first-class context for crisAI.
+They should be curated with the same staging, review, and promotion process as
+architecture standards and templates.
+
+The configured workspace categories support data model knowledge under:
+
+- `workspace/knowledge_staging/data-models/` for draft candidates;
+- `workspace/knowledge/data-models/` for reviewed and approved models.
+
+Use this area for:
+
+- enterprise conceptual and logical data models;
+- domain data models;
+- canonical data models;
+- system-specific logical or physical data models;
+- source-to-target mapping documents;
+- interface payload schemas;
+- reporting semantic models;
+- data product models;
+- glossary-to-entity mappings;
+- model ownership, stewardship, and custodianship notes;
+- model version history and supersession notes.
+
+Data model context should make scope explicit. A system-specific model is not an
+enterprise model. A reporting semantic model is not necessarily the system of
+record model. A physical warehouse model is not necessarily the canonical
+business model. Capturing those distinctions avoids agents using the wrong model
+at design time.
+
+Recommended front matter for data model candidates:
+
+```yaml
+---
+title: Example Customer Domain Logical Data Model
+knowledge_type: data_model
+model_scope: domain
+model_level: logical
+domain: Customer
+system: ""
+system_of_record: ""
+source_system: SharePoint
+source_uri: https://example.invalid/source
+source_version: example-etag-or-hash
+source_modified: 2026-05-23
+owner: Example Data Owner
+data_steward: Example Data Steward
+data_custodian: Example Platform Team
+status: draft
+reviewer: ""
+created_by: crisAI
+created_on: 2026-05-23
+confidence: medium
+---
+```
+
+Useful `model_scope` values:
+
+- `enterprise`;
+- `domain`;
+- `system`;
+- `interface`;
+- `reporting`;
+- `data_product`;
+- `unknown`.
+
+Useful `model_level` values:
+
+- `conceptual`;
+- `logical`;
+- `physical`;
+- `semantic`;
+- `schema`;
+- `mapping`;
+- `unknown`.
+
+Each promoted data model entry should explain:
+
+- business purpose and scope;
+- authoritative source and ownership;
+- key entities, attributes, and relationships;
+- identifiers and keys;
+- system of record and consuming systems;
+- critical business definitions;
+- data classifications and sensitivity where known;
+- quality constraints and known issues;
+- lineage or source-to-target relationships;
+- version and supersession status;
+- gaps and assumptions.
+
+Do not collapse all model types into one generic summary. If the source material
+contains both enterprise and system-specific models, create separate candidates
+and link them through references.
 
 ### 5. Generate Draft Knowledge Candidates
 
@@ -151,6 +255,23 @@ Prefer sections such as:
 - source references;
 - open questions.
 
+For data model candidates, prefer sections such as:
+
+- model purpose;
+- model scope and level;
+- domain or system boundary;
+- authoritative source;
+- ownership and stewardship;
+- entities and definitions;
+- relationships;
+- keys and identifiers;
+- mappings and lineage;
+- quality rules;
+- classifications and sensitivity;
+- model gaps;
+- source references;
+- review questions.
+
 ### 6. Detect Duplicates, Conflicts, And Stale Sources
 
 Before review, check for:
@@ -161,6 +282,8 @@ Before review, check for:
 - missing owner or approval status;
 - sources with low extraction confidence;
 - overlapping knowledge entries;
+- enterprise models confused with system-specific or reporting models;
+- physical schemas promoted as canonical business definitions without review;
 - business-sensitive content that should not become general context.
 
 Conflict notes should stay with the candidate until resolved.
@@ -226,6 +349,8 @@ Before promoting a knowledge entry, confirm:
 - the content is concise and reusable;
 - sensitive or restricted content is not exposed inappropriately;
 - the entry has a clear knowledge type;
+- data model entries have explicit model scope, model level, owner, and source
+  version;
 - the entry has `status: approved`;
 - there is a plan to refresh or retire it when the source changes.
 
@@ -240,6 +365,10 @@ Do not promote:
 - outdated versions of templates or standards;
 - documents with unclear confidentiality;
 - duplicate entries created only because filenames differ;
+- inferred entities, relationships, or definitions that are not present in the
+  source evidence;
+- database schemas or payload fields treated as enterprise definitions without
+  data owner review;
 - agent guesses, caveats, or reasoning traces.
 
 ## Suggested First Bootstrap
@@ -251,11 +380,143 @@ For a first team setup, use a small seed pack:
 3. Architecture principles.
 4. Governance and sign-off process.
 5. Data ownership and stewardship guidance.
-6. Integration or data architecture standards.
-7. Two or three recently approved artefacts.
-8. Role and contact directory for architecture review.
+6. Enterprise or domain data model documentation.
+7. One or two important system-specific data models or reporting semantic
+   models.
+8. Integration or data architecture standards.
+9. Two or three recently approved artefacts.
+10. Role and contact directory for architecture review.
 
 After the seed pack is validated, expand gradually by domain or source system.
+
+## Suggested crisAI Prompts
+
+The prompts below are intended for team members bootstrapping or maintaining the
+workspace knowledge base. Adjust source names, folders, document titles, and
+domains as needed.
+
+### Discover Candidate Sources
+
+```text
+Search the available workspace and connected document repositories for current
+architecture standards, templates, governance process documents, data ownership
+guidance, enterprise data models, system-specific data models, reporting
+semantic models, lineage documents, and approved architecture artefacts that
+could be used to bootstrap crisAI workspace knowledge.
+
+Do not create or update files yet.
+
+Return a source inventory with title, source location, document type, likely
+knowledge category, owner if available, modified date if available, read status,
+and any gaps or duplicate candidates.
+```
+
+### Read And Extract A Source Batch
+
+```text
+Use the source inventory below as the candidate source set.
+
+Read each source that has a valid handle or path. Extract structured evidence
+for workspace context generation. Preserve source references, headings, slide
+titles, tables, model names, entity names, key definitions, owner information,
+version information, and extraction warnings.
+
+Do not promote anything to validated knowledge.
+
+For each source, classify it as one of: architecture standard, architecture
+principle, architecture pattern, template, approved design, enterprise data
+model, system-specific data model, canonical data model, reporting semantic
+model, data glossary, lineage reference, governance process, role directory, or
+unknown.
+```
+
+### Generate Staged Knowledge Candidates
+
+```text
+Using only the extracted evidence from this run, create draft knowledge
+candidates under workspace/knowledge_staging/.
+
+Use the appropriate subfolder:
+- standards for architecture or data standards;
+- templates for artefact templates;
+- patterns for reusable patterns;
+- data-models for enterprise, domain, canonical, system, interface, reporting,
+  or data product models;
+- organisation for roles, ownership, stewardship, and review bodies;
+- reference for general reference material.
+
+Each file must include YAML front matter with title, knowledge_type, status:
+draft, source_system, source_uri or source path, source_version or hash if
+available, source_modified if available, owner if known, reviewer blank,
+created_by: crisAI, created_on, and confidence.
+
+For data model candidates, also include model_scope, model_level, domain, system,
+system_of_record, data_steward, and data_custodian where known.
+
+Do not write to workspace/knowledge/.
+```
+
+### Review Staged Candidates
+
+```text
+Review the staged knowledge candidates under workspace/knowledge_staging/.
+
+Check each candidate for source traceability, clear scope, correct knowledge
+type, duplicate or stale sources, conflicts with existing approved knowledge,
+missing owners, missing reviewers, data model scope and level, and sensitive
+content risks.
+
+Return a review table with candidate path, recommendation, required edits,
+missing information, source confidence, and whether it is ready for human
+approval.
+
+Do not promote anything yet.
+```
+
+### Prepare A Human Review Pack
+
+```text
+Prepare a human review pack for the staged knowledge candidates related to
+<domain or source batch>.
+
+Group candidates by category. For each candidate, summarise the source evidence,
+proposed reusable knowledge, unresolved gaps, conflicts, and explicit approval
+question for the reviewer.
+
+Highlight any enterprise data model or system data model where scope,
+ownership, system of record, lineage, or version is unclear.
+```
+
+### Promote Approved Knowledge
+
+```text
+Promote only the following approved staged candidates to validated knowledge:
+
+- <workspace/knowledge_staging/.../candidate-1.md>
+- <workspace/knowledge_staging/.../candidate-2.md>
+
+Before promotion, update the front matter to status: approved and add reviewer
+and reviewed_on.
+
+Move or copy the approved entries to the matching location under
+workspace/knowledge/. Preserve source references and version metadata.
+
+Do not promote any other staged files.
+```
+
+### Refresh Existing Knowledge From Updated Sources
+
+```text
+Check whether the approved knowledge entries under workspace/knowledge/<area>
+are still aligned with their recorded source documents.
+
+Compare source version, modified date, or hash where available. Identify entries
+that are current, stale, source-missing, or unclear.
+
+For stale entries, create updated draft candidates under
+workspace/knowledge_staging/ and explain the differences. Do not overwrite
+approved knowledge without explicit approval.
+```
 
 ## Maintenance
 
