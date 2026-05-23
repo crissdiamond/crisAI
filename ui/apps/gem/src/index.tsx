@@ -36,6 +36,7 @@ import {
   buildPromptView,
   gemTerminalThemeFromPalette,
   insertPromptText,
+  insertPromptPasteText,
   isContextCommand,
   parseContextCommand,
   minimumGemHeight,
@@ -43,7 +44,6 @@ import {
   movePromptCursorHorizontal,
   movePromptCursorVertical,
   markStartupPasteHandled,
-  normalizePromptInput,
   pinnedStageContent,
   resolveCommandHistoryMove,
   promptPanelHeight,
@@ -636,9 +636,10 @@ function GemApp() {
     if (!key.ctrl && input.length > 1 && /[\r\n]/.test(input)) {
       setHistoryCursor(null);
       historyDraftRef.current = "";
-      setPromptBuffer(insertPromptText(
-        { text: prompt, cursor: promptCursor },
-        resolvePromptPasteInput(input, lastInputSequenceRef.current)
+      setPromptBuffer(insertPromptPasteText(
+        { text: promptTextRef.current, cursor: promptCursorRef.current },
+        input,
+        lastInputSequenceRef.current
       ));
       return;
     }
@@ -687,11 +688,15 @@ function GemApp() {
       return;
     }
     if (!key.ctrl && input) {
-      const normalized = normalizePromptInput(resolvePromptPasteInput(input, lastInputSequenceRef.current));
-      if (!normalized) return;
+      const next = insertPromptPasteText(
+        { text: promptTextRef.current, cursor: promptCursorRef.current },
+        input,
+        lastInputSequenceRef.current
+      );
+      if (next.text === promptTextRef.current && next.cursor === promptCursorRef.current) return;
       setHistoryCursor(null);
       historyDraftRef.current = "";
-      setPromptBuffer(insertPromptText({ text: prompt, cursor: promptCursor }, normalized));
+      setPromptBuffer(next);
     }
   }, { isActive: inputActive });
 

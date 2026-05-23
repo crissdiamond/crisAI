@@ -18,6 +18,7 @@ import {
   findStagePinTarget,
   gemTerminalThemeFromPalette,
   insertPromptText,
+  insertPromptPasteText,
   isContextCommand,
   maximumStageSidebarWidth,
   markStartupPasteHandled,
@@ -1386,6 +1387,50 @@ test("startup paste replay preserves prepared prompt when useInput missed first 
 
   assert.equal(inserted.text, "First line\nSecond line");
   assert.equal(inserted.cursor, "First line\nSecond line".length);
+});
+
+test("paste replay followed by Ink remainder appends to live prompt buffer", () => {
+  const rawPrefix = "\u001b[200~Use the pipeline.\r\n\r\nSearch workspace/context before prod";
+  const replayedPrefix = insertPromptText({ text: "", cursor: 0 }, rawPrefix);
+
+  const inserted = insertPromptPasteText(
+    replayedPrefix,
+    "ucing the answer.",
+    rawPrefix
+  );
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before producing the answer."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("paste suffix fragment restores first-line prefix from raw bracketed paste", () => {
+  const rawPrefix = "\u001b[200~Use the pipeline";
+  const suffixInput = ".\r\n\r\nSearch workspace/context before producing the answer.";
+
+  const inserted = insertPromptPasteText({ text: "", cursor: 0 }, suffixInput, rawPrefix);
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before producing the answer."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("paste suffix fragment appends to already replayed first-line prefix", () => {
+  const rawPrefix = "\u001b[200~Use the pipeline";
+  const replayedPrefix = insertPromptText({ text: "", cursor: 0 }, rawPrefix);
+  const suffixInput = ".\r\n\r\nSearch workspace/context before producing the answer.";
+
+  const inserted = insertPromptPasteText(replayedPrefix, suffixInput, rawPrefix);
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before producing the answer."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
 });
 
 test("prompt deletion treats terminal DEL backspace as left delete and Delete key as right delete", () => {

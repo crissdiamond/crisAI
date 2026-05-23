@@ -460,6 +460,26 @@ export function insertPromptText(state: PromptBufferState, input: string): Promp
   };
 }
 
+export function insertPromptPasteText(
+  state: PromptBufferState,
+  input: string,
+  rawSequence = ""
+): PromptBufferState {
+  const resolved = resolvePromptPasteInput(input, rawSequence);
+  const rawText = normalizePromptInput(rawSequence);
+  const resolvedText = normalizePromptInput(resolved);
+  if (
+    rawSequence.includes("\x1b[200~")
+    && !rawSequence.includes("\x1b[201~")
+    && rawText.length > 0
+    && state.text.endsWith(rawText)
+    && resolvedText.startsWith(rawText)
+  ) {
+    return insertPromptText(state, resolvedText.slice(rawText.length));
+  }
+  return insertPromptText(state, resolved);
+}
+
 export function deletePromptBackward(state: PromptBufferState): PromptBufferState {
   const cursor = clampPromptCursor(state.cursor, state.text);
   if (cursor <= 0) return { text: state.text, cursor };
