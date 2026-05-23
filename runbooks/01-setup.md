@@ -47,8 +47,10 @@ branch:
    - Gem: start the API, then `./start gem`
    - Web: start the API, then `./start web`
 8. Optional provider smoke tests are disabled by default because they can spend
-   tokens. Enable them only when provider keys are configured and a live-provider
-   check is intentional:
+   tokens. Enable them only when provider keys are exported in the current
+   shell and a live-provider check is intentional. If your keys are only in
+   `.env`, source them for that shell first with `set -a; . ./.env; set +a`.
+   Tests for providers without a key skip automatically:
 
    ```bash
    CRISAI_RUN_SMOKE_TESTS=1 uv run pytest tests/smoke -q

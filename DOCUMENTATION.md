@@ -1279,7 +1279,8 @@ Smoke tests validate end-to-end contract shapes against real LLM APIs. They are 
 ### Running smoke tests
 
 ```bash
-# Enable the guard and supply provider keys:
+# Enable the guard and export provider keys in the current shell.
+# If keys are only in .env, run: set -a; . ./.env; set +a
 CRISAI_RUN_SMOKE_TESTS=1 \
   OPENAI_API_KEY=sk-... \
   DEEPSEEK_API_KEY=sk-... \

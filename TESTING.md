@@ -278,9 +278,11 @@ uv run pytest tests/integration
 
 Smoke tests are opt-in because they can call real provider APIs. They also
 include a provider endpoint reachability check that opens a short TCP connection
-to each configured API host without sending credentials or prompts. Set
-`CRISAI_RUN_SMOKE_TESTS=1` and configure the required provider keys before
-running them:
+to each configured API host without sending credentials or prompts. Export
+`CRISAI_RUN_SMOKE_TESTS=1` and the provider keys in the current shell before
+running them; if your keys are only in `.env`, source it first with
+`set -a; . ./.env; set +a`. Tests for providers without a key skip
+automatically:
 
 ```bash
 uv run pytest tests/smoke
