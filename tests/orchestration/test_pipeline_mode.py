@@ -229,7 +229,24 @@ async def test_pipeline_uses_summary_agent_for_summary_request(
         calls.append(agent.id)
         prompts[agent.id] = prompt
         if agent.id == "context_retrieval":
-            return """Context read.
+            return """## Retrieval Summary
+
+Context read.
+
+## Retrieved Sources
+
+### SharePoint documents
+- Source: `Integration Strategy.pptx`
+  Link: [Integration Strategy.pptx](https://example.test/integration-strategy.pptx)
+  Relevance: Requested deck content.
+  Extract: Integration strategy summary content.
+
+## Retrieval Gaps
+- Gap: None.
+
+## Tool Notes
+- Tool: inspect_sharepoint_powerpoint_by_handle
+  Result: Read source content.
 
 ```json
 {
