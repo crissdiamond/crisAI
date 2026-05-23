@@ -21,12 +21,14 @@ import {
 import {
   buildRunListLines,
   buildEventLines,
+  buildPostCheckpointFallbackLines,
   buildSessionContextPreviewLines,
   aggregateTokenTotal,
   checkpointDecisionLines,
   clampScrollTop,
   bufferStartupPaste,
   contextReviewUnavailableNotice,
+  checkpointReleasedViewState,
   defaultGemTerminalTheme,
   deletePromptBackward,
   deletePromptForward,
@@ -352,13 +354,18 @@ function GemApp() {
     () => buildEventLines(activeEvents, error, outputPanelWidth, notice),
     [activeEvents, error, notice, outputPanelWidth]
   );
+  const fallbackEventLines = useMemo(
+    () => buildPostCheckpointFallbackLines(activeEvents, outputPanelWidth, notice),
+    [activeEvents, notice, outputPanelWidth]
+  );
   const outputLines = finalLines.length > 0 ? finalLines : liveLines;
   const livePanelLines = resolvePanelLines({
     showEvents,
     selectedStage: effectiveSelectedKey,
     pinnedStageLines,
     outputLines,
-    eventLines
+    eventLines,
+    fallbackEventLines: fallbackEventLines ?? undefined
   });
   const runListLines = useMemo(
     () => buildRunListLines(runHistory, selectedRunIndex, outputPanelWidth, runHistoryLoading, runHistoryFailure),
@@ -992,6 +999,7 @@ function GemApp() {
       if (!run) return;
       if (command === "/continue") {
         await runtime.submitCheckpoint(run.run_id, { action: "continue" });
+        releaseCheckpointFocus("continue");
         injectCheckpointDecision("continue");
       } else if (command === "/stop") {
         await runtime.submitCheckpoint(run.run_id, { action: "stop" });
@@ -1002,6 +1010,7 @@ function GemApp() {
           action: "redirect",
           redirect_instruction: redirectInstruction
         });
+        releaseCheckpointFocus("redirect");
         injectCheckpointDecision("redirect", redirectInstruction);
       } else {
         setError("Checkpoint commands: /continue, /stop, or /redirect <guidance>.");
@@ -1010,6 +1019,18 @@ function GemApp() {
     } catch (reason) {
       setError(formatRuntimeError(reason));
     }
+  }
+
+  function releaseCheckpointFocus(action: "continue" | "redirect") {
+    const next = checkpointReleasedViewState(action);
+    setSelectedStage(next.selectedStage);
+    setNavMode(next.navMode);
+    setNavFocusKey(next.navFocusKey);
+    navFocusIndexRef.current = null;
+    setShowEvents(next.showEvents);
+    setScrollTop(next.scrollTop);
+    clearContextPreview();
+    setNotice(next.notice);
   }
 
   function injectCheckpointDecision(action: "continue" | "stop" | "redirect", redirectInstruction = "") {

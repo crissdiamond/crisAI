@@ -3,9 +3,11 @@ import test from "node:test";
 import {
   buildRunListLines,
   buildEventLines,
+  buildPostCheckpointFallbackLines,
   buildSessionContextPreviewLines,
   aggregateTokenTotal,
   checkpointDecisionLines,
+  checkpointReleasedViewState,
   clampScrollTop,
   buildPromptView,
   bufferStartupPaste,
@@ -907,6 +909,101 @@ test("panel lines keep selected stage pinned while live output changes", () => {
   assert.deepEqual(selected, ["retrieval output"]);
   assert.deepEqual(released, ["new live delta"]);
   assert.deepEqual(events, ["event output"]);
+});
+
+test("checkpoint release state returns live pane defaults after continue or redirect", () => {
+  assert.deepEqual(checkpointReleasedViewState("continue"), {
+    selectedStage: null,
+    navMode: false,
+    navFocusKey: null,
+    showEvents: false,
+    scrollTop: 0,
+    notice: "continuing after source review"
+  });
+  assert.deepEqual(checkpointReleasedViewState("redirect"), {
+    selectedStage: null,
+    navMode: false,
+    navFocusKey: null,
+    showEvents: false,
+    scrollTop: 0,
+    notice: "retrieval guidance submitted; continuing"
+  });
+});
+
+test("post-checkpoint fallback does not surface retrieval output while downstream stage is starting", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_output",
+      title: "Context retrieval",
+      summary: "Retrieved source material.",
+      content: "Prior context retrieval output",
+      agent_id: "context_retrieval",
+      stage: "context_retrieval"
+    }),
+    uiEvent({
+      event_type: "checkpoint_decision",
+      title: "Checkpoint decision",
+      summary: "Continue.",
+      agent_id: "retrieval_checkpoint",
+      stage: "retrieval_checkpoint",
+      metadata: { action: "continue" }
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      title: "Context",
+      summary: "Starting downstream stage.",
+      agent_id: "context_synthesizer",
+      stage: "context_synthesizer"
+    })
+  ];
+  const eventLines = buildEventLines(events, "", 80);
+  const fallbackLines = buildPostCheckpointFallbackLines(events, 80);
+  const panelLines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    pinnedStageLines: [],
+    outputLines: [],
+    eventLines,
+    fallbackEventLines: fallbackLines ?? undefined
+  });
+
+  assert(eventLines.join("\n").includes("Prior context retrieval output"));
+  assert.deepEqual(panelLines, ["Continuing after source review; waiting for downstream output."]);
+  assert(!panelLines.join("\n").includes("Prior context retrieval output"));
+});
+
+test("post-checkpoint fallback releases once downstream output arrives", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_output",
+      title: "Context retrieval",
+      content: "Prior context retrieval output",
+      agent_id: "context_retrieval",
+      stage: "context_retrieval"
+    }),
+    uiEvent({
+      event_type: "checkpoint_decision",
+      title: "Checkpoint decision",
+      agent_id: "retrieval_checkpoint",
+      stage: "retrieval_checkpoint",
+      metadata: { action: "continue" }
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      title: "Context",
+      agent_id: "context_synthesizer",
+      stage: "context_synthesizer"
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      title: "Context",
+      content: "Downstream context output",
+      agent_id: "context_synthesizer",
+      stage: "context_synthesizer"
+    })
+  ];
+
+  assert.equal(buildPostCheckpointFallbackLines(events, 80), null);
 });
 
 test("stage streaming content accumulates incremental live deltas for the active stage", () => {
