@@ -115,7 +115,7 @@ _UPLOAD_SUFFIXES = frozenset({
 })
 
 _DEFAULT_RATE_LIMIT_RPM = 0  # 0 = disabled
-_RATE_LIMITED_PATHS = frozenset({"/api/run", "/api/v1/runs"})
+_RATE_LIMITED_PATHS = frozenset({"/api/run", "/api/run/start", "/api/v1/runs"})
 _RATE_LIMIT_STATE: dict[str, Any] = {"window_start": 0.0, "count": 0}
 
 

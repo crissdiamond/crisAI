@@ -1305,6 +1305,7 @@ Individual provider keys can be omitted — tests that need the missing key skip
 ### Cost controls built in
 
 - `CRISAI_AGENT_MAX_TURNS=5` (default is 30) — limits per-agent token spend.
+- `CRISAI_RATE_LIMIT_RPM=N` — limits execution endpoints (`/api/run`, `/api/run/start`, `/api/v1/runs`) to N POST requests per minute; omit or set to 0 to disable (default for local deployments).
 - `needs_retrieval=False` for peer mode — skips MCP retrieval stages.
 - `CRISAI_PEER_MAX_REFINEMENT_ROUNDS=0` and `CRISAI_PEER_MAX_ESCALATIONS=0` — peer test exits after the first judge decision.
 - Knowledge questions only — no MCP server connections needed.

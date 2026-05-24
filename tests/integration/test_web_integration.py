@@ -1043,6 +1043,25 @@ def test_rate_limit_does_not_apply_to_non_execution_endpoints(
     assert resp.status_code != 429
 
 
+def test_rate_limit_enforced_on_api_run_start(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """limit=2 → first two POSTs to /api/run/start pass; third returns 429."""
+    monkeypatch.setenv("CRISAI_RATE_LIMIT_RPM", "2")
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _noop_run_job(job_id: str, payload: Any, decision: Any) -> None:
+        pass
+
+    monkeypatch.setattr("crisai.apps.web._run_job", _noop_run_job)
+
+    payload = {"message": "hello", "mode": "auto", "agent": "auto"}
+    assert client.post("/api/run/start", json=payload).status_code != 429
+    assert client.post("/api/run/start", json=payload).status_code != 429
+    assert client.post("/api/run/start", json=payload).status_code == 429
+
+
 def test_rate_limit_window_resets_after_60s(
     client: _ASGITestClient,
     monkeypatch: pytest.MonkeyPatch,
