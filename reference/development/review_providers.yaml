@@ -64,3 +64,14 @@ providers:
       review: scripts/hcom_review.sh
       status: scripts/hcom_review_status.sh
       close: scripts/hcom_review_close.sh
+  codex:
+    hcom_tool: codex
+    managed: true
+    mandatory_gate_supported: true
+    experimental: true
+    ephemeral_supported: false
+    persistent_supported: true
+    mode: inverted_team_profile_only
+    supports_system_prompt: false
+    supports_permission_mode_auto: false
+    supports_transcript_failure_summary: false

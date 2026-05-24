@@ -13,6 +13,9 @@ crisAI can be developed by a small hcom-coordinated team:
 - runtime, Gem, and web Codex implementers;
 - on-demand reviewers for review-required runtime, Gem, and web work, with
   Claude as the mandatory gate by default;
+- an alternate Claude-developer profile where Claude Code agents are the
+  orchestrator and area implementers, and Codex agents are persistent
+  reviewers;
 - Claude memory MCP as the durable project context layer;
 - hcom for short coordination messages, bundles, events, and terminal sessions.
 
@@ -22,6 +25,11 @@ focused patches when requested. If a required Claude reviewer cannot launch, the
 task pauses unless the user explicitly overrides. The orchestrator owns
 planning, cross-area coordination, final integration, Git metadata writes, and
 reviewer lifecycle.
+
+Use the alternate Claude-developer profile only when you intentionally want to
+compare provider behaviour or give Claude Code the main implementation role. In
+that profile, the same role boundaries apply but the review gate is performed
+by Codex reviewers.
 
 ## Architecture At A Glance
 
@@ -130,6 +138,19 @@ metadata is writable for commits and pushes. Area Codex agents keep
 `HCOM_TEAM_AREA_CODEX_SANDBOX=workspace-write` and must hand off Git writes to
 the orchestrator.
 
+Alternate Claude-developer launch:
+
+```bash
+./start hcom claude-dev
+```
+
+This starts `orchestrator_claude`, `gem_claude_dev`, `web_claude_dev`, and
+`runtime_claude_dev` through Claude Code with
+`HCOM_TEAM_CLAUDE_CODE_MODEL=claude-sonnet-4-6` by default. It also starts
+persistent Codex reviewers: `gem_codex_review`, `web_codex_review`, and
+`runtime_codex_review`. Stop the existing team before switching profiles so
+session assignments do not mix models and responsibilities.
+
 Stable hcom base names are configured in
 `reference/development/team_names.yaml`. The launcher reads that registry and
 passes the configured name to hcom with `--hcom-name` on fresh launches. Override
@@ -191,6 +212,11 @@ The tmux windows are created in this order:
 
 Persistent Claude mode adds `gem_claude(alex)`, `web_claude(lori)`, and
 `run_claude(alle)`.
+
+The Claude-developer profile uses the same base names but swaps duties:
+`orchestrator(cris)`, `gem_claude(alex)`, `gem_codex(lina)`,
+`web_claude(lori)`, `web_codex(luke)`, `run_claude(alle)`, and
+`run_codex(bili)`.
 
 Attach to the team session with the helper:
 

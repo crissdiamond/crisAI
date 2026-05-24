@@ -4,9 +4,16 @@
 # for example `crisai-gem-lina`. Keep values lowercase and shell-safe.
 names:
   orchestrator_codex: cris
+  orchestrator_claude: cris
   gem_codex: lina
   gem_claude: alex
+  gem_codex_review: lina
+  gem_claude_dev: alex
   web_codex: luke
   web_claude: lori
+  web_codex_review: luke
+  web_claude_dev: lori
   runtime_codex: bili
   runtime_claude: alle
+  runtime_codex_review: bili
+  runtime_claude_dev: alle

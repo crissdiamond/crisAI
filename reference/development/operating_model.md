@@ -14,6 +14,14 @@ handles only; stable responsibility comes from the role assigned in
 - `runtime_claude`, `gem_claude`, and `web_claude`: ephemeral reviewers
   launched by the orchestrator as mandatory gates for review-required work.
 
+An alternate `claude-dev-codex-review` profile inverts the provider roles:
+`orchestrator_claude`, `runtime_claude_dev`, `gem_claude_dev`, and
+`web_claude_dev` are the standing development team through Claude Code, while
+`runtime_codex_review`, `gem_codex_review`, and `web_codex_review` are
+persistent Codex reviewers. Use it deliberately for provider comparison or
+Claude-led implementation work; the default remains Codex developers with
+Claude-model review.
+
 The top-level `runtime/`, `gem/`, and `web/` directories are area context folders,
 not source roots and not Codex sandbox roots. Source code stays in the existing
 Python and UI locations. Standing area Codex agents are launched from the repo
@@ -36,6 +44,25 @@ Gem, and web. Set `HCOM_TEAM_REVIEW_LIFECYCLE=persistent` only when
 intentionally debugging or running a long paired session with always-on
 reviewer agents. `HCOM_TEAM_CLAUDE_MODE` still works as a deprecated
 compatibility alias for the lifecycle setting.
+
+Use the alternate profile when Claude Code should be the main developer and
+Codex should review:
+
+```bash
+HCOM_TEAM_PROFILE=claude-dev-codex-review scripts/hcom_start.sh
+```
+
+The `./start` helper exposes this as:
+
+```bash
+./start hcom claude-dev
+```
+
+This profile forces persistent Codex reviewers and launches Claude Code with
+`HCOM_TEAM_CLAUDE_CODE_MODEL=claude-sonnet-4-6` by default. Override that
+environment variable when testing a different Claude Code model. Stop the
+current team before switching profiles so local session assignments do not mix
+old role responsibilities with new provider roles.
 
 Choose the reviewer provider independently with
 `HCOM_TEAM_REVIEW_PROVIDER=claude-code|antigravity`. Claude Code is the default.
@@ -87,6 +114,11 @@ needed. The tmux status area uses two fixed bottom lines: the first lists
 agents, and the second shows command help. The orchestrator is dark purple,
 Codex area agents are blue, and Claude area agents are dark grey; the selected
 window is bold.
+
+In the Claude-developer profile, the tmux order is:
+`orchestrator(cris)`, `gem_claude(alex)`, `gem_codex(lina)`,
+`web_claude(lori)`, `web_codex(luke)`, `run_claude(alle)`, and
+`run_codex(bili)`.
 
 Tool auto-approval is enabled by default for launched agents so routine
 development work does not block on repeated provider permission prompts. The

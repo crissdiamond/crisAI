@@ -14,8 +14,10 @@ ORCHESTRATOR_CODEX_SANDBOX="${HCOM_TEAM_ORCHESTRATOR_CODEX_SANDBOX:-danger-full-
 AREA_CODEX_SANDBOX="${HCOM_TEAM_AREA_CODEX_SANDBOX:-workspace-write}"
 REVIEW_LIFECYCLE="${HCOM_TEAM_REVIEW_LIFECYCLE:-${HCOM_TEAM_CLAUDE_MODE:-ephemeral}}"
 REVIEW_PROVIDER_RAW="${HCOM_TEAM_REVIEW_PROVIDER:-claude-code}"
+TEAM_PROFILE_RAW="${HCOM_TEAM_PROFILE:-codex-dev}"
 TEAM_HINTS="${HCOM_TEAM_HINTS:-Direct hcom requests are assignments; act or reply via hcom, without waiting for terminal-user input.}"
 CLAUDE_PROMPT_SUGGESTIONS="${HCOM_TEAM_CLAUDE_PROMPT_SUGGESTIONS:-false}"
+CLAUDE_CODE_MODEL="${HCOM_TEAM_CLAUDE_CODE_MODEL:-claude-sonnet-4-6}"
 MEMORY_WRITE_POLICY="${HCOM_TEAM_MEMORY_WRITE_POLICY:-Use Claude memory as durable task context when available. Memory may be read-only in worker sessions; if a memory write is denied, do not block or ask the terminal user. Include the intended memory summary in your hcom handoff or final report and continue.}"
 TEAM_TERMINAL="${HCOM_TEAM_TERMINAL:-}"
 TEAM_TERMINAL_EXPLICIT=0
@@ -76,10 +78,16 @@ Reviewers:
   team. HCOM_TEAM_CLAUDE_MODE remains as a deprecated compatibility alias.
 
   HCOM_TEAM_REVIEW_PROVIDER defaults to claude-code. Supported values are
-  claude-code and antigravity. Antigravity reviewers require reusable local auth
-  and a requested model selection in agy. The preflight updates Antigravity's
-  persisted settings model, then verifies the active agy model before any
-  reviewer is launched.
+  claude-code, antigravity, and codex. Antigravity reviewers require reusable
+  local auth and a requested model selection in agy. The preflight updates
+  Antigravity's persisted settings model, then verifies the active agy model
+  before any reviewer is launched.
+
+Profiles:
+  HCOM_TEAM_PROFILE defaults to codex-dev, which starts Codex developers and
+  Claude-model reviewers. Set HCOM_TEAM_PROFILE=claude-dev-codex-review to
+  invert the team: Claude Code developers using HCOM_TEAM_CLAUDE_CODE_MODEL
+  and persistent Codex reviewers.
 EOF
 }
 
@@ -139,13 +147,14 @@ role_prompt() {
   local role="${2:-}"
   cat "$ROOT_DIR/$role_file"
   printf '\n\n'
-  if [[ "$role" == *_claude ]]; then
+  if is_reviewer_role "$role"; then
     cat <<'EOF'
 Startup mode for reviewer agents:
 
 - Do not inspect files, run commands, create artifacts, or review anything at
   startup.
-- Wait for a direct hcom request from the orchestrator or paired Codex agent.
+- Wait for a direct hcom request from the orchestrator or paired implementation
+  agent.
 - Once assigned, read only the context needed for that specific request.
 - Report waiting state through hcom if needed, then return to listening.
 EOF
@@ -158,6 +167,17 @@ context. Do not store secrets in memory.
 EOF
   fi
   printf '\nFollow this memory policy:\n%s\n' "$MEMORY_WRITE_POLICY"
+}
+
+is_reviewer_role() {
+  case "$1" in
+    runtime_claude | gem_claude | web_claude | runtime_codex_review | gem_codex_review | web_codex_review)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 extract_names() {
@@ -224,14 +244,26 @@ default_team_terminal() {
 
 role_terminal_label() {
   case "$1" in
-    orchestrator_codex)
+    orchestrator_codex | orchestrator_claude)
       printf 'orchestrator\n'
       ;;
-    runtime_codex)
+    runtime_codex | runtime_codex_review)
       printf 'run_codex\n'
       ;;
-    runtime_claude)
+    runtime_claude | runtime_claude_dev)
       printf 'run_claude\n'
+      ;;
+    gem_codex_review)
+      printf 'gem_codex\n'
+      ;;
+    gem_claude_dev)
+      printf 'gem_claude\n'
+      ;;
+    web_codex_review)
+      printf 'web_codex\n'
+      ;;
+    web_claude_dev)
+      printf 'web_claude\n'
       ;;
     *)
       printf '%s\n' "$1"
@@ -246,16 +278,16 @@ hcom_display_name() {
   label="$(role_terminal_label "$role")"
 
   case "$role" in
-    orchestrator_codex)
+    orchestrator_codex | orchestrator_claude)
       name="${name#crisai-orchestrator-}"
       ;;
-    gem_codex | gem_claude)
+    gem_codex | gem_claude | gem_codex_review | gem_claude_dev)
       name="${name#crisai-gem-}"
       ;;
-    web_codex | web_claude)
+    web_codex | web_claude | web_codex_review | web_claude_dev)
       name="${name#crisai-web-}"
       ;;
-    runtime_codex | runtime_claude)
+    runtime_codex | runtime_claude | runtime_codex_review | runtime_claude_dev)
       name="${name#crisai-runtime-}"
       ;;
   esac
@@ -430,6 +462,11 @@ tool_auto_approval_args() {
 tool_provider_args() {
   local provider="$1"
   case "$provider" in
+    claude)
+      if [[ -n "$CLAUDE_CODE_MODEL" ]]; then
+        printf '%s\n' --model "$CLAUDE_CODE_MODEL"
+      fi
+      ;;
     agy)
       # agy has no public --model launch flag. The selected model is persisted
       # by Antigravity and verified by scripts/hcom_antigravity_preflight.sh.
@@ -446,8 +483,11 @@ normalize_review_provider() {
     antigravity | agy)
       printf 'antigravity\n'
       ;;
+    codex)
+      printf 'codex\n'
+      ;;
     *)
-      echo "HCOM_TEAM_REVIEW_PROVIDER must be 'claude-code' or 'antigravity'." >&2
+      echo "HCOM_TEAM_REVIEW_PROVIDER must be 'claude-code', 'antigravity', or 'codex'." >&2
       exit 1
       ;;
   esac
@@ -460,6 +500,24 @@ review_provider_tool() {
       ;;
     antigravity)
       printf 'agy\n'
+      ;;
+    codex)
+      printf 'codex\n'
+      ;;
+  esac
+}
+
+normalize_team_profile() {
+  case "$TEAM_PROFILE_RAW" in
+    codex-dev | default)
+      printf 'codex-dev\n'
+      ;;
+    claude-dev-codex-review | claude-dev | claude-main)
+      printf 'claude-dev-codex-review\n'
+      ;;
+    *)
+      echo "HCOM_TEAM_PROFILE must be 'codex-dev' or 'claude-dev-codex-review'." >&2
+      exit 1
       ;;
   esac
 }
@@ -619,9 +677,20 @@ EOF
 }
 
 require_bin hcom
-require_bin codex
-REVIEW_PROVIDER="$(normalize_review_provider)"
-REVIEW_PROVIDER_TOOL="$(review_provider_tool)"
+TEAM_PROFILE="$(normalize_team_profile)"
+if [[ "$TEAM_PROFILE" == "codex-dev" ]]; then
+  require_bin codex
+else
+  require_bin claude
+  require_bin codex
+  REVIEW_LIFECYCLE="persistent"
+  REVIEW_PROVIDER="codex"
+  REVIEW_PROVIDER_TOOL="codex"
+fi
+if [[ "$TEAM_PROFILE" == "codex-dev" ]]; then
+  REVIEW_PROVIDER="$(normalize_review_provider)"
+  REVIEW_PROVIDER_TOOL="$(review_provider_tool)"
+fi
 validate_review_config
 if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
   require_bin "$REVIEW_PROVIDER_TOOL"
@@ -654,38 +723,68 @@ generated_at: "$(date -Is)"
 sessions:
 EOF
 
-name="$(launch_agent orchestrator_codex codex crisai-orchestrator . reference/development/roles/orchestrator_codex.md root)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" orchestrator_codex root codex crisai-orchestrator
-
-name="$(launch_agent gem_codex codex crisai-gem . reference/development/roles/gem_codex.md gem)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" gem_codex gem codex crisai-gem
-
-if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
-  name="$(launch_agent gem_claude "$REVIEW_PROVIDER_TOOL" crisai-gem . reference/development/roles/gem_claude.md gem)"
+if [[ "$TEAM_PROFILE" == "codex-dev" ]]; then
+  name="$(launch_agent orchestrator_codex codex crisai-orchestrator . reference/development/roles/orchestrator_codex.md root)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" gem_claude gem "$REVIEW_PROVIDER_TOOL" crisai-gem
-fi
+  write_assignment "$name" orchestrator_codex root codex crisai-orchestrator
 
-name="$(launch_agent web_codex codex crisai-web . reference/development/roles/web_codex.md web)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" web_codex web codex crisai-web
-
-if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
-  name="$(launch_agent web_claude "$REVIEW_PROVIDER_TOOL" crisai-web . reference/development/roles/web_claude.md web)"
+  name="$(launch_agent gem_codex codex crisai-gem . reference/development/roles/gem_codex.md gem)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" web_claude web "$REVIEW_PROVIDER_TOOL" crisai-web
-fi
+  write_assignment "$name" gem_codex gem codex crisai-gem
 
-name="$(launch_agent runtime_codex codex crisai-runtime . reference/development/roles/runtime_codex.md runtime)"
-LAUNCHED_NAMES+=("$name")
-write_assignment "$name" runtime_codex runtime codex crisai-runtime
+  if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
+    name="$(launch_agent gem_claude "$REVIEW_PROVIDER_TOOL" crisai-gem . reference/development/roles/gem_claude.md gem)"
+    LAUNCHED_NAMES+=("$name")
+    write_assignment "$name" gem_claude gem "$REVIEW_PROVIDER_TOOL" crisai-gem
+  fi
 
-if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
-  name="$(launch_agent runtime_claude "$REVIEW_PROVIDER_TOOL" crisai-runtime . reference/development/roles/runtime_claude.md runtime)"
+  name="$(launch_agent web_codex codex crisai-web . reference/development/roles/web_codex.md web)"
   LAUNCHED_NAMES+=("$name")
-  write_assignment "$name" runtime_claude runtime "$REVIEW_PROVIDER_TOOL" crisai-runtime
+  write_assignment "$name" web_codex web codex crisai-web
+
+  if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
+    name="$(launch_agent web_claude "$REVIEW_PROVIDER_TOOL" crisai-web . reference/development/roles/web_claude.md web)"
+    LAUNCHED_NAMES+=("$name")
+    write_assignment "$name" web_claude web "$REVIEW_PROVIDER_TOOL" crisai-web
+  fi
+
+  name="$(launch_agent runtime_codex codex crisai-runtime . reference/development/roles/runtime_codex.md runtime)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" runtime_codex runtime codex crisai-runtime
+
+  if [[ "$REVIEW_LIFECYCLE" == "persistent" ]]; then
+    name="$(launch_agent runtime_claude "$REVIEW_PROVIDER_TOOL" crisai-runtime . reference/development/roles/runtime_claude.md runtime)"
+    LAUNCHED_NAMES+=("$name")
+    write_assignment "$name" runtime_claude runtime "$REVIEW_PROVIDER_TOOL" crisai-runtime
+  fi
+else
+  name="$(launch_agent orchestrator_claude claude crisai-orchestrator . reference/development/roles/orchestrator_claude.md root)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" orchestrator_claude root claude crisai-orchestrator
+
+  name="$(launch_agent gem_claude_dev claude crisai-gem . reference/development/roles/gem_claude_dev.md gem)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" gem_claude_dev gem claude crisai-gem
+
+  name="$(launch_agent gem_codex_review codex crisai-gem . reference/development/roles/gem_codex_review.md gem)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" gem_codex_review gem codex crisai-gem
+
+  name="$(launch_agent web_claude_dev claude crisai-web . reference/development/roles/web_claude_dev.md web)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" web_claude_dev web claude crisai-web
+
+  name="$(launch_agent web_codex_review codex crisai-web . reference/development/roles/web_codex_review.md web)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" web_codex_review web codex crisai-web
+
+  name="$(launch_agent runtime_claude_dev claude crisai-runtime . reference/development/roles/runtime_claude_dev.md runtime)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" runtime_claude_dev runtime claude crisai-runtime
+
+  name="$(launch_agent runtime_codex_review codex crisai-runtime . reference/development/roles/runtime_codex_review.md runtime)"
+  LAUNCHED_NAMES+=("$name")
+  write_assignment "$name" runtime_codex_review runtime codex crisai-runtime
 fi
 
 if [[ "$DRY_RUN" -eq 0 ]]; then

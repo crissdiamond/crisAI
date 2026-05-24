@@ -25,12 +25,28 @@ fi
 has_hcom_assignments() {
   local assignments="reference/development/session_assignments.local.yaml"
   [[ -f "$assignments" ]] || return 1
+  local profile="$1"
+  local roles=()
+  if [[ "$profile" == "claude-dev-codex-review" ]]; then
+    roles=(
+      orchestrator_claude
+      gem_claude_dev
+      gem_codex_review
+      web_claude_dev
+      web_codex_review
+      runtime_claude_dev
+      runtime_codex_review
+    )
+  else
+    roles=(
+      orchestrator_codex
+      gem_codex
+      web_codex
+      runtime_codex
+    )
+  fi
   local role
-  for role in \
-    orchestrator_codex \
-    gem_codex \
-    web_codex \
-    runtime_codex; do
+  for role in "${roles[@]}"; do
     grep -q "^[[:space:]]\\+role: $role$" "$assignments" || return 1
   done
 }
@@ -54,6 +70,7 @@ case "$MODE" in
     HCOM_LIFECYCLE="ephemeral"
     HCOM_PROVIDER="claude-code"
     HCOM_AGY_PROFILE="claude"
+    HCOM_PROFILE="codex-dev"
     while [ "$#" -gt 0 ]; do
       case "$1" in
         all-up)
@@ -72,6 +89,12 @@ case "$MODE" in
           HCOM_AGY_PROFILE="gemini"
           shift
           ;;
+        claude-dev|claude-main|claude-coders)
+          HCOM_PROFILE="claude-dev-codex-review"
+          HCOM_LIFECYCLE="persistent"
+          HCOM_PROVIDER="codex"
+          shift
+          ;;
         --)
           shift
           HCOM_START_ARGS+=("$@")
@@ -79,12 +102,13 @@ case "$MODE" in
           ;;
         *)
           echo "Unknown hcom option: $1" >&2
-          echo "Usage: ./start hcom [all-up] [agy [claude|gemini]] [-- scripts/hcom_start.sh args]" >&2
+          echo "Usage: ./start hcom [all-up] [agy [claude|gemini]] [claude-dev] [-- scripts/hcom_start.sh args]" >&2
           exit 2
           ;;
       esac
     done
 
+    export HCOM_TEAM_PROFILE="$HCOM_PROFILE"
     export HCOM_TEAM_REVIEW_LIFECYCLE="$HCOM_LIFECYCLE"
     export HCOM_TEAM_REVIEW_PROVIDER="$HCOM_PROVIDER"
     if [ "$HCOM_PROVIDER" = "antigravity" ]; then
@@ -103,7 +127,7 @@ case "$MODE" in
           ;;
       esac
     fi
-    if has_hcom_assignments; then
+    if has_hcom_assignments "$HCOM_PROFILE"; then
       scripts/hcom_start.sh --resume "${HCOM_START_ARGS[@]}"
     else
       scripts/hcom_start.sh "${HCOM_START_ARGS[@]}"
@@ -127,6 +151,8 @@ case "$MODE" in
     echo "  hcom agy      Use Antigravity for reviewer launches"
     echo "  hcom agy gemini"
     echo "                Use Antigravity reviewers with the Gemini model profile"
+    echo "  hcom claude-dev"
+    echo "                Start Claude Code developers with Codex reviewers"
     echo "  hcom-attach   Attach to the hcom tmux session"
     exit 2
     ;;

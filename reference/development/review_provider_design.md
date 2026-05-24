@@ -98,8 +98,10 @@ The implementation supports `claude-code` through the generic entrypoint while
 delegating internally to the existing Claude scripts. The old provider spelling
 `claude` remains accepted as a compatibility alias. Antigravity is available
 through `hcom agy` when the preflight confirms reusable local OAuth and an
-active model matching the requested reviewer profile. OpenCode can be added
-after its review lifecycle behaviour is verified.
+active model matching the requested reviewer profile. Codex can also act as a
+persistent reviewer in the alternate `claude-dev-codex-review` team profile,
+where Claude Code is the implementation provider. OpenCode can be added after
+its review lifecycle behaviour is verified.
 
 ## Antigravity Position
 
