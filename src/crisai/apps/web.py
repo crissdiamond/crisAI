@@ -7,6 +7,7 @@ import json
 import os
 import re
 import secrets
+import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -112,6 +113,56 @@ _UPLOAD_SUFFIXES = frozenset({
     ".yaml",
     ".yml",
 })
+
+_DEFAULT_RATE_LIMIT_RPM = 0  # 0 = disabled
+_RATE_LIMITED_PATHS = frozenset({"/api/run", "/api/v1/runs"})
+_RATE_LIMIT_STATE: dict[str, Any] = {"window_start": 0.0, "count": 0}
+
+
+def _resolve_rate_limit_rpm() -> int:
+    """Return max POST requests/minute on execution endpoints; 0 = disabled."""
+    raw = os.getenv("CRISAI_RATE_LIMIT_RPM", "").strip()
+    if not raw:
+        return _DEFAULT_RATE_LIMIT_RPM
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return _DEFAULT_RATE_LIMIT_RPM
+    return parsed if parsed > 0 else _DEFAULT_RATE_LIMIT_RPM
+
+
+@app.middleware("http")
+async def _rate_limit_middleware(request: Request, call_next: Any) -> Any:
+    """Guard /api/run and /api/v1/runs against accidental budget exhaustion.
+
+    Fixed-window counter: at most CRISAI_RATE_LIMIT_RPM POST requests per 60 s.
+    No-op when the env var is 0 or unset. LIFO note: _auth_middleware is defined
+    after this one, so auth executes first; only authenticated requests reach this
+    counter.
+    """
+    limit = _resolve_rate_limit_rpm()
+    if not limit or request.method != "POST" or request.url.path not in _RATE_LIMITED_PATHS:
+        return await call_next(request)
+
+    now = time.monotonic()
+    window_start = _RATE_LIMIT_STATE["window_start"]
+    if now - window_start >= 60.0:
+        _RATE_LIMIT_STATE["window_start"] = now
+        _RATE_LIMIT_STATE["count"] = 0
+        window_start = now
+
+    if _RATE_LIMIT_STATE["count"] >= limit:
+        retry_after = int(60.0 - (now - window_start)) + 1
+        return Response(
+            content='{"detail":"Rate limit exceeded"}',
+            status_code=429,
+            media_type="application/json",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    _RATE_LIMIT_STATE["count"] += 1
+    return await call_next(request)
+
 
 @app.middleware("http")
 async def _auth_middleware(request: Request, call_next: Any) -> Any:

@@ -571,6 +571,7 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
         ("CRISAI_SESSION_MEMORY_MAX_RECENT_TURNS", 0),
         ("CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS", 1000),
         ("CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS", 500),
+        ("CRISAI_RATE_LIMIT_RPM", 0),
     ):
         raw = os.getenv(name)
         if raw is None:
