@@ -173,7 +173,7 @@ Completed items should move here with the merge commit or PR reference.
 | TODO-002 | Streaming stage output | `461461e feat(ui): stream stage output in clients` |
 | TODO-002A | Browser viewport pass for streaming card | `fix(web): bound streaming viewport layout` |
 | TODO-043 | CI security scanning | `ci: add security scanning gates` |
-| TODO-005 | Token and cost tracking per stage | `feat(runtime): track stage cost telemetry` |
+| TODO-005 | Token and cost tracking per stage | `6398d8e feat(runtime): track stage cost telemetry`, `7d7ba13 feat(cli): add spend command for cost telemetry`, `83d3287 fix(cli): harden spend parser against non-dict JSONL` |
 | TODO-041 | API authentication and authorisation guard (Phase 1 — static bearer token) | `2ea5457 feat(security): add Bearer token auth guard`, `800e2d7 fix(security): harden api bearer comparison` |
 | TODO-024 | Web document upload | `a2b3f5c docs(todo): mark TODO-041 done and update sequencing` |
 | TODO-036 | Routing decision transparency | `feat(ui): expose request contract before execution` |

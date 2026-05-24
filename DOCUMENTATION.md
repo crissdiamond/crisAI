@@ -341,6 +341,8 @@ uv run crisai validate-artefacts -p workspace/knowledge_staging/patterns/example
 
 `uv run crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, and tracked secret/cache hygiene. Use `uv run crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
 
+`uv run crisai spend` reads `logs/agent_trace.jsonl` and prints a table of estimated token usage and cost per stage for recent runs. Each row shows the run ID (truncated), stage, agent, provider, model, input tokens, output tokens, and estimated cost in USD. A per-run total is shown after each run's rows. Use `--run <prefix>` to filter to a specific run ID and `--last N` to show the N most recent runs (default 1). Cost is emitted only when the model's pricing is configured in `registry/models.yaml` and the provider returned usage data; stages without pricing degrade gracefully and are omitted from the output.
+
 The CI workflow also has a dedicated security scanning job. It runs Bandit
 against `src/crisai`, audits the locked uv dependency set with pip-audit, and
 blocks suspected secret leaks with Gitleaks using `.gitleaks.toml`. The
