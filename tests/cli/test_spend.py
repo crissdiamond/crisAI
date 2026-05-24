@@ -156,3 +156,33 @@ def test_parse_spend_events_skips_blank_lines():
     result, warnings = main._parse_spend_events(lines)
     assert len(result) == 1
     assert not warnings
+
+
+def test_parse_spend_events_warns_on_json_array():
+    result, warnings = main._parse_spend_events(["[]"])
+    assert not result
+    assert len(warnings) == 1
+    assert "non-object" in warnings[0].lower()
+
+
+def test_parse_spend_events_warns_on_json_null():
+    result, warnings = main._parse_spend_events(["null"])
+    assert not result
+    assert len(warnings) == 1
+    assert "non-object" in warnings[0].lower()
+
+
+def test_parse_spend_events_silently_skips_non_dict_metadata():
+    event = json.loads(_cost_event())
+    event["metadata"] = "not-a-dict"
+    result, warnings = main._parse_spend_events([json.dumps(event)])
+    assert not result
+    assert not warnings
+
+
+def test_parse_spend_events_silently_skips_non_dict_observability():
+    event = json.loads(_cost_event())
+    event["metadata"]["observability"] = 42
+    result, warnings = main._parse_spend_events([json.dumps(event)])
+    assert not result
+    assert not warnings

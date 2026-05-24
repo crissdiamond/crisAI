@@ -562,11 +562,19 @@ def _parse_spend_events(
         if not raw:
             continue
         try:
-            event: dict[str, Any] = json.loads(raw)
+            event: Any = json.loads(raw)
         except json.JSONDecodeError:
             warnings.append(f"Skipping malformed JSONL at line {lineno}.")
             continue
-        obs: dict[str, Any] = (event.get("metadata") or {}).get("observability") or {}
+        if not isinstance(event, dict):
+            warnings.append(f"Skipping non-object JSONL at line {lineno}.")
+            continue
+        metadata = event.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        obs = metadata.get("observability")
+        if not isinstance(obs, dict):
+            continue
         cost = obs.get("cost")
         if not isinstance(cost, dict):
             continue
