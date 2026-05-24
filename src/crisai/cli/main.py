@@ -4,6 +4,7 @@ import asyncio
 import collections.abc
 import contextlib
 import dataclasses
+import json
 import logging
 import os
 import pathlib
@@ -14,12 +15,15 @@ import types
 from typing import Any
 
 import prompt_toolkit
+import rich.table as rich_table
 import typer
 
 from crisai import config as config_module
 from crisai import logging_utils as logging_utils_module
 from crisai import registry as registry_module
 from crisai import registry_validation as validation_module
+from crisai import tracing as tracing_module
+from crisai.orchestration import usage_cost as usage_cost_module
 from crisai.cli import chat_context as chat_context_module
 from crisai.cli import display as display_module
 from crisai.cli import pipelines as pipelines_module
@@ -105,6 +109,15 @@ load_workspace_spaces = spaces_module.load_workspace_spaces
 run_peer_pipeline = pipelines_module.run_peer_pipeline
 run_pipeline = pipelines_module.run_pipeline
 run_single = pipelines_module.run_single
+
+# tracing
+TRACE_FILE_NAME = tracing_module.TRACE_FILE_NAME
+
+# orchestration/usage_cost
+USAGE_COST_SCHEMA_VERSION = usage_cost_module.USAGE_COST_SCHEMA_VERSION
+
+# rich
+Table = rich_table.Table
 
 
 app = typer.Typer(help="crisAI CLI")
@@ -522,6 +535,136 @@ def doctor(
         raise typer.Exit(0)
     print_status_message("\n".join(lines), title="❌ crisai doctor")
     raise typer.Exit(1)
+
+
+def _parse_spend_events(
+    lines: collections.abc.Iterable[str],
+    *,
+    run_filter: str | None = None,
+    last: int = 1,
+) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    """Parse JSONL trace lines and group cost events by run_id.
+
+    Args:
+        lines: Iterable of raw JSONL lines from a trace file.
+        run_filter: When set, return only runs whose run_id equals or starts with this value.
+        last: When run_filter is None, return this many most-recent runs (by last-event timestamp).
+
+    Returns:
+        Tuple of (selected_runs, warnings). selected_runs maps run_id to a list of
+        cost event dicts. warnings contains a message for each malformed line.
+    """
+    run_groups: dict[str, list[dict[str, Any]]] = {}
+    warnings: list[str] = []
+
+    for lineno, raw in enumerate(lines, 1):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            event: dict[str, Any] = json.loads(raw)
+        except json.JSONDecodeError:
+            warnings.append(f"Skipping malformed JSONL at line {lineno}.")
+            continue
+        obs: dict[str, Any] = (event.get("metadata") or {}).get("observability") or {}
+        cost = obs.get("cost")
+        if not isinstance(cost, dict):
+            continue
+        if cost.get("schema_version") != USAGE_COST_SCHEMA_VERSION:
+            continue
+        run_id: str = event.get("run_id") or "(no run_id)"
+        if run_id not in run_groups:
+            run_groups[run_id] = []
+        run_groups[run_id].append(event)
+
+    if run_filter is not None:
+        matching = {k: v for k, v in run_groups.items() if k == run_filter or k.startswith(run_filter)}
+        return matching, warnings
+
+    sorted_ids = sorted(
+        run_groups,
+        key=lambda rid: (run_groups[rid][-1].get("timestamp") or ""),
+        reverse=True,
+    )
+    selected = {rid: run_groups[rid] for rid in sorted_ids[: max(1, last)]}
+    return selected, warnings
+
+
+@app.command("spend")
+def spend(
+    run: str | None = typer.Option(None, "--run", help="Filter to a specific run ID (prefix match)."),
+    last: int = typer.Option(1, "--last", help="Number of most recent runs to show."),
+) -> None:
+    """Summarise token usage and estimated cost from run traces."""
+    settings = load_settings()
+    trace_file = Path(settings.log_dir) / TRACE_FILE_NAME
+
+    if not trace_file.exists():
+        print_status_message(
+            f"No trace file found at {trace_file}.\nRun `crisai ask` to generate traces.",
+            title="◇ crisai spend",
+        )
+        raise typer.Exit(0)
+
+    with trace_file.open("r", encoding="utf-8") as fh:
+        selected_runs, warnings = _parse_spend_events(fh, run_filter=run, last=last)
+
+    for warning in warnings:
+        print_status_message(warning, title="⚠ crisai spend")
+
+    if not selected_runs:
+        label = f"run '{run}'" if run else "any run"
+        print_status_message(
+            f"No cost events found for {label}.\n"
+            "Cost tracking requires model pricing configured in registry/models.yaml.",
+            title="◇ crisai spend",
+        )
+        raise typer.Exit(0)
+
+    table = Table(title="crisai spend", show_header=True, header_style="bold bright_blue")
+    table.add_column("Run", style="dim", no_wrap=True)
+    table.add_column("Stage")
+    table.add_column("Agent")
+    table.add_column("Provider")
+    table.add_column("Model")
+    table.add_column("In", justify="right")
+    table.add_column("Out", justify="right")
+    table.add_column("Cost USD", justify="right", style="bright_green")
+
+    for run_id, events in selected_runs.items():
+        run_short = (run_id[:12] + "…") if len(run_id) > 12 else run_id
+        run_total_usd = 0.0
+        first_row = True
+        for event in events:
+            obs = (event.get("metadata") or {}).get("observability") or {}
+            cost = obs.get("cost") or {}
+            model_meta = obs.get("model") or {}
+            pu = obs.get("provider_usage") or {}
+            stage = str(event.get("stage") or "")
+            agent_id = str(event.get("agent_id") or "")
+            provider = str(model_meta.get("provider") or "")
+            model_name = str(model_meta.get("model_name") or "")
+            input_tokens = int(pu.get("input_tokens") or 0)
+            output_tokens = int(pu.get("output_tokens") or 0)
+            total_cost_usd = float(cost.get("total_cost_usd") or 0.0)
+            run_total_usd += total_cost_usd
+            table.add_row(
+                run_short if first_row else "",
+                stage,
+                agent_id,
+                provider,
+                model_name,
+                str(input_tokens),
+                str(output_tokens),
+                f"${total_cost_usd:.6f}",
+            )
+            first_row = False
+        table.add_section()
+        table.add_row(
+            "", "", "", "", "[bold]Total[/bold]", "", "", f"[bold]${run_total_usd:.6f}[/bold]"
+        )
+
+    display_module.console.print(table)
 
 
 async def _run_with_routing(
