@@ -719,7 +719,8 @@ function GemApp() {
 
   function applySessionState(state: UiSessionState) {
     setSession(state.current_session);
-    setSessions(state.sessions.length > 0 ? state.sessions : [state.current_session]);
+    const sessions = state.sessions ?? [];
+    setSessions(sessions.length > 0 ? sessions : [state.current_session]);
   }
 
   async function startRun(message: string) {

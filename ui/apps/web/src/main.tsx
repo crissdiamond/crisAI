@@ -103,7 +103,8 @@ function App() {
   }
 
   function applySessionState(state: UiSessionState) {
-    setSessions(state.sessions.length > 0 ? state.sessions : [state.current_session]);
+    const sessions = state.sessions ?? [];
+    setSessions(sessions.length > 0 ? sessions : [state.current_session]);
     setSession(state.current_session);
     setHistory(state.history);
     void loadSessionContext(state.current_session);

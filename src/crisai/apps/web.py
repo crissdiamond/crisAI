@@ -1487,8 +1487,10 @@ def create_session(payload: SessionCreateRequest) -> dict[str, Any]:
 def get_session(session_name: str) -> dict[str, Any]:
     """Return one session history and identify it as current."""
     safe_name = sanitize_session_name(session_name)
+    names = _list_session_names()
     history = load_history(safe_name)
     return {
+        "sessions": names,
         "current_session": safe_name,
         "history": _serialize_history(history),
         "memory": _serialize_memory(safe_name),
