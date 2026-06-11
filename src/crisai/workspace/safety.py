@@ -131,9 +131,12 @@ def iter_visible_workspace_files(
         dirnames[:] = [
             dirname
             for dirname in dirnames
-            if not is_sensitive_workspace_path(current / dirname, root_resolved)
+            if not dirname.startswith(".")
+            and not is_sensitive_workspace_path(current / dirname, root_resolved)
         ]
         for filename in filenames:
+            if filename.startswith("."):
+                continue
             file_path = current / filename
             if is_sensitive_workspace_path(file_path, root_resolved):
                 continue

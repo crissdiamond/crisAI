@@ -37,7 +37,7 @@ textarea {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto;
   gap: 16px;
   padding: 24px;
   box-sizing: border-box;
@@ -571,6 +571,7 @@ pre {
   min-width: 0;
 }
 
+
 .workspace-upload input[type="file"] {
   box-sizing: border-box;
   width: 100%;
@@ -578,27 +579,37 @@ pre {
 
 .workspace-editor-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
   gap: 16px;
-  min-height: 360px;
+  min-height: 260px;
 }
 
 .workspace-files {
   display: grid;
   align-content: start;
   gap: 8px;
-  max-height: 520px;
+  max-height: 340px;
   overflow: auto;
 }
 
 .workspace-files button {
-  display: grid;
-  gap: 4px;
-  min-height: 0;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  min-height: 44px;
+  overflow: hidden;
   color: var(--color-text);
   background: var(--color-surface-pale);
   text-align: left;
+}
+
+.workspace-files button span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .workspace-files button:disabled {
@@ -610,7 +621,11 @@ pre {
 }
 
 .workspace-files small {
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  opacity: 0.75;
 }
 
 .workspace-editor {
@@ -625,7 +640,7 @@ pre {
 }
 
 .workspace-editor textarea {
-  min-height: 320px;
+  min-height: 220px;
   resize: vertical;
   font-family: "Aptos Mono", "Cascadia Mono", monospace;
 }

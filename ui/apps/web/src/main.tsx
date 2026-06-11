@@ -573,7 +573,7 @@ function WorkspaceBrowser({ session }: { session: string }) {
               onClick={() => void openFile(file.path)}
             >
               <span>{file.name}</span>
-              <small>{file.path}</small>
+              <small>{file.path.slice(0, file.path.lastIndexOf("/") + 1)}</small>
             </button>
           ))}
         </div>

@@ -16,6 +16,7 @@ from uuid import uuid4
 import typer
 import yaml
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -93,6 +94,12 @@ async def _lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="crisAI Web", lifespan=_lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
 _MAX_COMPLETED_JOBS = 20
 _MAX_WORKSPACE_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -122,6 +129,8 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
     When CRISAI_API_KEY is empty or unset the middleware is a no-op so that
     local single-user deployments require no configuration change.
     """
+    if request.method == "OPTIONS":
+        return await call_next(request)
     api_key = os.getenv("CRISAI_API_KEY", "").strip()
     if not api_key:
         return await call_next(request)
