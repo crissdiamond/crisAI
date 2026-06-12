@@ -192,6 +192,19 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
     return await call_next(request)
 
 
+def _cors_allowed_origins() -> list[str]:
+    """Return the CORS allowed origins for the web client.
+
+    Defaults to the local React dev origins. Set CRISAI_CORS_ORIGINS to a
+    comma-separated list to override for a deployment that serves the web client
+    from a different origin, keeping the origin allow-list out of source.
+    """
+    raw = os.getenv("CRISAI_CORS_ORIGINS", "").strip()
+    if not raw:
+        return ["http://127.0.0.1:5173", "http://localhost:5173"]
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
 # Register CORS last so it wraps the auth and rate-limit middleware as the
 # outermost layer. Starlette runs the most recently added middleware first, so
 # this answers preflight (OPTIONS) at the edge and keeps the 401/429 responses
@@ -199,7 +212,7 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
 # Access-Control-Allow-Origin header instead of failing as opaque CORS errors).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=_cors_allowed_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

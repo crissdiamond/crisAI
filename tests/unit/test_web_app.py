@@ -970,3 +970,22 @@ def test_workspace_file_rejects_normalized_sensitive_auth_path(tmp_path, monkeyp
         workspace_file("knowledge/../.auth/msal_token_info.json")
 
     assert exc_info.value.status_code == 403
+
+
+def test_cors_allowed_origins_defaults_to_local_dev(monkeypatch):
+    monkeypatch.delenv("CRISAI_CORS_ORIGINS", raising=False)
+    assert web_module._cors_allowed_origins() == [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ]
+
+
+def test_cors_allowed_origins_parses_env_override(monkeypatch):
+    monkeypatch.setenv(
+        "CRISAI_CORS_ORIGINS",
+        "https://crisai.example.com, https://arch.example.com ,",
+    )
+    assert web_module._cors_allowed_origins() == [
+        "https://crisai.example.com",
+        "https://arch.example.com",
+    ]
