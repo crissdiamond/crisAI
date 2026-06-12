@@ -57,7 +57,20 @@ function App() {
   const [run, setRun] = useState<UiRunState | null>(null);
   const [events, setEvents] = useState<UiEvent[]>([]);
   const [error, setError] = useState("");
+  const [apiKeyHint, setApiKeyHint] = useState(false);
   const [redirectInstruction, setRedirectInstruction] = useState("");
+
+  /** Sets the single error region from a failure and hints the API key field on auth errors. */
+  function reportError(reason: unknown) {
+    setError(humanizeError(reason));
+    setApiKeyHint(isAuthError(reason));
+  }
+
+  /** Clears the single error region before a new action. */
+  function clearError() {
+    setError("");
+    setApiKeyHint(false);
+  }
   const latestStatus = useMemo(() => events.at(-1)?.status ?? run?.status ?? "idle", [events, run]);
   const stages = useMemo(() => deriveStageSummaries(events, run?.expected_stages ?? []), [events, run]);
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
@@ -92,13 +105,13 @@ function App() {
 
   function saveApiKey(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
+    clearError();
     applyApiKey(apiKeyInput);
-    refreshSessions().catch((reason: unknown) => setError(String(reason)));
+    refreshSessions().catch(reportError);
   }
 
   useEffect(() => {
-    refreshSessions().catch((reason: unknown) => setError(String(reason)));
+    refreshSessions().catch(reportError);
   }, []);
 
   async function refreshSessions(preferredSession?: string) {
@@ -145,13 +158,13 @@ function App() {
   }
 
   async function selectSession(value: string) {
-    setError("");
+    clearError();
     await refreshSessions(value);
   }
 
   async function createSession() {
     if (!newSessionName.trim()) return;
-    setError("");
+    clearError();
     const state = await runtime.createSession(newSessionName);
     applySessionState(state);
     setNewSessionName("");
@@ -161,19 +174,25 @@ function App() {
   async function submitRun(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!message.trim()) return;
-    setError("");
+    clearError();
     setEvents([]);
     setRun(null);
     setRedirectInstruction("");
-    const started = await runtime.startRun({
-      message,
-      session,
-      mode,
-      verbose,
-      retrieval_checkpoint: retrievalCheckpoint,
-      agent: "auto",
-      review: false
-    });
+    let started: UiRunState;
+    try {
+      started = await runtime.startRun({
+        message,
+        session,
+        mode,
+        verbose,
+        retrieval_checkpoint: retrievalCheckpoint,
+        agent: "auto",
+        review: false
+      });
+    } catch (reason: unknown) {
+      reportError(reason);
+      return;
+    }
     setRun(started);
     setEvents(started.events);
     const source = runtime.subscribe(
@@ -186,9 +205,15 @@ function App() {
             .getRun(started.run_id)
             .then((state) => {
               setRun(state);
+              if (state.status === "failed") {
+                const detail = latestFinalContent(state, state.events).trim();
+                const shortReason = detail.length > 200 ? `${detail.slice(0, 197)}...` : detail;
+                setError(shortReason ? `This run failed. ${shortReason}` : "This run failed.");
+                setApiKeyHint(false);
+              }
               return refreshSessions(state.session);
             })
-            .catch((reason: unknown) => setError(String(reason)));
+            .catch(reportError);
         }
       },
       () => setError("Runtime event stream disconnected.")
@@ -213,10 +238,13 @@ function App() {
         </div>
         <div className="topbar-actions">
           <form className="api-key-form" onSubmit={saveApiKey}>
-            <label className="api-key-label">
+            <label className="api-key-label" htmlFor="api-key-input">
               <span className="api-key-caption">API key</span>
               <input
+                id="api-key-input"
                 type="password"
+                className={apiKeyHint ? "input-invalid" : undefined}
+                aria-invalid={apiKeyHint || undefined}
                 value={apiKeyInput}
                 onChange={(event) => setApiKeyInput(event.target.value)}
                 placeholder={apiKeyConfigured ? "configured" : "optional"}
@@ -228,7 +256,9 @@ function App() {
       </header>
 
       <form id="run-composer" className="composer" onSubmit={submitRun} tabIndex={-1}>
+        <label className="sr-only" htmlFor="run-message">Your request to crisAI</label>
         <textarea
+          id="run-message"
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           placeholder="Ask for a recommendation, summary, option paper, high-level design (HLD), or review..."
@@ -244,7 +274,9 @@ function App() {
           </label>
           {showNewSession ? (
             <div className="new-session-inline">
+              <label className="sr-only" htmlFor="new-session-name">New session name</label>
               <input
+                id="new-session-name"
                 value={newSessionName}
                 onChange={(event) => setNewSessionName(event.target.value)}
                 placeholder="task-name"
@@ -269,18 +301,28 @@ function App() {
               <option value="peer">Peer review</option>
             </select>
           </label>
-          <label className="toggle">
-            <input type="checkbox" checked={verbose} onChange={(event) => setVerbose(event.target.checked)} />
-            Show detailed steps
-          </label>
-          <label className="toggle">
+          <div className="toggle-switch">
             <input
               type="checkbox"
+              id="toggle-verbose"
+              className="toggle-input"
+              role="switch"
+              checked={verbose}
+              onChange={(event) => setVerbose(event.target.checked)}
+            />
+            <label htmlFor="toggle-verbose" className="toggle-label">Show detailed steps</label>
+          </div>
+          <div className="toggle-switch">
+            <input
+              type="checkbox"
+              id="toggle-retrieval-checkpoint"
+              className="toggle-input"
+              role="switch"
               checked={retrievalCheckpoint}
               onChange={(event) => setRetrievalCheckpoint(event.target.checked)}
             />
-            Pause to review sources
-          </label>
+            <label htmlFor="toggle-retrieval-checkpoint" className="toggle-label">Pause to review sources</label>
+          </div>
           <button type="submit" disabled={latestStatus === "running" || latestStatus === "checkpoint_waiting"}>
             Run
           </button>
@@ -317,7 +359,12 @@ function App() {
         </button>
       </nav>
 
-      {error ? <section className="alert">{error}</section> : null}
+      {error ? (
+        <div role="alert" className="alert alert-error">
+          {error}
+          {apiKeyHint ? <span className="alert-hint"> Enter it in the API key field above.</span> : null}
+        </div>
+      ) : null}
 
       <section className="run-area" aria-label="Run output">
         {hasRun ? (
@@ -454,7 +501,10 @@ function StageRail({ stages }: { stages: UiStageSummary[] }) {
       {stages.map((stage) => (
         <article key={stage.key} className={`stage stage-${stage.status}`}>
           <strong>{stage.label}</strong>
-          <span>{stage.status}</span>
+          <span className="stage-status">
+            <span className="stage-status-dot" aria-hidden="true" />
+            {stage.status}
+          </span>
           {stage.summary ? <small>{stage.summary}</small> : null}
         </article>
       ))}
@@ -538,7 +588,11 @@ function SessionContextBody({
     return <p className="context-status">Context will load with the session.</p>;
   }
   if (status === "error") {
-    return <p className="context-status context-error" role="alert">Context unavailable: {error}</p>;
+    return (
+      <p className="context-status context-error" role="status">
+        Context unavailable: {humanizeError(error)}
+      </p>
+    );
   }
   if (!context || status === "empty") {
     return <p className="context-status">No structured context has been captured for this session yet.</p>;
@@ -643,7 +697,7 @@ function WorkspaceBrowser({ session }: { session: string }) {
         setRootName(firstRoot);
         return loadTree(firstRoot);
       })
-      .catch((reason: unknown) => setStatus(String(reason)));
+      .catch((reason: unknown) => setStatus(humanizeError(reason)));
   }, []);
 
   async function loadTree(nextRoot = rootName) {
@@ -741,8 +795,9 @@ function WorkspaceBrowser({ session }: { session: string }) {
           ))}
         </div>
         <div className="workspace-editor">
-          <p>{selectedPath || "No file selected."}</p>
+          <p id="workspace-editor-path">{selectedPath || "No file selected."}</p>
           <textarea
+            aria-label={selectedPath ? `Edit ${selectedPath}` : "Workspace file editor"}
             value={content}
             onChange={(event) => setContent(event.target.value)}
             disabled={!selectedPath}
@@ -995,6 +1050,58 @@ function asStringList(value: unknown): string[] {
     return [value];
   }
   return [];
+}
+
+/**
+ * Maps a thrown failure to a single, human-readable sentence for the error region.
+ *
+ * Recognises the runtime client's `crisAI runtime request failed (NNN): {body}`
+ * envelope, fetch/network TypeErrors, and authentication failures, and otherwise
+ * cleans the raw message (dropping the status prefix and any JSON `detail` wrapper).
+ */
+function humanizeError(reason: unknown): string {
+  const raw =
+    reason instanceof Error ? reason.message : typeof reason === "string" ? reason : String(reason);
+
+  // Network / unreachable server: fetch rejects with a TypeError ("Failed to fetch").
+  if (
+    (reason instanceof TypeError && /fetch/i.test(raw)) ||
+    /failed to fetch|networkerror|load failed/i.test(raw)
+  ) {
+    return "Can't reach the crisAI server. Is it running?";
+  }
+
+  // Authentication: the runtime returns 401 with {"detail":"Unauthorized"}.
+  if (/\(401\)/.test(raw) || /unauthorized/i.test(raw)) {
+    return "Add or check your API key to use crisAI.";
+  }
+
+  return cleanRuntimeMessage(raw);
+}
+
+/** Strips the runtime status prefix and JSON wrapper, leaving readable text. */
+function cleanRuntimeMessage(raw: string): string {
+  let message = raw.replace(/^crisAI runtime request failed \(\d+\):\s*/i, "").trim();
+  // Unwrap a JSON error body such as {"detail":"..."} down to its message.
+  if (message.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(message) as Record<string, unknown>;
+      const detail = parsed.detail ?? parsed.message ?? parsed.error;
+      if (typeof detail === "string" && detail.trim()) {
+        message = detail.trim();
+      }
+    } catch {
+      // Leave the raw body in place if it is not valid JSON.
+    }
+  }
+  return message || "Something went wrong. Please try again.";
+}
+
+/** True when the failure points at a missing or invalid API key. */
+function isAuthError(reason: unknown): boolean {
+  const raw =
+    reason instanceof Error ? reason.message : typeof reason === "string" ? reason : String(reason);
+  return /\(401\)/.test(raw) || /unauthorized/i.test(raw);
 }
 
 function humanizeLabel(value: string): string {

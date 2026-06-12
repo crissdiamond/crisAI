@@ -81,6 +81,18 @@ textarea {
   box-sizing: border-box;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .skip-link {
   position: absolute;
   top: var(--space-1);
@@ -240,11 +252,95 @@ h2 {
   gap: var(--space-1);
 }
 
-.toggle {
+/* UCL Toggle: input is visually hidden but focusable; label::before is the
+   track and ::after is the thumb. Keyboard-accessible via the native checkbox. */
+.toggle-switch {
   display: flex;
-  grid-template-columns: auto 1fr;
   align-items: center;
   min-height: 44px;
+}
+
+.toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.toggle-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: calc(var(--space-6) + var(--space-1));
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Track */
+.toggle-label::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--space-6);
+  height: var(--space-4);
+  border-radius: var(--space-3);
+  background: var(--color-surface-light);
+  transition: background 120ms ease-in-out;
+}
+
+/* Thumb */
+.toggle-label::after {
+  content: "";
+  position: absolute;
+  left: var(--space-1);
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: 50%;
+  background: var(--color-bg);
+  transition: left 120ms ease-in-out;
+}
+
+.toggle-input:checked + .toggle-label::before {
+  background: var(--color-primary-dark);
+}
+
+.toggle-input:checked + .toggle-label::after {
+  left: calc(var(--space-6) - var(--space-3) - var(--space-1));
+}
+
+.toggle-input:focus-visible + .toggle-label::before {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle-label::before,
+  .toggle-label::after {
+    transition: none;
+  }
+}
+
+/* Card: rounded --radius-md panel with --color-border on --color-bg. */
+.section-card {
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  padding: var(--space-3);
 }
 
 button {
@@ -411,24 +507,46 @@ button:disabled {
   border-bottom: 1px solid var(--color-surface-pale);
 }
 
+.stage strong {
+  color: var(--color-text);
+}
+
 .stage small {
   color: var(--color-primary-dark);
 }
 
-.stage-running strong {
-  color: var(--color-accent-bright);
+/* Status label text stays high-contrast (>=4.5:1); the dot carries the colour. */
+.stage-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-primary-dark);
+  font-size: var(--font-size-label);
+  font-weight: 600;
 }
 
-.stage-complete strong {
-  color: var(--color-success);
+.stage-status-dot {
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: 50%;
+  background: var(--color-border);
+  flex-shrink: 0;
 }
 
-.stage-skipped strong {
-  color: var(--color-warning);
+.stage-running .stage-status-dot {
+  background: var(--color-accent-bright);
 }
 
-.stage-failed strong {
-  color: var(--color-error);
+.stage-complete .stage-status-dot {
+  background: var(--color-success);
+}
+
+.stage-skipped .stage-status-dot {
+  background: var(--color-warning);
+}
+
+.stage-failed .stage-status-dot {
+  background: var(--color-error);
 }
 
 .event-card {
@@ -830,9 +948,38 @@ pre {
   justify-self: start;
 }
 
+/* Alert: base card look comes from the shared selector above; variants set the
+   accent border and a high-contrast text colour (>=4.5:1 on --color-bg). */
 .alert {
+  border-left: var(--space-1) solid var(--color-border);
+  color: var(--color-text);
+}
+
+.alert-info {
+  border-left-color: var(--color-info);
+}
+
+.alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.alert-success {
+  border-left-color: var(--color-success);
+}
+
+.alert-error {
   border-color: var(--color-error);
+  border-left-color: var(--color-error);
   color: var(--color-error);
+}
+
+.alert-hint {
+  font-weight: 600;
+}
+
+.input-invalid {
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-sm);
 }
 
 @media (max-width: 760px) {
