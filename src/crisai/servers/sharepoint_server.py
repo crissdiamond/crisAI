@@ -83,12 +83,18 @@ ms_graph.configure_workspace(ROOT, namespace="sharepoint")
 ms_graph.set_telemetry_hook(log_event)
 
 
+# Read tools must never trigger an interactive login. Without silent_only the
+# Graph helper falls back to a device-code flow that blocks until the user
+# completes it manually, so an unauthenticated call hangs until the MCP client
+# timeout fires (240s) and crashes the whole agent run. silent_only=True instead
+# raises immediately with a "call login_sharepoint" hint the agent can act on.
+# Interactive login stays confined to the explicit login_sharepoint tool.
 def _graph_get(path: str, params: dict[str, Any] | None = None, timeout: int = 60) -> dict[str, Any]:
-    return ms_graph.graph_get(path, params=params, timeout=timeout)
+    return ms_graph.graph_get(path, params=params, timeout=timeout, silent_only=True)
 
 
 def _graph_get_bytes(url: str) -> bytes:
-    return ms_graph.graph_get_bytes(url)
+    return ms_graph.graph_get_bytes(url, silent_only=True)
 
 
 def _detect_text_encoding(data: bytes) -> str:
