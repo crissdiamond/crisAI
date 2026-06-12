@@ -5,6 +5,7 @@ import {
 } from "@crisai/contracts";
 import { runtime } from "../lib/runtime.js";
 import { fileToBase64, humanizeError } from "../lib/format.js";
+import { getEditorForPath } from "./editors/registry.js";
 
 export function WorkspaceBrowser({ session }: { session: string }) {
   const [roots, setRoots] = useState<Record<string, string>>({});
@@ -70,6 +71,8 @@ export function WorkspaceBrowser({ session }: { session: string }) {
 
   const visibleFiles = files.filter((file) => file.path.toLowerCase().includes(filter.toLowerCase()));
 
+  const Editor = getEditorForPath(selectedPath);
+
   return (
     <section className="workspace-browser" aria-label="Workspace browser">
       <header>
@@ -124,12 +127,11 @@ export function WorkspaceBrowser({ session }: { session: string }) {
         </div>
         <div className="workspace-editor">
           <p id="workspace-editor-path">{selectedPath || "No file selected."}</p>
-          <textarea
-            aria-label={selectedPath ? `Edit ${selectedPath}` : "Workspace file editor"}
+          <Editor
             value={content}
-            onChange={(event) => setContent(event.target.value)}
-            disabled={!selectedPath}
-            spellCheck={false}
+            onChange={setContent}
+            path={selectedPath}
+            readOnly={!selectedPath}
           />
           <button type="button" disabled={!selectedPath} onClick={() => void saveFile()}>Save</button>
         </div>
