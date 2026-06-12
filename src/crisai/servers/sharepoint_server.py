@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import csv
+import hashlib
 import io
 import json
 import sys
@@ -35,31 +36,56 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".json", ".yaml", ".yml", ".py", ".log", ".csv"}
 SUPPORTED_DOC_SUFFIXES = {".docx", ".pdf", ".pptx", ".xlsx"}
 _READ_HANDLE_PREFIX = "sharepoint_doc:"
+_REF_PREFIX = "spdoc-"
+
+# Maps a short reference (spdoc-XXXXXXXX) to the real (drive_id, item_id). A
+# Graph drive id is ~66 chars of opaque base64 that the model regularly corrupts
+# when it transcribes it across the search->read handover (the recurring "404 on
+# a malformed drive id" failure). Every search/list result instead carries a
+# short, stable, copy-safe ref the server resolves here, so the model never has
+# to copy a long id.
+_REF_REGISTRY: dict[str, tuple[str, str]] = {}
+
+
+def _mint_ref(drive_id: str, item_id: str) -> str:
+    """Return a short, stable read reference for a drive/item pair and register it."""
+    digest = hashlib.sha1(f"{drive_id}:{item_id}".encode()).hexdigest()[:8]
+    ref = f"{_REF_PREFIX}{digest}"
+    _REF_REGISTRY[ref] = (drive_id, item_id)
+    return ref
 
 
 def _encode_read_handle(drive_id: str, item_id: str) -> str:
-    """Encode a SharePoint drive/item pair as an opaque read handle."""
-    payload = {"drive_id": drive_id, "item_id": item_id}
-    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    token = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
-    return f"{_READ_HANDLE_PREFIX}{token}"
+    """Encode a SharePoint drive/item pair as a short, copy-safe read handle."""
+    return _mint_ref(drive_id, item_id)
 
 
 def _decode_read_handle(read_handle: str) -> tuple[str, str]:
-    """Decode a SharePoint document read handle."""
-    if not read_handle.startswith(_READ_HANDLE_PREFIX):
-        raise ValueError("read_handle must start with 'sharepoint_doc:'.")
-    token = read_handle[len(_READ_HANDLE_PREFIX) :]
-    try:
-        padded = token + ("=" * (-len(token) % 4))
-        payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
-    except (ValueError, json.JSONDecodeError) as exc:
-        raise ValueError("Malformed SharePoint read_handle.") from exc
-    drive_id = str(payload.get("drive_id") or "")
-    item_id = str(payload.get("item_id") or "")
-    if not drive_id or not item_id:
-        raise ValueError("SharePoint read_handle is missing drive_id or item_id.")
-    return drive_id, item_id
+    """Resolve a SharePoint read handle to its (drive_id, item_id).
+
+    The primary form is a short server-minted ref; a legacy base64 handle is
+    still accepted so older references keep working.
+    """
+    handle = (read_handle or "").strip()
+    if handle in _REF_REGISTRY:
+        return _REF_REGISTRY[handle]
+    if handle.startswith(_REF_PREFIX):
+        raise ValueError(
+            f"Unknown SharePoint reference {handle!r}. Re-run the search or list to get current references."
+        )
+    if handle.startswith(_READ_HANDLE_PREFIX):
+        token = handle[len(_READ_HANDLE_PREFIX) :]
+        try:
+            padded = token + ("=" * (-len(token) % 4))
+            payload = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise ValueError("Malformed SharePoint read_handle.") from exc
+        drive_id = str(payload.get("drive_id") or "")
+        item_id = str(payload.get("item_id") or "")
+        if not drive_id or not item_id:
+            raise ValueError("SharePoint read_handle is missing drive_id or item_id.")
+        return drive_id, item_id
+    raise ValueError("read_handle must be a SharePoint reference from a search or list result.")
 
 
 def _configure_mcp_logging() -> None:
@@ -336,9 +362,14 @@ def _my_drive_id() -> str:
 
 def _resolve_drive_id(drive_id: str) -> str:
     """Map an empty or placeholder drive id to the user's primary OneDrive."""
-    if drive_id and drive_id.strip().lower() not in _PERSONAL_DRIVE_ALIASES:
-        return drive_id
-    return _my_drive_id()
+    candidate = (drive_id or "").strip()
+    looks_placeholder = (
+        not candidate
+        or candidate.lower() in _PERSONAL_DRIVE_ALIASES
+        # Any __SOMETHING__ token the model invents (e.g. __TODO__, __drive_id__).
+        or (candidate.startswith("__") and candidate.endswith("__"))
+    )
+    return _my_drive_id() if looks_placeholder else candidate
 
 
 @mcp.tool()
@@ -434,7 +465,8 @@ def search_sharepoint_site_documents(
     return aggregated
 
 
-@mcp.tool()
+# Internal: not exposed as a tool. Reads go through the by-handle tools, which
+# resolve a short ref to the real ids, so the model never passes a raw drive id.
 def get_sharepoint_document_metadata(drive_id: str, item_id: str) -> dict[str, Any]:
     """Return metadata for a SharePoint drive item."""
     log_event(f"get_sharepoint_document_metadata drive_id={drive_id} item_id={item_id}")
@@ -450,7 +482,8 @@ def get_sharepoint_document_metadata_by_handle(read_handle: str) -> dict[str, An
     return get_sharepoint_document_metadata(drive_id=drive_id, item_id=item_id)
 
 
-@mcp.tool()
+# Internal helper (see get_sharepoint_document_metadata): reached via the
+# by-handle read tool only, never with a model-supplied raw drive id.
 def read_sharepoint_document(drive_id: str, item_id: str) -> str:
     """Download and extract text from a supported SharePoint document."""
     log_event(f"read_sharepoint_document drive_id={drive_id} item_id={item_id}")
@@ -469,7 +502,8 @@ def read_sharepoint_document(drive_id: str, item_id: str) -> str:
     return extracted if extracted.strip() else f"[No readable text extracted from {name}]"
 
 
-@mcp.tool()
+# Internal helper (see get_sharepoint_document_metadata): reached via the
+# by-handle inspect tool only, never with a model-supplied raw drive id.
 def inspect_sharepoint_powerpoint(drive_id: str, item_id: str) -> dict[str, Any]:
     """Download a SharePoint PowerPoint and return structured slide extraction data."""
     log_event(f"inspect_sharepoint_powerpoint drive_id={drive_id} item_id={item_id}")

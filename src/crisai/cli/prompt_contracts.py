@@ -22,5 +22,5 @@ RETRIEVAL_EVIDENCE_POLICY_CONTRACT = load_schema_text("retrieval_evidence_policy
 
 PROMPT_CONTRACT_TOOL_REFERENCES: dict[str, frozenset[str]] = {
     "documents": frozenset({"inspect_powerpoint_document"}),
-    "sharepoint_docs": frozenset({"inspect_sharepoint_powerpoint", "inspect_sharepoint_powerpoint_by_handle"}),
+    "sharepoint_docs": frozenset({"inspect_sharepoint_powerpoint_by_handle"}),
 }
