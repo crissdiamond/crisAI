@@ -17,6 +17,17 @@ test("inline markdown parses links into a clickable link token", () => {
   assert.equal(link.type === "link" && link.href, "https://example.com/a.pptx");
 });
 
+test("a bold-wrapped link re-parses into a clickable link", () => {
+  // The renderer parses inside bold; this asserts the parser path it relies on.
+  const tokens = parseInlineMarkdown("**[deck](https://example.com/a.pptx)**");
+  const strong = tokens.find((token) => token.type === "strong");
+  assert.ok(strong, "expected a strong token wrapping the link");
+  const inner = parseInlineMarkdown(strong.type === "strong" ? strong.value : "");
+  const link = inner.find((token) => token.type === "link");
+  assert.ok(link, "bold content should re-parse into a link token");
+  assert.equal(link.type === "link" && link.href, "https://example.com/a.pptx");
+});
+
 test("inline markdown still parses bold and code alongside text", () => {
   const tokens = parseInlineMarkdown("**Bold** and `code` and plain");
   assert.deepEqual(
