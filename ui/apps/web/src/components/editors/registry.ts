@@ -1,5 +1,6 @@
 import React from "react";
 import { CodeEditor } from "./CodeEditor.js";
+import { MarkdownEditor } from "./MarkdownEditor.js";
 import { RawTextarea } from "./RawTextarea.js";
 import type { EditorComponent, EditorProps } from "./types.js";
 
@@ -14,9 +15,6 @@ const PythonEditor: EditorComponent = (props: EditorProps) =>
   React.createElement(CodeEditor, { ...props, language: "python" });
 const PlainEditor: EditorComponent = (props: EditorProps) =>
   React.createElement(CodeEditor, { ...props, language: "plain" });
-// Phase 3 will swap this Markdown entry for a tabbed WYSIWYG MarkdownEditor.
-const MarkdownEditor: EditorComponent = (props: EditorProps) =>
-  React.createElement(CodeEditor, { ...props, language: "markdown" });
 
 function suffixOf(path: string): string {
   const lower = path.toLowerCase();

@@ -1009,6 +1009,46 @@ pre {
   justify-self: start;
 }
 
+/* Markdown WYSIWYG editor (Toast UI) host plus its collapsible front-matter
+   section. Token-only sizing so it sits in the same workspace-editor footprint
+   as the textarea/CodeMirror editors. */
+.markdown-editor {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.markdown-frontmatter {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+}
+
+.markdown-frontmatter-summary {
+  cursor: pointer;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.markdown-frontmatter-summary:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.markdown-frontmatter-body {
+  margin-top: var(--space-1);
+}
+
+.markdown-toastui-host {
+  min-height: 220px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.markdown-toastui-host .toastui-editor-defaultUI {
+  border-radius: var(--radius-md);
+}
+
 /* Alert: base card look comes from the shared selector above; variants set the
    accent border and a high-contrast text colour (>=4.5:1 on --color-bg). */
 .alert {
