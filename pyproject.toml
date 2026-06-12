@@ -29,6 +29,8 @@ dependencies = [
   "requests>=2.31.0,<3",
   "defusedxml>=0.7.1,<1",
   "starlette>=1.0.1",
+  "pypdfium2>=4.30,<5",
+  "pillow>=10.0,<13",
 ]
 
 [project.optional-dependencies]

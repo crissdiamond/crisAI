@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import math
+import os
 import re
 import sys
 from collections import Counter
@@ -21,6 +22,7 @@ from pypdf import PdfReader
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
 from crisai.powerpoint import extract_powerpoint_from_path
+from crisai.vision import describe_image_blob, render_pdf_pages_png, vision_model
 from crisai.workspace.safety import (
     is_sensitive_workspace_path,
     iter_visible_workspace_files,
@@ -55,6 +57,13 @@ CONTEXT_AUTHORITY_WEIGHTS = {
     "reference": 1.00,
     "notes": 0.90,
 }
+_DEFAULT_PDF_VISION_MAX_PAGES = 12
+_PDF_VISION_PROMPT = (
+    "You are reading one page of a scanned or image-only document. Transcribe all "
+    "readable text verbatim, preserving headings, lists, and table structure, and "
+    "briefly describe any diagrams, charts, or figures and their labels. Output only "
+    "the page content with no preamble."
+)
 TOKEN_PATTERN = re.compile(r"[a-zA-Z][a-zA-Z0-9_-]{1,}")
 STOP_WORDS = {
     "about",
@@ -138,15 +147,83 @@ def _read_docx(file_path: Path) -> str:
     return "\n\n".join(paragraphs)
 
 
-def _read_pdf(file_path: Path) -> str:
-    reader = PdfReader(str(file_path))
-    pages = []
-    for i, page in enumerate(reader.pages, start=1):
-        text = page.extract_text() or ""
-        text = text.strip()
+def _pdf_vision_max_pages() -> int:
+    """Return the per-PDF cap on image-only pages read via the vision model."""
+    raw = os.getenv("CRISAI_PDF_VISION_MAX_PAGES", "").strip()
+    if not raw:
+        return _DEFAULT_PDF_VISION_MAX_PAGES
+    try:
+        value = int(raw)
+    except ValueError:
+        return _DEFAULT_PDF_VISION_MAX_PAGES
+    return max(0, value)
+
+
+def _vision_describe_pdf_pages(file_path: Path, page_indices: list[int]) -> dict[int, str]:
+    """Render the given 0-based PDF pages and describe each with the vision model.
+
+    Failures for a single page are logged and skipped so one bad page does not
+    abort the whole read.
+    """
+    descriptions: dict[int, str] = {}
+    try:
+        rendered = render_pdf_pages_png(file_path.read_bytes(), page_indices)
+    except Exception as exc:  # noqa: BLE001 - rasterisation failure is reported, not fatal
+        log_event(f"pdf_vision_render_failed path={file_path.name} error={type(exc).__name__}")
+        return descriptions
+    for index in page_indices:
+        png = rendered.get(index)
+        if png is None:
+            continue
+        try:
+            text = describe_image_blob(png, "image/png", _PDF_VISION_PROMPT).strip()
+        except Exception as exc:  # noqa: BLE001 - per-page vision failure is non-fatal
+            log_event(f"pdf_vision_page_failed path={file_path.name} page={index + 1} error={type(exc).__name__}")
+            continue
+        log_event(
+            f"pdf_vision_page path={file_path.name} page={index + 1} "
+            f"chars={len(text)} model={vision_model()}"
+        )
         if text:
-            pages.append(f"[Page {i}]\n{text}")
-    return "\n\n".join(pages)
+            descriptions[index] = text
+    return descriptions
+
+
+def _read_pdf(file_path: Path) -> str:
+    """Read a PDF as text, falling back to the vision model for image-only pages.
+
+    Pages with an extractable text layer are read with pypdf. Pages with no text
+    layer (scanned or exported-as-image PDFs) are rasterised and described with
+    the vision model, bounded by CRISAI_PDF_VISION_MAX_PAGES.
+    """
+    reader = PdfReader(str(file_path))
+    page_texts = [(page.extract_text() or "").strip() for page in reader.pages]
+    image_only = [index for index, text in enumerate(page_texts) if not text]
+
+    max_pages = _pdf_vision_max_pages()
+    described: dict[int, str] = {}
+    if image_only and max_pages > 0:
+        described = _vision_describe_pdf_pages(file_path, image_only[:max_pages])
+
+    sections: list[str] = []
+    for index, text in enumerate(page_texts):
+        if text:
+            sections.append(f"[Page {index + 1}]\n{text}")
+        elif index in described:
+            sections.append(f"[Page {index + 1} (vision)]\n{described[index]}")
+
+    unread = len(image_only) - len(described)
+    if image_only and max_pages == 0:
+        sections.append(
+            f"[Note] This PDF has {len(image_only)} image-only page(s) with no text layer. "
+            "Set CRISAI_PDF_VISION_MAX_PAGES greater than 0 to read them with the vision model."
+        )
+    elif unread > 0:
+        sections.append(
+            f"[Note] {unread} image-only page(s) were not read because the vision page cap "
+            f"(CRISAI_PDF_VISION_MAX_PAGES={max_pages}) was reached. Raise it to include them."
+        )
+    return "\n\n".join(sections)
 
 
 def _read_pptx(file_path: Path) -> str:

@@ -8,6 +8,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from PIL import Image
 from pptx import Presentation
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -298,3 +299,75 @@ def test_search_context_chunks_filters_stale_sensitive_index_entries(
     results = document_server.search_context_chunks("needle guidance", rebuild=False, context_subdir=".")
 
     assert [result["path"] for result in results] == ["knowledge/public.md"]
+
+
+def _write_image_only_pdf(path: Path, pages: int = 1) -> None:
+    """Write a PDF whose pages are raster images with no text layer."""
+    images = [Image.new("RGB", (320, 200), "white") for _ in range(pages)]
+    images[0].save(path, "PDF", save_all=True, append_images=images[1:])
+
+
+def test_image_only_pdf_has_no_text_layer(tmp_path: Path) -> None:
+    """Sanity: the generated fixture really has no extractable text."""
+    from pypdf import PdfReader
+
+    pdf_path = tmp_path / "scan.pdf"
+    _write_image_only_pdf(pdf_path)
+    reader = PdfReader(str(pdf_path))
+    assert all(not (page.extract_text() or "").strip() for page in reader.pages)
+
+
+def test_read_pdf_uses_vision_for_image_only_pages(
+    document_server: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("CRISAI_PDF_VISION_MAX_PAGES", raising=False)
+    monkeypatch.setattr(document_server, "describe_image_blob", lambda blob, ct, prompt: "RECOVERED PAGE TEXT")
+
+    pdf_path = tmp_path / "scan.pdf"
+    _write_image_only_pdf(pdf_path)
+
+    result = document_server._read_pdf(pdf_path)
+
+    assert "[Page 1 (vision)]" in result
+    assert "RECOVERED PAGE TEXT" in result
+
+
+def test_read_pdf_vision_disabled_returns_note(
+    document_server: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRISAI_PDF_VISION_MAX_PAGES", "0")
+
+    def _must_not_call(*_a: object, **_kw: object) -> str:
+        raise AssertionError("vision model must not be called when the cap is 0")
+
+    monkeypatch.setattr(document_server, "describe_image_blob", _must_not_call)
+
+    pdf_path = tmp_path / "scan.pdf"
+    _write_image_only_pdf(pdf_path)
+
+    result = document_server._read_pdf(pdf_path)
+
+    assert "image-only page(s) with no text layer" in result
+    assert "CRISAI_PDF_VISION_MAX_PAGES" in result
+
+
+def test_read_pdf_respects_page_cap(
+    document_server: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRISAI_PDF_VISION_MAX_PAGES", "1")
+    calls: list[int] = []
+
+    def _describe(blob: bytes, ct: str, prompt: str) -> str:
+        calls.append(1)
+        return "PAGE TEXT"
+
+    monkeypatch.setattr(document_server, "describe_image_blob", _describe)
+
+    pdf_path = tmp_path / "scan.pdf"
+    _write_image_only_pdf(pdf_path, pages=3)
+
+    result = document_server._read_pdf(pdf_path)
+
+    assert len(calls) == 1  # only one page described, cap respected
+    assert "[Page 1 (vision)]" in result
+    assert "vision page cap" in result
