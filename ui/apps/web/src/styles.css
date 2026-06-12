@@ -75,7 +75,8 @@ textarea {
   max-width: 1120px;
   margin-inline: auto;
   display: grid;
-  grid-template-rows: auto;
+  grid-auto-rows: auto;
+  align-content: start;
   gap: var(--space-3);
   padding: var(--space-4);
   box-sizing: border-box;
