@@ -23,7 +23,6 @@ from crisai import logging_utils as logging_utils_module
 from crisai import registry as registry_module
 from crisai import registry_validation as validation_module
 from crisai import tracing as tracing_module
-from crisai.orchestration import usage_cost as usage_cost_module
 from crisai.cli import chat_context as chat_context_module
 from crisai.cli import display as display_module
 from crisai.cli import pipelines as pipelines_module
@@ -34,6 +33,7 @@ from crisai.orchestration import request_contract as request_contract_module
 from crisai.orchestration import retrieval_checkpoint as retrieval_checkpoint_module
 from crisai.orchestration import router as router_module
 from crisai.orchestration import semantic_catalog as catalog_module
+from crisai.orchestration import usage_cost as usage_cost_module
 from crisai.workspace import artefact_validation as artefact_validation_module
 from crisai.workspace import spaces as spaces_module
 
