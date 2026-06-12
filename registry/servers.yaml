@@ -199,6 +199,7 @@ servers:
         - list_my_drives
         - list_site_drives
         - list_drive_items
+        - search_my_onedrive
         - search_drive_documents
         - search_site_drive_documents
         - search_sharepoint_site_documents
