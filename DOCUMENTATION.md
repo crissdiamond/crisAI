@@ -45,7 +45,7 @@ crisAI has five main moving parts:
 
 ### 2.1 App surfaces
 - **CLI**: interactive shell where you type slash commands and prompts.
-- **Web**: browser interface with session history and progressive workflow tabs.
+- **Web**: a task-first browser interface — the default view leads with the run composer and streamed run output, and reveals workspace, session history, and session memory as on-demand panels rather than showing everything at once.
 
 ### 2.2 Agents
 Specialist reasoning roles such as:
