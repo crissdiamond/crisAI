@@ -1191,7 +1191,7 @@ test("manual stage pin blocks active-stage panel switching", () => {
   assert.deepEqual(panelLines, ["Pinned retrieval output"]);
 });
 
-test("stage streaming content accumulates incremental live deltas for the active stage", () => {
+test("stage streaming content shows the latest cumulative delta for the active stage", () => {
   const events = [
     uiEvent({ event_type: "stage_started", agent_id: "retrieval", stage: "retrieval" }),
     uiEvent({
@@ -1206,7 +1206,7 @@ test("stage streaming content accumulates incremental live deltas for the active
       timestamp: "2026-05-17T12:00:02Z",
       agent_id: "retrieval",
       stage: "retrieval",
-      content: " sources"
+      content: "Finding sources"
     }),
     uiEvent({ event_type: "stage_started", timestamp: "2026-05-17T12:00:03Z", agent_id: "summary", stage: "summary" }),
     uiEvent({
@@ -1244,28 +1244,31 @@ test("stage streaming content handles cumulative snapshots and stops after termi
   assert.equal(stageStreamingContent([...events, uiEvent({ event_type: "run_completed" })]), "");
 });
 
-test("stage streaming content preserves word boundaries for whitespace-free incremental chunks", () => {
+test("stage streaming content does not duplicate when a cumulative snapshot ends mid-word", () => {
+  // Regression: the runtime coalesces cumulative snapshots at ~80-char
+  // boundaries, which can split a word. The panel must show the latest
+  // snapshot, not append it to the previous one.
   const events = [
     uiEvent({
       event_type: "stage_delta",
       timestamp: "2026-05-17T12:00:01Z",
       agent_id: "summary",
       stage: "summary",
-      content: "Drafting"
+      content: "Drafting a respon"
     }),
     uiEvent({
       event_type: "stage_delta",
       timestamp: "2026-05-17T12:00:02Z",
       agent_id: "summary",
       stage: "summary",
-      content: "a plan"
+      content: "Drafting a response plan"
     })
   ];
 
-  assert.equal(stageStreamingContent(events), "Drafting a plan");
+  assert.equal(stageStreamingContent(events), "Drafting a response plan");
 });
 
-test("stage streaming content does not treat shared-prefix chunks as cumulative snapshots", () => {
+test("stage streaming content replaces with the latest snapshot even when it shares a prefix", () => {
   const events = [
     uiEvent({
       event_type: "stage_delta",
@@ -1283,7 +1286,7 @@ test("stage streaming content does not treat shared-prefix chunks as cumulative 
     })
   ];
 
-  assert.equal(stageStreamingContent(events), "The Therefore we conclude");
+  assert.equal(stageStreamingContent(events), "Therefore we conclude");
 });
 
 test("stage streaming content handles stage start resets and start-only events", () => {
@@ -1394,7 +1397,7 @@ test("stage streaming content remains bounded at narrow and normal terminal widt
       timestamp: "2026-05-17T12:00:02Z",
       agent_id: "summary",
       stage: "summary",
-      content: " It continues with another chunk that should stay inside the scrollable transcript region."
+      content: "Drafting a long streamed response with enough words to require wrapping inside the Gem output pane. It continues with another chunk that should stay inside the scrollable transcript region."
     })
   ];
 
