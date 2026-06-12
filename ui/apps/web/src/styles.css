@@ -992,7 +992,11 @@ pre {
 }
 
 .workspace-files .selected-file {
+  /* Inset the outline (negative offset) so it draws inside the button box.
+     A default outline sits outside the box and is clipped left/right by the
+     `overflow: auto` file list, leaving only the top/bottom edges visible. */
   outline: 2px solid var(--color-accent-bright);
+  outline-offset: -2px;
 }
 
 .workspace-files small {
