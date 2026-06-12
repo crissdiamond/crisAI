@@ -6,8 +6,16 @@ import {
 } from "@crisai/contracts";
 import { humanizeLabel } from "../runDisplay.js";
 import { asStringList, formatRecallScore, humanizeError } from "../lib/format.js";
+import { MarkdownContent } from "./markdown.js";
 
 type SessionContextStatus = "idle" | "loading" | "ready" | "empty" | "error";
+
+/** Friendly speaker label for a chat history role. */
+function historyRoleLabel(role: string): string {
+  if (role === "assistant") return "crisAI";
+  if (role === "user") return "You";
+  return humanizeLabel(role, "Message");
+}
 
 export function HistoryPanel({
   history,
@@ -59,12 +67,24 @@ export function HistoryPanel({
         </section>
       ) : null}
       {recentHistory.length === 0 ? <p>No session history yet.</p> : null}
-      {recentHistory.map((entry, index) => (
-        <article key={`${entry.role}-${index}`} className="history-entry">
-          <strong>{entry.role}</strong>
-          <p>{entry.content}</p>
-        </article>
-      ))}
+      {recentHistory.map((entry, index) => {
+        const isAssistant = entry.role === "assistant";
+        return (
+          <article
+            key={`${entry.role}-${index}`}
+            className={`history-entry history-entry--${isAssistant ? "assistant" : "user"}`}
+          >
+            <strong className="history-role">{historyRoleLabel(entry.role)}</strong>
+            {isAssistant ? (
+              // Assistant turns are agent-authored Markdown — render them the
+              // same way as the final answer instead of dumping raw syntax.
+              <MarkdownContent content={entry.content} />
+            ) : (
+              <p className="history-user-text">{entry.content}</p>
+            )}
+          </article>
+        );
+      })}
     </aside>
   );
 }
