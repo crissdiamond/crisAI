@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import base64
-import os
 import sys
 from pathlib import Path
 from typing import Any
 
-import openai
 from mcp.server.fastmcp import FastMCP
 
 from crisai.config import load_settings
 from crisai.logging_utils import append_json_log_line, configure_mcp_framework_logging
 from crisai.powerpoint import extract_slide_images
+from crisai.vision import describe_image_blob
 from crisai.workspace.safety import resolve_workspace_path
 
 mcp = FastMCP("crisai-vision")
@@ -22,9 +20,7 @@ ROOT.mkdir(parents=True, exist_ok=True)
 LOG_FILE = load_settings().log_dir / "vision_mcp.log"
 
 SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
-_DEFAULT_VISION_MODEL = "gpt-4o-mini"
 _DEFAULT_PROMPT = "Describe this image concisely."
-_MAX_TOKENS = 500
 
 _SUFFIX_TO_CONTENT_TYPE: dict[str, str] = {
     ".png": "image/png",
@@ -56,28 +52,6 @@ def _safe_path(relative_path: str) -> Path:
     return resolve_workspace_path(ROOT, relative_path)
 
 
-def _describe_image_blob(blob: bytes, content_type: str, prompt: str) -> str:
-    """Call the vision model with a base64-encoded image and return its description."""
-    b64 = base64.b64encode(blob).decode("ascii")
-    data_url = f"data:{content_type};base64,{b64}"
-    model = os.getenv("CRISAI_VISION_MODEL", _DEFAULT_VISION_MODEL)
-    client = openai.OpenAI()
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ],
-        max_tokens=_MAX_TOKENS,
-    )
-    return response.choices[0].message.content or ""
-
-
 @mcp.tool()
 def describe_image(path: str, prompt: str = "") -> str:
     """Describe a standalone image file in the workspace using a vision model."""
@@ -93,7 +67,7 @@ def describe_image(path: str, prompt: str = "") -> str:
         )
     blob = file_path.read_bytes()
     content_type = _SUFFIX_TO_CONTENT_TYPE[suffix]
-    return _describe_image_blob(blob, content_type, prompt or _DEFAULT_PROMPT)
+    return describe_image_blob(blob, content_type, prompt or _DEFAULT_PROMPT)
 
 
 @mcp.tool()
@@ -129,7 +103,7 @@ def describe_powerpoint_slide_images(
     effective_prompt = prompt or _DEFAULT_PROMPT
     results: list[dict[str, Any]] = []
     for img in images:
-        description = _describe_image_blob(
+        description = describe_image_blob(
             img["blob"],  # type: ignore[arg-type]
             img["content_type"],  # type: ignore[arg-type]
             effective_prompt,

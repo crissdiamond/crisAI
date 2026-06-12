@@ -56,7 +56,7 @@ def _pptx_bytes_no_images() -> bytes:
 def test_describe_image_returns_description(tmp_path, monkeypatch):
     mod = _load_image_server(tmp_path, monkeypatch)
     (tmp_path / "photo.png").write_bytes(_MINIMAL_PNG)
-    monkeypatch.setattr(mod, "_describe_image_blob", lambda blob, ct, p: "a small red dot")
+    monkeypatch.setattr(mod, "describe_image_blob", lambda blob, ct, p: "a small red dot")
 
     result = mod.describe_image("photo.png")
 
@@ -86,7 +86,7 @@ def test_describe_image_raises_for_missing_file(tmp_path, monkeypatch):
 def test_describe_powerpoint_slide_images_returns_per_slide_results(tmp_path, monkeypatch):
     mod = _load_image_server(tmp_path, monkeypatch)
     (tmp_path / "deck.pptx").write_bytes(_pptx_bytes_with_images([1]))
-    monkeypatch.setattr(mod, "_describe_image_blob", lambda blob, ct, p: "bar chart")
+    monkeypatch.setattr(mod, "describe_image_blob", lambda blob, ct, p: "bar chart")
 
     results = mod.describe_powerpoint_slide_images("deck.pptx")
 
@@ -100,7 +100,7 @@ def test_describe_powerpoint_slide_images_returns_per_slide_results(tmp_path, mo
 def test_describe_powerpoint_slide_images_filters_slide_numbers(tmp_path, monkeypatch):
     mod = _load_image_server(tmp_path, monkeypatch)
     (tmp_path / "deck.pptx").write_bytes(_pptx_bytes_with_images([1, 1]))
-    monkeypatch.setattr(mod, "_describe_image_blob", lambda blob, ct, p: "image")
+    monkeypatch.setattr(mod, "describe_image_blob", lambda blob, ct, p: "image")
 
     results = mod.describe_powerpoint_slide_images("deck.pptx", slide_numbers=[2])
 
@@ -111,7 +111,7 @@ def test_describe_powerpoint_slide_images_filters_slide_numbers(tmp_path, monkey
 def test_describe_powerpoint_slide_images_empty_for_no_images(tmp_path, monkeypatch):
     mod = _load_image_server(tmp_path, monkeypatch)
     (tmp_path / "text_only.pptx").write_bytes(_pptx_bytes_no_images())
-    monkeypatch.setattr(mod, "_describe_image_blob", lambda blob, ct, p: "never called")
+    monkeypatch.setattr(mod, "describe_image_blob", lambda blob, ct, p: "never called")
 
     results = mod.describe_powerpoint_slide_images("text_only.pptx")
 
@@ -133,7 +133,7 @@ def test_describe_image_blocks_sensitive_auth_folder_before_model_call(tmp_path,
     path.write_bytes(_MINIMAL_PNG)
     monkeypatch.setattr(
         mod,
-        "_describe_image_blob",
+        "describe_image_blob",
         lambda blob, ct, p: pytest.fail("vision model should not be called"),
     )
 
@@ -148,7 +148,7 @@ def test_describe_powerpoint_slide_images_blocks_sensitive_tokens_folder(tmp_pat
     path.write_bytes(_pptx_bytes_with_images([1]))
     monkeypatch.setattr(
         mod,
-        "_describe_image_blob",
+        "describe_image_blob",
         lambda blob, ct, p: pytest.fail("vision model should not be called"),
     )
 

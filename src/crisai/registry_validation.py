@@ -87,6 +87,7 @@ _NUMERIC_ENV_VARS = {
     "CRISAI_PEER_MAX_REFINEMENT_ROUNDS": EnvValueSpec("int", 0, "a non-negative integer"),
     "CRISAI_PEER_MAX_ESCALATIONS": EnvValueSpec("int", 0, "a non-negative integer"),
     "CRISAI_RATE_LIMIT_RPM": EnvValueSpec("int", 0, "a non-negative integer"),
+    "CRISAI_PDF_VISION_MAX_PAGES": EnvValueSpec("int", 0, "a non-negative integer"),
 }
 
 
