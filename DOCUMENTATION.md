@@ -982,7 +982,7 @@ These tools return structured slide records plus extraction metadata:
 
 Standard `read_document` and `read_sharepoint_document_by_handle` also include a PowerPoint extraction header for `.pptx` files. Current text extraction coverage is text boxes, slide titles, table cells, grouped shape text where exposed by `python-pptx`, and speaker notes when present in the package XML. The separate `vision` server can describe standalone image files and picture shapes embedded in local workspace PowerPoint files, but arbitrary OCR, embedded objects, and some SmartArt can still require manual inspection or future extraction support.
 
-**Image-only (scanned) PDFs.** Most PDFs are read as text with `pypdf`. When a PDF page has no extractable text layer — scanned documents or decks exported as page images — `read_document` rasterises that page and reads it with the vision model, returning the recovered content under a `[Page N (vision)]` heading. Each such page is one vision-model call, so the fallback is bounded by `CRISAI_PDF_VISION_MAX_PAGES` (default `12`; `0` disables it and the read returns a note explaining the PDF is image-only). Pages that already have a text layer are read with `pypdf` as before, at no model cost. Per-page vision calls are recorded in `logs/document_mcp.log`.
+**Image-only (scanned) PDFs.** Most PDFs are read as text with `pypdf`. When a PDF page has no extractable text layer — scanned documents or decks exported as page images — `read_document` rasterises that page and reads it with the vision model, returning the recovered content under a `[Page N (vision)]` heading. Each such page is one vision-model call, so the fallback is bounded by `CRISAI_PDF_VISION_MAX_PAGES` (default `8`; `0` disables it and the read returns a note explaining the PDF is image-only). The page calls run concurrently and the document server allows a longer client timeout so a multi-page scan completes within one `read_document` call. Pages that already have a text layer are read with `pypdf` as before, at no model cost. Per-page vision calls are recorded in `logs/document_mcp.log`.
 
 ### Vision tools
 
@@ -1209,7 +1209,7 @@ The vision capability reads two optional variables:
 | Variable | Default | Purpose |
 |---|---|---|
 | `CRISAI_VISION_MODEL` | `gpt-4o-mini` | OpenAI model used to describe images, embedded PowerPoint pictures, and image-only PDF pages. Set to `gpt-4o` for higher-quality descriptions. |
-| `CRISAI_PDF_VISION_MAX_PAGES` | `12` | Max image-only PDF pages read per file via the vision model. Each page is one vision call, so this caps cost. `0` disables the fallback. |
+| `CRISAI_PDF_VISION_MAX_PAGES` | `8` | Max image-only PDF pages read per file via the vision model. Each page is one vision call, so this caps cost. `0` disables the fallback. |
 
 Use `.env.example` as the template for repo-safe configuration.
 

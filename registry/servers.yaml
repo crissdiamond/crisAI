@@ -108,6 +108,7 @@ servers:
     description: Extract text from supported document formats inside the crisAI workspace.
     enabled: true
     transport: stdio
+    client_timeout_seconds: 120
     command: python
     args:
       - src/crisai/servers/document_server.py
