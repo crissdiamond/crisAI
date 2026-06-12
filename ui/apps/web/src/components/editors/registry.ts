@@ -1,20 +1,35 @@
-import React from "react";
-import { CodeEditor } from "./CodeEditor.js";
-import { MarkdownEditor } from "./MarkdownEditor.js";
+import React, { lazy } from "react";
 import { RawTextarea } from "./RawTextarea.js";
 import type { EditorComponent, EditorProps } from "./types.js";
+import type { CodeEditorLanguage } from "./CodeEditor.js";
 
-// Each registry entry binds a fixed CodeMirror language. Small wrapper
-// components fix the `language` prop so the registry can return a plain
-// EditorComponent for every suffix.
-const JsonEditor: EditorComponent = (props: EditorProps) =>
-  React.createElement(CodeEditor, { ...props, language: "json" });
-const YamlEditor: EditorComponent = (props: EditorProps) =>
-  React.createElement(CodeEditor, { ...props, language: "yaml" });
-const PythonEditor: EditorComponent = (props: EditorProps) =>
-  React.createElement(CodeEditor, { ...props, language: "python" });
-const PlainEditor: EditorComponent = (props: EditorProps) =>
-  React.createElement(CodeEditor, { ...props, language: "plain" });
+// Heavy editors are code-split via React.lazy so their bundles (CodeMirror and
+// Toast UI, ~1.2MB combined) load on demand instead of inflating the initial
+// chunk. The RawTextarea fallback stays eager — it is tiny and is the safe
+// default for unknown types, so it must never depend on a deferred import.
+//
+// The CodeEditor module is loaded exactly once; every language wrapper renders
+// the same lazy component with a fixed `language` prop, so json/yaml/py/plain
+// all share a single async chunk rather than pulling CodeMirror four times.
+const LazyCodeEditor = lazy(() =>
+  import("./CodeEditor.js").then((m) => ({ default: m.CodeEditor }))
+);
+const MarkdownEditor = lazy(() =>
+  import("./MarkdownEditor.js").then((m) => ({ default: m.MarkdownEditor }))
+);
+
+// Bind a fixed CodeMirror language so the registry can return a plain
+// EditorComponent for every suffix. The component is the shared lazy CodeEditor.
+function codeEditorFor(language: CodeEditorLanguage): EditorComponent {
+  const Wrapper: EditorComponent = (props: EditorProps) =>
+    React.createElement(LazyCodeEditor, { ...props, language });
+  return Wrapper;
+}
+
+const JsonEditor = codeEditorFor("json");
+const YamlEditor = codeEditorFor("yaml");
+const PythonEditor = codeEditorFor("python");
+const PlainEditor = codeEditorFor("plain");
 
 function suffixOf(path: string): string {
   const lower = path.toLowerCase();
