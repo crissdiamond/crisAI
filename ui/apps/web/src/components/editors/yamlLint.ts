@@ -79,9 +79,11 @@ export function yamlDiagnostics(
       const end = error.linePos[1] ?? start;
       to = resolve(end.line, end.col);
     }
-    if (to < from) {
-      to = from;
-    }
+    // Clamp inside the document: `yaml` can report a position one past the end
+    // (e.g. where a missing `]` was expected), but a CodeMirror diagnostic must
+    // stay within [0, doc length].
+    from = Math.max(0, Math.min(from, text.length));
+    to = Math.max(from, Math.min(to, text.length));
     return {
       from,
       to,
