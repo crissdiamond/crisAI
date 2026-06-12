@@ -12,12 +12,12 @@ import {
   type UiSessionContext,
   type UiSessionState
 } from "@crisai/contracts";
-import { latestLiveStageEvent } from "./runDisplay.js";
+import { latestLiveStageEvent, stageOutputContent } from "./runDisplay.js";
 import { apiKeyStorageKey, configuredApiKey, runtime } from "./lib/runtime.js";
 import { asStringList, dedupeEvents, humanizeError, isAuthError } from "./lib/format.js";
 import { StatusBadge } from "./components/StatusBadge.js";
 import { StageRail } from "./components/StageRail.js";
-import { Transcript } from "./components/Transcript.js";
+import { Transcript, type StageDetail } from "./components/Transcript.js";
 import { WorkspaceBrowser } from "./components/WorkspacePanel.js";
 import { HistoryPanel, SessionContextBody } from "./components/SessionPanel.js";
 import "./styles.css";
@@ -45,6 +45,7 @@ function App() {
   const [error, setError] = useState("");
   const [apiKeyHint, setApiKeyHint] = useState(false);
   const [redirectInstruction, setRedirectInstruction] = useState("");
+  const [selectedStage, setSelectedStage] = useState<string | null>(null);
 
   /** Sets the single error region from a failure and hints the API key field on auth errors. */
   function reportError(reason: unknown) {
@@ -62,6 +63,16 @@ function App() {
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
   const liveStageEvent = useMemo(() => latestLiveStageEvent(events), [events]);
+  const stageDetail = useMemo<StageDetail | null>(() => {
+    if (!selectedStage) return null;
+    const stage = stages.find((item) => item.key === selectedStage);
+    if (!stage) return null;
+    return { label: stage.label, status: stage.status, content: stageOutputContent(events, selectedStage, verbose) };
+  }, [selectedStage, stages, events, verbose]);
+
+  function toggleStage(key: string) {
+    setSelectedStage((current) => (current === key ? null : key));
+  }
 
   useEffect(() => {
     applyApiKey(apiKeyInput);
@@ -164,6 +175,7 @@ function App() {
     setEvents([]);
     setRun(null);
     setRedirectInstruction("");
+    setSelectedStage(null);
     let started: UiRunState;
     try {
       started = await runtime.startRun({
@@ -315,6 +327,35 @@ function App() {
         </div>
       </form>
 
+      {error ? (
+        <div role="alert" className="alert alert-error">
+          {error}
+          {apiKeyHint ? <span className="alert-hint"> Enter it in the API key field above.</span> : null}
+        </div>
+      ) : null}
+
+      <section className="run-area" aria-label="Run output">
+        {hasRun ? (
+          <div className="run-grid">
+            <StageRail stages={stages} selectedStage={selectedStage} onSelectStage={toggleStage} />
+            <Transcript
+              events={events}
+              finalContent={finalContent}
+              liveStageEvent={liveStageEvent}
+              checkpointWaiting={checkpointWaiting}
+              verbose={verbose}
+              redirectInstruction={redirectInstruction}
+              onRedirectInstructionChange={setRedirectInstruction}
+              onCheckpoint={checkpoint}
+              stageDetail={stageDetail}
+              onClearStage={() => setSelectedStage(null)}
+            />
+          </div>
+        ) : (
+          <p className="run-empty">Ask a question to begin.</p>
+        )}
+      </section>
+
       <nav className="secondary-toolbar" aria-label="Secondary surfaces">
         <button
           type="button"
@@ -344,33 +385,6 @@ function App() {
           Session memory
         </button>
       </nav>
-
-      {error ? (
-        <div role="alert" className="alert alert-error">
-          {error}
-          {apiKeyHint ? <span className="alert-hint"> Enter it in the API key field above.</span> : null}
-        </div>
-      ) : null}
-
-      <section className="run-area" aria-label="Run output">
-        {hasRun ? (
-          <div className="run-grid">
-            <StageRail stages={stages} />
-            <Transcript
-              events={events}
-              finalContent={finalContent}
-              liveStageEvent={liveStageEvent}
-              checkpointWaiting={checkpointWaiting}
-              verbose={verbose}
-              redirectInstruction={redirectInstruction}
-              onRedirectInstructionChange={setRedirectInstruction}
-              onCheckpoint={checkpoint}
-            />
-          </div>
-        ) : (
-          <p className="run-empty">Ask a question to begin.</p>
-        )}
-      </section>
 
       {secondaryView !== null ? (
         <section

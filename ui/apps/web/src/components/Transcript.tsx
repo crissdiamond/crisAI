@@ -7,6 +7,8 @@ import {
 } from "../runDisplay.js";
 import { MarkdownContent } from "./markdown.js";
 
+export type StageDetail = { label: string; status: string; content: string };
+
 export function Transcript({
   events,
   finalContent,
@@ -15,7 +17,9 @@ export function Transcript({
   verbose,
   redirectInstruction,
   onRedirectInstructionChange,
-  onCheckpoint
+  onCheckpoint,
+  stageDetail,
+  onClearStage
 }: {
   events: UiEvent[];
   finalContent: string;
@@ -25,9 +29,29 @@ export function Transcript({
   redirectInstruction: string;
   onRedirectInstructionChange: (value: string) => void;
   onCheckpoint: (action: "continue" | "redirect" | "stop", instruction?: string) => Promise<void>;
+  stageDetail: StageDetail | null;
+  onClearStage: () => void;
 }) {
   const visibleEvents = events.filter((event) => shouldShowTranscriptEvent(event, verbose));
   const liveStatus = liveRunStatus(checkpointWaiting, liveStageEvent);
+
+  if (stageDetail) {
+    return (
+      <section className="transcript" aria-label="Step output">
+        <article className="event-card stage-detail-card">
+          <header className="stage-detail-head">
+            <h2>{stageDetail.label}</h2>
+            <button type="button" className="btn-ghost btn-compact" onClick={onClearStage}>
+              Show latest
+            </button>
+          </header>
+          {stageDetail.content.trim()
+            ? <MarkdownContent content={stageDetail.content} />
+            : <p className="stage-detail-empty">This step produced no readable output{stageDetail.status === "pending" ? " yet" : ""}.</p>}
+        </article>
+      </section>
+    );
+  }
 
   return (
     <section className="transcript" aria-label="Run transcript">

@@ -2,6 +2,17 @@ import { latestLiveStageEvent, type UiEvent } from "@crisai/contracts";
 
 export { latestLiveStageEvent };
 
+/** Return the most recent readable output a given stage produced. */
+export function stageOutputContent(events: UiEvent[], stageKey: string, verbose: boolean): string {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if ((event.agent_id ?? event.stage ?? "") !== stageKey) continue;
+    const content = verbose && event.verbose_content ? event.verbose_content : event.content;
+    if (content && content.trim()) return content;
+  }
+  return "";
+}
+
 export type MarkdownInlineToken =
   | { type: "text"; value: string }
   | { type: "strong"; value: string }
