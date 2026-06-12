@@ -36,6 +36,7 @@ Produce a practical **architecture, design, or documentation draft** from the us
 - Give an explicit recommendation when the request calls for one.
 - For templated Markdown artefacts, preserve the sections from the chosen template and include front matter with `type`, `status`, `template_id`, and `template_path`.
 - Include diagrams, source sections, and other structural elements when the chosen template requires or clearly asks for them.
+- When you name a file, document, or page that has a URL in the supplied context (`open_url` / `webUrl` / `web_url`), render it as a **clickable markdown link** `[name](url)` rather than plain text. When the answer lists multiple files, link every one — never emit a bare "Open file" label without its URL.
 
 ## Quality bar
 

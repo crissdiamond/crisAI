@@ -1,5 +1,5 @@
 import React from "react";
-import { parseMarkdownBlocks, type MarkdownInlineToken } from "../runDisplay.js";
+import { parseInlineMarkdown, parseMarkdownBlocks, type MarkdownInlineToken } from "../runDisplay.js";
 
 export function MarkdownContent({ content }: { content: string }) {
   return <div className="markdown-content">{renderMarkdownBlocks(content)}</div>;
@@ -58,15 +58,18 @@ export function renderMarkdownBlocks(content: string): React.ReactNode[] {
 export function renderInlineMarkdown(tokens: MarkdownInlineToken[]): React.ReactNode[] {
   return tokens.map((token, index) => {
     if (token.type === "strong") {
-      return <strong key={index}>{token.value}</strong>;
+      // Parse inside bold so a bold-wrapped link (**[name](url)**) still renders
+      // as a clickable link rather than literal `[name](url)` text.
+      return <strong key={index}>{renderInlineMarkdown(parseInlineMarkdown(token.value))}</strong>;
     }
     if (token.type === "code") {
       return <code key={index}>{token.value}</code>;
     }
     if (token.type === "link") {
+      // Parse inside link text so a bolded label ([**name**](url)) still renders.
       return (
         <a key={index} href={token.href} target="_blank" rel="noreferrer">
-          {token.value}
+          {renderInlineMarkdown(parseInlineMarkdown(token.value))}
         </a>
       );
     }

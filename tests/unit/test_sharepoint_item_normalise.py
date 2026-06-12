@@ -60,7 +60,7 @@ def test_normalise_item_duplicates_web_url_as_open_url(monkeypatch: pytest.Monke
     )
     assert row["webUrl"] == "https://contoso.sharepoint.com/sites/a/Shared%20Documents/Plan.pdf"
     assert row["open_url"] == row["webUrl"]
-    assert row["read_handle"].startswith("sharepoint_doc:")
+    assert row["read_handle"].startswith("spdoc-")
     assert sharepoint_server._decode_read_handle(row["read_handle"]) == ("drive-1", "item-1")
 
 
@@ -175,7 +175,7 @@ def test_list_and_search_tools_normalise_graph_results(monkeypatch: pytest.Monke
     site_hits = sharepoint_server.search_site_drive_documents("site-1", "Strategy", max_hits=1)
 
     assert sites[0]["open_url"] == "https://contoso.sharepoint.com/sites/architecture"
-    assert drive_hits[0]["read_handle"].startswith("sharepoint_doc:")
+    assert drive_hits[0]["read_handle"].startswith("spdoc-")
     assert site_hits[0]["open_url"] == "https://example/Strategy.docx"
     assert calls[0] == ("/sites", {"search": "Architecture"}, 90)
 
