@@ -10,6 +10,19 @@ def _load_json(path: str) -> dict:
     return json.loads((ROOT / path).read_text(encoding="utf-8"))
 
 
+def _read_tree(relative_dir: str) -> str:
+    """Concatenate every TS/TSX source file under a directory.
+
+    The web client is decomposed across main.tsx plus components/ and lib/, so
+    behaviour assertions check the whole source tree rather than a single file.
+    """
+    base = ROOT / relative_dir
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(base.rglob("*.ts*"))
+    )
+
+
 def test_ui_workspace_defines_react_and_ink_clients() -> None:
     package = _load_json("ui/package.json")
 
@@ -54,7 +67,7 @@ def test_contract_client_targets_v1_runtime_api() -> None:
 
 def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     contract_source = (ROOT / "ui/packages/contracts/src/index.ts").read_text(encoding="utf-8")
-    web_source = (ROOT / "ui/apps/web/src/main.tsx").read_text(encoding="utf-8")
+    web_source = _read_tree("ui/apps/web/src")
     gem_source = (ROOT / "ui/apps/gem/src/index.tsx").read_text(encoding="utf-8")
     gem_view_model_source = (ROOT / "ui/apps/gem/src/viewModel.ts").read_text(encoding="utf-8")
 

@@ -9,6 +9,7 @@ import os
 import re
 import sys
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -57,7 +58,8 @@ CONTEXT_AUTHORITY_WEIGHTS = {
     "reference": 1.00,
     "notes": 0.90,
 }
-_DEFAULT_PDF_VISION_MAX_PAGES = 12
+_DEFAULT_PDF_VISION_MAX_PAGES = 8
+_PDF_VISION_CONCURRENCY = 5
 _PDF_VISION_PROMPT = (
     "You are reading one page of a scanned or image-only document. Transcribe all "
     "readable text verbatim, preserving headings, lists, and table structure, and "
@@ -171,21 +173,30 @@ def _vision_describe_pdf_pages(file_path: Path, page_indices: list[int]) -> dict
     except Exception as exc:  # noqa: BLE001 - rasterisation failure is reported, not fatal
         log_event(f"pdf_vision_render_failed path={file_path.name} error={type(exc).__name__}")
         return descriptions
-    for index in page_indices:
-        png = rendered.get(index)
-        if png is None:
-            continue
+
+    pages = [(index, rendered[index]) for index in page_indices if rendered.get(index) is not None]
+    if not pages:
+        return descriptions
+
+    def describe(item: tuple[int, bytes]) -> tuple[int, str]:
+        index, png = item
         try:
             text = describe_image_blob(png, "image/png", _PDF_VISION_PROMPT).strip()
         except Exception as exc:  # noqa: BLE001 - per-page vision failure is non-fatal
             log_event(f"pdf_vision_page_failed path={file_path.name} page={index + 1} error={type(exc).__name__}")
-            continue
+            return index, ""
         log_event(
             f"pdf_vision_page path={file_path.name} page={index + 1} "
             f"chars={len(text)} model={vision_model()}"
         )
-        if text:
-            descriptions[index] = text
+        return index, text
+
+    # Describe pages concurrently: sequential vision calls (~8s each) would
+    # exceed the MCP read_document client timeout on a multi-page scan.
+    with ThreadPoolExecutor(max_workers=min(len(pages), _PDF_VISION_CONCURRENCY)) as pool:
+        for index, text in pool.map(describe, pages):
+            if text:
+                descriptions[index] = text
     return descriptions
 
 

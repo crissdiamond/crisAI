@@ -2,6 +2,17 @@ import { latestLiveStageEvent, type UiEvent } from "@crisai/contracts";
 
 export { latestLiveStageEvent };
 
+/** Return the most recent readable output a given stage produced. */
+export function stageOutputContent(events: UiEvent[], stageKey: string, verbose: boolean): string {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if ((event.agent_id ?? event.stage ?? "") !== stageKey) continue;
+    const content = verbose && event.verbose_content ? event.verbose_content : event.content;
+    if (content && content.trim()) return content;
+  }
+  return "";
+}
+
 export type MarkdownInlineToken =
   | { type: "text"; value: string }
   | { type: "strong"; value: string }
@@ -34,6 +45,39 @@ export function shouldShowTranscriptEvent(event: Pick<UiEvent, "event_type">, ve
 
 export function liveStageDisplayName(event: Pick<UiEvent, "agent_id" | "stage" | "title">): string {
   return event.title || humanizeLabel(event.agent_id ?? event.stage ?? "stage");
+}
+
+// Plain-language names for each raw event type. The raw snake_case
+// `event_type` is never shown to users; this map provides a friendly label.
+const eventTypeDisplayNames: Record<UiEvent["event_type"], string> = {
+  run_created: "Run started",
+  routing_decision: "Routing",
+  task_contract: "Task setup",
+  stage_started: "Step started",
+  stage_delta: "Step output",
+  stage_output: "Step output",
+  stage_completed: "Step complete",
+  stage_skipped: "Step skipped",
+  stage_failed: "Step failed",
+  checkpoint_requested: "Review sources",
+  checkpoint_decision: "Decision",
+  final_answer: "Final answer",
+  run_failed: "Run failed",
+  run_completed: "Run complete"
+};
+
+/**
+ * Returns a human-readable label for an event card.
+ *
+ * Prefers the event's own `title` when present and non-empty, otherwise falls
+ * back to the humanized event type. The raw snake_case `event_type` is never
+ * returned.
+ */
+export function eventDisplayTitle(event: Pick<UiEvent, "event_type" | "title">): string {
+  if (event.title && event.title.trim()) {
+    return event.title;
+  }
+  return eventTypeDisplayNames[event.event_type] ?? humanizeLabel(event.event_type);
 }
 
 export function liveRunStatus(
@@ -121,9 +165,16 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   return blocks;
 }
 
-function humanizeLabel(value: string): string {
+/**
+ * Title-cases a snake_case identifier for display.
+ *
+ * `fallback` is returned when `value` is empty after normalisation; callers in a
+ * stage context use the default "Stage", while session-memory callers pass
+ * "Memory" to keep their original empty-label wording.
+ */
+export function humanizeLabel(value: string, fallback = "Stage"): string {
   const label = value.replaceAll("_", " ").trim();
-  return label ? label.charAt(0).toUpperCase() + label.slice(1) : "Stage";
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : fallback;
 }
 
 export function parseInlineMarkdown(value: string): MarkdownInlineToken[] {
