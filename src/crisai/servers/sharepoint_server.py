@@ -49,7 +49,8 @@ _REF_REGISTRY: dict[str, tuple[str, str]] = {}
 
 def _mint_ref(drive_id: str, item_id: str) -> str:
     """Return a short, stable read reference for a drive/item pair and register it."""
-    digest = hashlib.sha1(f"{drive_id}:{item_id}".encode()).hexdigest()[:8]
+    # Non-cryptographic: a short collision-resistant id for a copy-safe ref token.
+    digest = hashlib.sha1(f"{drive_id}:{item_id}".encode(), usedforsecurity=False).hexdigest()[:8]
     ref = f"{_REF_PREFIX}{digest}"
     _REF_REGISTRY[ref] = (drive_id, item_id)
     return ref
