@@ -4,9 +4,26 @@ import {
   latestLiveStageEvent,
   liveRunStatus,
   liveStageDisplayName,
+  parseInlineMarkdown,
   parseMarkdownBlocks,
   shouldShowTranscriptEvent
 } from "../src/runDisplay.js";
+
+test("inline markdown parses links into a clickable link token", () => {
+  const tokens = parseInlineMarkdown("See [the deck](https://example.com/a.pptx) for detail.");
+  const link = tokens.find((token) => token.type === "link");
+  assert.ok(link, "expected a link token");
+  assert.equal(link.type === "link" && link.value, "the deck");
+  assert.equal(link.type === "link" && link.href, "https://example.com/a.pptx");
+});
+
+test("inline markdown still parses bold and code alongside text", () => {
+  const tokens = parseInlineMarkdown("**Bold** and `code` and plain");
+  assert.deepEqual(
+    tokens.map((token) => token.type),
+    ["strong", "text", "code", "text"]
+  );
+});
 
 test("normal transcript hides internal transport while verbose keeps debug events", () => {
   assert.equal(shouldShowTranscriptEvent({ event_type: "routing_decision" }, false), false);

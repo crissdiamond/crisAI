@@ -63,6 +63,13 @@ export function renderInlineMarkdown(tokens: MarkdownInlineToken[]): React.React
     if (token.type === "code") {
       return <code key={index}>{token.value}</code>;
     }
+    if (token.type === "link") {
+      return (
+        <a key={index} href={token.href} target="_blank" rel="noreferrer">
+          {token.value}
+        </a>
+      );
+    }
     return token.value;
   });
 }

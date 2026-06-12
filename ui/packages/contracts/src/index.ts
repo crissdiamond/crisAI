@@ -218,6 +218,20 @@ export type UiWorkspaceRenameResult = {
   renamed: boolean;
 };
 
+export type UiSharePointAuthStart = {
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete: string;
+  expires_in: number;
+  message: string;
+};
+
+export type UiSharePointAuthStatus = {
+  status: "idle" | "pending" | "connected" | "failed";
+  account: string | null;
+  error: string | null;
+};
+
 export type UiWorkspaceUploadTarget = "task_inputs" | "knowledge_intake";
 
 export type UiWorkspaceUploadRequest = {
@@ -623,6 +637,21 @@ export class CrisaiRuntimeClient {
         headers: this.requestHeaders()
       }
     );
+    return this.readJson(response);
+  }
+
+  async startSharePointLogin(): Promise<UiSharePointAuthStart> {
+    const response = await fetch(`${this.baseUrl}/api/v1/auth/sharepoint/start`, {
+      method: "POST",
+      headers: this.requestHeaders({ json: true })
+    });
+    return this.readJson(response);
+  }
+
+  async getSharePointLoginStatus(): Promise<UiSharePointAuthStatus> {
+    const response = await fetch(`${this.baseUrl}/api/v1/auth/sharepoint/status`, {
+      headers: this.requestHeaders()
+    });
     return this.readJson(response);
   }
 

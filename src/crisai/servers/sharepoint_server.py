@@ -83,12 +83,18 @@ ms_graph.configure_workspace(ROOT, namespace="sharepoint")
 ms_graph.set_telemetry_hook(log_event)
 
 
+# Read tools must never trigger an interactive login. Without silent_only the
+# Graph helper falls back to a device-code flow that blocks until the user
+# completes it manually, so an unauthenticated call hangs until the MCP client
+# timeout fires (240s) and crashes the whole agent run. silent_only=True instead
+# raises immediately with a "call login_sharepoint" hint the agent can act on.
+# Interactive login stays confined to the explicit login_sharepoint tool.
 def _graph_get(path: str, params: dict[str, Any] | None = None, timeout: int = 60) -> dict[str, Any]:
-    return ms_graph.graph_get(path, params=params, timeout=timeout)
+    return ms_graph.graph_get(path, params=params, timeout=timeout, silent_only=True)
 
 
 def _graph_get_bytes(url: str) -> bytes:
-    return ms_graph.graph_get_bytes(url)
+    return ms_graph.graph_get_bytes(url, silent_only=True)
 
 
 def _detect_text_encoding(data: bytes) -> str:
@@ -311,11 +317,52 @@ def list_drive_items(drive_id: str, item_id: str = "root", max_items: int = 50) 
     return [_normalise_item(item) for item in values]
 
 
+# Drive-id values that mean "the user's own OneDrive" rather than a real Graph
+# drive id. Agents frequently emit these instead of threading the id from
+# list_my_drives, so resolve them to the primary drive rather than failing.
+_PERSONAL_DRIVE_ALIASES = frozenset(
+    {"", "root", "me", "my", "mine", "onedrive", "default", "current", "__placeholder__", "__invalid__"}
+)
+
+
+def _my_drive_id() -> str:
+    """Return the signed-in user's primary OneDrive drive id."""
+    data = _graph_get("/me/drive")
+    drive_id = data.get("id")
+    if not drive_id:
+        raise RuntimeError("Could not resolve the signed-in user's OneDrive drive.")
+    return str(drive_id)
+
+
+def _resolve_drive_id(drive_id: str) -> str:
+    """Map an empty or placeholder drive id to the user's primary OneDrive."""
+    if drive_id and drive_id.strip().lower() not in _PERSONAL_DRIVE_ALIASES:
+        return drive_id
+    return _my_drive_id()
+
+
+@mcp.tool()
+def search_my_onedrive(query: str, max_hits: int = 20) -> list[dict[str, Any]]:
+    """Search the signed-in user's personal OneDrive by filename or content.
+
+    Use this for "in my OneDrive" requests: it targets the user's primary drive
+    directly, so you do **not** need a drive_id from ``list_my_drives``.
+    """
+    log_event(f"search_my_onedrive query={query!r} max_hits={max_hits}")
+    encoded = quote(query, safe="")
+    data = _graph_get(f"/me/drive/root/search(q='{encoded}')", timeout=90)
+    values = data.get("value", [])[:max_hits]
+    return [_normalise_item(item) for item in values]
+
+
 @mcp.tool()
 def search_drive_documents(drive_id: str, query: str, max_hits: int = 20) -> list[dict[str, Any]]:
+    """Search files in a drive. If drive_id is empty or a placeholder (for
+    example 'root' or 'me'), the user's personal OneDrive is searched."""
     log_event(f"search_drive_documents drive_id={drive_id} query={query!r} max_hits={max_hits}")
+    resolved = _resolve_drive_id(drive_id)
     encoded = quote(query, safe="")
-    data = _graph_get(f"/drives/{drive_id}/root/search(q='{encoded}')", timeout=90)
+    data = _graph_get(f"/drives/{resolved}/root/search(q='{encoded}')", timeout=90)
     values = data.get("value", [])[:max_hits]
     return [_normalise_item(item) for item in values]
 

@@ -18,8 +18,10 @@ import { asStringList, dedupeEvents, humanizeError, isAuthError } from "./lib/fo
 import { StatusBadge } from "./components/StatusBadge.js";
 import { StageRail } from "./components/StageRail.js";
 import { Transcript, type StageDetail } from "./components/Transcript.js";
+import { CheckpointModal } from "./components/CheckpointModal.js";
 import { WorkspaceBrowser } from "./components/WorkspacePanel.js";
 import { HistoryPanel, SessionContextBody } from "./components/SessionPanel.js";
+import { SharePointAuthDialog } from "./components/SharePointAuthDialog.js";
 import "./styles.css";
 
 type SecondaryView = null | "workspace" | "history" | "memory";
@@ -28,6 +30,7 @@ function App() {
   const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem(apiKeyStorageKey) ?? configuredApiKey);
   const [apiKeyConfigured, setApiKeyConfigured] = useState(Boolean(apiKeyInput.trim()));
   const [secondaryView, setSecondaryView] = useState<SecondaryView>(null);
+  const [showSharePointAuth, setShowSharePointAuth] = useState(false);
   const [message, setMessage] = useState("");
   const [session, setSession] = useState("default");
   const [sessions, setSessions] = useState<string[]>(["default"]);
@@ -63,12 +66,44 @@ function App() {
   const finalContent = useMemo(() => latestFinalContent(run, events), [run, events]);
   const checkpointWaiting = useMemo(() => isCheckpointWaiting(events), [events]);
   const liveStageEvent = useMemo(() => latestLiveStageEvent(events), [events]);
-  const stageDetail = useMemo<StageDetail | null>(() => {
-    if (!selectedStage) return null;
-    const stage = stages.find((item) => item.key === selectedStage);
+  const liveStageKey = liveStageEvent ? liveStageEvent.agent_id ?? liveStageEvent.stage ?? null : null;
+  const running = latestStatus === "running" || latestStatus === "checkpoint_waiting";
+
+  // The active stage is the one currently running; when nothing is streaming it
+  // falls back to the most advanced (non-pending) stage.
+  const activeStageKey = useMemo(() => {
+    if (liveStageKey) return liveStageKey;
+    for (let index = stages.length - 1; index >= 0; index -= 1) {
+      if (stages[index].status !== "pending") return stages[index].key;
+    }
+    return stages.at(-1)?.key ?? null;
+  }, [liveStageKey, stages]);
+
+  // Auto-follow the active stage unless the user has pinned one by clicking it.
+  const following = selectedStage === null;
+  const effectiveStageKey = selectedStage ?? activeStageKey;
+
+  const focusedStage = useMemo<StageDetail | null>(() => {
+    if (!effectiveStageKey) return null;
+    const stage = stages.find((item) => item.key === effectiveStageKey);
     if (!stage) return null;
-    return { label: stage.label, status: stage.status, content: stageOutputContent(events, selectedStage, verbose) };
-  }, [selectedStage, stages, events, verbose]);
+    let content = stageOutputContent(events, effectiveStageKey, verbose);
+    // While auto-following the live stage, show its streaming text as it lands.
+    if (following && liveStageKey === effectiveStageKey && liveStageEvent?.content) {
+      content = liveStageEvent.content;
+    }
+    // The terminal stage shows the assembled final answer.
+    if (effectiveStageKey === stages.at(-1)?.key && finalContent) {
+      content = finalContent;
+    }
+    return { label: stage.label, status: stage.status, content };
+  }, [effectiveStageKey, following, stages, events, verbose, liveStageEvent, liveStageKey, finalContent]);
+
+  const isLiveFocus = following && liveStageKey !== null && effectiveStageKey === liveStageKey;
+  const checkpointEvent = useMemo(
+    () => (checkpointWaiting ? events.find((event) => event.event_type === "checkpoint_requested") ?? null : null),
+    [checkpointWaiting, events]
+  );
 
   function toggleStage(key: string) {
     setSelectedStage((current) => (current === key ? null : key));
@@ -250,8 +285,18 @@ function App() {
             </label>
             <button type="submit" className="btn-ghost btn-compact">{apiKeyConfigured ? "Update" : "Set"}</button>
           </form>
+          <button
+            type="button"
+            className="btn-ghost btn-compact"
+            onClick={() => setShowSharePointAuth(true)}
+          >
+            Connect SharePoint
+          </button>
         </div>
       </header>
+      {showSharePointAuth ? (
+        <SharePointAuthDialog onClose={() => setShowSharePointAuth(false)} />
+      ) : null}
 
       <form id="run-composer" className="composer" onSubmit={submitRun} tabIndex={-1}>
         <label className="sr-only" htmlFor="run-message">Your request to crisAI</label>
@@ -337,24 +382,34 @@ function App() {
       <section className="run-area" aria-label="Run output">
         {hasRun ? (
           <div className="run-grid">
-            <StageRail stages={stages} selectedStage={selectedStage} onSelectStage={toggleStage} />
+            <StageRail
+              stages={stages}
+              selectedStage={selectedStage}
+              activeStage={activeStageKey}
+              onSelectStage={toggleStage}
+            />
             <Transcript
-              events={events}
-              finalContent={finalContent}
-              liveStageEvent={liveStageEvent}
-              checkpointWaiting={checkpointWaiting}
-              verbose={verbose}
-              redirectInstruction={redirectInstruction}
-              onRedirectInstructionChange={setRedirectInstruction}
-              onCheckpoint={checkpoint}
-              stageDetail={stageDetail}
-              onClearStage={() => setSelectedStage(null)}
+              focusedStage={focusedStage}
+              isLiveFocus={isLiveFocus}
+              pinned={!following}
+              running={running}
+              hasStages={stages.length > 0}
+              onFollowLive={() => setSelectedStage(null)}
             />
           </div>
         ) : (
           <p className="run-empty">Ask a question to begin.</p>
         )}
       </section>
+      {checkpointEvent ? (
+        <CheckpointModal
+          event={checkpointEvent}
+          redirectInstruction={redirectInstruction}
+          onRedirectInstructionChange={setRedirectInstruction}
+          onCheckpoint={checkpoint}
+          verbose={verbose}
+        />
+      ) : null}
 
       <nav className="secondary-toolbar" aria-label="Secondary surfaces">
         <button
