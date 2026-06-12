@@ -895,7 +895,13 @@ workspace/inputs/strategy.md
 
 Agents should work with paths relative to the workspace root.
 
-The web app exposes `Knowledge`, `Tasks`, and `Staging` browser panes with read/edit support for text-based workspace files. React web can upload common document, image, spreadsheet, and text source files to `workspace/tasks/<task>/inputs/` or `workspace/knowledge/intake/`. Uploads are limited to 25 MiB and accepted suffixes are `.csv`, `.docx`, `.gif`, `.jpeg`, `.jpg`, `.json`, `.md`, `.mmd`, `.pdf`, `.png`, `.pptx`, `.txt`, `.webp`, `.xlsx`, `.yaml`, and `.yml`. It is intended for quick source intake, Markdown edits, and review, not as a replacement for a governed document management system.
+The web app exposes `Knowledge`, `Tasks`, and `Staging` browser panes with read/edit support for text-based workspace files. The editor is chosen by file type through a content-type registry:
+
+- **`.md`** opens a Markdown editor with a built-in **rendered (WYSIWYG)** view by default and a **Markdown source** tab, both editable. Any YAML front-matter (`--- … ---`) is split into a separate "Front matter (YAML)" section and preserved verbatim; Mermaid and code fences are kept intact; the file is saved as Markdown (raw remains the source of truth, written back only when you actually edit).
+- **`.json`, `.yaml`/`.yml`, `.py`, and other source files** open in a CodeMirror editor with syntax highlighting and inline validation (JSON and YAML parse errors are flagged as you type; validation is advisory and never blocks saving).
+- Unknown types fall back to a plain text area.
+
+Adding a new structured type later is a one-line registry entry plus a CodeMirror language pack. The heavy editors are lazy-loaded, so they download only when a file of that type is opened. React web can upload common document, image, spreadsheet, and text source files to `workspace/tasks/<task>/inputs/` or `workspace/knowledge/intake/`. Uploads are limited to 25 MiB and accepted suffixes are `.csv`, `.docx`, `.gif`, `.jpeg`, `.jpg`, `.json`, `.md`, `.mmd`, `.pdf`, `.png`, `.pptx`, `.txt`, `.webp`, `.xlsx`, `.yaml`, and `.yml`. It is intended for quick source intake, artefact editing, and review, not as a replacement for a governed document management system.
 
 ---
 
