@@ -8,17 +8,53 @@
   --color-accent-blue: #30d6ff;
   --color-text: #1f1f2e;
   --color-border: #c9b7dd;
+  --color-vibrant-purple: #500778;
   --color-success: #52c152;
   --color-error: #d50032;
   --color-warning: #ffca36;
+  --color-info: var(--color-accent-blue);
   --color-focus: var(--color-accent-blue);
+
+  --font-family-base: "DM Sans", "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+
+  --font-size-caption: 12px;
+  --font-size-label: 13px;
+  --font-size-body: 15px;
+  --font-size-sub: 18px;
+  --font-size-heading-sm: 22px;
+  --font-size-heading-md: 28px;
+  --font-size-heading-lg: 36px;
+  --font-size-brand-title: 26px;
+
+  --line-height-heading: 1.1;
+  --line-height-sub: 1.2;
+  --line-height-body: 1.5;
+  --line-height-caption: 1.5;
+
+  --letter-spacing-heading: -0.04em;
+  --letter-spacing-sub: -0.03em;
+
+  --space-1: 8px;
+  --space-2: 12px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 40px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
   color: var(--color-text);
   background: var(--color-primary-dark);
-  font-family: "DM Sans", "Aptos", "Segoe UI", Arial, sans-serif;
+  font-family: var(--font-family-base);
 }
 
 body {
   margin: 0;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
 }
 
 button,
@@ -36,21 +72,23 @@ textarea {
 
 .app-shell {
   min-height: 100vh;
+  max-width: 1120px;
+  margin-inline: auto;
   display: grid;
   grid-template-rows: auto;
-  gap: 16px;
-  padding: 24px;
+  gap: var(--space-3);
+  padding: var(--space-4);
   box-sizing: border-box;
 }
 
 .skip-link {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: var(--space-1);
+  left: var(--space-1);
   z-index: 10;
   transform: translateY(-160%);
-  border-radius: 4px;
-  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
   color: var(--color-primary-dark);
   background: var(--color-bg);
   font-weight: 700;
@@ -71,7 +109,7 @@ textarea {
   box-sizing: border-box;
   min-width: 0;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--color-bg);
 }
 
@@ -79,8 +117,8 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 20px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
 }
 
 .topbar-actions {
@@ -88,18 +126,18 @@ textarea {
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: end;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .api-key-form {
   display: flex;
   align-items: end;
-  gap: 8px;
+  gap: var(--space-1);
 }
 
 .api-key-form label {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .api-key-form input {
@@ -109,22 +147,22 @@ textarea {
 .eyebrow {
   margin: 0;
   color: var(--color-primary-dark);
-  font-size: 13px;
+  font-size: var(--font-size-label);
   font-weight: 600;
 }
 
 .status-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--space-1);
+  font-size: var(--font-size-label);
   font-weight: 600;
   color: var(--color-primary-dark);
 }
 
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: var(--space-1);
+  height: var(--space-1);
   border-radius: 50%;
   background: var(--color-border);
   flex-shrink: 0;
@@ -161,10 +199,12 @@ textarea {
 h1,
 h2 {
   margin: 0;
+  line-height: var(--line-height-heading);
+  letter-spacing: var(--letter-spacing-heading);
 }
 
 .composer {
-  padding: 16px;
+  padding: var(--space-3);
 }
 
 .composer textarea {
@@ -178,13 +218,13 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: 12px;
-  margin-top: 12px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .controls label {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .toggle {
@@ -197,8 +237,8 @@ h2 {
 button {
   min-height: 44px;
   border: 0;
-  border-radius: 4px;
-  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
   color: var(--color-bg);
   background: var(--color-primary-dark);
   font-weight: 700;
@@ -211,7 +251,7 @@ button:disabled {
 .btn-add-session {
   width: 44px;
   padding: 0;
-  font-size: 22px;
+  font-size: var(--font-size-heading-sm);
   font-weight: 400;
   background: transparent;
   color: var(--color-primary-dark);
@@ -226,13 +266,13 @@ button:disabled {
   background: transparent;
   color: var(--color-text);
   border: 1px solid var(--color-border);
-  padding: 0 10px;
+  padding: 0 var(--space-2);
 }
 
 .new-session-inline {
   display: flex;
   align-items: end;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .new-session-inline input {
@@ -240,15 +280,15 @@ button:disabled {
   min-height: 44px;
   box-sizing: border-box;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
-  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
 }
 
 .workspace {
   display: grid;
   box-sizing: border-box;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(220px, 300px);
-  gap: 16px;
+  gap: var(--space-3);
   min-width: 0;
   min-height: 0;
   align-items: stretch;
@@ -259,7 +299,7 @@ button:disabled {
 .history-panel,
 .workspace-browser,
 .alert {
-  padding: 16px;
+  padding: var(--space-3);
 }
 
 .stage-rail,
@@ -274,25 +314,25 @@ button:disabled {
 .stage-rail {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: var(--space-1);
 }
 
 .transcript {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .history-panel {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .stage {
   display: grid;
-  gap: 4px;
-  padding: 12px 0;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--color-surface-pale);
 }
 
@@ -317,16 +357,16 @@ button:disabled {
 }
 
 .event-card {
-  padding: 16px 0;
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--color-surface-pale);
   min-width: 0;
 }
 
 .streaming-card {
   border: 1px solid var(--color-accent-mid);
-  border-radius: 6px;
-  margin-bottom: 12px;
-  padding: 12px;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2);
   background: var(--color-surface-pale);
 }
 
@@ -341,7 +381,7 @@ button:disabled {
 .event-card header {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-3);
 }
 
 .summary {
@@ -367,7 +407,7 @@ pre {
 
 .checkpoint-panel {
   display: grid;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .checkpoint-decision {
@@ -378,12 +418,12 @@ pre {
   display: grid;
   grid-template-columns: 1fr auto auto auto;
   align-items: end;
-  gap: 8px;
+  gap: var(--space-1);
 }
 
 .checkpoint-actions label {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .checkpoint-actions textarea {
@@ -399,14 +439,14 @@ pre {
 }
 
 .checkpoint-actions button small {
-  font-size: 12px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
 }
 
 .checkpoint-evidence {
   border: 1px solid var(--color-surface-pale);
-  border-radius: 6px;
-  padding: 10px;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
   background: var(--color-bg);
 }
 
@@ -427,7 +467,7 @@ pre {
 
 .markdown-content {
   display: grid;
-  gap: 12px;
+  gap: var(--space-2);
   overflow-wrap: anywhere;
 }
 
@@ -442,19 +482,19 @@ pre {
 }
 
 .markdown-content ul {
-  padding-left: 20px;
+  padding-left: var(--space-4);
 }
 
 .markdown-content code {
-  border-radius: 4px;
-  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  padding: 1px var(--space-1);
   background: var(--color-surface-pale);
 }
 
 .markdown-code {
   border: 1px solid var(--color-surface-pale);
-  border-radius: 6px;
-  padding: 10px;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
   background: var(--color-surface-pale);
   overflow: auto;
 }
@@ -473,7 +513,7 @@ pre {
 .markdown-content th,
 .markdown-content td {
   border: 1px solid var(--color-surface-pale);
-  padding: 8px;
+  padding: var(--space-1);
   text-align: left;
   vertical-align: top;
 }
@@ -485,8 +525,8 @@ pre {
 
 .session-context-preview {
   display: grid;
-  gap: 10px;
-  padding-bottom: 12px;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--color-surface-pale);
 }
 
@@ -494,7 +534,7 @@ pre {
 .recall-result header {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .panel-heading {
@@ -517,24 +557,24 @@ pre {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
-  gap: 8px;
+  gap: var(--space-1);
 }
 
 .context-query label {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .context-body {
   display: grid;
-  gap: 12px;
+  gap: var(--space-2);
   max-height: 420px;
   overflow: auto;
 }
 
 .context-section {
   display: grid;
-  gap: 8px;
+  gap: var(--space-1);
 }
 
 .context-brief,
@@ -553,37 +593,37 @@ pre {
 
 .context-field {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .context-field ul {
   margin: 0;
-  padding-left: 20px;
+  padding-left: var(--space-4);
 }
 
 .recall-result {
   display: grid;
-  gap: 6px;
-  padding: 10px;
-  border-radius: 6px;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
   background: var(--color-surface-pale);
 }
 
 .matched-terms {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .matched-terms li {
-  border-radius: 4px;
-  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-1);
   color: var(--color-primary-dark);
   background: var(--color-surface-light);
-  font-size: 12px;
+  font-size: var(--font-size-caption);
   font-weight: 700;
 }
 
@@ -592,18 +632,18 @@ pre {
 }
 
 .history-entry {
-  padding: 12px 0;
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--color-surface-pale);
 }
 
 .history-entry p {
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
   overflow-wrap: anywhere;
 }
 
 .workspace-browser {
   display: grid;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .workspace-browser > * {
@@ -614,7 +654,7 @@ pre {
 .workspace-browser header {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-3);
 }
 
 .workspace-browser header p {
@@ -627,13 +667,13 @@ pre {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
 .workspace-controls label,
 .workspace-upload label {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -646,14 +686,14 @@ pre {
 .workspace-editor-grid {
   display: grid;
   grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--space-3);
   min-height: 260px;
 }
 
 .workspace-files {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: var(--space-1);
   max-height: 340px;
   overflow: auto;
 }
@@ -662,7 +702,7 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 10px;
+  padding: var(--space-1) var(--space-2);
   min-height: 44px;
   overflow: hidden;
   color: var(--color-text);
@@ -675,7 +715,7 @@ pre {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-size-label);
 }
 
 .workspace-files button:disabled {
@@ -690,14 +730,14 @@ pre {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   opacity: 0.75;
 }
 
 .workspace-editor {
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 8px;
+  gap: var(--space-1);
 }
 
 .workspace-editor p {
@@ -722,7 +762,7 @@ pre {
 
 @media (max-width: 760px) {
   .app-shell {
-    padding: 12px;
+    padding: var(--space-2);
   }
 
   .topbar,
@@ -733,7 +773,7 @@ pre {
   .topbar-actions,
   .api-key-form {
     justify-content: stretch;
-    margin-top: 12px;
+    margin-top: var(--space-2);
   }
 
   .api-key-form input {
@@ -742,7 +782,7 @@ pre {
 
   .stage-rail {
     max-height: 42vh;
-    margin-bottom: 16px;
+    margin-bottom: var(--space-3);
   }
 
   .transcript {
@@ -751,7 +791,7 @@ pre {
 
   .history-panel {
     max-height: 56vh;
-    margin-top: 16px;
+    margin-top: var(--space-3);
   }
 
   .context-query {
@@ -769,6 +809,6 @@ pre {
 
   .workspace-files {
     max-height: 260px;
-    margin-bottom: 16px;
+    margin-bottom: var(--space-3);
   }
 }
