@@ -13,6 +13,7 @@ from crisai.apps import web as web_module
 from crisai.apps.web import (
     RunRequest,
     SessionCreateRequest,
+    WorkspaceFileRenameRequest,
     WorkspaceFileSaveRequest,
     _append_stage_delta_event,
     _collect_stage_outputs,
@@ -27,6 +28,7 @@ from crisai.apps.web import (
     create_session,
     get_session,
     list_sessions,
+    rename_workspace_file,
     run,
     save_workspace_file,
     workspace_file,
@@ -970,6 +972,78 @@ def test_workspace_file_rejects_normalized_sensitive_auth_path(tmp_path, monkeyp
         workspace_file("knowledge/../.auth/msal_token_info.json")
 
     assert exc_info.value.status_code == 403
+
+
+def _rename_workspace(tmp_path, monkeypatch):
+    """Build a workspace with one editable file and patch settings; return its dir."""
+    from crisai.apps import web as web_mod
+
+    workspace = tmp_path / "workspace"
+    source = workspace / "knowledge/notes/draft.md"
+    source.parent.mkdir(parents=True)
+    source.write_text("# Draft\n", encoding="utf-8")
+    monkeypatch.setattr(
+        web_mod, "load_settings", lambda: type("S", (), {"workspace_dir": workspace, "registry_dir": tmp_path})()
+    )
+    return workspace
+
+
+def test_rename_workspace_file_in_place(tmp_path, monkeypatch):
+    workspace = _rename_workspace(tmp_path, monkeypatch)
+
+    result = rename_workspace_file(
+        WorkspaceFileRenameRequest(path="knowledge/notes/draft.md", new_name="final.md")
+    )
+
+    assert result == {"path": "knowledge/notes/final.md", "renamed": True}
+    assert not (workspace / "knowledge/notes/draft.md").exists()
+    assert (workspace / "knowledge/notes/final.md").read_text(encoding="utf-8") == "# Draft\n"
+
+
+def test_rename_workspace_file_rejects_path_separators(tmp_path, monkeypatch):
+    _rename_workspace(tmp_path, monkeypatch)
+
+    with pytest.raises(HTTPException) as exc_info:
+        rename_workspace_file(
+            WorkspaceFileRenameRequest(path="knowledge/notes/draft.md", new_name="../escape.md")
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+def test_rename_workspace_file_rejects_non_editable_suffix(tmp_path, monkeypatch):
+    _rename_workspace(tmp_path, monkeypatch)
+
+    with pytest.raises(HTTPException) as exc_info:
+        rename_workspace_file(
+            WorkspaceFileRenameRequest(path="knowledge/notes/draft.md", new_name="draft.exe")
+        )
+
+    assert exc_info.value.status_code == 403
+
+
+def test_rename_workspace_file_rejects_existing_destination(tmp_path, monkeypatch):
+    workspace = _rename_workspace(tmp_path, monkeypatch)
+    (workspace / "knowledge/notes/taken.md").write_text("# Taken\n", encoding="utf-8")
+
+    with pytest.raises(HTTPException) as exc_info:
+        rename_workspace_file(
+            WorkspaceFileRenameRequest(path="knowledge/notes/draft.md", new_name="taken.md")
+        )
+
+    assert exc_info.value.status_code == 409
+    assert (workspace / "knowledge/notes/draft.md").exists()
+
+
+def test_rename_workspace_file_missing_source(tmp_path, monkeypatch):
+    _rename_workspace(tmp_path, monkeypatch)
+
+    with pytest.raises(HTTPException) as exc_info:
+        rename_workspace_file(
+            WorkspaceFileRenameRequest(path="knowledge/notes/ghost.md", new_name="x.md")
+        )
+
+    assert exc_info.value.status_code == 404
 
 
 def test_cors_allowed_origins_defaults_to_local_dev(monkeypatch):

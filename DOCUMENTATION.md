@@ -214,6 +214,7 @@ The web server exposes the v1 shared UI runtime API:
 - `GET /api/v1/workspace/tree/{root_name}`
 - `GET /api/v1/workspace/file`
 - `POST /api/v1/workspace/file`
+- `POST /api/v1/workspace/rename`
 - `POST /api/v1/workspace/upload`
 - `GET /api/v1/ui/theme`
 
@@ -239,7 +240,8 @@ When either side is missing, cost is omitted rather than guessed.
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show
-recent session history, browse/read/save editable workspace files, upload source
+recent session history, browse/read/save editable workspace files, rename an open
+file in place (basename only, same directory and editable type), upload source
 documents to task inputs or knowledge intake, and expose retrieval checkpoint
 continue, redirect, and stop actions directly. The Ink client accepts `/session
 <name>` and `/sessions` for session control, plus `/continue`, `/redirect

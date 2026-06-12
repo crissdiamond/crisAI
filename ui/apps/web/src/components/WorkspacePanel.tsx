@@ -21,6 +21,9 @@ export function WorkspaceBrowser({ session }: { session: string }) {
   const [status, setStatus] = useState("Workspace ready.");
   const [uploadTarget, setUploadTarget] = useState<UiWorkspaceUploadTarget>("task_inputs");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  // Inline rename of the open file (basename only; the directory is fixed).
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     runtime
@@ -94,6 +97,33 @@ export function WorkspaceBrowser({ session }: { session: string }) {
   // Dirty when an editable file is open and its content diverges from baseline.
   const isDirty = selectedPath !== "" && editable && content !== original;
   const readOnly = !selectedPath || !editable;
+  // Split the open path into a fixed directory prefix and the editable basename.
+  const slashIndex = selectedPath.lastIndexOf("/");
+  const dirPrefix = slashIndex >= 0 ? selectedPath.slice(0, slashIndex + 1) : "";
+  const baseName = slashIndex >= 0 ? selectedPath.slice(slashIndex + 1) : selectedPath;
+
+  function startRename() {
+    setRenameValue(baseName);
+    setRenaming(true);
+  }
+
+  async function submitRename(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextName = renameValue.trim();
+    if (!nextName || nextName === baseName) {
+      setRenaming(false);
+      return;
+    }
+    try {
+      const result = await runtime.renameWorkspaceFile(selectedPath, nextName);
+      setRenaming(false);
+      await loadTree(rootName);
+      await openFile(result.path);
+      setStatus(`Renamed to ${result.path}.`);
+    } catch (reason: unknown) {
+      setStatus(humanizeError(reason));
+    }
+  }
 
   return (
     <section className="workspace-browser" aria-label="Workspace browser">
@@ -151,15 +181,51 @@ export function WorkspaceBrowser({ session }: { session: string }) {
           ))}
         </div>
         <div className="workspace-editor">
-          <p id="workspace-editor-path">
-            {selectedPath || "No file selected."}
-            {selectedPath && !editable ? (
-              <span className="editor-state-note"> · read-only</span>
-            ) : null}
-            {isDirty ? (
-              <span className="editor-state-note editor-dirty"> · Unsaved changes</span>
-            ) : null}
-          </p>
+          <div className="workspace-editor-pathbar">
+            {renaming ? (
+              <form className="workspace-rename" onSubmit={submitRename}>
+                <label htmlFor="workspace-rename-input" className="sr-only">New file name</label>
+                <span className="workspace-rename-dir">{dirPrefix}</span>
+                <input
+                  id="workspace-rename-input"
+                  className="workspace-rename-input"
+                  value={renameValue}
+                  onChange={(event) => setRenameValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setRenaming(false);
+                  }}
+                  autoFocus
+                />
+                <button type="submit">Rename</button>
+                <button type="button" className="btn-secondary" onClick={() => setRenaming(false)}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <>
+                <p id="workspace-editor-path">
+                  {selectedPath || "No file selected."}
+                  {selectedPath && !editable ? (
+                    <span className="editor-state-note"> · read-only</span>
+                  ) : null}
+                  {isDirty ? (
+                    <span className="editor-state-note editor-dirty"> · Unsaved changes</span>
+                  ) : null}
+                </p>
+                {selectedPath && editable ? (
+                  <button
+                    type="button"
+                    className="btn-secondary workspace-rename-trigger"
+                    onClick={startRename}
+                    disabled={isDirty}
+                    title={isDirty ? "Save or discard changes before renaming" : "Rename this file"}
+                  >
+                    Rename
+                  </button>
+                ) : null}
+              </>
+            )}
+          </div>
           <div className="workspace-editor-host">
             {loadingFile ? (
               <p className="editor-loading">Loading file…</p>

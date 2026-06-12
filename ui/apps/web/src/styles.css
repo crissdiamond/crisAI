@@ -1018,6 +1018,45 @@ pre {
   overflow-wrap: anywhere;
 }
 
+/* Path bar: the open file's path plus the inline Rename affordance. */
+.workspace-editor-pathbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.workspace-editor-pathbar #workspace-editor-path {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.workspace-rename-trigger {
+  flex-shrink: 0;
+}
+
+/* Inline rename: fixed directory prefix + editable basename input. */
+.workspace-rename {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.workspace-rename-dir {
+  color: var(--color-primary-dark);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+
+.workspace-rename-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .workspace-editor textarea {
   min-height: var(--editor-min-h);
   resize: vertical;

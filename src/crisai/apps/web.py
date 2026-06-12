@@ -117,6 +117,18 @@ _UPLOAD_SUFFIXES = frozenset({
     ".yml",
 })
 
+# File types the web UI may open, edit, save, and rename in place. Kept as a
+# single source of truth so the tree listing, edit guard, and rename guard can
+# never drift apart.
+_EDITABLE_WORKSPACE_SUFFIXES = frozenset({
+    ".md",
+    ".txt",
+    ".mmd",
+    ".json",
+    ".yaml",
+    ".yml",
+})
+
 _DEFAULT_RATE_LIMIT_RPM = 0  # 0 = disabled
 _RATE_LIMITED_PATHS = frozenset({"/api/run", "/api/run/start", "/api/v1/runs"})
 _RATE_LIMIT_STATE: dict[str, Any] = {"window_start": 0.0, "count": 0}
@@ -248,6 +260,13 @@ class WorkspaceFileSaveRequest(BaseModel):
 
     path: str = Field(min_length=1)
     content: str = Field(default="")
+
+
+class WorkspaceFileRenameRequest(BaseModel):
+    """Represent a web request to rename an editable workspace file in place."""
+
+    path: str = Field(min_length=1)
+    new_name: str = Field(min_length=1)
 
 
 class WorkspaceUploadRequest(BaseModel):
@@ -858,7 +877,7 @@ def _assert_editable_workspace_file(path: Path) -> None:
     editable_roots = (roots["knowledge"], roots["tasks"], roots["staging"])
     if not any(rel == item or rel.startswith(f"{item}/") for item in editable_roots):
         raise HTTPException(status_code=403, detail="File is outside editable workspace areas.")
-    if path.suffix.lower() not in {".md", ".txt", ".mmd", ".json", ".yaml", ".yml"}:
+    if path.suffix.lower() not in _EDITABLE_WORKSPACE_SUFFIXES:
         raise HTTPException(status_code=403, detail="This file type is not editable in the web UI.")
 
 
@@ -877,6 +896,33 @@ def _safe_upload_filename(filename: str) -> str:
         return safe
     stem = Path(safe).stem[: max(1, 180 - len(suffix))]
     return f"{stem}{suffix}"
+
+
+def _safe_rename_name(new_name: str) -> str:
+    """Validate a bare destination filename for an in-place rename.
+
+    Rename changes the filename only; it never moves a file between
+    directories. The name must therefore be a single path segment (no
+    separators, not a dotfile) and must keep an editable file type so the
+    result stays openable in the web UI.
+    """
+    name = new_name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="New file name is required.")
+    if name != Path(name).name:
+        raise HTTPException(status_code=400, detail="New file name must not contain path separators.")
+    if name.startswith("."):
+        raise HTTPException(status_code=400, detail="New file name must not start with a dot.")
+    safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", name).strip(" .")
+    if not safe:
+        raise HTTPException(status_code=422, detail="New file name has no usable characters.")
+    suffix = Path(safe).suffix.lower()
+    if suffix not in _EDITABLE_WORKSPACE_SUFFIXES:
+        raise HTTPException(status_code=403, detail="Renamed file must keep an editable file type.")
+    if len(safe) > 180:
+        stem = Path(safe).stem[: max(1, 180 - len(suffix))]
+        safe = f"{stem}{suffix}"
+    return safe
 
 
 def _upload_target_dir(payload: WorkspaceUploadRequest) -> Path:
@@ -943,7 +989,7 @@ def _workspace_tree(base: Path) -> list[dict[str, Any]]:
                 "path": rel,
                 "name": path.name,
                 "size": stat.st_size,
-                "editable": path.suffix.lower() in {".md", ".txt", ".mmd", ".json", ".yaml", ".yml"},
+                "editable": path.suffix.lower() in _EDITABLE_WORKSPACE_SUFFIXES,
             }
         )
     return entries
@@ -1505,6 +1551,12 @@ async def api_v1_save_workspace_file(payload: WorkspaceFileSaveRequest) -> dict[
     return save_workspace_file(payload)
 
 
+@app.post("/api/v1/workspace/rename")
+async def api_v1_rename_workspace_file(payload: WorkspaceFileRenameRequest) -> dict[str, Any]:
+    """Rename one workspace file through the shared UI API."""
+    return rename_workspace_file(payload)
+
+
 @app.post("/api/v1/workspace/upload")
 async def api_v1_upload_workspace_file(payload: WorkspaceUploadRequest) -> dict[str, Any]:
     """Upload one source file through the shared UI API."""
@@ -1607,6 +1659,31 @@ def save_workspace_file(payload: WorkspaceFileSaveRequest) -> dict[str, Any]:
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_text(payload.content, encoding="utf-8")
     return {"path": file_path.relative_to(_workspace_root()).as_posix(), "saved": True}
+
+
+@app.post("/api/workspace/rename")
+def rename_workspace_file(payload: WorkspaceFileRenameRequest) -> dict[str, Any]:
+    """Rename one editable workspace file in place (same directory).
+
+    Both the source and the destination must clear the same path-safety and
+    editable-area guards as a read or save, so rename grants no access a normal
+    edit would not. The destination must not already exist.
+    """
+    source = _safe_workspace_path(payload.path)
+    if not source.is_file():
+        raise HTTPException(status_code=404, detail="Workspace file not found.")
+    _assert_editable_workspace_file(source)
+    root = _workspace_root()
+    new_name = _safe_rename_name(payload.new_name)
+    target_rel = (source.parent / new_name).relative_to(root).as_posix()
+    target = _safe_workspace_path(target_rel)
+    _assert_editable_workspace_file(target)
+    if target == source:
+        return {"path": source.relative_to(root).as_posix(), "renamed": False}
+    if target.exists():
+        raise HTTPException(status_code=409, detail="A file with that name already exists.")
+    source.rename(target)
+    return {"path": target.relative_to(root).as_posix(), "renamed": True}
 
 
 @app.post("/api/workspace/upload")
