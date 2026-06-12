@@ -12,6 +12,11 @@ from typing import Any
 from crisai import logging_utils as logging_utils_module
 from crisai.cli import pipeline_display as display_module
 from crisai.cli import workflow_support as support_module
+from crisai.orchestration.usage_cost import (
+    ModelPricing,
+    model_observability_metadata,
+    usage_cost_metadata,
+)
 
 get_logger = logging_utils_module.get_logger
 reset_stage_observability_agent_id = display_module.reset_stage_observability_agent_id
@@ -155,6 +160,7 @@ class WorkflowSession:
         Returns:
             The final text emitted by the agent.
         """
+        model_metadata, pricing = _resolve_model_observability(self._environment.factory, spec)
         agent = self._environment.factory.build_agent(spec, self._servers_for_spec(spec))
         self.trace_event(
             f"{trace_label}_START",
@@ -192,6 +198,8 @@ class WorkflowSession:
                     {"timeout_seconds": timeout_seconds},
                     observability_events,
                     execution_time=_execution_time_metadata(started_at, started_monotonic),
+                    model_metadata=model_metadata,
+                    pricing=pricing,
                 ),
             )
             raise TimeoutError(message) from None
@@ -206,6 +214,8 @@ class WorkflowSession:
                     {"error_type": type(exc).__name__},
                     observability_events,
                     execution_time=_execution_time_metadata(started_at, started_monotonic),
+                    model_metadata=model_metadata,
+                    pricing=pricing,
                 ),
             )
             raise
@@ -226,6 +236,8 @@ class WorkflowSession:
                     {"output_length": 0},
                     observability_events,
                     execution_time=_execution_time_metadata(started_at, started_monotonic),
+                    model_metadata=model_metadata,
+                    pricing=pricing,
                 ),
             )
             raise RuntimeError(message)
@@ -237,6 +249,8 @@ class WorkflowSession:
             trace_metadata,
             observability_events,
             execution_time=_execution_time_metadata(started_at, started_monotonic),
+            model_metadata=model_metadata,
+            pricing=pricing,
         )
         assert trace_metadata is not None
         self.trace_event(
@@ -330,9 +344,11 @@ def _merge_stage_observability_metadata(
     observability_events: list[tuple[str, dict[str, object]]],
     *,
     execution_time: dict[str, Any] | None = None,
+    model_metadata: dict[str, object] | None = None,
+    pricing: ModelPricing | None = None,
 ) -> dict[str, Any] | None:
     """Attach trace-safe stage observability to existing stage metadata."""
-    if not observability_events and execution_time is None:
+    if not observability_events and execution_time is None and model_metadata is None:
         return metadata
     merged: dict[str, Any] = dict(metadata or {})
     existing_observability = merged.get("observability")
@@ -347,8 +363,49 @@ def _merge_stage_observability_metadata(
             observability[event_type] = payload
     if execution_time is not None:
         observability["execution_time"] = execution_time
+    if model_metadata is not None:
+        observability["model"] = model_metadata
+    provider_usage = observability.get("provider_usage")
+    cost = usage_cost_metadata(
+        provider_usage if isinstance(provider_usage, dict) else None,
+        pricing,
+        pricing_source=str(model_metadata.get("source") if model_metadata else ""),
+    )
+    if cost is not None:
+        observability["cost"] = cost
     merged["observability"] = observability
     return merged
+
+
+def _resolve_model_observability(factory: Any, spec: Any) -> tuple[dict[str, object] | None, ModelPricing | None]:
+    """Return trace-safe model metadata and optional pricing for an agent spec."""
+    resolver = getattr(factory, "model_resolver", None)
+    resolve_for_agent = getattr(resolver, "resolve_for_agent", None)
+    if not callable(resolve_for_agent):
+        return None, None
+    resolved_model = resolve_for_agent(spec)
+    try:
+        pricing = ModelPricing.from_mapping(resolved_model.extra.get("pricing"))
+    except ValueError:
+        logger.warning(
+            "Ignoring invalid model pricing metadata for stage observability.",
+            extra={
+                "event_type": "model_pricing_invalid",
+                "model_source": resolved_model.source,
+                "provider": resolved_model.provider,
+                "model_name": resolved_model.model_name,
+            },
+            exc_info=True,
+        )
+        pricing = None
+    return (
+        model_observability_metadata(
+            provider=resolved_model.provider,
+            model_name=resolved_model.model_name,
+            source=resolved_model.source,
+        ),
+        pricing,
+    )
 
 
 def _utc_now_iso() -> str:
@@ -385,6 +442,8 @@ def _log_successful_agent_stage(
             "stage": stage,
             "trace_label": trace_label,
             "provider_usage": observability.get("provider_usage"),
+            "usage_cost": observability.get("cost"),
+            "model": observability.get("model"),
             "execution_time": observability.get("execution_time"),
         },
     )

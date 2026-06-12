@@ -8,7 +8,7 @@ from crisai.registry import Registry
 def test_load_models(tmp_path: Path):
     registry_dir = tmp_path
     (registry_dir / 'models.yaml').write_text(
-        'version: 1\nmodels:\n  - id: openai_fast\n    provider: openai\n    model_name: gpt-5.4-mini\n',
+        'version: 1\nmodels:\n  - id: openai_fast\n    provider: openai\n    model_name: gpt-5.4-mini\n    pricing:\n      currency: USD\n      unit: per_1m_tokens\n      input: 1\n      output: 2\n',
         encoding='utf-8',
     )
     registry = Registry(registry_dir)
@@ -16,6 +16,12 @@ def test_load_models(tmp_path: Path):
     assert len(models) == 1
     assert models[0].id == 'openai_fast'
     assert models[0].provider == 'openai'
+    assert models[0].extra["pricing"] == {
+        "currency": "USD",
+        "unit": "per_1m_tokens",
+        "input": 1,
+        "output": 2,
+    }
 
 
 def test_load_agents_with_model_ref(tmp_path: Path):

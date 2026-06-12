@@ -131,6 +131,7 @@ WorkflowEngine = engine_module.WorkflowEngine
 _execution_time_metadata = engine_module._execution_time_metadata
 _log_successful_agent_stage = engine_module._log_successful_agent_stage
 _merge_stage_observability_metadata = engine_module._merge_stage_observability_metadata
+_resolve_model_observability = engine_module._resolve_model_observability
 _utc_now_iso = engine_module._utc_now_iso
 
 load_session_anchors = session_store_module.load_session_anchors
@@ -767,6 +768,7 @@ async def run_single(
                 if isinstance(active_servers, dict)
                 else active_servers
             )
+            model_metadata, pricing = _resolve_model_observability(environment.factory, agent_spec)
             agent = environment.factory.build_agent(agent_spec, active_agent_servers)
             prompt = (
                 build_single_retrieval_planner_prompt(
@@ -808,6 +810,8 @@ async def run_single(
                         {"error_type": type(exc).__name__},
                         observability_events,
                         execution_time=_execution_time_metadata(started_at, started_monotonic),
+                        model_metadata=model_metadata,
+                        pricing=pricing,
                     ),
                 )
                 raise
@@ -831,6 +835,8 @@ async def run_single(
                             {"error_type": "SourceFitConstraintViolation"},
                             observability_events,
                             execution_time=_execution_time_metadata(started_at, started_monotonic),
+                            model_metadata=model_metadata,
+                            pricing=pricing,
                         ),
                     )
                     raise WorkflowPolicyViolation(inventory_violation)
@@ -840,6 +846,8 @@ async def run_single(
                 None,
                 observability_events,
                 execution_time=_execution_time_metadata(started_at, started_monotonic),
+                model_metadata=model_metadata,
+                pricing=pricing,
             )
             assert workflow_metadata is not None
             append_trace(

@@ -2140,6 +2140,23 @@ async def test_run_single_emits_stage_start_before_completion(monkeypatch, tmp_p
 async def test_run_single_attaches_observability_to_workflow_output(monkeypatch, tmp_path, caplog):
     trace_calls: list[tuple[str, str, dict]] = []
 
+    class FakeResolver:
+        def resolve_for_agent(self, spec):
+            assert spec.id == "retrieval_planner"
+            return SimpleNamespace(
+                provider="openai",
+                model_name="gpt-example",
+                source="model_ref:openai_fast",
+                extra={
+                    "pricing": {
+                        "currency": "USD",
+                        "unit": "per_1m_tokens",
+                        "input": "10",
+                        "output": "20",
+                    }
+                },
+            )
+
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
     monkeypatch.setattr(
         pipelines,
@@ -2148,7 +2165,10 @@ async def test_run_single_attaches_observability_to_workflow_output(monkeypatch,
             root_dir=tmp_path,
             trace_file=tmp_path / "trace.log",
             runtime=SimpleNamespace(build_server=lambda server_spec: server_spec),
-            factory=SimpleNamespace(build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id)),
+            factory=SimpleNamespace(
+                model_resolver=FakeResolver(),
+                build_agent=lambda spec, active_servers: SimpleNamespace(id=spec.id),
+            ),
             run_id="test-run-id",
         ),
     )
@@ -2186,6 +2206,23 @@ async def test_run_single_attaches_observability_to_workflow_output(monkeypatch,
     observability = workflow_output[2]["metadata"]["observability"]
     assert observability["schema_version"] == "ui_stage_observability_v1"
     assert observability["provider_usage"] == {"input_tokens": 8, "output_tokens": 4, "total_tokens": 12}
+    assert observability["model"] == {
+        "schema_version": "model_observability_v1",
+        "provider": "openai",
+        "model_name": "gpt-example",
+        "source": "model_ref:openai_fast",
+        "model_ref": "openai_fast",
+    }
+    assert observability["cost"] == {
+        "schema_version": "usage_cost_v1",
+        "currency": "USD",
+        "estimated": True,
+        "pricing_source": "model_ref:openai_fast",
+        "pricing_unit": "per_1m_tokens",
+        "input_cost_usd": 8e-05,
+        "output_cost_usd": 8e-05,
+        "total_cost_usd": 0.00016,
+    }
     assert observability["execution_time"]["started_at"]
     assert observability["execution_time"]["ended_at"]
     assert observability["execution_time"]["duration_ms"] >= 0
@@ -2197,6 +2234,8 @@ async def test_run_single_attaches_observability_to_workflow_output(monkeypatch,
     assert log_record.stage == "retrieval_planner"
     assert log_record.trace_label == "FINAL_OUTPUT"
     assert log_record.provider_usage == {"input_tokens": 8, "output_tokens": 4, "total_tokens": 12}
+    assert log_record.usage_cost == observability["cost"]
+    assert log_record.model == observability["model"]
     assert log_record.execution_time == observability["execution_time"]
     assert "single output" not in log_record.getMessage()
 

@@ -7,6 +7,7 @@ import json
 import os
 import re
 import secrets
+import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -94,12 +95,6 @@ async def _lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="crisAI Web", lifespan=_lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
 _MAX_COMPLETED_JOBS = 20
 _MAX_WORKSPACE_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -122,15 +117,67 @@ _UPLOAD_SUFFIXES = frozenset({
     ".yml",
 })
 
+_DEFAULT_RATE_LIMIT_RPM = 0  # 0 = disabled
+_RATE_LIMITED_PATHS = frozenset({"/api/run", "/api/run/start", "/api/v1/runs"})
+_RATE_LIMIT_STATE: dict[str, Any] = {"window_start": 0.0, "count": 0}
+
+
+def _resolve_rate_limit_rpm() -> int:
+    """Return max POST requests/minute on execution endpoints; 0 = disabled."""
+    raw = os.getenv("CRISAI_RATE_LIMIT_RPM", "").strip()
+    if not raw:
+        return _DEFAULT_RATE_LIMIT_RPM
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return _DEFAULT_RATE_LIMIT_RPM
+    return parsed if parsed > 0 else _DEFAULT_RATE_LIMIT_RPM
+
+
+@app.middleware("http")
+async def _rate_limit_middleware(request: Request, call_next: Any) -> Any:
+    """Guard /api/run and /api/v1/runs against accidental budget exhaustion.
+
+    Fixed-window counter: at most CRISAI_RATE_LIMIT_RPM POST requests per 60 s.
+    No-op when the env var is 0 or unset. LIFO note: _auth_middleware is defined
+    after this one, so auth executes first; only authenticated requests reach this
+    counter.
+    """
+    limit = _resolve_rate_limit_rpm()
+    if not limit or request.method != "POST" or request.url.path not in _RATE_LIMITED_PATHS:
+        return await call_next(request)
+
+    now = time.monotonic()
+    window_start = _RATE_LIMIT_STATE["window_start"]
+    if now - window_start >= 60.0:
+        _RATE_LIMIT_STATE["window_start"] = now
+        _RATE_LIMIT_STATE["count"] = 0
+        window_start = now
+
+    if _RATE_LIMIT_STATE["count"] >= limit:
+        retry_after = int(60.0 - (now - window_start)) + 1
+        return Response(
+            content='{"detail":"Rate limit exceeded"}',
+            status_code=429,
+            media_type="application/json",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    _RATE_LIMIT_STATE["count"] += 1
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def _auth_middleware(request: Request, call_next: Any) -> Any:
     """Enforce Bearer token auth when CRISAI_API_KEY is set.
 
     When CRISAI_API_KEY is empty or unset the middleware is a no-op so that
     local single-user deployments require no configuration change.
+
+    CORS preflight (OPTIONS) is handled by the outermost CORSMiddleware before
+    a request reaches this middleware, so no OPTIONS bypass is needed here; when
+    a key is set, OPTIONS is authenticated like any other method.
     """
-    if request.method == "OPTIONS":
-        return await call_next(request)
     api_key = os.getenv("CRISAI_API_KEY", "").strip()
     if not api_key:
         return await call_next(request)
@@ -143,6 +190,32 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
             headers={"WWW-Authenticate": "Bearer"},
         )
     return await call_next(request)
+
+
+def _cors_allowed_origins() -> list[str]:
+    """Return the CORS allowed origins for the web client.
+
+    Defaults to the local React dev origins. Set CRISAI_CORS_ORIGINS to a
+    comma-separated list to override for a deployment that serves the web client
+    from a different origin, keeping the origin allow-list out of source.
+    """
+    raw = os.getenv("CRISAI_CORS_ORIGINS", "").strip()
+    if not raw:
+        return ["http://127.0.0.1:5173", "http://localhost:5173"]
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+# Register CORS last so it wraps the auth and rate-limit middleware as the
+# outermost layer. Starlette runs the most recently added middleware first, so
+# this answers preflight (OPTIONS) at the edge and keeps the 401/429 responses
+# from the inner middleware readable by the browser client (they retain the
+# Access-Control-Allow-Origin header instead of failing as opaque CORS errors).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_allowed_origins(),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class RunRequest(BaseModel):

@@ -152,6 +152,12 @@ textarea {
   50% { opacity: 0.35; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .status-badge--running .status-dot {
+    animation: none;
+  }
+}
+
 h1,
 h2 {
   margin: 0;

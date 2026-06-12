@@ -1,5 +1,14 @@
 version: 1
 
+# Optional per-model pricing can be configured with:
+# pricing:
+#   currency: USD
+#   unit: per_1m_tokens
+#   input: <provider input-token rate>
+#   output: <provider output-token rate>
+#   cached_input: <provider cached-input rate>  # optional
+#   reasoning: <provider reasoning-token rate>  # optional
+# The runtime estimates cost only when provider usage and valid pricing are both present.
 models:
   - id: openai_fast
     provider: openai

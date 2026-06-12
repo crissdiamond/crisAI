@@ -142,6 +142,25 @@ def test_validation_warns_when_prompt_contract_tool_is_not_allowed(tmp_path: Pat
     assert any("inspect_powerpoint_document" in w.message for w in warnings)
 
 
+def test_validation_reports_invalid_model_pricing(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    models_path = registry_dir / "models.yaml"
+    models_payload = yaml.safe_load(models_path.read_text(encoding="utf-8"))
+    models_payload["models"][0]["pricing"] = {
+        "currency": "USD",
+        "unit": "per_1m_tokens",
+        "input": -1,
+        "output": 1,
+    }
+    models_path.write_text(yaml.safe_dump(models_payload), encoding="utf-8")
+
+    errors, _warnings = _validate_registry_cross_references(root, registry_dir)
+
+    assert any("Model 'openai_fast' has invalid pricing metadata" in error.message for error in errors)
+
+
 def test_doctor_reports_unknown_model_ref(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[2]
     registry_dir = tmp_path / "registry"
@@ -582,3 +601,56 @@ def test_doctor_deduplicates_relative_token_cache_permission_warnings(
         if f"Microsoft token cache file is too permissive: {cache_file.resolve()}" in warning.message
     ]
     assert len(duplicate_file_warnings) == 1
+
+
+def test_read_pinned_python_version_parses_variants(tmp_path: Path) -> None:
+    from crisai.registry_validation import _read_pinned_python_version
+
+    version_file = tmp_path / ".python-version"
+    version_file.write_text("3.13.13\n", encoding="utf-8")
+    assert _read_pinned_python_version(version_file) == (3, 13)
+
+    version_file.write_text("cpython-3.12\n", encoding="utf-8")
+    assert _read_pinned_python_version(version_file) == (3, 12)
+
+    assert _read_pinned_python_version(tmp_path / "missing") is None
+
+
+def test_check_runtime_environment_warns_on_python_version_mismatch(tmp_path: Path) -> None:
+    import sys
+
+    from crisai.registry_validation import _check_runtime_environment
+
+    (tmp_path / ".python-version").write_text(
+        f"{sys.version_info.major}.{sys.version_info.minor + 1}\n", encoding="utf-8"
+    )
+    errors, warnings = _check_runtime_environment(tmp_path)
+
+    messages = "\n".join(w.message for w in warnings)
+    assert ".python-version pins" in messages
+    assert "stale" in messages
+    # anyio's backend imports in the test environment, so no error is raised.
+    assert errors == []
+
+
+def test_check_runtime_environment_errors_when_async_backend_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+
+    import crisai.registry_validation as validation_module
+
+    # Match the pin so only the async-backend failure is reported.
+    (tmp_path / ".python-version").write_text(
+        f"{sys.version_info.major}.{sys.version_info.minor}\n", encoding="utf-8"
+    )
+
+    def _raise(_name: str) -> object:
+        raise ModuleNotFoundError("No module named 'anyio._backends'")
+
+    monkeypatch.setattr(validation_module.importlib, "import_module", _raise)
+    errors, warnings = validation_module._check_runtime_environment(tmp_path)
+
+    messages = "\n".join(e.message for e in errors)
+    assert "anyio asyncio backend failed to import" in messages
+    assert warnings == []

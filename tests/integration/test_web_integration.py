@@ -41,6 +41,17 @@ def _clear_jobs():
     web_mod._RUN_JOBS.clear()
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_state():
+    from crisai.apps import web as web_mod
+
+    web_mod._RATE_LIMIT_STATE["window_start"] = 0.0
+    web_mod._RATE_LIMIT_STATE["count"] = 0
+    yield
+    web_mod._RATE_LIMIT_STATE["window_start"] = 0.0
+    web_mod._RATE_LIMIT_STATE["count"] = 0
+
+
 @pytest.fixture()
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _ASGITestClient:
     """Return an ASGI test client with I/O side-effects suppressed."""
@@ -79,6 +90,9 @@ class _ASGITestClient:
 
     def post(self, url: str, *, json: dict[str, Any], headers: dict[str, str] | None = None) -> httpx.Response:
         return asyncio.run(self._request("POST", url, json=json, headers=headers))
+
+    def options(self, url: str, *, headers: dict[str, str] | None = None) -> httpx.Response:
+        return asyncio.run(self._request("OPTIONS", url, headers=headers))
 
     async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=True)
@@ -932,3 +946,234 @@ def test_auth_middleware_uses_constant_time_compare() -> None:
 
     source = inspect.getsource(web_mod._auth_middleware)
     assert "secrets.compare_digest" in source
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting
+# ---------------------------------------------------------------------------
+
+
+def test_rate_limit_disabled_by_default(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No CRISAI_RATE_LIMIT_RPM set → execution endpoint never returns 429."""
+    monkeypatch.delenv("CRISAI_RATE_LIMIT_RPM", raising=False)
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _fake_run(*_a: Any, **_kw: Any) -> str:
+        return "ok"
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run)
+
+    payload = {"message": "hello", "mode": "auto", "agent": "auto"}
+    for _ in range(5):
+        resp = client.post("/api/run", json=payload)
+        assert resp.status_code != 429
+
+
+def test_rate_limit_enforced_on_api_run(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """limit=2 → first two POSTs pass; third returns 429."""
+    monkeypatch.setenv("CRISAI_RATE_LIMIT_RPM", "2")
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _fake_run(*_a: Any, **_kw: Any) -> str:
+        return "ok"
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run)
+
+    payload = {"message": "hello", "mode": "auto", "agent": "auto"}
+    assert client.post("/api/run", json=payload).status_code != 429
+    assert client.post("/api/run", json=payload).status_code != 429
+    assert client.post("/api/run", json=payload).status_code == 429
+
+
+def test_rate_limit_enforced_on_api_v1_runs(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """limit=2 → first two POSTs to /api/v1/runs pass; third returns 429."""
+    monkeypatch.setenv("CRISAI_RATE_LIMIT_RPM", "2")
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _noop_run_job(job_id: str, payload: Any, decision: Any) -> None:
+        pass
+
+    monkeypatch.setattr("crisai.apps.web._run_job", _noop_run_job)
+
+    payload = {"message": "hello", "mode": "auto", "agent": "auto"}
+    assert client.post("/api/v1/runs", json=payload).status_code != 429
+    assert client.post("/api/v1/runs", json=payload).status_code != 429
+    assert client.post("/api/v1/runs", json=payload).status_code == 429
+
+
+def test_rate_limit_response_has_retry_after_header(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """429 response includes a Retry-After header with an integer value >= 1."""
+    monkeypatch.setenv("CRISAI_RATE_LIMIT_RPM", "1")
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _fake_run(*_a: Any, **_kw: Any) -> str:
+        return "ok"
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run)
+
+    payload = {"message": "hello", "mode": "auto", "agent": "auto"}
+    client.post("/api/run", json=payload)
+    resp = client.post("/api/run", json=payload)
+    assert resp.status_code == 429
+    retry_after = resp.headers.get("retry-after", "")
+    assert retry_after.isdigit()
+    assert int(retry_after) >= 1
+
+
+def test_rate_limit_does_not_apply_to_non_execution_endpoints(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """High counter on rate-limit state does not affect non-execution GET endpoints."""
+    monkeypatch.setenv("CRISAI_RATE_LIMIT_RPM", "1")
+    from crisai.apps import web as web_mod
+
+    web_mod._RATE_LIMIT_STATE["count"] = 999
+
+    resp = client.get("/api/config")
+    assert resp.status_code != 429
+
+
+def test_rate_limit_enforced_on_api_run_start(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """limit=2 → first two POSTs to /api/run/start pass; third returns 429."""
+    monkeypatch.setenv("CRISAI_RATE_LIMIT_RPM", "2")
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _noop_run_job(job_id: str, payload: Any, decision: Any) -> None:
+        pass
+
+    monkeypatch.setattr("crisai.apps.web._run_job", _noop_run_job)
+
+    payload = {"message": "hello", "mode": "auto", "agent": "auto"}
+    assert client.post("/api/run/start", json=payload).status_code != 429
+    assert client.post("/api/run/start", json=payload).status_code != 429
+    assert client.post("/api/run/start", json=payload).status_code == 429
+
+
+def test_rate_limit_window_resets_after_60s(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After the 60-second window expires the counter resets and the request passes."""
+    import time
+
+    monkeypatch.setenv("CRISAI_RATE_LIMIT_RPM", "1")
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _fake_run(*_a: Any, **_kw: Any) -> str:
+        return "ok"
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run)
+
+    from crisai.apps import web as web_mod
+
+    web_mod._RATE_LIMIT_STATE["count"] = 1
+    web_mod._RATE_LIMIT_STATE["window_start"] = time.monotonic() - 61
+
+    payload = {"message": "hello", "mode": "auto", "agent": "auto"}
+    resp = client.post("/api/run", json=payload)
+    assert resp.status_code != 429
+
+
+# ---------------------------------------------------------------------------
+# CORS (middleware ordering: CORS is outermost)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_ORIGIN = "http://localhost:5173"
+
+
+def test_cors_preflight_succeeds_without_auth(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A CORS preflight is answered by the outermost CORSMiddleware.
+
+    Even with auth enabled, the browser preflight (which never carries
+    credentials) is handled at the edge and echoes the allowed origin, so the
+    auth middleware needs no OPTIONS bypass.
+    """
+    monkeypatch.setenv("CRISAI_API_KEY", "test-secret")
+    resp = client.options(
+        "/api/run",
+        headers={
+            "Origin": _ALLOWED_ORIGIN,
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == _ALLOWED_ORIGIN
+
+
+def test_cors_header_present_on_401_response(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An auth 401 still carries the CORS header so the browser can read it.
+
+    This is the regression fix: with CORS innermost, the 401 short-circuited
+    before reaching CORSMiddleware and the browser saw an opaque CORS error.
+    """
+    monkeypatch.setenv("CRISAI_API_KEY", "test-secret")
+    resp = client.get("/api/config", headers={"Origin": _ALLOWED_ORIGIN})
+    assert resp.status_code == 401
+    assert resp.headers.get("access-control-allow-origin") == _ALLOWED_ORIGIN
+
+
+def test_cors_header_present_on_429_response(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rate-limit 429 still carries the CORS header (auth disabled by default)."""
+    monkeypatch.setenv("CRISAI_RATE_LIMIT_RPM", "1")
+    monkeypatch.setattr("crisai.apps.web._resolve_decision", lambda _: _FakeDecision())
+
+    async def _fake_run(*_a: Any, **_kw: Any) -> str:
+        return "ok"
+
+    monkeypatch.setattr("crisai.apps.web._run_with_routing", _fake_run)
+
+    payload = {"message": "hello", "mode": "auto", "agent": "auto"}
+    headers = {"Origin": _ALLOWED_ORIGIN}
+    client.post("/api/run", json=payload, headers=headers)
+    resp = client.post("/api/run", json=payload, headers=headers)
+    assert resp.status_code == 429
+    assert resp.headers.get("access-control-allow-origin") == _ALLOWED_ORIGIN
+
+
+def test_non_preflight_options_is_authenticated_when_key_set(
+    client: _ASGITestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A plain OPTIONS (not a CORS preflight) is authenticated, not bypassed.
+
+    Confirms the removed OPTIONS bypass: without preflight headers the request
+    falls through CORSMiddleware to the auth middleware and is rejected.
+    """
+    monkeypatch.setenv("CRISAI_API_KEY", "test-secret")
+    resp = client.options("/api/config")
+    assert resp.status_code == 401
+
+
+def test_auth_middleware_has_no_options_bypass() -> None:
+    """The auth middleware must not short-circuit OPTIONS requests."""
+    import inspect
+
+    from crisai.apps import web as web_mod
+
+    source = inspect.getsource(web_mod._auth_middleware)
+    assert 'request.method == "OPTIONS"' not in source

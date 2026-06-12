@@ -847,7 +847,12 @@ function stageLiveContentForTarget(events: UiEvent[], targetStage: string, inclu
       continue;
     }
     if (event.event_type === "stage_delta") {
-      content = mergeStageDeltaContent(content, event.content);
+      // The runtime emits cumulative snapshots: each stage_delta carries the
+      // full text streamed so far, not just the new fragment (see
+      // _append_stage_delta_event in web.py). Replace with the latest snapshot
+      // rather than appending, which would duplicate the content whenever a
+      // snapshot ends mid-word.
+      content = event.content;
     }
     if (includeStageOutput && event.event_type === "stage_output") {
       content = event.content;
@@ -948,28 +953,6 @@ function stageEventKey(event: Pick<UiEvent, "agent_id" | "stage">): string {
 
 function formatStageKeyForNotice(key: string): string {
   return key.replace(/[_-]+/g, " ");
-}
-
-function mergeStageDeltaContent(current: string, next: string): string {
-  if (!next) return current;
-  if (!current) return next;
-  if (next === current || isCumulativeStageDelta(current, next)) return next;
-  if (current.endsWith(next)) return current;
-  const separator = needsStageDeltaSeparator(current, next) ? " " : "";
-  return `${current}${separator}${next}`;
-}
-
-function isCumulativeStageDelta(current: string, next: string): boolean {
-  if (!next.startsWith(current)) return false;
-  const remainder = next.slice(current.length);
-  if (!remainder) return true;
-  return /^\s/.test(remainder);
-}
-
-function needsStageDeltaSeparator(current: string, next: string): boolean {
-  if (!current || !next) return false;
-  if (/\s$/.test(current) || /^\s/.test(next)) return false;
-  return /[\p{L}\p{N}]$/u.test(current) && /^[\p{L}\p{N}]/u.test(next);
 }
 
 function checkpointEventLines(event: UiEvent, width: number): string[] {

@@ -86,9 +86,7 @@ The main product gaps are:
 |---|---:|---|---|---|---|
 | TODO-003 | P0 | todo | Persistent retrieval cache | Repeated source reads during iterative tasks waste time and tokens. Evidence bundles can be reused when the query and source revision are unchanged. | Evidence bundles are cached by query fingerprint, source identity, and source revision/hash. Cache hits are visible in trace metadata. Stale entries are invalidated using provider revision metadata where available, such as ETag, source version, Graph `lastModifiedDateTime`, content hash, or configurable TTL expiry. |
 | TODO-026 | P0 | todo | Product and repository rename | `crisAI` was the prototype name. Before broader team adoption, the project should use a professional product, repository, package, CLI, docs, log, and MCP identity such as `Architecture Assistant`, `architecture-assistant`, `architecture_assistant`, and `arch-assistant`. Doing this early avoids team-facing churn later. | Rename the GitHub repository, Python package, CLI entry point, docs, UI labels, MCP server names, log labels, and setup instructions. Decide explicitly whether to keep a temporary `crisai` compatibility alias or remove it for a clean first team clone. Full test suite, doctor, packaging, and install-from-clone flow pass under the new name. |
-| TODO-042 | P1 | todo | Rate limiting on execution endpoints | `/api/run` and `/api/v1/runs` trigger LLM calls with no request-rate guard. A misconfigured client or accidental loop could exhaust the model provider budget before the user notices. VISION Principle 8 requires token spend to be rate-guarded. | Execution endpoints enforce a configurable per-key or per-IP rate limit (e.g. N requests per minute). Limit breach returns 429 with a `Retry-After` header. Limits are configured via registry or env var. Tests cover limit enforcement and bypass attempts. |
 | TODO-004 | P1 | todo | Authenticated website retrieval MCP | Enterprise architecture work often depends on protected vendor portals, internal web apps, design standards sites, and architecture repositories that are not SharePoint pages. crisAI needs a read-only OAuth/OIDC website source connector with strict scope controls. | Add an `authenticated_web` MCP server with login/auth-status, allow-listed hosts, OAuth/OIDC auth-code or device flow, URL fetch, optional rendered-page fetch for JS-heavy pages, link extraction, content normalization, source references, and tests with mocked OAuth and HTTP responses. |
-| TODO-005 | P1 | todo | Token and cost tracking per stage | Cost needs to be visible for model pairing, pipeline tuning, and user trust. This should precede dynamic model selection so model decisions are based on measured usage. | Trace events include provider/model/token/cost metadata when available. CLI or doctor can summarise spend by run, stage, and agent. Missing provider usage data degrades gracefully. |
 | TODO-030 | P1 | todo | Trace and log secret redaction and retention controls | Traces and logs intentionally contain agent stage content and source excerpts. They are ignored by git, but the configured `redact_secrets` policy is not yet enforced as a general write-time redaction layer. | All trace/log writers pass through a shared redaction function for API keys, bearer tokens, Microsoft auth payloads, client secrets, and configured secret patterns. Redaction is tested. Optional retention controls can cap age/size of local trace and MCP log files. Documentation states that traces may still contain sensitive business content. |
 | TODO-031 | P1 | todo | Harden remote and custom MCP registry validation | Remote MCP servers and custom intranet providers are a trusted-code boundary. Before broader use, enabled remote/custom connectors should be explicit, least-privilege, and visibly risky in doctor output. | Doctor fails or warns on enabled remote MCPs with empty tool allowlists, literal `Authorization` headers, non-HTTPS URLs outside localhost, missing `auth` metadata, or high-risk custom provider paths. Documentation marks registry/custom providers as trusted admin configuration. Tests cover the validation cases. |
 | TODO-006 | P1 | todo | Architecture artefact template library | The tool is intended to support daily enterprise, solution, and data architecture work. It needs reusable structures beyond one-off generated Markdown. | Add governed templates for HLD, options paper, architecture decision record, data flow, data mapping, data lineage, NFR assessment, integration design, migration plan, and architecture review. Semantic graph has vertices for each template type so agents can discover them by topic during retrieval. Artefact validation has tests. |
@@ -118,6 +116,7 @@ The main product gaps are:
 | TODO-027 | P2 | todo | Testing coverage hardening | TESTING.md should describe the current suite, while future test ideas belong in this backlog. A few useful coverage extensions remain for configuration, model display, SharePoint auth, and provider smoke confidence. | Add tests for loading `registry/models.yaml` through the full CLI runtime path, `/list agents` model labels, mocked SharePoint auth status with MSAL, `.env.example` coverage/completeness, and optional provider-selection smoke tests for configured OpenAI, Gemini, Anthropic, and DeepSeek providers. |
 | TODO-032 | P2 | todo | Clarify or enforce MCP approval policy | `registry/servers.yaml` and `registry/policies.yaml` describe approval requirements, but effective protection currently comes mainly from server-side path/write restrictions. The configuration should not imply a stronger central approval gate than exists. | Either implement a central approval gate for tools marked under `approval.required_for`, or rename/document approval metadata as advisory/local policy. Tests prove write tools cannot bypass the intended control path. README/DOCUMENTATION explain the actual trust model. |
 | TODO-038 | P2 | todo | Agent model API resilience | Each agent is wired to a single `model_ref` with no fallback. A provider API failure causes the entire run to fail with no user guidance on which agent failed or whether retrying is appropriate. VISION Principle 7 (observable cost and quality) requires that failures are visible and understandable. | Registry supports an optional `fallback_model_ref` per agent. If the primary model call fails with a retriable error (rate limit, timeout), the agent retries once with the fallback before surfacing a structured error. Failures are traced with provider, model, stage, and error type. Behaviour is test-covered. |
+| TODO-044 | P2 | todo | Image-only / scanned PDF reading via vision | `document_server._read_pdf` uses `pypdf` text extraction, which returns empty content for image-only or scanned PDFs (every page is a full-page raster with no text layer). Verified against `workspace/knowledge_staging/Powerbi-design.pdf` and `hld-template.pdf`: `pypdf`, `pdfplumber`, and `pdfminer.six` all extract 0 characters, so agents report they cannot read the file. Text-layer extractors cannot solve this; rasterisation plus OCR or a vision model is required. crisAI already has a vision pipeline (`image_server.py` → `_describe_image_blob` → `CRISAI_VISION_MODEL`). | When `_read_pdf` yields no text layer, the document path rasterises each page (preferring a pure-Python renderer such as `pypdfium2`, avoiding system binaries and AGPL libraries) and routes pages through the existing vision describe path to recover content. Text-based PDFs continue to read via `pypdf` unchanged. Per-page vision spend is observable in trace/cost telemetry (VISION §7) and the fallback is bounded/opt-in for large documents (VISION §3). Behaviour is test-covered with an image-only PDF fixture, and DOCUMENTATION notes the capability and its cost implications. |
 | TODO-019 | P3 | todo | Web UI rebuild | The web UI should become a first-class execution surface matching CLI semantics. | Web shows routing, per-stage streaming, retrieval checkpoint, workspace browser, and peer transcript with role-labelled cards. Behaviour remains aligned with CLI. |
 | TODO-020 | P3 | todo | Multi-workspace support | Users may need clean isolation across projects, clients, or architecture domains. | Add `/workspace switch <path>` and related status/doctor support. Registry and task state isolation are explicit and tested. |
 
@@ -130,38 +129,34 @@ The main product gaps are:
 3. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
    Once auth is in place, rate-guarding the execution endpoints prevents token
    exhaustion from misconfigured clients or loops.
-4. Implement `TODO-005` next, before the source connector engineering track.
-   VISION near-term direction places cost tracking at #4, before authenticated
-   website MCP. Measuring cost early lets model pairing and pipeline decisions
-   be informed by real usage data.
-5. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
+4. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
    cached evidence can participate in the same confirmation flow.
-6. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+5. Implement `TODO-017` (source connector capability contract) before `TODO-004`
     and `TODO-012`. Both new source adapters should be built against the contract
     from the start rather than retrofitted later.
-7. Implement `TODO-004` after the capability contract is in place. It creates
+6. Implement `TODO-004` after the capability contract is in place. It creates
     the secure generic pattern for OAuth-protected web sources before site-specific
     adapters proliferate.
-8. Implement `TODO-025` with the web UX track, ideally before the full web
+7. Implement `TODO-025` with the web UX track, ideally before the full web
     rebuild, because structured editing is a contained high-value feature for
     non-technical architecture users.
     **Note:** design `TODO-025` with the future web architecture
     (`TODO-019`) in mind. If the scope cannot be carried forward with minimal rework
     when the rebuild happens, consider advancing `TODO-019` to a design phase first
     to avoid duplicating effort.
-9. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+8. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
     enterprise architecture quality track.
-10. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
+9. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
     assurance automation. The roles directory and assurance operating model
     define who can review, who can approve, which artefacts require sign-off,
     and how asynchronous document movement should be audited.
-11. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
+10. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
     Dynamic model selection and API fallback should be built together so model
     choices and failure behaviour are governed by the same registry policy.
-12. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
+11. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
     should consume the shared event contract instead of carrying removed UI
     implementations.
-13. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+12. Treat `TODO-019` as the final alignment step for CLI workflow changes that
     affect user-visible execution semantics.
 
 ## Done
@@ -174,9 +169,11 @@ Completed items should move here with the merge commit or PR reference.
 | TODO-002 | Streaming stage output | `461461e feat(ui): stream stage output in clients` |
 | TODO-002A | Browser viewport pass for streaming card | `fix(web): bound streaming viewport layout` |
 | TODO-043 | CI security scanning | `ci: add security scanning gates` |
+| TODO-005 | Token and cost tracking per stage | `6398d8e feat(runtime): track stage cost telemetry`, `7d7ba13 feat(cli): add spend command for cost telemetry`, `83d3287 fix(cli): harden spend parser against non-dict JSONL` |
 | TODO-037 | First-run and team onboarding experience | `docs(runtime): improve first-run onboarding checks` |
 | TODO-041 | API authentication and authorisation guard (Phase 1 — static bearer token) | `2ea5457 feat(security): add Bearer token auth guard`, `800e2d7 fix(security): harden api bearer comparison` |
 | TODO-024 | Web document upload | `a2b3f5c docs(todo): mark TODO-041 done and update sequencing` |
 | TODO-036 | Routing decision transparency | `feat(ui): expose request contract before execution` |
 | TODO-028 | Block agent access to local auth and secret folders | `fix(runtime): block sensitive workspace paths` |
 | TODO-029 | Restrictive permissions for token caches | `fix(security): restrict microsoft token cache permissions` |
+| TODO-042 | Rate limiting on execution endpoints | `8badc2e feat(web): add per-minute rate limit on execution endpoints`, `47cdc97 fix(web): add /api/run/start to rate-limited paths` |

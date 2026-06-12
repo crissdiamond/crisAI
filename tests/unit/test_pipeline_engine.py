@@ -353,6 +353,113 @@ async def test_workflow_session_adds_observability_to_stage_output_metadata(engi
 
 
 @pytest.mark.anyio
+async def test_workflow_session_adds_model_cost_when_pricing_and_usage_exist(engine_fixture, caplog):
+    fixture = engine_fixture
+
+    class FakeResolver:
+        def resolve_for_agent(self, spec):
+            assert spec.id == "retrieval_planner"
+            return SimpleNamespace(
+                provider="openai",
+                model_name="gpt-example",
+                source="model_ref:openai_fast",
+                extra={
+                    "pricing": {
+                        "currency": "USD",
+                        "unit": "per_1m_tokens",
+                        "input": "10",
+                        "output": "20",
+                    }
+                },
+            )
+
+    fixture.environment.factory.model_resolver = FakeResolver()
+
+    async def usage_stage_runner(agent_id, agent, prompt):
+        del agent_id, agent, prompt
+        pipeline_display._emit_stage_observability(
+            "provider_usage",
+            {"provider_usage": {"input_tokens": 1000, "output_tokens": 500, "total_tokens": 1500}},
+        )
+        return "stage output"
+
+    fixture.engine._stage_runner = usage_stage_runner
+
+    with caplog.at_level(logging.INFO, logger="crisai.cli.pipeline_engine"):
+        async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+            await workflow.run_stage(
+                spec=fixture.retrieval_planner_spec,
+                ui_agent_id="retrieval_planner",
+                prompt="find context",
+                trace_label="RETRIEVAL_PLANNER OUTPUT",
+                verbose=False,
+            )
+
+    observability = fixture.trace_calls[1][2]["metadata"]["observability"]
+    assert observability["model"] == {
+        "schema_version": "model_observability_v1",
+        "provider": "openai",
+        "model_name": "gpt-example",
+        "source": "model_ref:openai_fast",
+        "model_ref": "openai_fast",
+    }
+    assert observability["cost"] == {
+        "schema_version": "usage_cost_v1",
+        "currency": "USD",
+        "estimated": True,
+        "pricing_source": "model_ref:openai_fast",
+        "pricing_unit": "per_1m_tokens",
+        "input_cost_usd": 0.01,
+        "output_cost_usd": 0.01,
+        "total_cost_usd": 0.02,
+    }
+    log_record = next(
+        record for record in caplog.records if getattr(record, "event_type", None) == "agent_stage_observability"
+    )
+    assert log_record.usage_cost == observability["cost"]
+    assert log_record.model == observability["model"]
+
+
+@pytest.mark.anyio
+async def test_workflow_session_omits_cost_when_pricing_absent(engine_fixture):
+    fixture = engine_fixture
+
+    class FakeResolver:
+        def resolve_for_agent(self, spec):
+            return SimpleNamespace(
+                provider="openai",
+                model_name="gpt-example",
+                source=f"model_ref:{spec.id}",
+                extra={},
+            )
+
+    fixture.environment.factory.model_resolver = FakeResolver()
+
+    async def usage_stage_runner(agent_id, agent, prompt):
+        del agent_id, agent, prompt
+        pipeline_display._emit_stage_observability(
+            "provider_usage",
+            {"provider_usage": {"input_tokens": 1000, "output_tokens": 500}},
+        )
+        return "stage output"
+
+    fixture.engine._stage_runner = usage_stage_runner
+
+    async with fixture.engine.session([fixture.retrieval_planner_spec]) as workflow:
+        await workflow.run_stage(
+            spec=fixture.retrieval_planner_spec,
+            ui_agent_id="retrieval_planner",
+            prompt="find context",
+            trace_label="RETRIEVAL_PLANNER OUTPUT",
+            verbose=False,
+        )
+
+    observability = fixture.trace_calls[1][2]["metadata"]["observability"]
+    assert observability["model"]["model_ref"] == "retrieval_planner"
+    assert "cost" not in observability
+
+
+@pytest.mark.anyio
 async def test_workflow_session_overwrites_stale_observability_schema(engine_fixture):
     fixture = engine_fixture
 

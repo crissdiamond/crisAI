@@ -231,8 +231,11 @@ normal user-visible content. Provider token counters are included only when the
 SDK returns usage data; missing usage remains absent rather than estimated.
 Clients consume `metadata.observability` when it declares
 `schema_version: ui_stage_observability_v1`, with optional provider usage
-including SDK-reported request and token counters, execution timing, and
-streaming details.
+including SDK-reported request and token counters, execution timing, streaming
+details, trace-safe model identity, and estimated cost. Cost metadata uses
+`schema_version: usage_cost_v1` and is emitted only when the provider returned
+usage counters and the selected `registry/models.yaml` entry has valid pricing.
+When either side is missing, cost is omitted rather than guessed.
 
 Both clients use shared stage derivation, session APIs, and theme tokens from
 the UI contract package. The React client can select or create sessions, show
@@ -341,6 +344,8 @@ uv run crisai validate-artefacts -p workspace/knowledge_staging/patterns/example
 ```
 
 `uv run crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, first-run environment override values, and tracked secret/cache hygiene. Use `uv run crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
+
+`uv run crisai spend` reads `logs/agent_trace.jsonl` and prints a table of estimated token usage and cost per stage for recent runs. Each row shows the run ID (truncated), stage, agent, provider, model, input tokens, output tokens, and estimated cost in USD. A per-run total is shown after each run's rows. Use `--run <prefix>` to filter to a specific run ID and `--last N` to show the N most recent runs (default 1). Cost is emitted only when the model's pricing is configured in `registry/models.yaml` and the provider returned usage data; stages without pricing degrade gracefully and are omitted from the output.
 
 The CI workflow also has a dedicated security scanning job. It runs Bandit
 against `src/crisai`, audits the locked uv dependency set with pip-audit, and
@@ -827,6 +832,12 @@ Workspace file access blocks local runtime-sensitive paths from agent MCP tools
 and web browsing/editing, including `.auth/`, `.tokens/`, `.secrets/`,
 `.cache/`, `.crisai/`, `chat_sessions/`, and `logs/`. These names are reserved
 for local auth, cache, session, and log state rather than business content.
+In addition, all hidden entries — any file or directory whose name begins with a
+dot — are excluded from the visible workspace surface. This applies everywhere
+`iter_visible_workspace_files` is used: the workspace and document MCP servers
+(list, search, and read) and the web file browser. Hidden entries are not part of
+the agent-visible retrieval surface, so business content must not be stored in
+dot-prefixed files or directories.
 `uv run crisai doctor` warns when explicit Microsoft token-cache environment
 paths are configured inside the workspace, and on POSIX systems also warns when
 existing Microsoft token cache directories or files are group/world accessible.
@@ -1305,6 +1316,7 @@ Individual provider keys can be omitted — tests that need the missing key skip
 ### Cost controls built in
 
 - `CRISAI_AGENT_MAX_TURNS=5` (default is 30) — limits per-agent token spend.
+- `CRISAI_RATE_LIMIT_RPM=N` — limits execution endpoints (`/api/run`, `/api/run/start`, `/api/v1/runs`) to N POST requests per minute; omit or set to 0 to disable (default for local deployments).
 - `needs_retrieval=False` for peer mode — skips MCP retrieval stages.
 - `CRISAI_PEER_MAX_REFINEMENT_ROUNDS=0` and `CRISAI_PEER_MAX_ESCALATIONS=0` — peer test exits after the first judge decision.
 - Knowledge questions only — no MCP server connections needed.

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import importlib
 import os
+import re
 import stat
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +17,7 @@ from crisai.agents import factory as factory_module
 from crisai.cli import prompt_contracts as prompt_contracts_module
 from crisai.orchestration import retrieval_association_graph as graph_module
 from crisai.orchestration import semantic_catalog as catalog_module
+from crisai.orchestration.usage_cost import ModelPricing
 
 _PLACEHOLDER_ENV_VALUES = {
     "your-openai-api-key",
@@ -82,6 +86,7 @@ _NUMERIC_ENV_VARS = {
     "INTRANET_PAGE_CACHE_TTL_HOURS": EnvValueSpec("int", 1, "a positive integer"),
     "CRISAI_PEER_MAX_REFINEMENT_ROUNDS": EnvValueSpec("int", 0, "a non-negative integer"),
     "CRISAI_PEER_MAX_ESCALATIONS": EnvValueSpec("int", 0, "a non-negative integer"),
+    "CRISAI_RATE_LIMIT_RPM": EnvValueSpec("int", 0, "a non-negative integer"),
 }
 
 
@@ -311,11 +316,20 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
             ))
         if model.api_key_env:
             key_value = os.getenv(model.api_key_env, "")
-            if key_value and not _is_placeholder_env_value(key_value):
-                continue
-            warnings.append(DoctorIssue(
-                message=f"Model '{model.id}' expects environment variable '{model.api_key_env}' to be set, but it is currently unset or a placeholder.",
-                hint=f"Add a real `{model.api_key_env}=<your-key>` value to your `.env` file.",
+            if not key_value or _is_placeholder_env_value(key_value):
+                warnings.append(DoctorIssue(
+                    message=f"Model '{model.id}' expects environment variable '{model.api_key_env}' to be set, but it is currently unset or a placeholder.",
+                    hint=f"Add a real `{model.api_key_env}=<your-key>` value to your `.env` file.",
+                ))
+        try:
+            ModelPricing.from_mapping(model.extra.get("pricing"))
+        except ValueError as exc:
+            errors.append(DoctorIssue(
+                message=f"Model '{model.id}' has invalid pricing metadata: {exc}",
+                hint=(
+                    "Use `pricing: {currency: USD, unit: per_1m_tokens, input: <rate>, output: <rate>}` "
+                    "with optional non-negative `cached_input` and `reasoning` rates, or remove the pricing block."
+                ),
             ))
 
     return errors, warnings
@@ -637,6 +651,59 @@ def _check_env_setup(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssu
     return errors, warnings
 
 
+def _read_pinned_python_version(path: Path) -> tuple[int, int] | None:
+    """Return the (major, minor) pin from a `.python-version` file when parseable."""
+    if not path.is_file():
+        return None
+    raw = path.read_text(encoding="utf-8").strip()
+    # `.python-version` may hold entries like "3.13", "3.13.13", or
+    # "cpython-3.13"; take the first dotted numeric major.minor pair.
+    match = re.search(r"(\d+)\.(\d+)", raw)
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def _check_runtime_environment(root_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
+    """Check that the active interpreter and async backend are usable.
+
+    A stale virtualenv whose Python no longer matches `.python-version` can carry
+    a broken `anyio` install whose async backend fails to import. Because the web
+    app's auth and rate-limit middleware are Starlette `BaseHTTPMiddleware`, which
+    creates an `anyio` synchronisation primitive per request, that failure surfaces
+    as a 500 on every request instead of at startup. Catch both signals here.
+    """
+    errors: list[DoctorIssue] = []
+    warnings: list[DoctorIssue] = []
+
+    active = (sys.version_info.major, sys.version_info.minor)
+    pinned = _read_pinned_python_version(root_dir / ".python-version")
+    if pinned and pinned != active:
+        warnings.append(DoctorIssue(
+            message=(
+                f"Active interpreter is Python {active[0]}.{active[1]} but "
+                f".python-version pins {pinned[0]}.{pinned[1]}; the virtualenv may be stale."
+            ),
+            hint="Rebuild the environment with `uv sync` so the venv matches `.python-version`.",
+        ))
+
+    try:
+        importlib.import_module("anyio._backends._asyncio")
+    except Exception as exc:  # noqa: BLE001 - report any import failure to the operator
+        errors.append(DoctorIssue(
+            message=(
+                f"anyio asyncio backend failed to import ({type(exc).__name__}); the web server "
+                "would return 500 on every request through its middleware."
+            ),
+            hint=(
+                "Rebuild the virtualenv with `uv sync`. If the venv is stale, align it with "
+                "`.python-version` first; do not run the server under an unsupported Python."
+            ),
+        ))
+
+    return errors, warnings
+
+
 # ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
@@ -651,6 +718,10 @@ def run_doctor(root_dir: Path, registry_dir: Path, *, validate_models: bool = Fa
     setup_errors, setup_warnings = _check_env_setup(root_dir)
     errors.extend(setup_errors)
     warnings.extend(setup_warnings)
+
+    runtime_errors, runtime_warnings = _check_runtime_environment(root_dir)
+    errors.extend(runtime_errors)
+    warnings.extend(runtime_warnings)
 
     file_errors, file_warnings, file_info = _validate_registry_files(registry_dir)
     errors.extend(file_errors)
