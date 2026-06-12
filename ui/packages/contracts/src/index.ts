@@ -213,6 +213,11 @@ export type UiWorkspaceSaveResult = {
   saved: boolean;
 };
 
+export type UiWorkspaceRenameResult = {
+  path: string;
+  renamed: boolean;
+};
+
 export type UiWorkspaceUploadTarget = "task_inputs" | "knowledge_intake";
 
 export type UiWorkspaceUploadRequest = {
@@ -648,6 +653,15 @@ export class CrisaiRuntimeClient {
       method: "POST",
       headers: this.requestHeaders({ json: true }),
       body: JSON.stringify({ path, content })
+    });
+    return this.readJson(response);
+  }
+
+  async renameWorkspaceFile(path: string, newName: string): Promise<UiWorkspaceRenameResult> {
+    const response = await fetch(`${this.baseUrl}/api/v1/workspace/rename`, {
+      method: "POST",
+      headers: this.requestHeaders({ json: true }),
+      body: JSON.stringify({ path, new_name: newName })
     });
     return this.readJson(response);
   }
