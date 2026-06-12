@@ -839,10 +839,14 @@ def test_create_session_endpoint_sanitizes_and_returns_session(monkeypatch):
 
 def test_get_session_endpoint_returns_specific_history(monkeypatch):
     monkeypatch.setattr("crisai.apps.web.load_history", lambda _name: [("user", "hello")])
+    monkeypatch.setattr("crisai.apps.web._list_session_names", lambda: ["default", "my-session"])
 
     payload = get_session("my-session")
     assert payload["current_session"] == "my-session"
     assert payload["history"] == [{"role": "user", "content": "hello"}]
+    # Regression (e3ab824): get_session must include `sessions` so clients that
+    # refresh via getSession() do not crash on an undefined state.sessions.
+    assert payload["sessions"] == ["default", "my-session"]
 
 
 def test_evict_old_jobs_removes_oldest_completed_beyond_limit():
