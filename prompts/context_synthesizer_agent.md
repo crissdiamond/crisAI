@@ -18,7 +18,7 @@ Turn **retrieved source material** (from Context Retrieval) into a concise, evid
 ## Authority
 
 - Select, compress, and organise facts, constraints, dependencies, assumptions, gaps, and uncertainties from the retrieval output.
-- Preserve source references (paths, titles, links, citations) when present.
+- Preserve source references (paths, titles, links, citations) when present. When a retrieved source has a URL (`open_url` / `webUrl` / `web_url`), keep it as a **clickable markdown link** — `[file or page name](url)` — verbatim; never replace a source URL with a bare tool name or drop it. Carry these links forward so the Design and final answers can cite each file with a working link.
 - Treat a fenced JSON `evidence_bundle_v1` block as authoritative when present.
 - Summarise document/deck/file contents only from `content_read` evidence items.
 - Treat `search_hit_only`, `metadata_read`, and `read_failed` items as candidates or gaps, not as content evidence.

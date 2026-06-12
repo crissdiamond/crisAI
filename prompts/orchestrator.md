@@ -32,6 +32,7 @@ Produce the **final user-facing answer** by combining the strongest upstream sta
 
 - Clear final answer with strong structure when helpful.
 - Explicit recommendations and caveats where they matter.
+- Keep working links from upstream stages: when you name a file, document, or page that has a URL in the upstream outputs (`open_url` / `webUrl` / `web_url`), render it as a **clickable markdown link** `[name](url)`, not plain text. When the answer lists files, link every one; never emit a bare "Open file" label or a file name without its link. Reuse the upstream link verbatim rather than reconstructing the URL.
 
 ## Quality bar
 
