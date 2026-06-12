@@ -879,6 +879,36 @@ pre {
   overflow-wrap: anywhere;
 }
 
+/* Speaker label: a quiet caption above each turn, accented for crisAI so the
+   assistant's rendered answer is easy to scan apart from the user's prompt. */
+.history-role {
+  display: block;
+  font-size: var(--font-size-caption);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary-dark);
+}
+
+.history-entry--assistant .history-role {
+  color: var(--color-vibrant-purple);
+}
+
+/* User turns are plain text typed by the person — preserve their line breaks. */
+.history-user-text {
+  white-space: pre-wrap;
+}
+
+/* Rendered assistant Markdown sits flush under its label and stays readable
+   within the narrow history column. */
+.history-entry .markdown-content {
+  margin-top: var(--space-1);
+}
+
+.history-entry .markdown-content > :first-child {
+  margin-top: 0;
+}
+
 .workspace-browser {
   display: grid;
   gap: var(--space-2);
