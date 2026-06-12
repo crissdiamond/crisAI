@@ -54,9 +54,45 @@ export type StagePinResult =
 export type PanelLinesInput = {
   showEvents: boolean;
   selectedStage: string | null;
+  activeStageKey?: string | null;
   pinnedStageLines: string[];
   outputLines: string[];
   eventLines: string[];
+};
+
+export type PanelTargetInput = {
+  showEvents: boolean;
+  selectedStage: string | null;
+  activeStageKey: string | null;
+  outputLines: string[];
+};
+
+export type PanelTarget =
+  | { kind: "events" }
+  | { kind: "pinned-stage"; stageKey: string }
+  | { kind: "active-stage"; stageKey: string }
+  | { kind: "event-history" };
+
+export type LiveStageMonitorInput = {
+  events: UiEvent[];
+  liveStageEvent: Pick<UiEvent, "agent_id" | "stage"> | null;
+  width: number;
+};
+
+export type LiveStageMonitorState =
+  | { kind: "output"; stageKey: string; content: string }
+  | { kind: "waiting"; stageKey: string; lines: string[] }
+  | { kind: "idle" };
+
+export type CheckpointReleaseAction = "continue" | "redirect";
+
+export type CheckpointReleasedViewState = {
+  selectedStage: null;
+  navMode: false;
+  navFocusKey: null;
+  showEvents: false;
+  scrollTop: 0;
+  notice: string;
 };
 
 export type NavDirection = "previous" | "next";
@@ -186,6 +222,19 @@ export function resolveInputActive(isRawModeSupported: boolean | undefined): boo
 
 export function resolveCheckpointWaiting(events: UiEvent[]): boolean {
   return isCheckpointWaiting(events) && !events.some(isTerminalEvent);
+}
+
+export function checkpointReleasedViewState(action: CheckpointReleaseAction): CheckpointReleasedViewState {
+  return {
+    selectedStage: null,
+    navMode: false,
+    navFocusKey: null,
+    showEvents: false,
+    scrollTop: 0,
+    notice: action === "redirect"
+      ? "retrieval guidance submitted; continuing"
+      : "continuing after source review"
+  };
 }
 
 export function resolveOutputPanelWidth(viewportWidth: number, stageSidebarWidth: number): number {
@@ -390,11 +439,36 @@ export function normalizePromptInput(input: string): string {
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 }
 
-export function resolvePromptPasteInput(input: string, rawSequence = ""): string {
-  if (rawSequence.includes("\x1b[200~") || input.startsWith("[200~")) {
-    return rawSequence || `\x1b${input}`;
+function mergePromptPasteFragments(first: string, second: string): string {
+  const maxOverlap = Math.min(first.length, second.length);
+  for (let length = maxOverlap; length > 0; length -= 1) {
+    if (first.endsWith(second.slice(0, length))) {
+      return `${first}${second.slice(length)}`;
+    }
   }
-  return input;
+  return `${first}${second}`;
+}
+
+export function resolvePromptPasteInput(input: string, rawSequence = ""): string {
+  const rawHasPasteStart = rawSequence.includes("\x1b[200~");
+  const rawHasPasteEnd = rawSequence.includes("\x1b[201~");
+  const inputHasStrippedPasteStart = input.startsWith("[200~");
+  if (!rawHasPasteStart && !inputHasStrippedPasteStart) {
+    return input;
+  }
+  if (rawHasPasteStart && !inputHasStrippedPasteStart && input.length <= 1) {
+    return input;
+  }
+  const rebuiltInput = inputHasStrippedPasteStart ? `\x1b${input}` : input;
+  if (!rawHasPasteStart) {
+    return rebuiltInput;
+  }
+  const rawText = normalizePromptInput(rawSequence);
+  const inputText = normalizePromptInput(rebuiltInput);
+  if (!rawHasPasteEnd && !inputHasStrippedPasteStart && rawText.length > 0 && inputText.length > 0) {
+    return mergePromptPasteFragments(rawText, inputText);
+  }
+  return rawText.length >= inputText.length && rawText.length > 0 ? rawSequence : rebuiltInput;
 }
 
 export function shouldBufferStartupPaste(rawSequence: string): boolean {
@@ -433,6 +507,26 @@ export function insertPromptText(state: PromptBufferState, input: string): Promp
     text: nextText,
     cursor: cursor + text.length
   };
+}
+
+export function insertPromptPasteText(
+  state: PromptBufferState,
+  input: string,
+  rawSequence = ""
+): PromptBufferState {
+  const resolved = resolvePromptPasteInput(input, rawSequence);
+  const rawText = normalizePromptInput(rawSequence);
+  const resolvedText = normalizePromptInput(resolved);
+  if (
+    rawSequence.includes("\x1b[200~")
+    && !rawSequence.includes("\x1b[201~")
+    && rawText.length > 0
+    && state.text.endsWith(rawText)
+    && resolvedText.startsWith(rawText)
+  ) {
+    return insertPromptText(state, resolvedText.slice(rawText.length));
+  }
+  return insertPromptText(state, resolved);
 }
 
 export function deletePromptBackward(state: PromptBufferState): PromptBufferState {
@@ -683,37 +777,93 @@ export function resolveStageFocusKey({
   return visibleStages.some((stage) => stage.key === liveStageKey) ? liveStageKey : null;
 }
 
+export function resolvePanelTarget({
+  showEvents,
+  selectedStage,
+  activeStageKey,
+  outputLines
+}: PanelTargetInput): PanelTarget {
+  if (showEvents) return { kind: "events" };
+  if (selectedStage !== null) return { kind: "pinned-stage", stageKey: selectedStage };
+  if (activeStageKey !== null || outputLines.length > 0) {
+    return { kind: "active-stage", stageKey: activeStageKey ?? "final_output" };
+  }
+  return { kind: "event-history" };
+}
+
 export function resolvePanelLines({
   showEvents,
   selectedStage,
+  activeStageKey = null,
   pinnedStageLines,
   outputLines,
   eventLines
 }: PanelLinesInput): string[] {
-  if (showEvents) return eventLines;
-  if (selectedStage !== null) {
+  const target = resolvePanelTarget({
+    showEvents,
+    selectedStage,
+    activeStageKey,
+    outputLines
+  });
+  if (target.kind === "events") return eventLines;
+  if (target.kind === "pinned-stage") {
     return pinnedStageLines.length > 0 ? pinnedStageLines : ["No output for selected stage yet."];
   }
-  return outputLines.length > 0 ? outputLines : eventLines;
+  if (target.kind === "active-stage") return outputLines;
+  return eventLines;
 }
 
 export function stageStreamingContent(events: UiEvent[], selectedStage: string | null = null): string {
   if (events.some(isTerminalEvent)) return "";
   const targetStage = selectedStage ?? latestStageDeltaKey(events);
   if (!targetStage) return "";
+  return stageLiveContentForTarget(events, targetStage, false);
+}
+
+export function activeStageContent(events: UiEvent[], activeStageKey: string | null): string {
+  if (events.some(isTerminalEvent) || !activeStageKey) return "";
+  return stageLiveContentForTarget(events, activeStageKey, true);
+}
+
+export function resolveLiveStageMonitor({
+  events,
+  liveStageEvent,
+  width
+}: LiveStageMonitorInput): LiveStageMonitorState {
+  const stageKey = liveStageEvent ? stageEventKey(liveStageEvent) : "";
+  if (!stageKey) return { kind: "idle" };
+  const content = activeStageContent(events, stageKey);
+  if (content) return { kind: "output", stageKey, content };
+  return { kind: "waiting", stageKey, lines: activeStageWaitingLines(liveStageEvent, width) };
+}
+
+function stageLiveContentForTarget(events: UiEvent[], targetStage: string, includeStageOutput: boolean): string {
   let content = "";
   for (const event of events) {
     const key = stageEventKey(event);
     if (key !== targetStage) continue;
     if (event.event_type === "stage_started") {
-      content = event.content || "";
+      content = "";
       continue;
     }
     if (event.event_type === "stage_delta") {
       content = mergeStageDeltaContent(content, event.content);
     }
+    if (includeStageOutput && event.event_type === "stage_output") {
+      content = event.content;
+    }
   }
   return content;
+}
+
+export function activeStageWaitingLines(
+  liveStageEvent: Pick<UiEvent, "agent_id" | "stage"> | null,
+  width: number
+): string[] {
+  if (!liveStageEvent) return [];
+  const key = stageEventKey(liveStageEvent);
+  if (!key) return [];
+  return wrapPlainText(`Waiting for ${formatStageKeyForNotice(key)} output.`, width);
 }
 
 export function stageVisual(status: UiStageStatus, theme: GemTerminalTheme) {
@@ -794,6 +944,10 @@ function latestStageDeltaKey(events: UiEvent[]): string | null {
 
 function stageEventKey(event: Pick<UiEvent, "agent_id" | "stage">): string {
   return String(event.agent_id ?? event.stage ?? "").trim();
+}
+
+function formatStageKeyForNotice(key: string): string {
+  return key.replace(/[_-]+/g, " ");
 }
 
 function mergeStageDeltaContent(current: string, next: string): string {

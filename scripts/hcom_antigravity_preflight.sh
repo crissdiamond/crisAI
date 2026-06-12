@@ -5,6 +5,7 @@ set -euo pipefail
 DRY_RUN=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOKEN_PATH="${HCOM_TEAM_ANTIGRAVITY_TOKEN_PATH:-$HOME/.gemini/antigravity-cli/antigravity-oauth-token}"
+SETTINGS_PATH="${HCOM_TEAM_ANTIGRAVITY_SETTINGS_PATH:-$HOME/.gemini/antigravity-cli/settings.json}"
 MODEL="${HCOM_TEAM_ANTIGRAVITY_MODEL:-Claude Sonnet 4.6 (Thinking)}"
 MODEL_FRAGMENT="${HCOM_TEAM_ANTIGRAVITY_MODEL_FRAGMENT:-}"
 MODEL_PROBE_TIMEOUT="${HCOM_TEAM_ANTIGRAVITY_MODEL_PROBE_TIMEOUT:-60s}"
@@ -18,6 +19,9 @@ The OAuth token content is never printed.
 
 Environment:
   HCOM_TEAM_ANTIGRAVITY_TOKEN_PATH  Reusable Antigravity OAuth token path.
+  HCOM_TEAM_ANTIGRAVITY_SETTINGS_PATH
+                                    Antigravity settings JSON path to update.
+                                    Default: ~/.gemini/antigravity-cli/settings.json
   HCOM_TEAM_ANTIGRAVITY_MODEL       Persisted agy model to set before launch.
                                     Default: Claude Sonnet 4.6 (Thinking)
   HCOM_TEAM_ANTIGRAVITY_MODEL_FRAGMENT
@@ -78,7 +82,8 @@ model_probe_fragment() {
 }
 
 set_active_model() {
-  "$SCRIPT_DIR/hcom_antigravity_model.sh" set "$MODEL" >/dev/null
+  HCOM_TEAM_ANTIGRAVITY_SETTINGS_PATH="$SETTINGS_PATH" \
+    "$SCRIPT_DIR/hcom_antigravity_model.sh" set "$MODEL" >/dev/null
 }
 
 verify_active_model() {

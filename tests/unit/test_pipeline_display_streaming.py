@@ -7,6 +7,7 @@ import pytest
 from crisai.cli import pipeline_display
 from crisai.cli.pipeline_display import (
     _emit_stage_observability,
+    _openai_streaming_construct_type_incompatible,
     _provider_usage_metadata,
     _stream_event_delta,
     _streaming_fallback_metadata,
@@ -31,6 +32,24 @@ def test_stream_event_delta_ignores_reasoning_text() -> None:
     )
 
     assert _stream_event_delta(event) == ""
+
+
+def test_openai_streaming_guard_is_scoped_to_python_314_and_known_bad_openai(monkeypatch) -> None:
+    monkeypatch.setattr(pipeline_display.sys, "version_info", (3, 14, 5))
+    monkeypatch.setattr(pipeline_display, "version", lambda package: "1.109.1")
+
+    assert _openai_streaming_construct_type_incompatible() is True
+
+    monkeypatch.setattr(pipeline_display, "version", lambda package: "1.109.2")
+
+    assert _openai_streaming_construct_type_incompatible() is False
+
+
+def test_openai_streaming_guard_allows_supported_python_with_same_openai(monkeypatch) -> None:
+    monkeypatch.setattr(pipeline_display.sys, "version_info", (3, 13, 13))
+    monkeypatch.setattr(pipeline_display, "version", lambda package: "1.109.1")
+
+    assert _openai_streaming_construct_type_incompatible() is False
 
 
 @pytest.mark.anyio

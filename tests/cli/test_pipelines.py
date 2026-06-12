@@ -15,6 +15,58 @@ from crisai.orchestration.retrieval_checkpoint import RetrievalCheckpointDecisio
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "registry"
 
 
+def _workspace_retrieval_handoff(
+    *,
+    request: str = "Search workspace/knowledge before answering.",
+    title: str = "reporting-standard.txt",
+    path: str = "knowledge/reporting-standard.txt",
+    excerpt: str = "Recurring reports need controlled preparation.",
+) -> str:
+    return f"""
+## Retrieval Summary
+
+Found and read the relevant workspace source.
+
+## Retrieved Sources
+
+### Workspace sources
+- Source: `{path}`
+  Link: [source](file://{path})
+  Relevance: Relevant workspace evidence.
+  Extract: {excerpt}
+
+## Retrieval Gaps
+- Gap: None.
+
+## Tool Notes
+- Tool: read_workspace_file
+  Result: Read source content.
+
+```json
+{{
+  "schema_version": "evidence_bundle_v1",
+  "request": "{request}",
+  "items": [
+    {{
+      "source": {{
+        "source_type": "workspace_file",
+        "title": "{title}",
+        "workspace_path": "{path}",
+        "metadata": {{}}
+      }},
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_workspace_file",
+      "content_excerpt": "{excerpt}",
+      "raw_error": ""
+    }}
+  ],
+  "gaps": []
+}}
+```
+"""
+
+
 class FakeWorkflowSession:
     """Test double for pipeline workflow orchestration."""
 
@@ -86,6 +138,13 @@ class FallbackWorkflowSession(FakeWorkflowSession):
                 "Stage retrieval_planner returned empty output. "
                 "This stage is required to produce a handoff or answer."
             )
+        if ui_agent_id == "context_retrieval":
+            self._stage_calls.append((ui_agent_id, prompt))
+            result = _workspace_retrieval_handoff()
+            output_processor = kwargs.get("output_processor")
+            if output_processor is not None:
+                output_processor(result)
+            return result
         return await super().run_stage(ui_agent_id=ui_agent_id, prompt=prompt, **kwargs)
 
 
@@ -169,6 +228,42 @@ Retrieved the likely master deck and read the candidate content.
     assert "UCL Integration Strategy_Full Presentation v2.pptx" in result
     assert "content_read / read" in result
     assert "evidence_bundle_v1" not in result
+
+
+def test_validated_evidence_transport_preserves_legacy_plain_markdown_for_non_source_requests():
+    result = pipelines._validated_evidence_transport(
+        "Say hello.",
+        "Plain markdown without source evidence.",
+    )
+
+    assert result.prose == "Plain markdown without source evidence."
+    assert result.bundle is None
+
+
+def test_validated_evidence_transport_requires_bundle_for_source_evidence_requests():
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="valid evidence bundle"):
+        pipelines._validated_evidence_transport(
+            "Use retrieved workspace context to recommend an approach.",
+            "## Retrieval Summary\n\nFound sources.\n\n## Retrieved Sources\n\n- Source: x",
+            require_evidence_bundle=True,
+            require_retrieval_structure=True,
+        )
+
+
+def test_validated_evidence_transport_rejects_final_answer_without_retrieval_sections():
+    final_answer = """
+## Solution design recommendation
+
+Use a controlled pipeline rather than direct Excel-to-Power BI.
+"""
+
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="Retrieval Summary"):
+        pipelines._validated_evidence_transport(
+            "Use retrieved workspace context to recommend an approach.",
+            final_answer,
+            require_evidence_bundle=True,
+            require_retrieval_structure=True,
+        )
 
 
 def test_validated_evidence_text_accepts_unclosed_fenced_bundle():
@@ -753,7 +848,24 @@ async def test_run_pipeline_checkpoint_carries_sanitized_evidence_bundle(monkeyp
     trace_calls: list[tuple[str, str]] = []
     stage_calls: list[tuple[str, str]] = []
     evidence_bundle = """
+## Retrieval Summary
+
 Retrieved and read the deck.
+
+## Retrieved Sources
+
+### SharePoint documents
+- Source: `Deck.pptx`
+  Link: [Deck.pptx](https://example.com/deck.pptx)
+  Relevance: Requested document.
+  Extract: Slide 1: Strategy overview.
+
+## Retrieval Gaps
+- Gap: None.
+
+## Tool Notes
+- Tool: read_sharepoint_document_by_handle
+  Result: Read the deck.
 
 ```json
 {
@@ -947,7 +1059,24 @@ async def test_run_pipeline_repairs_missing_required_evidence_bundle(monkeypatch
     trace_calls: list[tuple[str, str]] = []
     stage_calls: list[tuple[str, str]] = []
     evidence_bundle = """
+## Retrieval Summary
+
 Retrieved and read the deck.
+
+## Retrieved Sources
+
+### SharePoint documents
+- Source: `Deck.pptx`
+  Link: [Deck.pptx](https://example.com/deck.pptx)
+  Relevance: Requested document.
+  Extract: Slide 1: Strategy overview.
+
+## Retrieval Gaps
+- Gap: None.
+
+## Tool Notes
+- Tool: read_sharepoint_document_by_handle
+  Result: Read the deck.
 
 ```json
 {
@@ -1035,6 +1164,120 @@ Retrieved and read the deck.
     ]
     assert ("CONTEXT OUTPUT", "Context synthesizer skipped for summary fast path; validated retrieval evidence passed directly to summary.") in trace_calls
     assert ("FINAL OUTPUT", "Final orchestration skipped for summary fast path; summary output is the final answer.") in trace_calls
+
+
+@pytest.mark.anyio
+async def test_run_pipeline_repairs_final_answer_returned_by_source_retrieval(monkeypatch, tmp_path):
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    retrieval_handoff = """
+## Retrieval Summary
+
+Found the active task source.
+
+## Retrieved Sources
+
+### Workspace sources
+- Source: `knowledge/reporting-standard.txt`
+  Link: [reporting-standard.txt](file://knowledge/reporting-standard.txt)
+  Relevance: Reporting controls.
+  Extract: Recurring reports need controlled preparation.
+
+## Retrieval Gaps
+- Gap: None.
+
+## Tool Notes
+- Tool: read_workspace_file
+  Result: Read the standard.
+
+```json
+{
+  "schema_version": "evidence_bundle_v1",
+  "request": "Use retrieved workspace context to produce a recommendation.",
+  "items": [
+    {
+      "source": {
+        "source_type": "workspace_file",
+        "title": "reporting-standard.txt",
+        "workspace_path": "knowledge/reporting-standard.txt",
+        "metadata": {}
+      },
+      "evidence_level": "content_read",
+      "read_status": "read",
+      "read_tool": "read_workspace_file",
+      "content_excerpt": "Recurring reports need controlled preparation.",
+      "raw_error": ""
+    }
+  ],
+  "gaps": []
+}
+```
+"""
+
+    class RepairingWorkflowSession(FakeWorkflowSession):
+        def __init__(self) -> None:
+            super().__init__(trace_calls, stage_calls, "final recommendation")
+            self.context_calls = 0
+
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            self._stage_calls.append((ui_agent_id, prompt))
+            if ui_agent_id == "context_retrieval":
+                self.context_calls += 1
+                result = (
+                    "## Solution design recommendation\n\nUse a controlled Power BI pipeline."
+                    if self.context_calls == 1
+                    else retrieval_handoff
+                )
+            elif ui_agent_id == "orchestrator":
+                result = self._final_output
+            else:
+                result = f"{ui_agent_id}-output"
+            output_processor = kwargs.get("output_processor")
+            if output_processor is not None:
+                output_processor(result)
+            return result
+
+    session = RepairingWorkflowSession()
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+
+    result = await pipelines.run_pipeline(
+        "Search workspace/knowledge before producing a solution design recommendation.",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+    )
+
+    context_prompts = [prompt for name, prompt in stage_calls if name == "context_retrieval"]
+    assert result == "final recommendation"
+    assert len(context_prompts) == 2
+    assert "Repair the retrieval evidence contract" in context_prompts[1]
+    assert "## Retrieval Summary" in context_prompts[1]
+    assert [name for name, _ in stage_calls] == [
+        "retrieval_planner",
+        "context_retrieval",
+        "context_retrieval",
+        "context_synthesizer",
+        "design",
+        "orchestrator",
+    ]
 
 
 @pytest.mark.anyio
@@ -2140,7 +2383,21 @@ async def test_run_single_policy_uses_latest_user_intent_not_history_wrapper(mon
 async def test_run_pipeline_enforces_intranet_fetch_policy(monkeypatch, tmp_path):
     trace_calls: list[tuple[str, str]] = []
     stage_calls: list[tuple[str, str]] = []
-    session = FakeWorkflowSession(trace_calls, stage_calls, "orchestrator-output")
+
+    class WorkspaceEvidenceWorkflowSession(FakeWorkflowSession):
+        async def run_stage(self, *, ui_agent_id: str, prompt: str, **kwargs) -> str:
+            self._stage_calls.append((ui_agent_id, prompt))
+            result = (
+                _workspace_retrieval_handoff(request="Use intranet site pages only and produce grounded output.")
+                if ui_agent_id == "context_retrieval"
+                else f"{ui_agent_id}-output"
+            )
+            output_processor = kwargs.get("output_processor")
+            if output_processor is not None:
+                output_processor(result)
+            return result
+
+    session = WorkspaceEvidenceWorkflowSession(trace_calls, stage_calls, "orchestrator-output")
     engine = FakeWorkflowEngine(session)
 
     monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)

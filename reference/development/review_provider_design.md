@@ -98,8 +98,10 @@ The implementation supports `claude-code` through the generic entrypoint while
 delegating internally to the existing Claude scripts. The old provider spelling
 `claude` remains accepted as a compatibility alias. Antigravity is available
 through `hcom agy` when the preflight confirms reusable local OAuth and an
-active persisted model matching the requested reviewer profile. OpenCode can be
-added after its review lifecycle behaviour is verified.
+active model matching the requested reviewer profile. Codex can also act as a
+persistent reviewer in the alternate `claude-dev-codex-review` team profile,
+where Claude Code is the implementation provider. OpenCode can be added after
+its review lifecycle behaviour is verified.
 
 ## Antigravity Position
 
@@ -110,6 +112,13 @@ launch. Antigravity stores that choice in
 `~/.gemini/antigravity-cli/settings.json`; hcom preflight updates the `model`
 key atomically and verifies it with a short `agy --print` probe before creating
 reviewer sessions.
+
+Persistent reviewer sessions run with role-scoped isolated homes under
+`.hcom/antigravity-homes/`. Each home copies only reusable auth, settings,
+keybindings, installation id, and onboarding state from the user's real
+Antigravity config. Conversations, implicit state, history, and brain artifacts
+are not copied, so reviewers start from their role prompt and wait for hcom
+assignments.
 
 The OAuth token must already exist and be private; if Antigravity would prompt
 for OAuth, the launch fails before creating reviewer sessions.

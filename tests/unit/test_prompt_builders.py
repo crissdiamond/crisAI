@@ -27,6 +27,7 @@ from crisai.orchestration.session_anchors import (
     ResolvedSourceReference,
     SessionSourceCandidate,
 )
+from crisai.orchestration.task_contract import infer_task_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -116,6 +117,20 @@ def test_build_context_retrieval_prompt_documents_workspace_search_semantics():
     assert "this fenced JSON block is mandatory" in text
     assert "`source` must be an object" in text
     assert '"source_type": "sharepoint_document"' in text
+
+
+def test_build_context_retrieval_prompt_labels_task_contract_as_downstream_only():
+    text = build_context_retrieval_prompt(
+        "Use retrieved context to produce a solution design recommendation.",
+        "handoff text",
+        task_contract=infer_task_contract("Use retrieved context to produce a solution design recommendation."),
+    )
+
+    assert "Task Contract (downstream/final-only)" in text
+    assert "Context retrieval stage contract" in text
+    assert "must only collect and hand off evidence" in text
+    assert "Do not satisfy the final deliverable here" in text
+    assert "leave interpretation and final wording to later stages" in text
 
 
 def test_build_context_retrieval_prompt_enforces_intranet_tools_for_intranet_scope():

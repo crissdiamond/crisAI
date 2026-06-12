@@ -24,7 +24,7 @@ This README is the quick start. The full operator manual is [DOCUMENTATION.md](D
 - Provider keys matching the selected registry models. The default registry expects `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `DEEPSEEK_API_KEY`.
 - Optional: Microsoft Entra app registration for SharePoint document retrieval and SharePoint-backed intranet retrieval.
 
-The repository tracks `.python-version` as `3.14` for local development. The package supports Python 3.10+.
+The repository tracks `.python-version` as `3.13` for local development. The package supports Python 3.10+. Python 3.14 is not the default local runtime while OpenAI streaming support remains incompatible with the current locked SDK versions.
 
 ## Clean Install
 
@@ -71,6 +71,10 @@ Check the installation after editing `.env` or registry files:
 ```bash
 uv run crisai doctor
 ```
+
+For a team-member first run, follow the onboarding checklist in
+[runbooks/01-setup.md](runbooks/01-setup.md). It covers prerequisites, provider
+keys, `doctor`, optional provider smoke tests, and a short example run.
 
 ## Start
 

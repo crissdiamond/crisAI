@@ -102,8 +102,10 @@ This allows examples such as:
 
 crisAI uses **uv** as the supported setup path. uv creates and manages the
 project `.venv`; users should not create, activate, or install into it
-manually. The preferred local interpreter is Python 3.14, pinned by
-`.python-version`, while the package still supports Python 3.10+.
+manually. The preferred local interpreter is Python 3.13, pinned by
+`.python-version`, while the package still supports Python 3.10+. Python 3.14
+is not the default local runtime while OpenAI streaming support remains
+incompatible with the current locked SDK versions.
 
 First-time setup (full step-by-step, including `.env`, is in the repository **README** and `runbooks/01-setup.md`):
 
@@ -136,12 +138,14 @@ For troubleshooting, the manual equivalent is:
    uv sync --extra litellm --group dev
    ```
 
-Use `uv python upgrade 3.14` to update the local 3.14 interpreter to the latest
+Use `uv python upgrade 3.13` to update the local 3.13 interpreter to the latest
 available patch release.
 
 After editing `.env`, run `uv run crisai doctor`. If doctor reports that `.env`
 is missing placeholders present in `.env.example`, add the placeholders without
-overwriting real credentials.
+overwriting real credentials. For a team-member first run, use
+`runbooks/01-setup.md`; it walks through prerequisites, provider-key choices,
+`doctor`, optional provider smoke tests, and a short example run.
 
 ### 2.8 Local cleanup
 
@@ -339,7 +343,7 @@ uv run crisai validate-artefacts
 uv run crisai validate-artefacts -p workspace/knowledge_staging/patterns/example.md
 ```
 
-`uv run crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, and tracked secret/cache hygiene. Use `uv run crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
+`uv run crisai doctor` validates registry cross-references, prompt paths, semantic and deterministic retrieval registry shape, provider key warnings, first-run environment override values, and tracked secret/cache hygiene. Use `uv run crisai doctor --models` after changing `registry/models.yaml` or agent `model_ref` values; it dry-builds configured agent models through the runtime factory without opening MCP servers or calling provider APIs.
 
 `uv run crisai spend` reads `logs/agent_trace.jsonl` and prints a table of estimated token usage and cost per stage for recent runs. Each row shows the run ID (truncated), stage, agent, provider, model, input tokens, output tokens, and estimated cost in USD. A per-run total is shown after each run's rows. Use `--run <prefix>` to filter to a specific run ID and `--last N` to show the N most recent runs (default 1). Cost is emitted only when the model's pricing is configured in `registry/models.yaml` and the provider returned usage data; stages without pricing degrade gracefully and are omitted from the output.
 
@@ -1282,7 +1286,8 @@ Smoke tests validate end-to-end contract shapes against real LLM APIs. They are 
 ### Running smoke tests
 
 ```bash
-# Enable the guard and supply provider keys:
+# Enable the guard and export provider keys in the current shell.
+# If keys are only in .env, run: set -a; . ./.env; set +a
 CRISAI_RUN_SMOKE_TESTS=1 \
   OPENAI_API_KEY=sk-... \
   DEEPSEEK_API_KEY=sk-... \

@@ -22,6 +22,31 @@ roles:
       - commit using Conventional Commits
       - push only when explicitly requested by the user
 
+  orchestrator_claude:
+    provider: claude
+    launch_dir: "."
+    tag: crisai-orchestrator
+    profile: claude-dev-codex-review
+    role_file: reference/development/roles/orchestrator_claude.md
+    writes:
+      - cross-area integration
+      - reference/
+      - README.md
+      - DOCUMENTATION.md
+      - TESTING.md
+      - registry/
+      - scripts/
+    responsibilities:
+      - plan and sequence work in the Claude-developer profile
+      - assign area Claude developers
+      - coordinate hcom threads and bundles
+      - request Codex reviews as mandatory gates
+      - integrate changes
+      - run final checks
+      - own Git metadata writes when this profile is active
+      - commit using Conventional Commits
+      - push only when explicitly requested by the user
+
   runtime_codex:
     provider: codex
     launch_dir: "."
@@ -47,6 +72,40 @@ roles:
     lifecycle: ephemeral
     role_file: reference/development/roles/runtime_claude.md
     paired_with: runtime_codex
+    writes:
+      - small focused runtime patches when requested
+    responsibilities:
+      - challenge runtime design
+      - review diffs and tests
+      - identify coupling, security, and evidence risks
+
+  runtime_claude_dev:
+    provider: claude
+    launch_dir: "."
+    context_dir: runtime
+    tag: crisai-runtime
+    profile: claude-dev-codex-review
+    role_file: reference/development/roles/runtime_claude_dev.md
+    paired_with: runtime_codex_review
+    writes:
+      - src/crisai/
+      - registry/
+      - prompts/
+      - tests/
+    responsibilities:
+      - Python runtime and orchestration
+      - agents, MCP servers, retrieval, policies
+      - FastAPI runtime API
+
+  runtime_codex_review:
+    provider: codex
+    launch_dir: "."
+    context_dir: runtime
+    tag: crisai-runtime
+    lifecycle: persistent
+    profile: claude-dev-codex-review
+    role_file: reference/development/roles/runtime_codex_review.md
+    paired_with: runtime_claude_dev
     writes:
       - small focused runtime patches when requested
     responsibilities:
@@ -85,6 +144,39 @@ roles:
       - review terminal interaction quality
       - identify accessibility and state-management risks
 
+  gem_claude_dev:
+    provider: claude
+    launch_dir: "."
+    context_dir: gem
+    tag: crisai-gem
+    profile: claude-dev-codex-review
+    role_file: reference/development/roles/gem_claude_dev.md
+    paired_with: gem_codex_review
+    writes:
+      - ui/apps/gem/
+      - ui/packages/contracts/ when assigned by orchestrator
+      - tests/
+    responsibilities:
+      - Ink Gem terminal UX
+      - hcom-friendly terminal workflows
+      - UI event consumption in Gem
+
+  gem_codex_review:
+    provider: codex
+    launch_dir: "."
+    context_dir: gem
+    tag: crisai-gem
+    lifecycle: persistent
+    profile: claude-dev-codex-review
+    role_file: reference/development/roles/gem_codex_review.md
+    paired_with: gem_claude_dev
+    writes:
+      - small focused Gem patches when requested
+    responsibilities:
+      - challenge Gem UX
+      - review terminal interaction quality
+      - identify accessibility and state-management risks
+
   web_codex:
     provider: codex
     launch_dir: "."
@@ -116,12 +208,48 @@ roles:
       - review React implementation quality
       - identify accessibility and user-flow risks
 
+  web_claude_dev:
+    provider: claude
+    launch_dir: "."
+    context_dir: web
+    tag: crisai-web
+    profile: claude-dev-codex-review
+    role_file: reference/development/roles/web_claude_dev.md
+    paired_with: web_codex_review
+    writes:
+      - ui/apps/web/
+      - ui/packages/contracts/ when assigned by orchestrator
+      - tests/
+    responsibilities:
+      - React web UX
+      - workspace browser and upload workflows
+      - checkpoint and artefact editing UX
+
+  web_codex_review:
+    provider: codex
+    launch_dir: "."
+    context_dir: web
+    tag: crisai-web
+    lifecycle: persistent
+    profile: claude-dev-codex-review
+    role_file: reference/development/roles/web_codex_review.md
+    paired_with: web_claude_dev
+    writes:
+      - small focused web patches when requested
+    responsibilities:
+      - challenge web UX
+      - review React implementation quality
+      - identify accessibility and user-flow risks
+
 shared_rules:
   hcom_dir: .hcom
   local_assignments: reference/development/session_assignments.local.yaml
   memory_layer: Claude memory MCP server
   commit_owner: orchestrator_codex
   git_write_owner: orchestrator_codex
+  alternate_profile_commit_owner: orchestrator_claude
+  alternate_profile_git_write_owner: orchestrator_claude
   area_agents_git_access: read-only
   push_policy: explicit-user-request-only
   default_review_policy: Claude reviewers are launched on demand by the orchestrator and are mandatory gates for review-required work. If a required reviewer cannot launch, the orchestrator pauses the task unless the user explicitly overrides.
+  alternate_profile: claude-dev-codex-review starts Claude Code developers with persistent Codex reviewers for experiments where Claude should be the main implementation provider.

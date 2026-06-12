@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  activeStageContent,
+  activeStageWaitingLines,
   buildRunListLines,
   buildEventLines,
   buildSessionContextPreviewLines,
   aggregateTokenTotal,
   checkpointDecisionLines,
+  checkpointReleasedViewState,
   clampScrollTop,
   buildPromptView,
   bufferStartupPaste,
@@ -18,6 +21,7 @@ import {
   findStagePinTarget,
   gemTerminalThemeFromPalette,
   insertPromptText,
+  insertPromptPasteText,
   isContextCommand,
   maximumStageSidebarWidth,
   markStartupPasteHandled,
@@ -40,9 +44,11 @@ import {
   resolveNavCursorMove,
   resolveOutputPanelWidth,
   resolvePanelLines,
+  resolvePanelTarget,
   resolvePanelContentHeight,
   resolvePromptDeleteDirection,
   resolvePromptPasteInput,
+  resolveLiveStageMonitor,
   resolveRunsListIndex,
   resolveStageFocusKey,
   resolveStageSidebarWidth,
@@ -908,6 +914,283 @@ test("panel lines keep selected stage pinned while live output changes", () => {
   assert.deepEqual(events, ["event output"]);
 });
 
+test("panel target follows events view, manual pin, active stage, then history", () => {
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: true,
+    selectedStage: null,
+    activeStageKey: "author",
+    outputLines: ["Author output"]
+  }), { kind: "events" });
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: false,
+    selectedStage: "reviewer",
+    activeStageKey: "author",
+    outputLines: ["Author output"]
+  }), { kind: "pinned-stage", stageKey: "reviewer" });
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey: "author",
+    outputLines: ["Waiting for author output."]
+  }), { kind: "active-stage", stageKey: "author" });
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey: null,
+    outputLines: []
+  }), { kind: "event-history" });
+});
+
+test("checkpoint release state returns live pane defaults after continue or redirect", () => {
+  assert.deepEqual(checkpointReleasedViewState("continue"), {
+    selectedStage: null,
+    navMode: false,
+    navFocusKey: null,
+    showEvents: false,
+    scrollTop: 0,
+    notice: "continuing after source review"
+  });
+  assert.deepEqual(checkpointReleasedViewState("redirect"), {
+    selectedStage: null,
+    navMode: false,
+    navFocusKey: null,
+    showEvents: false,
+    scrollTop: 0,
+    notice: "retrieval guidance submitted; continuing"
+  });
+});
+
+test("pipeline panel follows downstream stage after checkpoint even before deltas arrive", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_output",
+      title: "Context retrieval",
+      summary: "Retrieved source material.",
+      content: "Prior context retrieval output",
+      agent_id: "context_retrieval",
+      stage: "context_retrieval"
+    }),
+    uiEvent({
+      event_type: "checkpoint_decision",
+      title: "Checkpoint decision",
+      summary: "Continue.",
+      agent_id: "retrieval_checkpoint",
+      stage: "retrieval_checkpoint",
+      metadata: { action: "continue" }
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      title: "Context",
+      summary: "Starting downstream stage.",
+      agent_id: "context_synthesizer",
+      stage: "context_synthesizer"
+    })
+  ];
+  const eventLines = buildEventLines(events, "", 80);
+  const liveStageEvent = events.at(-1)!;
+  const outputLines = activeStageWaitingLines(liveStageEvent, 80);
+  const panelLines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey: "context_synthesizer",
+    pinnedStageLines: [],
+    outputLines,
+    eventLines
+  });
+
+  assert(eventLines.join("\n").includes("Prior context retrieval output"));
+  assert.deepEqual(panelLines, ["Waiting for context synthesizer output."]);
+  assert(!panelLines.join("\n").includes("Prior context retrieval output"));
+});
+
+test("active-stage content uses same-stage output when no deltas are available", () => {
+  const firstOnly = [
+    uiEvent({
+      event_type: "stage_started",
+      agent_id: "future_agent_a",
+      stage: "future_agent_a"
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      content: "Agent A completed output",
+      agent_id: "future_agent_a",
+      stage: "future_agent_a"
+    })
+  ];
+  assert.equal(activeStageContent(firstOnly, "future_agent_a"), "Agent A completed output");
+
+  const secondStarted = [
+    ...firstOnly,
+    uiEvent({
+      event_type: "stage_started",
+      agent_id: "future_agent_b",
+      stage: "future_agent_b"
+    })
+  ];
+  const secondLive = secondStarted.at(-1)!;
+  assert.equal(activeStageContent(secondStarted, "future_agent_b"), "");
+  assert.deepEqual(activeStageWaitingLines(secondLive, 80), ["Waiting for future agent b output."]);
+
+  const secondOutput = [
+    ...secondStarted,
+    uiEvent({
+      event_type: "stage_output",
+      content: "Agent B completed output",
+      agent_id: "future_agent_b",
+      stage: "future_agent_b"
+    })
+  ];
+  assert.equal(activeStageContent(secondOutput, "future_agent_b"), "Agent B completed output");
+});
+
+test("live stage monitor retains completed output until the next agent starts", () => {
+  const firstStarted = uiEvent({
+    event_type: "stage_started",
+    agent_id: "future_agent_a",
+    stage: "future_agent_a"
+  });
+  const firstOutput = uiEvent({
+    event_type: "stage_output",
+    content: "Agent A completed output",
+    agent_id: "future_agent_a",
+    stage: "future_agent_a"
+  });
+  const firstEvents = [firstStarted, firstOutput];
+
+  assert.deepEqual(resolveLiveStageMonitor({
+    events: firstEvents,
+    liveStageEvent: firstStarted,
+    width: 80
+  }), { kind: "output", stageKey: "future_agent_a", content: "Agent A completed output" });
+
+  const secondStarted = uiEvent({
+    event_type: "stage_started",
+    agent_id: "future_agent_b",
+    stage: "future_agent_b"
+  });
+  assert.deepEqual(resolveLiveStageMonitor({
+    events: [...firstEvents, secondStarted],
+    liveStageEvent: secondStarted,
+    width: 80
+  }), { kind: "waiting", stageKey: "future_agent_b", lines: ["Waiting for future agent b output."] });
+});
+
+test("active-stage content resets for repeated same-key peer stages", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_started",
+      agent_id: "future_peer_reviser",
+      stage: "future_peer_reviser"
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      content: "First revision output",
+      agent_id: "future_peer_reviser",
+      stage: "future_peer_reviser"
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      agent_id: "future_peer_reviser",
+      stage: "future_peer_reviser"
+    })
+  ];
+
+  assert.equal(activeStageContent(events, "future_peer_reviser"), "");
+  assert.equal(activeStageContent([
+    ...events,
+    uiEvent({
+      event_type: "stage_delta",
+      content: "Second revision delta",
+      agent_id: "future_peer_reviser",
+      stage: "future_peer_reviser"
+    })
+  ], "future_peer_reviser"), "Second revision delta");
+});
+
+test("peer panel switches to running refiner before revise deltas arrive", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_delta",
+      title: "Judge",
+      content: "Judge feedback",
+      agent_id: "judge",
+      stage: "judge"
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      title: "Refiner",
+      agent_id: "peer_refiner",
+      stage: "peer_refiner"
+    })
+  ];
+  const liveStageEvent = events.at(-1)!;
+  const outputLines = stageStreamingContent(events, liveStageEvent.agent_id ?? liveStageEvent.stage)
+    ? wrapPlainText(stageStreamingContent(events, liveStageEvent.agent_id ?? liveStageEvent.stage), 80)
+    : activeStageWaitingLines(liveStageEvent, 80);
+  const panelLines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey: "peer_refiner",
+    pinnedStageLines: [],
+    outputLines,
+    eventLines: buildEventLines(events, "", 80)
+  });
+
+  assert.deepEqual(panelLines, ["Waiting for peer refiner output."]);
+  assert(!panelLines.join("\n").includes("Judge feedback"));
+});
+
+test("active-stage panel selection is generic for unknown future agents", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_output",
+      title: "Known stage",
+      content: "Previous known output",
+      agent_id: "known_agent",
+      stage: "known_agent"
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      title: "Future Specialist",
+      agent_id: "future_quantum_mapper",
+      stage: "future_quantum_mapper"
+    })
+  ];
+  const liveStageEvent = events.at(-1)!;
+  const activeStageKey = liveStageEvent.agent_id ?? liveStageEvent.stage;
+  const outputLines = activeStageWaitingLines(liveStageEvent, 80);
+  const panelLines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey,
+    pinnedStageLines: [],
+    outputLines,
+    eventLines: buildEventLines(events, "", 80)
+  });
+
+  assert.deepEqual(resolvePanelTarget({
+    showEvents: false,
+    selectedStage: null,
+    activeStageKey,
+    outputLines
+  }), { kind: "active-stage", stageKey: "future_quantum_mapper" });
+  assert.deepEqual(panelLines, ["Waiting for future quantum mapper output."]);
+  assert(!panelLines.join("\n").includes("Previous known output"));
+});
+
+test("manual stage pin blocks active-stage panel switching", () => {
+  const panelLines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: "context_retrieval",
+    activeStageKey: "context_synthesizer",
+    pinnedStageLines: ["Pinned retrieval output"],
+    outputLines: ["Waiting for context synthesizer output."],
+    eventLines: ["Context retrieval", "Prior context retrieval output"]
+  });
+
+  assert.deepEqual(panelLines, ["Pinned retrieval output"]);
+});
+
 test("stage streaming content accumulates incremental live deltas for the active stage", () => {
   const events = [
     uiEvent({ event_type: "stage_started", agent_id: "retrieval", stage: "retrieval" }),
@@ -1007,6 +1290,14 @@ test("stage streaming content handles stage start resets and start-only events",
   const startOnly = [
     uiEvent({ event_type: "stage_started", agent_id: "summary", stage: "summary" })
   ];
+  const startWithLifecycleContent = [
+    uiEvent({
+      event_type: "stage_started",
+      content: "Starting summary...",
+      agent_id: "summary",
+      stage: "summary"
+    })
+  ];
   const withReset = [
     ...startOnly,
     uiEvent({
@@ -1025,7 +1316,47 @@ test("stage streaming content handles stage start resets and start-only events",
   ];
 
   assert.equal(stageStreamingContent(startOnly), "");
+  assert.equal(stageStreamingContent(startWithLifecycleContent), "");
   assert.equal(stageStreamingContent(withReset), "");
+});
+
+test("stage output appears when a stage has no live deltas", () => {
+  const events = [
+    uiEvent({
+      event_type: "stage_started",
+      title: "Summary started",
+      content: "Starting summary...",
+      agent_id: "summary",
+      stage: "summary"
+    }),
+    uiEvent({
+      event_type: "stage_output",
+      timestamp: "2026-05-17T12:00:01Z",
+      title: "Summary output",
+      content: "Completed summary output",
+      agent_id: "summary",
+      stage: "summary"
+    }),
+    uiEvent({
+      event_type: "stage_started",
+      timestamp: "2026-05-17T12:00:02Z",
+      title: "Design started",
+      content: "Starting design...",
+      agent_id: "design",
+      stage: "design"
+    })
+  ];
+  const eventLines = buildEventLines(events, "", 80);
+
+  const lines = resolvePanelLines({
+    showEvents: false,
+    selectedStage: null,
+    pinnedStageLines: [],
+    outputLines: stageStreamingContent(events) ? wrapPlainText(stageStreamingContent(events), 80) : [],
+    eventLines
+  });
+
+  assert.deepEqual(lines, ["Summary output", "Completed summary output", ""]);
 });
 
 test("normal event lines hide stage lifecycle noise while live output renders deltas", () => {
@@ -1305,6 +1636,62 @@ test("startup paste preserves first line when Ink strips the leading escape", ()
   assert.equal(fromRaw.cursor, "First line\nSecond line".length);
 });
 
+test("single-line bracketed paste recovery preserves prefix characters", () => {
+  const raw = "\u001b[200~First characters stay\u001b[201~";
+  const strippedInput = "st characters stay";
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(strippedInput, raw));
+
+  assert.equal(inserted.text, "First characters stay");
+  assert.equal(inserted.cursor, "First characters stay".length);
+});
+
+test("partial raw bracketed paste marker does not override fuller Ink input", () => {
+  const rawPrefixOnly = "\u001b[200~";
+  const strippedInput = "[200~First characters stay\u001b[201~";
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(strippedInput, rawPrefixOnly));
+
+  assert.equal(inserted.text, "First characters stay");
+  assert.equal(inserted.cursor, "First characters stay".length);
+});
+
+test("split multi-line bracketed paste rejoins raw prefix with later Ink input", () => {
+  const missingPrefix = "Use the pipeline.\r\n\r\nSearch workspace/context before prod";
+  const remainingInput = "uction before answering.";
+  const rawPrefix = `\u001b[200~${missingPrefix}`;
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(remainingInput, rawPrefix));
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before production before answering."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("split multi-line bracketed paste deduplicates overlapping fragments", () => {
+  const rawPrefix = "\u001b[200~Use the pipeline.\r\n\r\nSearch workspace/context before prod";
+  const overlappingInput = "production before answering.";
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput(overlappingInput, rawPrefix));
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before production before answering."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("stale raw bracketed paste does not override ordinary typing", () => {
+  const staleRaw = "\u001b[200~previous paste\u001b[201~";
+
+  const inserted = insertPromptText({ text: "", cursor: 0 }, resolvePromptPasteInput("x", staleRaw));
+
+  assert.equal(inserted.text, "x");
+  assert.equal(inserted.cursor, 1);
+});
+
 test("startup paste replay buffers only raw bracketed paste and cancels on normal handling", () => {
   const raw = "\u001b[200~First line\r\nSecond line\u001b[201~";
   const empty = { pendingSequence: null };
@@ -1330,6 +1717,50 @@ test("startup paste replay preserves prepared prompt when useInput missed first 
 
   assert.equal(inserted.text, "First line\nSecond line");
   assert.equal(inserted.cursor, "First line\nSecond line".length);
+});
+
+test("paste replay followed by Ink remainder appends to live prompt buffer", () => {
+  const rawPrefix = "\u001b[200~Use the pipeline.\r\n\r\nSearch workspace/context before prod";
+  const replayedPrefix = insertPromptText({ text: "", cursor: 0 }, rawPrefix);
+
+  const inserted = insertPromptPasteText(
+    replayedPrefix,
+    "ucing the answer.",
+    rawPrefix
+  );
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before producing the answer."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("paste suffix fragment restores first-line prefix from raw bracketed paste", () => {
+  const rawPrefix = "\u001b[200~Use the pipeline";
+  const suffixInput = ".\r\n\r\nSearch workspace/context before producing the answer.";
+
+  const inserted = insertPromptPasteText({ text: "", cursor: 0 }, suffixInput, rawPrefix);
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before producing the answer."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
+});
+
+test("paste suffix fragment appends to already replayed first-line prefix", () => {
+  const rawPrefix = "\u001b[200~Use the pipeline";
+  const replayedPrefix = insertPromptText({ text: "", cursor: 0 }, rawPrefix);
+  const suffixInput = ".\r\n\r\nSearch workspace/context before producing the answer.";
+
+  const inserted = insertPromptPasteText(replayedPrefix, suffixInput, rawPrefix);
+
+  assert.equal(
+    inserted.text,
+    "Use the pipeline.\n\nSearch workspace/context before producing the answer."
+  );
+  assert.equal(inserted.cursor, inserted.text.length);
 });
 
 test("prompt deletion treats terminal DEL backspace as left delete and Delete key as right delete", () => {

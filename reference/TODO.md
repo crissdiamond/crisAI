@@ -102,7 +102,6 @@ The main product gaps are:
 | TODO-033 | P1 | todo | Architecture roles and people directory design | Agents need a reliable, governed source of truth for architecture stakeholders before they can route review, assurance, or sign-off tasks. This should describe roles, functions, scope, architecture area, and contact channels without hardcoding people in prompts. | Design a `reference/`-based people/roles structure with fields for role, function, scope, domain/area, authority level, contact details, preferred channel, escalation path, and ownership boundaries. Include privacy/security guidance, sample entries, validation expectations, and how agents may use the directory. |
 | TODO-034 | P1 | todo | Human assurance and sign-off operating model design | Architecture artefacts such as HLDs, option papers, ADRs, and technical designs need accountable human review and sign-off. The workflow must be designed before adding agents or tools, because it affects governance, document state, auditability, and exception handling. | Produce an ADR/design note defining review states, responsibilities, review gates, artefact types, sign-off criteria, exception paths, audit trail requirements, ownership handoffs, and the difference between AI critique, human assurance, and formal approval. |
 | TODO-035 | P1 | todo | Assurance agents and asynchronous review tooling design | A new agent or set of agents may support review-pack preparation, reviewer routing, submission tracking, reminders, and approval-state updates, but those roles must be narrowly scoped and tied to human accountability. | Design the agent roles, allowed tools, MCP/server needs, state model, document submission flow, shared-location strategy, and failure handling for asynchronous review. Cover SharePoint/Teams first, with provider-neutral extension points for other document stores or workflow systems. No implementation until TODO-033 and TODO-034 are complete. |
-| TODO-037 | P1 | todo | First-run and team onboarding experience | TODO-026 covers the rename, but there is no item for the practical onboarding path a new team member follows after cloning. Without a clear setup guide and first-run validation, team adoption remains friction-heavy regardless of the product name. | Add a team onboarding guide (README section or separate doc) covering environment prerequisites, `.env` setup, API key configuration, first-run `doctor` output, model provider smoke tests, and a short example run. `doctor` validates all required env variables at startup and emits actionable messages for common setup errors. Tests cover `.env.example` completeness and doctor env-var checks. |
 | TODO-039 | P1 | todo | Configurable Gem themes and templates | Gem should use UCL-aligned defaults, but teams and organisations may need alternate terminal palettes, layout density, and component templates without editing Python code. | Add registry/config-backed Gem theme and layout templates with defaults for UCL dark, UCL light, and high-contrast. `crisai gem` loads the selected template from config, validates required tokens, falls back safely, and documents how teams can customise colours/backgrounds while preserving accessibility. Tests cover template loading, fallback, and token validation. |
 | TODO-040 | P1 | in-progress | React web and Ink Gem on shared UI contract | The shared `ui_event_v1` and `/api/v1/runs` contract now backs the active React web and Ink Gem clients. The remaining gap is product-quality depth across stage rendering, checkpoint UX, final output, error states, install docs, accessibility, and CI checks. Current follow-ups include aligning toggle markup with the UCL switch pattern, adding alert live-region semantics, deciding whether Gem should expose the same per-run retrieval checkpoint toggle as React web, and documenting upload limits in the UI. | React web and Ink Gem consume `/api/v1/runs`, `/api/v1/runs/{id}`, `/api/v1/runs/{id}/events`, `/api/v1/runs/{id}/checkpoint`, and `/api/v1/ui/theme` with production-quality stage rendering, checkpoint UX, final output, error states, install docs, and CI type checks. |
 | TODO-040A | P1 | todo | Web stage rail follows active run stage | React web shows the latest live stage in the streaming card, but the stage rail is not a selected or focused-stage control and does not auto-scroll to the current running stage. With many stages, the active stage can be outside the visible rail viewport even while live output is correct. | During an active run, the stage rail visibly tracks the currently running stage without disrupting keyboard navigation or user-selected detail views. Long stage lists keep the active stage reachable and visible across mobile and desktop viewports. Tests or manual viewport evidence cover many-stage runs, overflow handling, and reduced-motion behaviour. |
@@ -125,42 +124,39 @@ The main product gaps are:
 
 1. Implement `TODO-026` before broader team onboarding, because renaming after
    users clone and configure the tool will create avoidable churn.
-2. Implement `TODO-037` alongside or immediately after `TODO-026`. A renamed
-   product needs a clear setup path or team adoption remains friction-heavy
-   regardless of the product name.
-3. Implement `TODO-030` and `TODO-031` before adding more protected source
+2. Implement `TODO-030` and `TODO-031` before adding more protected source
    connectors or enabling remote/custom MCPs for other users.
-4. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
+3. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
    Once auth is in place, rate-guarding the execution endpoints prevents token
    exhaustion from misconfigured clients or loops.
-5. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
+4. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
    cached evidence can participate in the same confirmation flow.
-6. Implement `TODO-017` (source connector capability contract) before `TODO-004`
+5. Implement `TODO-017` (source connector capability contract) before `TODO-004`
     and `TODO-012`. Both new source adapters should be built against the contract
     from the start rather than retrofitted later.
-7. Implement `TODO-004` after the capability contract is in place. It creates
+6. Implement `TODO-004` after the capability contract is in place. It creates
     the secure generic pattern for OAuth-protected web sources before site-specific
     adapters proliferate.
-8. Implement `TODO-025` with the web UX track, ideally before the full web
+7. Implement `TODO-025` with the web UX track, ideally before the full web
     rebuild, because structured editing is a contained high-value feature for
     non-technical architecture users.
     **Note:** design `TODO-025` with the future web architecture
     (`TODO-019`) in mind. If the scope cannot be carried forward with minimal rework
     when the rebuild happens, consider advancing `TODO-019` to a design phase first
     to avoid duplicating effort.
-9. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
+8. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
     enterprise architecture quality track.
-10. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
+9. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
     assurance automation. The roles directory and assurance operating model
     define who can review, who can approve, which artefacts require sign-off,
     and how asynchronous document movement should be audited.
-11. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
+10. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
     Dynamic model selection and API fallback should be built together so model
     choices and failure behaviour are governed by the same registry policy.
-12. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
+11. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
     should consume the shared event contract instead of carrying removed UI
     implementations.
-13. Treat `TODO-019` as the final alignment step for CLI workflow changes that
+12. Treat `TODO-019` as the final alignment step for CLI workflow changes that
     affect user-visible execution semantics.
 
 ## Done
@@ -174,6 +170,7 @@ Completed items should move here with the merge commit or PR reference.
 | TODO-002A | Browser viewport pass for streaming card | `fix(web): bound streaming viewport layout` |
 | TODO-043 | CI security scanning | `ci: add security scanning gates` |
 | TODO-005 | Token and cost tracking per stage | `6398d8e feat(runtime): track stage cost telemetry`, `7d7ba13 feat(cli): add spend command for cost telemetry`, `83d3287 fix(cli): harden spend parser against non-dict JSONL` |
+| TODO-037 | First-run and team onboarding experience | `docs(runtime): improve first-run onboarding checks` |
 | TODO-041 | API authentication and authorisation guard (Phase 1 — static bearer token) | `2ea5457 feat(security): add Bearer token auth guard`, `800e2d7 fix(security): harden api bearer comparison` |
 | TODO-024 | Web document upload | `a2b3f5c docs(todo): mark TODO-041 done and update sequencing` |
 | TODO-036 | Routing decision transparency | `feat(ui): expose request contract before execution` |

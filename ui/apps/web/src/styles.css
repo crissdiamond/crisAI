@@ -37,7 +37,7 @@ textarea {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto;
   gap: 16px;
   padding: 24px;
   box-sizing: border-box;
@@ -63,7 +63,6 @@ textarea {
 
 .topbar,
 .composer,
-.session-create,
 .stage-rail,
 .transcript,
 .history-panel,
@@ -107,12 +106,50 @@ textarea {
   max-width: 180px;
 }
 
-.eyebrow,
-.status {
+.eyebrow {
   margin: 0;
   color: var(--color-primary-dark);
   font-size: 13px;
   font-weight: 600;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.status-badge--running .status-dot {
+  background: var(--color-warning);
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+.status-badge--checkpoint-waiting .status-dot {
+  background: var(--color-warning);
+}
+
+.status-badge--complete .status-dot {
+  background: var(--color-success);
+}
+
+.status-badge--failed .status-dot {
+  background: var(--color-error);
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 h1,
@@ -122,19 +159,6 @@ h2 {
 
 .composer {
   padding: 16px;
-}
-
-.session-create {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 12px;
-  padding: 12px 16px;
-}
-
-.session-create label {
-  display: grid;
-  gap: 4px;
 }
 
 .composer textarea {
@@ -176,6 +200,42 @@ button {
 
 button:disabled {
   opacity: 0.55;
+}
+
+.btn-add-session {
+  width: 44px;
+  padding: 0;
+  font-size: 22px;
+  font-weight: 400;
+  background: transparent;
+  color: var(--color-primary-dark);
+  border: 1px dashed var(--color-border);
+}
+
+.btn-add-session:hover {
+  background: var(--color-surface-pale);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 0 10px;
+}
+
+.new-session-inline {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+}
+
+.new-session-inline input {
+  width: 130px;
+  min-height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0 8px;
 }
 
 .workspace {
@@ -571,6 +631,7 @@ pre {
   min-width: 0;
 }
 
+
 .workspace-upload input[type="file"] {
   box-sizing: border-box;
   width: 100%;
@@ -578,27 +639,37 @@ pre {
 
 .workspace-editor-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
   gap: 16px;
-  min-height: 360px;
+  min-height: 260px;
 }
 
 .workspace-files {
   display: grid;
   align-content: start;
   gap: 8px;
-  max-height: 520px;
+  max-height: 340px;
   overflow: auto;
 }
 
 .workspace-files button {
-  display: grid;
-  gap: 4px;
-  min-height: 0;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  min-height: 44px;
+  overflow: hidden;
   color: var(--color-text);
   background: var(--color-surface-pale);
   text-align: left;
+}
+
+.workspace-files button span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .workspace-files button:disabled {
@@ -610,7 +681,11 @@ pre {
 }
 
 .workspace-files small {
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  opacity: 0.75;
 }
 
 .workspace-editor {
@@ -625,7 +700,7 @@ pre {
 }
 
 .workspace-editor textarea {
-  min-height: 320px;
+  min-height: 220px;
   resize: vertical;
   font-family: "Aptos Mono", "Cascadia Mono", monospace;
 }

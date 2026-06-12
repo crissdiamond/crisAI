@@ -285,9 +285,11 @@ uv run pytest tests/integration
 
 Smoke tests are opt-in because they can call real provider APIs. They also
 include a provider endpoint reachability check that opens a short TCP connection
-to each configured API host without sending credentials or prompts. Set
-`CRISAI_RUN_SMOKE_TESTS=1` and configure the required provider keys before
-running them:
+to each configured API host without sending credentials or prompts. Export
+`CRISAI_RUN_SMOKE_TESTS=1` and the provider keys in the current shell before
+running them; if your keys are only in `.env`, source it first with
+`set -a; . ./.env; set +a`. Tests for providers without a key skip
+automatically:
 
 ```bash
 uv run pytest tests/smoke
@@ -346,6 +348,18 @@ WSL note:
 
 ### Optional provider support
 If you want to exercise OpenAI, Gemini, Anthropic, or DeepSeek in real runtime flows, you need the relevant optional runtime dependencies and environment variables configured in `.env`.
+
+### Onboarding and doctor checks
+After changing `.env.example` or doctor environment validation, run:
+
+```bash
+uv run pytest tests/unit/test_registry_validation.py -q
+uv run crisai doctor
+```
+
+The unit suite checks that `.env.example` covers doctor-validated first-run
+operator variables and that invalid environment overrides produce actionable
+doctor warnings.
 
 ### Good practice
 Run the suite after each improvement:

@@ -46,6 +46,7 @@ function App() {
   const [sessionContextStatus, setSessionContextStatus] = useState<"idle" | "loading" | "ready" | "empty" | "error">("idle");
   const [sessionContextError, setSessionContextError] = useState("");
   const [newSessionName, setNewSessionName] = useState("");
+  const [showNewSession, setShowNewSession] = useState(false);
   const [mode, setMode] = useState("auto");
   const [verbose, setVerbose] = useState(false);
   const [retrievalCheckpoint, setRetrievalCheckpoint] = useState(true);
@@ -102,7 +103,8 @@ function App() {
   }
 
   function applySessionState(state: UiSessionState) {
-    setSessions(state.sessions.length > 0 ? state.sessions : [state.current_session]);
+    const sessions = state.sessions ?? [];
+    setSessions(sessions.length > 0 ? sessions : [state.current_session]);
     setSession(state.current_session);
     setHistory(state.history);
     void loadSessionContext(state.current_session);
@@ -128,13 +130,13 @@ function App() {
     await refreshSessions(value);
   }
 
-  async function createSession(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function createSession() {
     if (!newSessionName.trim()) return;
     setError("");
     const state = await runtime.createSession(newSessionName);
     applySessionState(state);
     setNewSessionName("");
+    setShowNewSession(false);
   }
 
   async function submitRun(event: React.FormEvent<HTMLFormElement>) {
@@ -201,7 +203,7 @@ function App() {
             </label>
             <button type="submit">{apiKeyConfigured ? "Update" : "Set"}</button>
           </form>
-          <p className="status">status: {latestStatus}</p>
+          <StatusBadge status={latestStatus} />
         </div>
       </header>
 
@@ -220,6 +222,24 @@ function App() {
               ))}
             </select>
           </label>
+          {showNewSession ? (
+            <div className="new-session-inline">
+              <input
+                value={newSessionName}
+                onChange={(event) => setNewSessionName(event.target.value)}
+                placeholder="task-name"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); void createSession(); }
+                  if (e.key === "Escape") { setShowNewSession(false); setNewSessionName(""); }
+                }}
+              />
+              <button type="button" onClick={() => void createSession()}>Create</button>
+              <button type="button" className="btn-ghost" onClick={() => { setShowNewSession(false); setNewSessionName(""); }}>✕</button>
+            </div>
+          ) : (
+            <button type="button" className="btn-add-session" onClick={() => setShowNewSession(true)} aria-label="New session" title="New session">+</button>
+          )}
           <label>
             Mode
             <select value={mode} onChange={(event) => setMode(event.target.value)}>
@@ -247,18 +267,6 @@ function App() {
         </div>
       </form>
 
-      <form className="session-create" onSubmit={createSession}>
-        <label>
-          New session
-          <input
-            value={newSessionName}
-            onChange={(event) => setNewSessionName(event.target.value)}
-            placeholder="task-name"
-          />
-        </label>
-        <button type="submit">Create</button>
-      </form>
-
       {error ? <section className="alert">{error}</section> : null}
 
       <section className="workspace">
@@ -284,6 +292,15 @@ function App() {
 
       <WorkspaceBrowser session={session} />
     </main>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <div className={`status-badge status-badge--${status.replace(/_/g, "-")}`}>
+      <span className="status-dot" aria-hidden="true" />
+      <span>{status.replace(/_/g, " ")}</span>
+    </div>
   );
 }
 
@@ -573,7 +590,7 @@ function WorkspaceBrowser({ session }: { session: string }) {
               onClick={() => void openFile(file.path)}
             >
               <span>{file.name}</span>
-              <small>{file.path}</small>
+              <small>{file.path.slice(0, file.path.lastIndexOf("/") + 1)}</small>
             </button>
           ))}
         </div>

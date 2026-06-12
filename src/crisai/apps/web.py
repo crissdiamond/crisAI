@@ -17,6 +17,7 @@ from uuid import uuid4
 import typer
 import yaml
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -49,6 +50,8 @@ from crisai.cli.main import (
     _run_with_routing,
 )
 from crisai.cli.pipeline_display import (
+    _openai_streaming_construct_type_incompatible,
+    _streaming_fallback_metadata,
     reset_stage_stream_callback,
     set_stage_stream_callback,
 )
@@ -92,6 +95,12 @@ async def _lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="crisAI Web", lifespan=_lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
 _MAX_COMPLETED_JOBS = 20
 _MAX_WORKSPACE_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -171,6 +180,8 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
     When CRISAI_API_KEY is empty or unset the middleware is a no-op so that
     local single-user deployments require no configuration change.
     """
+    if request.method == "OPTIONS":
+        return await call_next(request)
     api_key = os.getenv("CRISAI_API_KEY", "").strip()
     if not api_key:
         return await call_next(request)
@@ -299,6 +310,23 @@ def _stage_delta_observability() -> dict[str, object]:
             # Live deltas are emitted only from the streamed path; fallback runs emit trace metadata later.
             "fallback": False,
         },
+    }
+
+
+def _stage_start_observability() -> dict[str, object]:
+    """Return expected streaming delivery metadata for a just-started stage."""
+    if _openai_streaming_construct_type_incompatible():
+        streaming = dict(cast(dict[str, object], _streaming_fallback_metadata()["streaming"]))
+        streaming["expected_delivery"] = "completion_only"
+    else:
+        streaming = {
+            "attempted": True,
+            "fallback": False,
+            "expected_delivery": "delta",
+        }
+    return {
+        "schema_version": "ui_stage_observability_v1",
+        "streaming": streaming,
     }
 
 
@@ -457,6 +485,8 @@ def _ui_event_from_stage_entry(
         if isinstance(trace_metadata.get("observability"), dict)
         else None
     )
+    if observability is None and source_event == "stage_start":
+        observability = _stage_start_observability()
     event = make_ui_event(
         event_type,
         run_id=job_id,
@@ -1508,8 +1538,10 @@ def create_session(payload: SessionCreateRequest) -> dict[str, Any]:
 def get_session(session_name: str) -> dict[str, Any]:
     """Return one session history and identify it as current."""
     safe_name = sanitize_session_name(session_name)
+    names = _list_session_names()
     history = load_history(safe_name)
     return {
+        "sessions": names,
         "current_session": safe_name,
         "history": _serialize_history(history),
         "memory": _serialize_memory(safe_name),

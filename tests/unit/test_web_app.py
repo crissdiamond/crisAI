@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
+from crisai.apps import web as web_module
 from crisai.apps.web import (
     RunRequest,
     SessionCreateRequest,
@@ -213,6 +214,69 @@ def test_ui_event_from_stage_entry_preserves_trace_metadata_for_verbose_surfaces
     assert event["content"] == "summary"
     assert event["metadata"]["observability"] == stage_entry["metadata"]["observability"]
     assert event["metadata"]["trace_metadata"] == stage_entry["metadata"]
+
+
+def test_ui_event_from_stage_start_exposes_completion_only_streaming_when_guarded(monkeypatch):
+    from crisai.apps import web as web_mod
+
+    monkeypatch.setattr(web_module, "_openai_streaming_construct_type_incompatible", lambda: True)
+    web_mod._RUN_JOBS["job-start"] = {
+        "status": "running",
+        "current_session": "NewTest-04",
+        "decision": type("D", (), {"mode": "pipeline"})(),
+    }
+    stage_entry = {
+        "agent_id": "summary",
+        "stage": "SUMMARY OUTPUT_START",
+        "event_type": "stage_start",
+        "content": "Starting stage for summary.",
+        "metadata": {},
+    }
+
+    event = _ui_event_from_stage_entry(
+        job_id="job-start",
+        job=web_mod._RUN_JOBS["job-start"],
+        stage_entry=stage_entry,
+    )
+
+    streaming = event["metadata"]["observability"]["streaming"]
+    assert event["event_type"] == "stage_started"
+    assert event["agent_id"] == "summary"
+    assert streaming["attempted"] is True
+    assert streaming["fallback"] is True
+    assert streaming["fallback_reason"] == "openai_streaming_construct_type_incompatible"
+    assert streaming["expected_delivery"] == "completion_only"
+
+
+def test_ui_event_from_stage_start_exposes_delta_streaming_when_not_guarded(monkeypatch):
+    from crisai.apps import web as web_mod
+
+    monkeypatch.setattr(web_module, "_openai_streaming_construct_type_incompatible", lambda: False)
+    web_mod._RUN_JOBS["job-start-delta"] = {
+        "status": "running",
+        "current_session": "NewTest-04",
+        "decision": type("D", (), {"mode": "pipeline"})(),
+    }
+    stage_entry = {
+        "agent_id": "summary",
+        "stage": "SUMMARY OUTPUT_START",
+        "event_type": "stage_start",
+        "content": "Starting stage for summary.",
+        "metadata": {},
+    }
+
+    event = _ui_event_from_stage_entry(
+        job_id="job-start-delta",
+        job=web_mod._RUN_JOBS["job-start-delta"],
+        stage_entry=stage_entry,
+    )
+
+    streaming = event["metadata"]["observability"]["streaming"]
+    assert streaming == {
+        "attempted": True,
+        "fallback": False,
+        "expected_delivery": "delta",
+    }
 
 
 @pytest.mark.anyio

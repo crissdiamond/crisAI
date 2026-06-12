@@ -27,6 +27,7 @@ import {
   clampScrollTop,
   bufferStartupPaste,
   contextReviewUnavailableNotice,
+  checkpointReleasedViewState,
   defaultGemTerminalTheme,
   deletePromptBackward,
   deletePromptForward,
@@ -36,6 +37,7 @@ import {
   buildPromptView,
   gemTerminalThemeFromPalette,
   insertPromptText,
+  insertPromptPasteText,
   isContextCommand,
   parseContextCommand,
   minimumGemHeight,
@@ -43,7 +45,6 @@ import {
   movePromptCursorHorizontal,
   movePromptCursorVertical,
   markStartupPasteHandled,
-  normalizePromptInput,
   pinnedStageContent,
   resolveCommandHistoryMove,
   promptPanelHeight,
@@ -59,13 +60,13 @@ import {
   resolvePanelContentHeight,
   resolvePromptDeleteDirection,
   resolvePromptPasteInput,
+  resolveLiveStageMonitor,
   resolveStageFocusKey,
   resolveStageSidebarWidth,
   resolveTranscriptHeight,
   resolveViewportDimension,
   runSummaryTitle,
   sidebarStages,
-  stageStreamingContent,
   stageSidebarLabel,
   stageVisual,
   shouldBufferStartupPaste,
@@ -328,6 +329,10 @@ function GemApp() {
     () => renderMarkdownLines(pinnedStageContent(stages, effectiveSelectedKey, outputPanelWidth), outputPanelWidth),
     [effectiveSelectedKey, outputPanelWidth, stages]
   );
+  const selectedStageLines = useMemo(
+    () => renderMarkdownLines(pinnedStageContent(stages, selectedStage, outputPanelWidth), outputPanelWidth),
+    [outputPanelWidth, selectedStage, stages]
+  );
   const liveStageEvent = useMemo(() => latestLiveStageEvent(activeEvents), [activeEvents]);
   // Keep rail auto-follow separate from output selection so live stages do not
   // replace a user-pinned pane.
@@ -340,13 +345,17 @@ function GemApp() {
     }),
     [liveStageEvent, navFocusKey, navMode, selectedStage, visibleStages]
   );
-  const liveStageContent = useMemo(
-    () => stageStreamingContent(activeEvents, liveStageEvent?.agent_id ?? liveStageEvent?.stage ?? null),
-    [activeEvents, liveStageEvent]
+  const liveStageMonitor = useMemo(
+    () => resolveLiveStageMonitor({ events: activeEvents, liveStageEvent, width: outputPanelWidth }),
+    [activeEvents, liveStageEvent, outputPanelWidth]
   );
   const liveLines = useMemo(
-    () => renderMarkdownLines(liveStageContent, outputPanelWidth),
-    [liveStageContent, outputPanelWidth]
+    () => liveStageMonitor.kind === "output"
+      ? renderMarkdownLines(liveStageMonitor.content, outputPanelWidth)
+      : liveStageMonitor.kind === "waiting"
+      ? liveStageMonitor.lines
+      : [],
+    [liveStageMonitor, outputPanelWidth]
   );
   const eventLines = useMemo(
     () => buildEventLines(activeEvents, error, outputPanelWidth, notice),
@@ -355,8 +364,9 @@ function GemApp() {
   const outputLines = finalLines.length > 0 ? finalLines : liveLines;
   const livePanelLines = resolvePanelLines({
     showEvents,
-    selectedStage: effectiveSelectedKey,
-    pinnedStageLines,
+    selectedStage,
+    activeStageKey: liveStageEvent?.agent_id ?? liveStageEvent?.stage ?? null,
+    pinnedStageLines: selectedStageLines,
     outputLines,
     eventLines
   });
@@ -636,9 +646,10 @@ function GemApp() {
     if (!key.ctrl && input.length > 1 && /[\r\n]/.test(input)) {
       setHistoryCursor(null);
       historyDraftRef.current = "";
-      setPromptBuffer(insertPromptText(
-        { text: prompt, cursor: promptCursor },
-        resolvePromptPasteInput(input, lastInputSequenceRef.current)
+      setPromptBuffer(insertPromptPasteText(
+        { text: promptTextRef.current, cursor: promptCursorRef.current },
+        input,
+        lastInputSequenceRef.current
       ));
       return;
     }
@@ -687,11 +698,15 @@ function GemApp() {
       return;
     }
     if (!key.ctrl && input) {
-      const normalized = normalizePromptInput(input);
-      if (!normalized) return;
+      const next = insertPromptPasteText(
+        { text: promptTextRef.current, cursor: promptCursorRef.current },
+        input,
+        lastInputSequenceRef.current
+      );
+      if (next.text === promptTextRef.current && next.cursor === promptCursorRef.current) return;
       setHistoryCursor(null);
       historyDraftRef.current = "";
-      setPromptBuffer(insertPromptText({ text: prompt, cursor: promptCursor }, normalized));
+      setPromptBuffer(next);
     }
   }, { isActive: inputActive });
 
@@ -704,7 +719,8 @@ function GemApp() {
 
   function applySessionState(state: UiSessionState) {
     setSession(state.current_session);
-    setSessions(state.sessions.length > 0 ? state.sessions : [state.current_session]);
+    const sessions = state.sessions ?? [];
+    setSessions(sessions.length > 0 ? sessions : [state.current_session]);
   }
 
   async function startRun(message: string) {
@@ -987,6 +1003,7 @@ function GemApp() {
       if (!run) return;
       if (command === "/continue") {
         await runtime.submitCheckpoint(run.run_id, { action: "continue" });
+        releaseCheckpointFocus("continue");
         injectCheckpointDecision("continue");
       } else if (command === "/stop") {
         await runtime.submitCheckpoint(run.run_id, { action: "stop" });
@@ -997,6 +1014,7 @@ function GemApp() {
           action: "redirect",
           redirect_instruction: redirectInstruction
         });
+        releaseCheckpointFocus("redirect");
         injectCheckpointDecision("redirect", redirectInstruction);
       } else {
         setError("Checkpoint commands: /continue, /stop, or /redirect <guidance>.");
@@ -1005,6 +1023,18 @@ function GemApp() {
     } catch (reason) {
       setError(formatRuntimeError(reason));
     }
+  }
+
+  function releaseCheckpointFocus(action: "continue" | "redirect") {
+    const next = checkpointReleasedViewState(action);
+    setSelectedStage(next.selectedStage);
+    setNavMode(next.navMode);
+    setNavFocusKey(next.navFocusKey);
+    navFocusIndexRef.current = null;
+    setShowEvents(next.showEvents);
+    setScrollTop(next.scrollTop);
+    clearContextPreview();
+    setNotice(next.notice);
   }
 
   function injectCheckpointDecision(action: "continue" | "stop" | "redirect", redirectInstruction = "") {

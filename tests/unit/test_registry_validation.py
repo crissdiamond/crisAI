@@ -9,6 +9,8 @@ import pytest
 import yaml
 
 from crisai.registry_validation import (
+    _BOOLEAN_ENV_VARS,
+    _NUMERIC_ENV_VARS,
     DoctorIssue,
     _check_env_setup,
     _env_keys,
@@ -288,6 +290,14 @@ OPENAI_API_KEY=placeholder
     assert not any("CRISAI_RUNTIME_URL" in w.message for w in warnings)
 
 
+def test_env_example_covers_doctor_validated_operator_env_vars() -> None:
+    root = Path(__file__).resolve().parents[2]
+    example_keys = _env_keys(root / ".env.example")
+    expected = _BOOLEAN_ENV_VARS | set(_NUMERIC_ENV_VARS)
+
+    assert expected <= example_keys
+
+
 def test_doctor_warns_about_invalid_session_memory_env(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / ".env").write_text("", encoding="utf-8")
     monkeypatch.setenv("CRISAI_AGENT_STAGE_TIMEOUT_SECONDS", "0")
@@ -307,6 +317,35 @@ def test_doctor_warns_about_invalid_session_memory_env(tmp_path: Path, monkeypat
     assert "CRISAI_SESSION_MEMORY_MAX_RUNTIME_CHARS" in messages
     assert "CRISAI_SESSION_MEMORY_MAX_MEMORY_CHARS" in messages
     assert "CRISAI_SESSION_MEMORY_TASK_DRIFT_NUDGE" in messages
+
+
+def test_doctor_warns_about_invalid_first_run_operator_env(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / ".env").write_text("", encoding="utf-8")
+    monkeypatch.setenv("CRISAI_AGENT_MAX_TURNS", "0")
+    monkeypatch.setenv("CRISAI_RETRIEVAL_CHECKPOINT_ENABLED", "sometimes")
+    monkeypatch.setenv("CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS", "-1")
+    monkeypatch.setenv("CRISAI_MCP_CLIENT_TIMEOUT_SECONDS", "5")
+    monkeypatch.setenv("CRISAI_WORKSPACE_MAX_WRITE_BYTES", "512")
+    monkeypatch.setenv("CRISAI_DIAGRAM_MAX_WRITE_BYTES", "tiny")
+    monkeypatch.setenv("INTRANET_PAGE_CACHE_TTL_HOURS", "0")
+    monkeypatch.setenv("CRISAI_DETERMINISTIC_MCP_ADVISORY", "maybe")
+    monkeypatch.setenv("CRISAI_PEER_MAX_REFINEMENT_ROUNDS", "-1")
+    monkeypatch.setenv("CRISAI_PEER_MAX_ESCALATIONS", "-1")
+
+    errors, warnings = _check_env_setup(tmp_path)
+
+    assert errors == []
+    messages = "\n".join(w.message for w in warnings)
+    assert "CRISAI_AGENT_MAX_TURNS" in messages
+    assert "CRISAI_RETRIEVAL_CHECKPOINT_ENABLED" in messages
+    assert "CRISAI_RETRIEVAL_CHECKPOINT_MAX_REDIRECTS" in messages
+    assert "CRISAI_MCP_CLIENT_TIMEOUT_SECONDS" in messages
+    assert "CRISAI_WORKSPACE_MAX_WRITE_BYTES" in messages
+    assert "CRISAI_DIAGRAM_MAX_WRITE_BYTES" in messages
+    assert "INTRANET_PAGE_CACHE_TTL_HOURS" in messages
+    assert "CRISAI_DETERMINISTIC_MCP_ADVISORY" in messages
+    assert "CRISAI_PEER_MAX_REFINEMENT_ROUNDS" in messages
+    assert "CRISAI_PEER_MAX_ESCALATIONS" in messages
 
 
 def test_issues_carry_hints_for_unknown_model_ref(tmp_path: Path) -> None:
@@ -499,3 +538,66 @@ def test_doctor_accepts_private_token_cache_permissions(tmp_path: Path, monkeypa
     result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
 
     assert not any("Microsoft token cache" in warning.message for warning in result.warnings)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_doctor_warns_when_tokens_directory_permissions_are_too_broad(tmp_path: Path, monkeypatch) -> None:
+    cache_dir = tmp_path / ".tokens"
+    cache_dir.mkdir(mode=0o755)
+    cache_file = cache_dir / "msal_token_cache.json"
+    cache_file.write_text("{}", encoding="utf-8")
+    cache_file.chmod(0o644)
+    monkeypatch.delenv("MS_TOKEN_CACHE_PATH", raising=False)
+    monkeypatch.delenv("MS_TOKEN_INFO_PATH", raising=False)
+
+    result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
+
+    messages = "\n".join(w.message for w in result.warnings)
+    assert "Microsoft token cache directory is too permissive" in messages
+    assert "Microsoft token cache file is too permissive" in messages
+
+
+def test_doctor_resolves_relative_token_cache_paths(tmp_path: Path, monkeypatch) -> None:
+    # Set relative token cache path
+    monkeypatch.setenv("MS_TOKEN_CACHE_PATH", ".tokens/msal_token_cache.json")
+    monkeypatch.delenv("MS_TOKEN_INFO_PATH", raising=False)
+
+    # Place a permissive token cache file relative to tmp_path (which is root_dir)
+    cache_dir = tmp_path / ".tokens"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / "msal_token_cache.json"
+    cache_file.write_text("{}", encoding="utf-8")
+
+    if os.name == "posix":
+        cache_dir.chmod(0o755)
+        cache_file.chmod(0o644)
+
+    result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
+
+    if os.name == "posix":
+        messages = "\n".join(w.message for w in result.warnings)
+        assert "Microsoft token cache directory is too permissive" in messages
+        assert "Microsoft token cache file is too permissive" in messages
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes only")
+def test_doctor_deduplicates_relative_token_cache_permission_warnings(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("MS_TOKEN_CACHE_PATH", ".tokens/msal_token_cache.json")
+    monkeypatch.delenv("MS_TOKEN_INFO_PATH", raising=False)
+    cache_dir = tmp_path / ".tokens"
+    cache_dir.mkdir(mode=0o755)
+    cache_file = cache_dir / "msal_token_cache.json"
+    cache_file.write_text("{}", encoding="utf-8")
+    cache_file.chmod(0o644)
+
+    result = run_doctor(root_dir=tmp_path, registry_dir=Path(__file__).resolve().parents[2] / "registry")
+
+    duplicate_file_warnings = [
+        warning
+        for warning in result.warnings
+        if f"Microsoft token cache file is too permissive: {cache_file.resolve()}" in warning.message
+    ]
+    assert len(duplicate_file_warnings) == 1
