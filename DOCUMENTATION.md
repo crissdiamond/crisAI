@@ -832,6 +832,12 @@ Workspace file access blocks local runtime-sensitive paths from agent MCP tools
 and web browsing/editing, including `.auth/`, `.tokens/`, `.secrets/`,
 `.cache/`, `.crisai/`, `chat_sessions/`, and `logs/`. These names are reserved
 for local auth, cache, session, and log state rather than business content.
+In addition, all hidden entries — any file or directory whose name begins with a
+dot — are excluded from the visible workspace surface. This applies everywhere
+`iter_visible_workspace_files` is used: the workspace and document MCP servers
+(list, search, and read) and the web file browser. Hidden entries are not part of
+the agent-visible retrieval surface, so business content must not be stored in
+dot-prefixed files or directories.
 `uv run crisai doctor` warns when explicit Microsoft token-cache environment
 paths are configured inside the workspace, and on POSIX systems also warns when
 existing Microsoft token cache directories or files are group/world accessible.
