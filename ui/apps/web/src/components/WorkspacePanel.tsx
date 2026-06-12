@@ -114,23 +114,26 @@ export function WorkspaceBrowser({ session }: { session: string }) {
           <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Find files" />
         </label>
       </div>
-      <form className="workspace-upload" onSubmit={uploadSelectedFile}>
-        <label>
-          Upload target
-          <select
-            value={uploadTarget}
-            onChange={(event) => setUploadTarget(event.target.value as UiWorkspaceUploadTarget)}
-          >
-            <option value="task_inputs">Current task inputs</option>
-            <option value="knowledge_intake">Knowledge intake</option>
-          </select>
-        </label>
-        <label>
-          Source file
-          <input type="file" onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} />
-        </label>
-        <button type="submit" disabled={!uploadFile}>Upload</button>
-      </form>
+      <details className="workspace-upload-disclosure">
+        <summary className="workspace-upload-summary">Upload a file</summary>
+        <form className="workspace-upload" onSubmit={uploadSelectedFile}>
+          <label>
+            Upload target
+            <select
+              value={uploadTarget}
+              onChange={(event) => setUploadTarget(event.target.value as UiWorkspaceUploadTarget)}
+            >
+              <option value="task_inputs">Current task inputs</option>
+              <option value="knowledge_intake">Knowledge intake</option>
+            </select>
+          </label>
+          <label>
+            Source file
+            <input type="file" onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} />
+          </label>
+          <button type="submit" disabled={!uploadFile}>Upload</button>
+        </form>
+      </details>
       <div className="workspace-editor-grid">
         <div className="workspace-files">
           {visibleFiles.length === 0 ? <p>No files found.</p> : null}

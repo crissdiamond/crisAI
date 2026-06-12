@@ -1,7 +1,7 @@
 import React from "react";
 // Controlled value/onChange/extensions pattern copied from the
 // @uiw/react-codemirror README: https://github.com/uiwjs/react-codemirror
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import type { Extension } from "@uiw/react-codemirror";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { yaml } from "@codemirror/lang-yaml";
@@ -27,20 +27,24 @@ const yamlLinter = linter((view) => {
 export type CodeEditorLanguage = "json" | "yaml" | "markdown" | "python" | "plain";
 
 function buildExtensions(language: CodeEditorLanguage): Extension[] {
+  // Soft-wrap long lines so a single long line (common in .txt/.log/.csv
+  // and prose) never forces the editor wider than its grid column — without
+  // it CodeMirror scrolls horizontally and stretches the whole panel.
+  const base = [EditorView.lineWrapping];
   switch (language) {
     case "json":
       // JSON parse diagnostics surfaced inline via the lint gutter.
-      return [json(), linter(jsonParseLinter()), lintGutter()];
+      return [...base, json(), linter(jsonParseLinter()), lintGutter()];
     case "yaml":
       // YAML parse diagnostics surfaced inline (advisory; never blocks save).
-      return [yaml(), yamlLinter, lintGutter()];
+      return [...base, yaml(), yamlLinter, lintGutter()];
     case "markdown":
-      return [markdown()];
+      return [...base, markdown()];
     case "python":
-      return [python()];
+      return [...base, python()];
     case "plain":
     default:
-      return [];
+      return base;
   }
 }
 

@@ -921,18 +921,47 @@ pre {
   width: 100%;
 }
 
+/* Upload is the least-frequent workspace action, so it collapses into a
+   disclosure by default — freeing vertical space for the editor. */
+.workspace-upload-disclosure {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+}
+
+.workspace-upload-summary {
+  cursor: pointer;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+.workspace-upload-summary:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.workspace-upload-disclosure[open] .workspace-upload {
+  margin-top: var(--space-2);
+}
+
 .workspace-editor-grid {
+  /* Shared editor height: tall enough to review/edit real documents (not the
+     prior ~180px sliver) while staying responsive and capped on large screens.
+     Every editor host below references it so loading, code, markdown, and
+     read-only states share one footprint and never jump. */
+  --editor-min-h: clamp(360px, 60vh, 640px);
   display: grid;
   grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
   gap: var(--space-3);
-  min-height: 260px;
+  min-height: var(--editor-min-h);
 }
 
 .workspace-files {
   display: grid;
   align-content: start;
   gap: var(--space-1);
-  max-height: 340px;
+  max-height: var(--editor-min-h);
   overflow: auto;
 }
 
@@ -986,7 +1015,7 @@ pre {
 }
 
 .workspace-editor textarea {
-  min-height: 220px;
+  min-height: var(--editor-min-h);
   resize: vertical;
   font-family: "Aptos Mono", "Cascadia Mono", monospace;
 }
@@ -994,7 +1023,8 @@ pre {
 /* CodeMirror host: match the textarea footprint using design tokens so the
    registry-driven editors share the workspace editor look. */
 .workspace-editor .cm-editor {
-  min-height: 220px;
+  min-height: var(--editor-min-h);
+  max-width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -1039,7 +1069,7 @@ pre {
 }
 
 .markdown-toastui-host {
-  min-height: 220px;
+  min-height: var(--editor-min-h);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -1049,11 +1079,19 @@ pre {
   border-radius: var(--radius-md);
 }
 
+/* Toast UI ships its own ~32px square toolbar/mode-switch buttons. The global
+   `button { min-height: 44px }` rule leaks in and forces them taller than the
+   toolbar strip, which clips a partial second row of icons. Reset min-height
+   so Toast's native sizing governs and the toolbar stays a single row. */
+.markdown-toastui-host .toastui-editor-defaultUI button {
+  min-height: 0;
+}
+
 /* Editor host wraps the registry-driven editor so loading/empty placeholders
    occupy the same 1fr row footprint as the live editor. */
 .workspace-editor-host {
   display: grid;
-  min-height: 220px;
+  min-height: var(--editor-min-h);
 }
 
 /* Loading / empty placeholder shown while a file fetches or a lazy editor
@@ -1063,7 +1101,7 @@ pre {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 220px;
+  min-height: var(--editor-min-h);
   margin: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
