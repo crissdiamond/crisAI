@@ -95,12 +95,6 @@ async def _lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="crisAI Web", lifespan=_lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 _RUN_JOBS: dict[str, dict[str, Any]] = {}
 _MAX_COMPLETED_JOBS = 20
 _MAX_WORKSPACE_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -179,9 +173,11 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
 
     When CRISAI_API_KEY is empty or unset the middleware is a no-op so that
     local single-user deployments require no configuration change.
+
+    CORS preflight (OPTIONS) is handled by the outermost CORSMiddleware before
+    a request reaches this middleware, so no OPTIONS bypass is needed here; when
+    a key is set, OPTIONS is authenticated like any other method.
     """
-    if request.method == "OPTIONS":
-        return await call_next(request)
     api_key = os.getenv("CRISAI_API_KEY", "").strip()
     if not api_key:
         return await call_next(request)
@@ -194,6 +190,19 @@ async def _auth_middleware(request: Request, call_next: Any) -> Any:
             headers={"WWW-Authenticate": "Bearer"},
         )
     return await call_next(request)
+
+
+# Register CORS last so it wraps the auth and rate-limit middleware as the
+# outermost layer. Starlette runs the most recently added middleware first, so
+# this answers preflight (OPTIONS) at the edge and keeps the 401/429 responses
+# from the inner middleware readable by the browser client (they retain the
+# Access-Control-Allow-Origin header instead of failing as opaque CORS errors).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class RunRequest(BaseModel):
