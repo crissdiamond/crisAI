@@ -73,7 +73,6 @@ export function WorkspaceBrowser({ session }: { session: string }) {
   return (
     <section className="workspace-browser" aria-label="Workspace browser">
       <header>
-        <h2>Workspace</h2>
         <p>{status}</p>
       </header>
       <div className="workspace-controls">
