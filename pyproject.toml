@@ -29,7 +29,6 @@ dependencies = [
   "requests>=2.31.0,<3",
   "defusedxml>=0.7.1,<1",
   "starlette>=1.0.1",
-  "pdfplumber>=0.11.9",
 ]
 
 [project.optional-dependencies]
