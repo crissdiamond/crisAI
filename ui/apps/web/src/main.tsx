@@ -35,9 +35,12 @@ const runtime = new CrisaiRuntimeClient({
   apiToken: configuredApiKey || localStorage.getItem(apiKeyStorageKey) || undefined
 });
 
+type SecondaryView = null | "workspace" | "history" | "memory";
+
 function App() {
   const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem(apiKeyStorageKey) ?? configuredApiKey);
   const [apiKeyConfigured, setApiKeyConfigured] = useState(Boolean(apiKeyInput.trim()));
+  const [secondaryView, setSecondaryView] = useState<SecondaryView>(null);
   const [message, setMessage] = useState("");
   const [session, setSession] = useState("default");
   const [sessions, setSessions] = useState<string[]>(["default"]);
@@ -107,7 +110,22 @@ function App() {
     setSessions(sessions.length > 0 ? sessions : [state.current_session]);
     setSession(state.current_session);
     setHistory(state.history);
-    void loadSessionContext(state.current_session);
+    // Session memory is a secondary surface; only refresh its context fetch
+    // when the memory panel is actually open so initial load stays quiet.
+    if (secondaryView === "memory") {
+      void loadSessionContext(state.current_session);
+    }
+  }
+
+  function openSecondaryView(view: SecondaryView) {
+    setSecondaryView((current) => {
+      const next = current === view ? null : view;
+      // Lazily load session context the first time the memory panel opens.
+      if (next === "memory" && sessionContextStatus === "idle") {
+        void loadSessionContext(session);
+      }
+      return next;
+    });
   }
 
   async function loadSessionContext(sessionName = session, query?: string) {
@@ -182,18 +200,20 @@ function App() {
     setRedirectInstruction("");
   }
 
+  const hasRun = run !== null || events.length > 0;
+
   return (
     <main className="app-shell">
       <a className="skip-link" href="#run-composer">Skip to run prompt</a>
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Architecture workstation</p>
-          <h1>crisAI Web</h1>
+        <div className="topbar-brand">
+          <h1>crisAI</h1>
+          <StatusBadge status={latestStatus} />
         </div>
         <div className="topbar-actions">
           <form className="api-key-form" onSubmit={saveApiKey}>
-            <label>
-              API key
+            <label className="api-key-label">
+              <span className="api-key-caption">API key</span>
               <input
                 type="password"
                 value={apiKeyInput}
@@ -201,9 +221,8 @@ function App() {
                 placeholder={apiKeyConfigured ? "configured" : "optional"}
               />
             </label>
-            <button type="submit">{apiKeyConfigured ? "Update" : "Set"}</button>
+            <button type="submit" className="btn-ghost btn-compact">{apiKeyConfigured ? "Update" : "Set"}</button>
           </form>
-          <StatusBadge status={latestStatus} />
         </div>
       </header>
 
@@ -267,31 +286,153 @@ function App() {
         </div>
       </form>
 
+      <nav className="secondary-toolbar" aria-label="Secondary surfaces">
+        <button
+          type="button"
+          className="toolbar-toggle"
+          aria-expanded={secondaryView === "workspace"}
+          aria-controls="secondary-panel"
+          onClick={() => openSecondaryView("workspace")}
+        >
+          Workspace
+        </button>
+        <button
+          type="button"
+          className="toolbar-toggle"
+          aria-expanded={secondaryView === "history"}
+          aria-controls="secondary-panel"
+          onClick={() => openSecondaryView("history")}
+        >
+          History
+        </button>
+        <button
+          type="button"
+          className="toolbar-toggle"
+          aria-expanded={secondaryView === "memory"}
+          aria-controls="secondary-panel"
+          onClick={() => openSecondaryView("memory")}
+        >
+          Session memory
+        </button>
+      </nav>
+
       {error ? <section className="alert">{error}</section> : null}
 
-      <section className="workspace">
-        <StageRail stages={stages} />
-        <Transcript
-          events={events}
-          finalContent={finalContent}
-          liveStageEvent={liveStageEvent}
-          checkpointWaiting={checkpointWaiting}
-          verbose={verbose}
-          redirectInstruction={redirectInstruction}
-          onRedirectInstructionChange={setRedirectInstruction}
-          onCheckpoint={checkpoint}
-        />
-        <HistoryPanel
-          history={history}
-          sessionContext={sessionContext}
-          contextStatus={sessionContextStatus}
-          contextError={sessionContextError}
-          onRefreshContext={loadSessionContext}
-        />
+      <section className="run-area" aria-label="Run output">
+        {hasRun ? (
+          <div className="run-grid">
+            <StageRail stages={stages} />
+            <Transcript
+              events={events}
+              finalContent={finalContent}
+              liveStageEvent={liveStageEvent}
+              checkpointWaiting={checkpointWaiting}
+              verbose={verbose}
+              redirectInstruction={redirectInstruction}
+              onRedirectInstructionChange={setRedirectInstruction}
+              onCheckpoint={checkpoint}
+            />
+          </div>
+        ) : (
+          <p className="run-empty">Ask a question to begin.</p>
+        )}
       </section>
 
-      <WorkspaceBrowser session={session} />
+      {secondaryView !== null ? (
+        <section
+          id="secondary-panel"
+          className="secondary-panel"
+          aria-label={
+            secondaryView === "workspace"
+              ? "Workspace"
+              : secondaryView === "history"
+                ? "Session history"
+                : "Session memory"
+          }
+        >
+          <div className="secondary-panel-head">
+            <h2>
+              {secondaryView === "workspace"
+                ? "Workspace"
+                : secondaryView === "history"
+                  ? "Session history"
+                  : "Session memory"}
+            </h2>
+            <button
+              type="button"
+              className="btn-ghost btn-compact"
+              onClick={() => setSecondaryView(null)}
+              aria-label="Close panel"
+            >
+              Close
+            </button>
+          </div>
+          {secondaryView === "workspace" ? <WorkspaceBrowser session={session} /> : null}
+          {secondaryView === "history" ? (
+            <HistoryPanel
+              history={history}
+              sessionContext={sessionContext}
+              contextStatus={sessionContextStatus}
+              contextError={sessionContextError}
+              onRefreshContext={loadSessionContext}
+              showContextPreview={false}
+            />
+          ) : null}
+          {secondaryView === "memory" ? (
+            <section className="session-context-preview" aria-labelledby="session-context-heading">
+              <div className="panel-heading">
+                <h3 id="session-context-heading">Context preview</h3>
+                <span>{sessionContextStatus === "loading" ? "loading" : sessionContext?.session ?? session}</span>
+              </div>
+              <SessionMemoryQuery
+                sessionName={sessionContext?.session ?? session}
+                status={sessionContextStatus}
+                onRefreshContext={loadSessionContext}
+              />
+              <SessionContextBody
+                context={sessionContext}
+                status={sessionContextStatus}
+                error={sessionContextError}
+              />
+            </section>
+          ) : null}
+        </section>
+      ) : null}
     </main>
+  );
+}
+
+function SessionMemoryQuery({
+  sessionName,
+  status,
+  onRefreshContext
+}: {
+  sessionName: string;
+  status: "idle" | "loading" | "ready" | "empty" | "error";
+  onRefreshContext: (sessionName?: string, query?: string) => Promise<void>;
+}) {
+  const [query, setQuery] = useState("");
+
+  function submitContextQuery(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void onRefreshContext(sessionName, query.trim() || undefined);
+  }
+
+  return (
+    <form className="context-query" onSubmit={submitContextQuery}>
+      <label>
+        Recall query
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Optional focus"
+          disabled={status === "loading"}
+        />
+      </label>
+      <button type="submit" aria-label="Refresh context preview" disabled={status === "loading"}>
+        Refresh
+      </button>
+    </form>
   );
 }
 
@@ -325,13 +466,15 @@ function HistoryPanel({
   sessionContext,
   contextStatus,
   contextError,
-  onRefreshContext
+  onRefreshContext,
+  showContextPreview = true
 }: {
   history: UiHistoryEntry[];
   sessionContext: UiSessionContext | null;
   contextStatus: "idle" | "loading" | "ready" | "empty" | "error";
   contextError: string;
   onRefreshContext: (sessionName?: string, query?: string) => Promise<void>;
+  showContextPreview?: boolean;
 }) {
   const recentHistory = history.slice(-6);
   const [query, setQuery] = useState("");
@@ -344,28 +487,29 @@ function HistoryPanel({
 
   return (
     <aside className="history-panel" aria-label="Session history">
-      <h2>Session</h2>
-      <section className="session-context-preview" aria-labelledby="session-context-heading">
-        <div className="panel-heading">
-          <h3 id="session-context-heading">Context preview</h3>
-          <span>{contextStatus === "loading" ? "loading" : sessionContext?.session ?? "current"}</span>
-        </div>
-        <form className="context-query" onSubmit={submitContextQuery}>
-          <label>
-            Recall query
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Optional focus"
-              disabled={contextStatus === "loading"}
-            />
-          </label>
-          <button type="submit" aria-label="Refresh context preview" disabled={contextStatus === "loading"}>
-            Refresh
-          </button>
-        </form>
-        <SessionContextBody context={sessionContext} status={contextStatus} error={contextError} />
-      </section>
+      {showContextPreview ? (
+        <section className="session-context-preview" aria-labelledby="session-context-heading">
+          <div className="panel-heading">
+            <h3 id="session-context-heading">Context preview</h3>
+            <span>{contextStatus === "loading" ? "loading" : sessionContext?.session ?? "current"}</span>
+          </div>
+          <form className="context-query" onSubmit={submitContextQuery}>
+            <label>
+              Recall query
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Optional focus"
+                disabled={contextStatus === "loading"}
+              />
+            </label>
+            <button type="submit" aria-label="Refresh context preview" disabled={contextStatus === "loading"}>
+              Refresh
+            </button>
+          </form>
+          <SessionContextBody context={sessionContext} status={contextStatus} error={contextError} />
+        </section>
+      ) : null}
       {recentHistory.length === 0 ? <p>No session history yet.</p> : null}
       {recentHistory.map((entry, index) => (
         <article key={`${entry.role}-${index}`} className="history-entry">
