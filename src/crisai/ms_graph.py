@@ -13,6 +13,7 @@ import logging
 import os
 import shutil
 import sys
+import threading
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
@@ -338,6 +339,105 @@ def acquire_token(*, scopes: list[str] | None = None, force_interactive: bool = 
     write_token_info({"account": account, "scope": granted, "has_access_token": True})
     _emit(f"token_acquired scopes={granted} account={account}")
     return str(result["access_token"])
+
+
+# --- Non-blocking device-code login (used by the web UI "Connect" flow) -------
+#
+# acquire_token() runs the device flow inline and blocks until the user finishes
+# logging in, which is fine for a CLI but useless for a web UI: the browser
+# needs the user_code *before* the wait, and a popup that closes when auth
+# completes. So the flow is split: start_device_login() initiates the flow,
+# returns the code immediately, and runs the (blocking) completion on a daemon
+# thread that writes the shared token cache; the UI polls device_login_status().
+
+_device_login_lock = threading.Lock()
+_device_login_state: dict[str, Any] = {"status": "idle", "account": None, "error": None}
+
+
+def start_device_login(scopes: list[str] | None = None) -> dict[str, Any]:
+    """Initiate a device-code login without blocking.
+
+    Returns the ``user_code`` and verification URL to display, and starts a
+    background thread that polls Microsoft until the user completes login (or
+    the code expires), writing the shared token cache on success. Callers poll
+    :func:`device_login_status` for completion.
+    """
+    _require_env()
+    scopes = scopes or list(DEFAULT_SCOPES)
+    cache = _load_token_cache()
+    app = _build_app(cache)
+    flow = app.initiate_device_flow(scopes=scopes)
+    if "user_code" not in flow:
+        raise RuntimeError(f"Failed to initiate device code flow: {flow.get('error_description') or flow}")
+    with _device_login_lock:
+        _device_login_state.update({"status": "pending", "account": None, "error": None})
+    thread = threading.Thread(
+        target=_complete_device_login,
+        args=(app, cache, flow),
+        name="sharepoint-device-login",
+        daemon=True,
+    )
+    thread.start()
+    _emit(f"device_login_started user_code={flow.get('user_code')!r}")
+    return {
+        "user_code": str(flow.get("user_code", "")),
+        "verification_uri": str(flow.get("verification_uri", "")),
+        "verification_uri_complete": str(flow.get("verification_uri_complete") or ""),
+        "expires_in": int(flow.get("expires_in", 0) or 0),
+        "message": str(flow.get("message", "")),
+    }
+
+
+def _complete_device_login(
+    app: PublicClientApplication,
+    cache: SerializableTokenCache,
+    flow: dict[str, Any],
+) -> None:
+    """Block on the device flow on a background thread; record the outcome."""
+    try:
+        result = app.acquire_token_by_device_flow(flow)
+    except Exception as exc:  # noqa: BLE001 - surface any MSAL/network failure as state
+        with _device_login_lock:
+            _device_login_state.update({"status": "failed", "error": str(exc)})
+        _emit(f"device_login_failed error={exc!r}")
+        return
+    if not result or "access_token" not in result:
+        message = (result or {}).get("error_description") or (result or {}).get("error") or "Login did not complete."
+        with _device_login_lock:
+            _device_login_state.update({"status": "failed", "error": str(message)})
+        _emit(f"device_login_failed error={result}")
+        return
+    _save_token_cache(cache)
+    granted = result.get("scope")
+    account = result.get("id_token_claims", {}).get("preferred_username")
+    write_token_info({"account": account, "scope": granted, "has_access_token": True})
+    with _device_login_lock:
+        _device_login_state.update({"status": "connected", "account": account, "error": None})
+    _emit(f"device_login_connected account={account}")
+
+
+def device_login_status() -> dict[str, Any]:
+    """Return the current device-login state, reconciled with the token cache.
+
+    A token may already be valid (cached from a prior session or another
+    process), so a present silent token always reports ``connected`` regardless
+    of whether a login was started this session.
+    """
+    with _device_login_lock:
+        state = dict(_device_login_state)
+    try:
+        auth = delegated_auth_status()
+    except RuntimeError:
+        auth = {}
+    if auth.get("has_valid_silent_token"):
+        state["status"] = "connected"
+        state["account"] = state.get("account") or auth.get("account")
+        state["error"] = None
+    return {
+        "status": state.get("status", "idle"),
+        "account": state.get("account"),
+        "error": state.get("error"),
+    }
 
 
 def require_silent_token(scopes: list[str] | None = None) -> str:

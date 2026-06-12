@@ -20,6 +20,7 @@ import { StageRail } from "./components/StageRail.js";
 import { Transcript, type StageDetail } from "./components/Transcript.js";
 import { WorkspaceBrowser } from "./components/WorkspacePanel.js";
 import { HistoryPanel, SessionContextBody } from "./components/SessionPanel.js";
+import { SharePointAuthDialog } from "./components/SharePointAuthDialog.js";
 import "./styles.css";
 
 type SecondaryView = null | "workspace" | "history" | "memory";
@@ -28,6 +29,7 @@ function App() {
   const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem(apiKeyStorageKey) ?? configuredApiKey);
   const [apiKeyConfigured, setApiKeyConfigured] = useState(Boolean(apiKeyInput.trim()));
   const [secondaryView, setSecondaryView] = useState<SecondaryView>(null);
+  const [showSharePointAuth, setShowSharePointAuth] = useState(false);
   const [message, setMessage] = useState("");
   const [session, setSession] = useState("default");
   const [sessions, setSessions] = useState<string[]>(["default"]);
@@ -250,8 +252,18 @@ function App() {
             </label>
             <button type="submit" className="btn-ghost btn-compact">{apiKeyConfigured ? "Update" : "Set"}</button>
           </form>
+          <button
+            type="button"
+            className="btn-ghost btn-compact"
+            onClick={() => setShowSharePointAuth(true)}
+          >
+            Connect SharePoint
+          </button>
         </div>
       </header>
+      {showSharePointAuth ? (
+        <SharePointAuthDialog onClose={() => setShowSharePointAuth(false)} />
+      ) : null}
 
       <form id="run-composer" className="composer" onSubmit={submitRun} tabIndex={-1}>
         <label className="sr-only" htmlFor="run-message">Your request to crisAI</label>

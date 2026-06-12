@@ -1228,6 +1228,99 @@ pre {
   border-radius: var(--radius-sm);
 }
 
+/* --- Modal dialog (SharePoint connect / device-code popup) --------------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  background: rgba(15, 8, 26, 0.55);
+}
+
+.modal {
+  box-sizing: border-box;
+  width: min(480px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.modal-header h2 {
+  font-size: var(--font-size-heading-sm);
+}
+
+.sp-auth-body {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sp-auth-steps {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sp-auth-code-step {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sp-auth-code {
+  font-family: "Aptos Mono", "Cascadia Mono", monospace;
+  font-size: var(--font-size-heading-sm);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-pale);
+  color: var(--color-vibrant-purple);
+}
+
+.sp-auth-open {
+  justify-self: start;
+  font-weight: 600;
+}
+
+.sp-auth-status {
+  margin: 0;
+  color: var(--color-primary-dark);
+  font-size: var(--font-size-label);
+}
+
+.sp-auth-success {
+  margin: 0;
+  color: var(--color-vibrant-purple);
+  font-weight: 600;
+}
+
+.sp-auth-failed {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sp-auth-failed p {
+  margin: 0;
+  color: var(--color-error);
+}
+
 @media (max-width: 760px) {
   .app-shell {
     padding: var(--space-2);

@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from crisai import ms_graph
 from crisai.apps.run_history import (
     DEFAULT_LIST_LIMIT,
     MAX_LIST_LIMIT,
@@ -1561,6 +1562,41 @@ async def api_v1_rename_workspace_file(payload: WorkspaceFileRenameRequest) -> d
 async def api_v1_upload_workspace_file(payload: WorkspaceUploadRequest) -> dict[str, Any]:
     """Upload one source file through the shared UI API."""
     return upload_workspace_file(payload)
+
+
+def _ensure_sharepoint_graph_configured() -> None:
+    """Point ms_graph at the same token cache the SharePoint MCP server reads.
+
+    The MCP server runs ``configure_workspace(<workspace>, namespace="sharepoint")``;
+    using the same workspace root and namespace here means a token the web app
+    acquires lands in the cache the server's silent refresh picks up.
+    """
+    ms_graph.configure_workspace(_workspace_root(), namespace="sharepoint")
+
+
+@app.post("/api/v1/auth/sharepoint/start")
+async def api_v1_sharepoint_login_start() -> dict[str, Any]:
+    """Begin a SharePoint device-code login and return the code to display.
+
+    The token is acquired and stored server-side; only the user-facing code and
+    verification URL are returned. Runs behind the same auth middleware as every
+    other endpoint.
+    """
+    _ensure_sharepoint_graph_configured()
+    try:
+        return ms_graph.start_device_login()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/auth/sharepoint/status")
+async def api_v1_sharepoint_login_status() -> dict[str, Any]:
+    """Report SharePoint login progress so the UI can close its popup on success."""
+    _ensure_sharepoint_graph_configured()
+    try:
+        return ms_graph.device_login_status()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/api/config")
