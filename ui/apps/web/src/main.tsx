@@ -18,6 +18,7 @@ import {
   type UiWorkspaceUploadTarget
 } from "@crisai/contracts";
 import {
+  eventDisplayTitle,
   latestLiveStageEvent,
   liveRunStatus,
   liveStageDisplayName,
@@ -230,7 +231,7 @@ function App() {
         <textarea
           value={message}
           onChange={(event) => setMessage(event.target.value)}
-          placeholder="Ask for a recommendation, summary, option paper, HLD, or review..."
+          placeholder="Ask for a recommendation, summary, option paper, high-level design (HLD), or review..."
         />
         <div className="controls">
           <label>
@@ -260,17 +261,17 @@ function App() {
             <button type="button" className="btn-add-session" onClick={() => setShowNewSession(true)} aria-label="New session" title="New session">+</button>
           )}
           <label>
-            Mode
+            How to run
             <select value={mode} onChange={(event) => setMode(event.target.value)}>
-              <option value="auto">auto</option>
-              <option value="single">single</option>
-              <option value="pipeline">pipeline</option>
-              <option value="peer">peer</option>
+              <option value="auto">Automatic</option>
+              <option value="single">Single agent</option>
+              <option value="pipeline">Step-by-step</option>
+              <option value="peer">Peer review</option>
             </select>
           </label>
           <label className="toggle">
             <input type="checkbox" checked={verbose} onChange={(event) => setVerbose(event.target.checked)} />
-            Verbose
+            Show detailed steps
           </label>
           <label className="toggle">
             <input
@@ -278,7 +279,7 @@ function App() {
               checked={retrievalCheckpoint}
               onChange={(event) => setRetrievalCheckpoint(event.target.checked)}
             />
-            Retrieval checkpoint
+            Pause to review sources
           </label>
           <button type="submit" disabled={latestStatus === "running" || latestStatus === "checkpoint_waiting"}>
             Run
@@ -447,9 +448,9 @@ function StatusBadge({ status }: { status: string }) {
 
 function StageRail({ stages }: { stages: UiStageSummary[] }) {
   return (
-    <aside className="stage-rail" aria-label="Workflow stages">
-      <h2>Stages</h2>
-      {stages.length === 0 ? <p>No stages yet.</p> : null}
+    <aside className="stage-rail" aria-label="Workflow steps">
+      <h2>Steps</h2>
+      {stages.length === 0 ? <p>No steps yet.</p> : null}
       {stages.map((stage) => (
         <article key={stage.key} className={`stage stage-${stage.status}`}>
           <strong>{stage.label}</strong>
@@ -544,20 +545,21 @@ function SessionContextBody({
   }
 
   const fields = [
-    ["Task goal", context.memory.task_goal],
-    ["Current state", context.memory.current_state],
-    ["Scope", context.memory.scope],
+    ["What we're working on", context.memory.task_goal],
+    ["Where things stand", context.memory.current_state],
+    ["Summary", context.memory.summary],
+    ["In scope", context.memory.scope],
     ["Assumptions", context.memory.assumptions],
     ["Constraints", context.memory.constraints],
-    ["Important decisions", context.memory.important_decisions],
-    ["Rejected options", context.memory.rejected_options],
-    ["Source findings", context.memory.source_findings],
-    ["Known sources", context.memory.known_sources],
-    ["Active artefacts", context.memory.active_artefacts],
+    ["Decisions made", context.memory.important_decisions],
+    ["Options we ruled out", context.memory.rejected_options],
+    ["What the sources say", context.memory.source_findings],
+    ["Sources we know", context.memory.known_sources],
+    ["Active documents", context.memory.active_artefacts],
     ["Open questions", context.memory.open_questions],
-    ["Next actions", context.memory.next_actions],
-    ["Last outputs", context.memory.last_outputs],
-    ["Do not repeat", context.memory.do_not_repeat]
+    ["Next steps", context.memory.next_actions],
+    ["Recent outputs", context.memory.last_outputs],
+    ["Avoid repeating", context.memory.do_not_repeat]
   ].flatMap(([label, value]) => {
     const items = asStringList(value);
     return items.length > 0 ? [{ label: String(label), items }] : [];
@@ -565,15 +567,9 @@ function SessionContextBody({
 
   return (
     <div className="context-body">
-      {context.baseline_brief ? (
-        <section className="context-section">
-          <h4>Baseline brief</h4>
-          <p className="context-brief">{context.baseline_brief}</p>
-        </section>
-      ) : null}
       {fields.length > 0 ? (
         <section className="context-section">
-          <h4>Memory fields</h4>
+          <h4>What we remember</h4>
           {fields.map((field) => (
             <div key={field.label} className="context-field">
               <strong>{field.label}</strong>
@@ -585,6 +581,12 @@ function SessionContextBody({
             </div>
           ))}
         </section>
+      ) : null}
+      {context.baseline_brief.trim() ? (
+        <details className="context-section context-raw-brief">
+          <summary>Raw brief</summary>
+          <p className="context-brief">{context.baseline_brief}</p>
+        </details>
       ) : null}
       <section className="context-section">
         <h4>Recall</h4>
@@ -693,7 +695,7 @@ function WorkspaceBrowser({ session }: { session: string }) {
       </header>
       <div className="workspace-controls">
         <label>
-          Space
+          Folder
           <select value={rootName} onChange={(event) => void loadTree(event.target.value)}>
             {Object.entries(roots).map(([name, path]) => (
               <option key={name} value={name}>{name}: {path}</option>
@@ -804,8 +806,7 @@ function Transcript({
       {visibleEvents.map((event, index) => (
         <article key={`${event.event_type}-${event.timestamp}-${index}`} className="event-card">
           <header>
-            <h2>{event.title}</h2>
-            <span>{event.event_type}</span>
+            <h2>{eventDisplayTitle(event)}</h2>
           </header>
           {event.summary ? <p className="summary">{event.summary}</p> : null}
           {event.event_type === "checkpoint_requested" ? (
@@ -826,7 +827,6 @@ function Transcript({
         <article className="event-card final-card">
           <header>
             <h2>Final answer</h2>
-            <span>final_answer</span>
           </header>
           <MarkdownContent content={finalContent} />
         </article>
