@@ -154,9 +154,16 @@ export function parseMarkdownBlocks(content: string): MarkdownBlock[] {
   return blocks;
 }
 
-function humanizeLabel(value: string): string {
+/**
+ * Title-cases a snake_case identifier for display.
+ *
+ * `fallback` is returned when `value` is empty after normalisation; callers in a
+ * stage context use the default "Stage", while session-memory callers pass
+ * "Memory" to keep their original empty-label wording.
+ */
+export function humanizeLabel(value: string, fallback = "Stage"): string {
   const label = value.replaceAll("_", " ").trim();
-  return label ? label.charAt(0).toUpperCase() + label.slice(1) : "Stage";
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : fallback;
 }
 
 export function parseInlineMarkdown(value: string): MarkdownInlineToken[] {
