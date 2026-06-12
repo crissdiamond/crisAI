@@ -16,7 +16,8 @@ export function stageOutputContent(events: UiEvent[], stageKey: string, verbose:
 export type MarkdownInlineToken =
   | { type: "text"; value: string }
   | { type: "strong"; value: string }
-  | { type: "code"; value: string };
+  | { type: "code"; value: string }
+  | { type: "link"; value: string; href: string };
 
 export type MarkdownBlock =
   | { type: "heading"; level: number; children: MarkdownInlineToken[] }
@@ -179,7 +180,8 @@ export function humanizeLabel(value: string, fallback = "Stage"): string {
 
 export function parseInlineMarkdown(value: string): MarkdownInlineToken[] {
   const nodes: MarkdownInlineToken[] = [];
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  // Order matters: links before bold/code so a [label](url) is matched whole.
+  const pattern = /(\[[^\]]+\]\([^)\s]+\)|\*\*[^*]+\*\*|`[^`]+`)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(value)) !== null) {
@@ -189,8 +191,15 @@ export function parseInlineMarkdown(value: string): MarkdownInlineToken[] {
     const token = match[0];
     if (token.startsWith("**")) {
       nodes.push({ type: "strong", value: token.slice(2, -2) });
-    } else {
+    } else if (token.startsWith("`")) {
       nodes.push({ type: "code", value: token.slice(1, -1) });
+    } else {
+      const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(token);
+      if (link) {
+        nodes.push({ type: "link", value: link[1], href: link[2] });
+      } else {
+        nodes.push({ type: "text", value: token });
+      }
     }
     lastIndex = match.index + token.length;
   }

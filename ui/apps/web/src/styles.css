@@ -594,6 +594,72 @@ button:disabled {
   background: var(--color-error);
 }
 
+/* The currently-running stage in the rail: accent border + pulsing dot so the
+   user can see at a glance which agent is live. */
+.stage-active {
+  border-color: var(--color-accent-bright);
+}
+
+.stage-active .stage-status-dot {
+  background: var(--color-accent-bright);
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-active .stage-status-dot {
+    animation: none;
+  }
+}
+
+/* Focused run view: a single stage's output, redrawn as the run follows the
+   active agent (or pinned to the user's selection). */
+.stage-focus-card {
+  padding: 0;
+  border-bottom: none;
+}
+
+.stage-focus-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.stage-focus-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.stage-focus-title h2 {
+  margin: 0;
+}
+
+.stage-focus-status {
+  flex-shrink: 0;
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary-dark);
+}
+
+.stage-focus-status--live {
+  color: var(--color-vibrant-purple);
+}
+
+.checkpoint-modal {
+  width: min(560px, 100%);
+}
+
+.checkpoint-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .event-card {
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--color-surface-pale);

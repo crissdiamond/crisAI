@@ -83,14 +83,19 @@ def test_ui_clients_share_stage_theme_checkpoint_and_session_helpers() -> None:
     assert "runtime.getWorkspaceTree" in web_source
     assert "runtime.uploadWorkspaceFile" in web_source
     assert "latestLiveStageEvent" in web_source
-    assert "streaming-card" in web_source
+    assert "stage-focus-card" in web_source
     assert "workspace-upload" in web_source
     assert "fileToBase64" in web_source
     assert "VITE_CRISAI_API_KEY" in web_source
     assert "localStorage.getItem(apiKeyStorageKey)" in web_source
     assert "runtime.setApiToken" in web_source
-    assert "shouldShowTranscriptEvent(event, verbose)" in web_source
-    assert "MarkdownContent content={finalContent}" in web_source
+    # Focused run view: the panel follows the active stage and renders its
+    # markdown (the terminal stage carries the final answer).
+    assert "focusedStage={focusedStage}" in web_source
+    assert "activeStage={activeStageKey}" in web_source
+    assert "MarkdownContent content={focusedStage.content}" in web_source
+    # Checkpoint is surfaced as a modal rather than inline in the transcript.
+    assert "CheckpointModal" in web_source
     assert "checkpoint-evidence" in web_source
     assert "deriveStageSummaries(activeEvents" in gem_source
     assert "latestLiveStageEvent" in gem_source
