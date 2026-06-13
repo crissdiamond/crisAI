@@ -10,13 +10,13 @@ from urllib.parse import parse_qs, urlparse
 
 from crisai.orchestration import semantic_catalog as catalog_module
 from crisai.orchestration import task_contract as task_module
+from crisai.registry import KNOWN_EVIDENCE_LEVELS
 
-ALLOWED_EVIDENCE_LEVELS = {
-    "search_hit_only",
-    "metadata_read",
-    "content_read",
-    "read_failed",
-}
+# Derived from the single source of truth in registry.py (CRISAI-ADR-013): an
+# evidence item may be at any level a source can declare, plus `read_failed`
+# (a read outcome, not a declarable source ceiling). Keeping this a derivation
+# stops the capability and evidence enums from drifting apart.
+ALLOWED_EVIDENCE_LEVELS = frozenset(KNOWN_EVIDENCE_LEVELS | {"read_failed"})
 ALLOWED_EVIDENCE_ROLES = {
     "primary",
     "supplemental",

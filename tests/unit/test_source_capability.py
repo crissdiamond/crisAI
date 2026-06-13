@@ -95,3 +95,12 @@ def test_live_registry_source_servers_validate_cleanly():
         allow = server.raw.get("tools", {}).get("allow", [])
         _validate_source_capability(server, allow, errors, warnings)
         assert errors == [], (server.id, [e.message for e in errors])
+
+
+def test_evidence_levels_reconcile_with_evidence_contract():
+    from crisai.orchestration.evidence_contract import ALLOWED_EVIDENCE_LEVELS
+    from crisai.registry import KNOWN_EVIDENCE_LEVELS
+
+    # The contract set is derived from the capability set, so they cannot drift.
+    assert ALLOWED_EVIDENCE_LEVELS == KNOWN_EVIDENCE_LEVELS | {"read_failed"}
+    assert KNOWN_EVIDENCE_LEVELS <= ALLOWED_EVIDENCE_LEVELS
