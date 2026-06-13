@@ -947,8 +947,13 @@ promotes it. (See `registry/workspace_spaces.yaml`.)
 4. **Review (mandatory)** — open the staged file in the web Workspace editor,
    check it against the cited source, edit, then set `status: approved`, `owner`,
    and `last_reviewed`.
-5. **Promote** — move `knowledge_staging/… → knowledge/…` and open a PR against
-   the knowledge repository.
+5. **Promote** — move `knowledge_staging/… → knowledge/…`, then submit it for
+   review with **`./start knowledge-pr "short description"`**. That one command
+   branches, commits, pushes, and opens a pull request on the knowledge repo, so
+   contributors never run git or merge; it refuses to submit file *deletions*
+   (a maintainer action) as a safety guard. A maintainer reviews and merges.
+   One-time setup per contributor: `gh auth login` and write (collaborator)
+   access to the knowledge repository.
 
 ### Where the knowledge base lives, and sharing it
 

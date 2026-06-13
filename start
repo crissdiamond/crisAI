@@ -139,6 +139,63 @@ case "$MODE" in
     # Attach to the running hcom tmux session.
     exec scripts/hcom_attach.sh
     ;;
+  knowledge-pr)
+    # Raise a pull request on the knowledge repo from a contributor's edits in
+    # workspace/knowledge. Branches, commits, pushes, and opens a PR in one step;
+    # it never merges. Usage: ./start knowledge-pr "short description of change"
+    KDIR="workspace/knowledge"
+    DESC="${*:-knowledge update}"
+    if [ ! -d "$KDIR/.git" ]; then
+      echo "$KDIR is not a knowledge repo clone. Run './start knowledge' first." >&2
+      exit 2
+    fi
+    if ! command -v gh >/dev/null 2>&1; then
+      echo "GitHub CLI (gh) is not installed; it is needed to open a pull request." >&2
+      exit 2
+    fi
+    if ! gh auth status >/dev/null 2>&1; then
+      echo "You are not signed in to GitHub. Run this once, then retry:" >&2
+      echo "  gh auth login" >&2
+      exit 2
+    fi
+    git -C "$KDIR" fetch -q origin 2>/dev/null || true
+    if [ -z "$(git -C "$KDIR" status --porcelain)" ]; then
+      echo "No knowledge changes to submit in $KDIR." >&2
+      echo "Promote a reviewed draft into $KDIR first, then re-run." >&2
+      exit 2
+    fi
+    # Safety: refuse if any tracked file is being deleted. Routine contributions
+    # add or update files; removing knowledge is a maintainer action, and this
+    # guards against an accidental mass-delete from a stale working tree.
+    DELETED=$(git -C "$KDIR" status --porcelain | grep -E '^(D|.D)' | sed 's/^...//' || true)
+    if [ -n "$DELETED" ]; then
+      echo "Refusing: this would DELETE existing knowledge files:" >&2
+      printf '  %s\n' $DELETED >&2
+      echo "Removing knowledge is a maintainer action. Run './start knowledge' to" >&2
+      echo "restore your copy, then ask a maintainer if a file really should go." >&2
+      exit 2
+    fi
+    echo "Submitting these knowledge changes for review:"
+    git -C "$KDIR" status --short
+    echo ""
+    SLUG=$(printf '%s' "$DESC" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//' | cut -c1-40)
+    WHO=$(git -C "$KDIR" config user.name 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//' | cut -c1-12 || true)
+    BRANCH="contrib/${WHO:-author}-${SLUG:-update}-$(date +%Y%m%d-%H%M%S)"
+    echo "Creating branch $BRANCH ..."
+    git -C "$KDIR" checkout -b "$BRANCH"
+    git -C "$KDIR" add -A
+    git -C "$KDIR" commit -q -m "knowledge: $DESC"
+    if ! git -C "$KDIR" push -u origin "$BRANCH"; then
+      echo "Could not push to the knowledge repository." >&2
+      echo "Ask the repository owner to add you as a collaborator with write access." >&2
+      exit 1
+    fi
+    echo "Opening a pull request ..."
+    ( cd "$KDIR" && gh pr create --base main --head "$BRANCH" --title "knowledge: $DESC" --body "Submitted with ./start knowledge-pr. A reviewer will check and merge." )
+    git -C "$KDIR" checkout -q main || true
+    echo ""
+    echo "Done. Your changes are now a pull request for review — you do not need to merge it."
+    ;;
   knowledge)
     # Sync the curated knowledge base into workspace/knowledge from the
     # repository in CRISAI_KNOWLEDGE_REPO: clone on first run, fast-forward pull
@@ -182,6 +239,8 @@ case "$MODE" in
     echo "                Start Claude Code developers with Codex reviewers"
     echo "  hcom-attach   Attach to the hcom tmux session"
     echo "  knowledge     Sync workspace/knowledge from CRISAI_KNOWLEDGE_REPO (clone or pull)"
+    echo "  knowledge-pr \"desc\""
+    echo "                Submit your workspace/knowledge edits as a pull request for review"
     exit 2
     ;;
 esac
