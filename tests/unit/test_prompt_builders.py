@@ -22,6 +22,7 @@ from crisai.orchestration.prompt_generation import (
     build_retrieval_planner_prompt,
     build_review_prompt,
     build_single_retrieval_planner_prompt,
+    render_source_tool_guidance,
 )
 from crisai.orchestration.session_anchors import (
     ResolvedSourceReference,
@@ -139,7 +140,12 @@ def test_build_context_retrieval_prompt_enforces_intranet_tools_for_intranet_sco
         "handoff text",
     )
     assert "Intranet-scoped hard rules" in text
-    assert "MUST run intranet tools" in text
+    assert "MUST use the intranet source tools" in text
+    # Tool names now come from the registry capability contract (CRISAI-ADR-013),
+    # surfaced in the generated "Source tools" block rather than hardcoded here.
+    assert "Source tools" in text
+    assert "intranet_fetch_page" in text
+    assert "Scope is limited to: Intranet pages" in text
     assert "Do NOT treat existing workspace draft files" in text
 
 
@@ -297,3 +303,23 @@ def test_prompt_contract_tool_references_are_exposed_by_registry():
                 missing.append(f"{server_id}:{tool_name}")
 
     assert missing == []
+
+
+def test_render_source_tool_guidance_lists_registry_tools_unscoped():
+    text = render_source_tool_guidance((), registry_dir=REPO_ROOT / "registry")
+    assert "Source tools (registry-derived)" in text
+    assert "Intranet pages" in text and "intranet_fetch_page" in text
+    assert "Personal OneDrive" in text and "search_my_onedrive" in text
+    assert "Local workspace" in text and "search_workspace_text" in text
+    assert "Scope is limited to" not in text
+
+
+def test_render_source_tool_guidance_limits_to_scope():
+    text = render_source_tool_guidance(("intranet",), registry_dir=REPO_ROOT / "registry")
+    assert "Scope is limited to: Intranet pages" in text
+    assert "intranet_fetch_page" in text
+    assert "search_my_onedrive" not in text  # other families excluded
+
+
+def test_render_source_tool_guidance_fails_open_without_registry(tmp_path):
+    assert render_source_tool_guidance((), registry_dir=tmp_path / "missing") == ""

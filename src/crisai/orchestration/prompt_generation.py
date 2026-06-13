@@ -3,6 +3,7 @@ from __future__ import annotations
 import pathlib
 
 from crisai import config as config_module
+from crisai import registry as registry_module
 from crisai.cli import prompt_contracts as prompt_contracts_module
 from crisai.orchestration import retrieval_association_graph as graph_module
 from crisai.orchestration import session_anchors as anchors_module
@@ -122,6 +123,89 @@ def _is_intranet_scoped_request(message: str) -> bool:
         "intranet_search_pages",
     )
     return any(marker in text for marker in markers)
+
+
+_SOURCE_FAMILY_LABELS = {
+    "intranet": "Intranet pages",
+    "sharepoint": "SharePoint site documents",
+    "personal_onedrive": "Personal OneDrive",
+    "workspace": "Local workspace",
+}
+
+
+def render_source_tool_guidance(
+    source_scopes: tuple[str, ...] = (),
+    *,
+    registry_dir: pathlib.Path | None = None,
+) -> str:
+    """Generate retrieval source-tool guidance from the server capability contract.
+
+    Tool names come from each source server's ``capabilities`` block
+    (``registry/servers.yaml``), so adding or renaming a source tool is a
+    registry edit rather than a prompt change (CRISAI-ADR-013 Phase 2). When
+    ``source_scopes`` is non-empty the guidance is limited to those families.
+    """
+    try:
+        resolved_dir = registry_dir or config_module.load_settings().registry_dir
+        servers = registry_module.Registry(resolved_dir).load_servers()
+    except Exception:  # noqa: BLE001 - degrade gracefully when the registry is absent/unreadable
+        return ""
+    by_family: dict[str, list[registry_module.ServerSpec]] = {}
+    for server in servers:
+        if not server.enabled or server.kind != "source" or server.capabilities is None:
+            continue
+        for family in server.capabilities.source_families:
+            by_family.setdefault(family, []).append(server)
+    if not by_family:
+        return ""
+
+    scoped = tuple(family for family in source_scopes if family in by_family)
+    families = scoped or tuple(by_family)
+
+    def _tools(names: tuple[str, ...]) -> str:
+        return ", ".join(f"`{name}`" for name in names)
+
+    lines: list[str] = []
+    if scoped:
+        labels = ", ".join(_SOURCE_FAMILY_LABELS.get(f, f) for f in scoped)
+        lines.append(
+            f"Scope is limited to: {labels}. Use only these source families' tools; do not broaden to other sources."
+        )
+    def _merge(target: list[str], names: tuple[str, ...]) -> None:
+        for name in names:
+            if name not in target:
+                target.append(name)
+
+    for family in families:
+        # Union the operation tools across every server serving this family.
+        search: list[str] = []
+        listing: list[str] = []
+        read: list[str] = []
+        login = ""
+        for server in by_family.get(family, []):
+            cap = server.capabilities
+            assert cap is not None  # filtered above
+            _merge(search, cap.operations.get("search", ()))
+            _merge(listing, cap.operations.get("list", ()))
+            _merge(read, cap.operations.get("fetch", ()))
+            _merge(read, cap.operations.get("read_binary", ()))
+            if cap.auth_login_tool and not login:
+                login = cap.auth_login_tool
+        parts: list[str] = []
+        if search:
+            parts.append(f"search → {_tools(tuple(search))}")
+        if listing:
+            parts.append(f"list → {_tools(tuple(listing))}")
+        if read:
+            parts.append(f"read content → {_tools(tuple(read))}")
+        if not parts:
+            continue
+        auth = f" Sign in with `{login}` when prompted." if login else ""
+        label = _SOURCE_FAMILY_LABELS.get(family, family)
+        lines.append(f"- {label}: " + "; ".join(parts) + "." + auth)
+    if not lines:
+        return ""
+    return "Source tools (registry-derived):\n" + "\n".join(lines)
 
 
 def _requires_workspace_writes(message: str) -> bool:
@@ -279,6 +363,9 @@ def build_single_retrieval_planner_prompt(
     )
     blocks = [_section("User request", message)]
     blocks.append(_section("Source Fit Constraints", constraints_module.render_source_fit_constraints(source_constraints)))
+    source_guidance = render_source_tool_guidance(source_constraints.source_scopes, registry_dir=registry_dir)
+    if source_guidance:
+        blocks.append(_section("Source tools", source_guidance))
     if resolved_sources:
         blocks.append(_section("Resolved Session Sources", anchors_module.render_resolved_sources(resolved_sources)))
     if expansion:
@@ -287,7 +374,7 @@ def build_single_retrieval_planner_prompt(
         [
             "Task:\nPerform retrieval now and return concrete results for the user request.",
             "Execution rules:\n"
-            "- Use available retrieval tools for OneDrive/SharePoint/workspace as needed.\n"
+            "- Use the retrieval tools listed under **Source tools** for the in-scope source families.\n"
             "- If Resolved Session Sources are present, prefer those prior-turn source identities and re-search/refetch/read them with current tools.\n"
             "- Preserve Source Fit Constraints exactly: explicit title phrases and source scopes are hard filters.\n"
             "- **SharePoint vs OneDrive:** if the user asks for SharePoint (not personal OneDrive only), "
@@ -347,7 +434,7 @@ def build_context_retrieval_prompt(
     if _is_intranet_scoped_request(message):
         intranet_rules = (
             "Intranet-scoped hard rules:\n"
-            "- This request is scoped to intranet pages. You MUST run intranet tools (`intranet_search_pages`, `intranet_list_pages`, `intranet_list_page_links_by_id`, `intranet_fetch_page`) in this stage.\n"
+            "- This request is scoped to intranet pages. You MUST use the intranet source tools listed under **Source tools** (search, list page links, then fetch page content) in this stage.\n"
             f"- Do NOT treat existing workspace draft files under `{staging_root}/` or `tasks/*/artefacts/` as evidence for factual claims outside the active task.\n"
             "- If no successful intranet fetch happened in this turn, report retrieval failure clearly rather than producing a workspace-only evidence set.\n"
         )
@@ -376,6 +463,9 @@ def build_context_retrieval_prompt(
             )
         )
     blocks.append(_section("Source Fit Constraints", constraints_module.render_source_fit_constraints(source_constraints)))
+    source_guidance = render_source_tool_guidance(source_constraints.source_scopes, registry_dir=registry_dir)
+    if source_guidance:
+        blocks.append(_section("Source tools", source_guidance))
     if resolved_sources:
         blocks.append(_section("Resolved Session Sources", anchors_module.render_resolved_sources(resolved_sources)))
     if expansion:
