@@ -105,3 +105,7 @@ src/crisai/app/
 *.old
 **/*.old
 **/*.old?
+
+# Working/scratch docs: design-is audit artefacts and make-plan plan files
+DESIGN-IS-*/
+plans/
