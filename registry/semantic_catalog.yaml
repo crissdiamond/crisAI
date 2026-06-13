@@ -155,14 +155,27 @@ router:
     - publish this
     - prepare the artefact
     - prepare a document
-    - .doc
-    - .docx
-    - .ppt
-    - .pptx
-    - .xls
-    - .xlsx
-    - .txt
-    - .md
+    # Produce-context phrases. Bare file-type tokens (e.g. ".pptx") were removed:
+    # they matched a *referenced* source file as if it were a publish request
+    # (CRISAI-ADR-014). Publication is signalled by produce intent, so a type
+    # token only counts inside an "into a …" / "as a …" / "export …" context.
+    - into a document
+    - into a report
+    - into a deck
+    - into a slide deck
+    - into a powerpoint
+    - into a presentation
+    - into a word document
+    - into a spreadsheet
+    - into a .pptx
+    - into a .docx
+    - into a .xlsx
+    - export as
+    - export to
+    - as a powerpoint
+    - as a slide deck
+    - as a word document
+    - as a spreadsheet
     - template in workspace
     - using the template
     - usa il template
