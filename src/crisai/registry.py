@@ -10,6 +10,8 @@ import yaml
 KNOWN_SOURCE_FAMILIES = frozenset({"personal_onedrive", "sharepoint", "intranet", "workspace"})
 KNOWN_SOURCE_TYPES = frozenset({"file", "document", "slide", "page", "record"})
 KNOWN_OPERATIONS = frozenset({"search", "list", "fetch", "read_binary"})
+# Canonical source of evidence levels a source can declare as its ceiling.
+# evidence_contract.ALLOWED_EVIDENCE_LEVELS is derived from this (plus read_failed).
 KNOWN_EVIDENCE_LEVELS = frozenset({"search_hit_only", "metadata_read", "content_read"})
 KNOWN_REFERENCE_HANDLES = frozenset({"workspace_path", "read_handle", "content_id", "open_url"})
 KNOWN_REFERENCE_STABILITY = frozenset({"stable", "session"})
