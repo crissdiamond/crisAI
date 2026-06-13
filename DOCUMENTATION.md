@@ -186,6 +186,7 @@ From the project root (after uv dependencies are installed):
 ./start gem          # Ink terminal client  (separate terminal window)
 # or
 ./start web          # React/Vite web client at http://127.0.0.1:5173
+./start knowledge    # sync workspace/knowledge from CRISAI_KNOWLEDGE_REPO (see §12.1)
 ```
 
 Recommended startup behaviour:

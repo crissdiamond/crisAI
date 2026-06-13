@@ -139,6 +139,33 @@ case "$MODE" in
     # Attach to the running hcom tmux session.
     exec scripts/hcom_attach.sh
     ;;
+  knowledge)
+    # Sync the curated knowledge base into workspace/knowledge from the
+    # repository in CRISAI_KNOWLEDGE_REPO: clone on first run, fast-forward pull
+    # thereafter. See DOCUMENTATION.md "Building the knowledge base".
+    KNOWLEDGE_DIR="workspace/knowledge"
+    if [ -z "${CRISAI_KNOWLEDGE_REPO:-}" ]; then
+      echo "CRISAI_KNOWLEDGE_REPO is not set." >&2
+      echo "Set it in .env to your knowledge repository URL, for example:" >&2
+      echo "  CRISAI_KNOWLEDGE_REPO=git@github.com:<org>/<knowledge-repo>.git" >&2
+      exit 2
+    fi
+    if [ -d "$KNOWLEDGE_DIR/.git" ]; then
+      echo "Updating $KNOWLEDGE_DIR from CRISAI_KNOWLEDGE_REPO ..."
+      exec git -C "$KNOWLEDGE_DIR" pull --ff-only
+    elif [ -e "$KNOWLEDGE_DIR" ] && [ -n "$(ls -A "$KNOWLEDGE_DIR" 2>/dev/null)" ]; then
+      echo "$KNOWLEDGE_DIR already has content but is not a clone of the knowledge repo." >&2
+      echo "This install still tracks knowledge inside the crisAI repo. One-time migration" >&2
+      echo "to adopt the external repo (your local files are preserved as a .bak):" >&2
+      echo "  git rm -r --cached $KNOWLEDGE_DIR && echo '$KNOWLEDGE_DIR/' >> .gitignore" >&2
+      echo "  mv $KNOWLEDGE_DIR ${KNOWLEDGE_DIR}.bak && ./start knowledge" >&2
+      exit 2
+    else
+      echo "Cloning CRISAI_KNOWLEDGE_REPO into $KNOWLEDGE_DIR ..."
+      mkdir -p "$(dirname "$KNOWLEDGE_DIR")"
+      exec git clone "$CRISAI_KNOWLEDGE_REPO" "$KNOWLEDGE_DIR"
+    fi
+    ;;
   *)
     echo "Usage: ./start <command>"
     echo ""
@@ -154,6 +181,7 @@ case "$MODE" in
     echo "  hcom claude-dev"
     echo "                Start Claude Code developers with Codex reviewers"
     echo "  hcom-attach   Attach to the hcom tmux session"
+    echo "  knowledge     Sync workspace/knowledge from CRISAI_KNOWLEDGE_REPO (clone or pull)"
     exit 2
     ;;
 esac

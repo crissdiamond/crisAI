@@ -85,6 +85,7 @@ Run the FastAPI backend first, then attach a client:
 ./start gem          # Ink terminal client, separate terminal
 # or
 ./start web          # React/Vite web client at http://127.0.0.1:5173
+./start knowledge    # sync workspace/knowledge from CRISAI_KNOWLEDGE_REPO
 ```
 
 If bootstrap skipped UI dependencies because `npm` was unavailable, run this once before starting Gem or web:
