@@ -213,6 +213,36 @@ def test_deterministic_nudge_sets_needs_retrieval(monkeypatch: pytest.MonkeyPatc
     assert decision.needs_retrieval is True
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        # Two architecture terms that used to collide with operations_terms and,
+        # at >= 2 matches, mis-route a design ask to the troubleshooting agent.
+        "Fix the authentication and token lifetime in the target architecture.",
+        "The key issue with this integration approach is the login timeout policy.",
+        "Design the error handling and exception strategy for the API.",
+    ],
+)
+def test_architecture_prompts_do_not_route_to_operations(query: str) -> None:
+    """CRISAI-ADR-014: architecture vocabulary must not trip the crisAI-runtime
+    troubleshooting agent."""
+    decision = decide_route(query, review_enabled=False, registry_dir=None)
+    assert decision.intent != "operations", decision.reason
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "crisAI keeps prompting for the device code and the MCP server won't start.",
+        "Stack trace shows a module not found error in the CLI startup script.",
+    ],
+)
+def test_crisai_runtime_troubles_still_route_to_operations(query: str) -> None:
+    """Genuine local-runtime problems remain reachable via the scoped terms."""
+    decision = decide_route(query, review_enabled=False, registry_dir=None)
+    assert decision.intent == "operations", decision.reason
+
+
 def test_bare_continue_routes_like_previous_source_lookup_task() -> None:
     history = [
         (
