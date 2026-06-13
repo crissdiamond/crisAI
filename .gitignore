@@ -109,3 +109,6 @@ src/crisai/app/
 # Working/scratch docs: design-is audit artefacts and make-plan plan files
 DESIGN-IS-*/
 plans/
+
+# Knowledge base lives in its own repo (CRISAI_KNOWLEDGE_REPO), synced into here
+workspace/knowledge/
