@@ -7,30 +7,28 @@ version: 1
 
 router:
   discovery_terms:
+    # Discovery is signalled by retrieval verbs and source loci, not by bare
+    # object-type nouns (document / file / page). Those nouns indicate a source
+    # *context*, not a discovery *intent*, and already live in source_markers;
+    # keeping them here only inflated discovery_score and the mixed-complexity
+    # heuristic (CRISAI-ADR-014). source_marker_signal still fires source_lookup
+    # for any source-context prompt, so routing is unchanged.
     - find
+    - find me
     - search
     - locate
     - identify
     - list
-    - documents
-    - document
-    - docs
-    - sources
-    - files
+    - look up
+    - look for
     - inspect
+    - read
     - onedrive
     - sharepoint
     - intranet
     - drive
     - site
     - path
-    - read
-    - pages
-    - page
-    - find me
-    - look up
-    - look for
-    - file
 
   design_terms:
     - design
@@ -64,25 +62,44 @@ router:
     - evaluation
 
   operations_terms:
+    # Scope: crisAI's OWN local runtime — CLI, MCP, registry, workspace paths,
+    # SharePoint auth, env, logs, traces (see prompts/operations_agent.md). This
+    # is a self-support agent, not generic software debugging and not an
+    # architecture role. Bare generic trouble words (issue / error / fix /
+    # broken / auth / token / login / timeout) were removed: they collide with
+    # architecture vocabulary and, because the operations hint fires at two
+    # matches, two collisions ("fix the auth design") mis-routed an architecture
+    # request to the troubleshooting agent. Terms are now tool-failure-scoped
+    # phrases (CRISAI-ADR-014). The operations hint still requires >= 2 matches.
     - debug
-    - fix
-    - error
-    - issue
-    - broken
-    - failing
-    - logs
-    - auth
-    - token
-    - login
-    - timeout
+    - bug
     - exception
     - not working
     - keeps prompting
-    - prompting
-    - bug
+    - broken import
     - stack trace
     - traceback
     - importerror
+    - module not found
+    - command not found
+    - connection refused
+    - cli error
+    - mcp server
+    - registry error
+    - workspace path
+    - env var
+    - environment variable
+    - startup script
+    - sharepoint auth
+    - auth failed
+    - login failed
+    - token cache
+    - device code
+    - timed out
+    - log file
+    - error log
+    - crashed
+    - won't start
 
   peer_terms:
     - peer mode

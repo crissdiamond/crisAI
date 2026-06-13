@@ -749,7 +749,7 @@ Task and retrieval semantics are configurable from `registry/semantic_graph.yaml
 
 The legacy router, peer-contract, and verifier semantics remain configurable from `registry/semantic_catalog.yaml`:
 
-- router term families for non-task-contract routing (discovery/design/review/operations/peer/publication)
+- router term families for non-task-contract routing (discovery/design/review/operations/peer/publication). Two families are deliberately scoped (CRISAI-ADR-014): `discovery_terms` holds retrieval **verbs and source loci** only — bare object-type nouns (`document`/`file`/`page`) live in `source_markers`, which already fires the `source_lookup` signal — and `operations_terms` is scoped to crisAI's **own local runtime** (CLI, MCP, registry, workspace paths, SharePoint auth, env, logs, traces; see `prompts/operations_agent.md`) using tool-failure phrases, so generic trouble words (`issue`/`error`/`fix`/`auth`) cannot mis-route an architecture request to the troubleshooting agent.
 - router criticality terms for high-accuracy/high-risk prompts that can promote complex design/review asks to peer mode
 - explicit routing phrase patterns
 - source and architecture-location marker lists
