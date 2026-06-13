@@ -6,6 +6,63 @@ from typing import Any
 
 import yaml
 
+# Source capability contract (CRISAI-ADR-013). Enforced enums for the v1 subset.
+KNOWN_SOURCE_FAMILIES = frozenset({"personal_onedrive", "sharepoint", "intranet", "workspace"})
+KNOWN_SOURCE_TYPES = frozenset({"file", "document", "slide", "page", "record"})
+KNOWN_OPERATIONS = frozenset({"search", "list", "fetch", "read_binary"})
+KNOWN_EVIDENCE_LEVELS = frozenset({"search_hit_only", "metadata_read", "content_read"})
+KNOWN_REFERENCE_HANDLES = frozenset({"workspace_path", "read_handle", "content_id", "open_url"})
+KNOWN_REFERENCE_STABILITY = frozenset({"stable", "session"})
+
+
+@dataclass(slots=True, frozen=True)
+class SourceCapability:
+    """Declared capabilities of a retrieval-source MCP server (servers.yaml)."""
+
+    source_families: tuple[str, ...]
+    source_types: tuple[str, ...]
+    operations: dict[str, tuple[str, ...]]  # operation -> tools that perform it
+    evidence_levels: tuple[str, ...]
+    reference_handle: str
+    reference_stability: str
+    auth_login_tool: str
+    auth_status_tool: str
+    pagination: str
+    freshness: str
+
+    def all_operation_tools(self) -> tuple[str, ...]:
+        """Every tool referenced by any operation, de-duplicated in order."""
+        seen: list[str] = []
+        for tools in self.operations.values():
+            for tool in tools:
+                if tool not in seen:
+                    seen.append(tool)
+        return tuple(seen)
+
+
+def _parse_source_capability(item: dict[str, Any]) -> SourceCapability | None:
+    cap = item.get("capabilities")
+    if not isinstance(cap, dict):
+        return None
+    operations = {
+        str(op): tuple(str(tool) for tool in (tools or []))
+        for op, tools in (cap.get("operations") or {}).items()
+    }
+    reference = cap.get("reference") or {}
+    auth = cap.get("auth") or {}
+    return SourceCapability(
+        source_families=tuple(str(x) for x in (cap.get("source_families") or [])),
+        source_types=tuple(str(x) for x in (cap.get("source_types") or [])),
+        operations=operations,
+        evidence_levels=tuple(str(x) for x in (cap.get("evidence_levels") or [])),
+        reference_handle=str(reference.get("handle") or ""),
+        reference_stability=str(reference.get("stability") or ""),
+        auth_login_tool=str(auth.get("interactive_login_tool") or ""),
+        auth_status_tool=str(auth.get("status_tool") or ""),
+        pagination=str(cap.get("pagination") or "none"),
+        freshness=str(cap.get("freshness") or "none"),
+    )
+
 
 @dataclass(slots=True)
 class ServerSpec:
@@ -15,6 +72,8 @@ class ServerSpec:
     transport: str
     tags: list[str]
     raw: dict[str, Any]
+    kind: str = "tool"  # "source" (retrieval adapter) or "tool" (utility)
+    capabilities: SourceCapability | None = None
 
 
 @dataclass(slots=True)
@@ -59,6 +118,8 @@ class Registry:
                 transport=item["transport"],
                 tags=item.get("tags", []),
                 raw=item,
+                kind=str(item.get("kind", "tool")),
+                capabilities=_parse_source_capability(item),
             )
             for item in data.get("servers", [])
         ]

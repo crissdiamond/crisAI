@@ -12,6 +12,18 @@ servers:
       - ./workspace
     working_directory: .
     tags: [local, workspace, documents]
+    kind: source
+    capabilities:
+      source_families: [workspace]
+      source_types: [file]
+      operations:
+        search: [search_workspace_text]
+        list: [list_workspace_files]
+        fetch: [read_workspace_file]
+      evidence_levels: [search_hit_only, content_read]
+      reference: { handle: workspace_path, stability: stable }
+      pagination: none
+      freshness: mtime
     auth:
       type: none
     tools:
@@ -42,6 +54,18 @@ servers:
       - ./workspace
     working_directory: .
     tags: [local, workspace, documents, read_only]
+    kind: source
+    capabilities:
+      source_families: [workspace]
+      source_types: [file]
+      operations:
+        search: [search_workspace_text]
+        list: [list_workspace_files]
+        fetch: [read_workspace_file]
+      evidence_levels: [search_hit_only, content_read]
+      reference: { handle: workspace_path, stability: stable }
+      pagination: none
+      freshness: mtime
     auth:
       type: none
     tools:
@@ -67,6 +91,7 @@ servers:
       - .
     working_directory: .
     tags: [local, memory, read_only]
+    kind: tool
     auth:
       type: none
     tools:
@@ -90,6 +115,7 @@ servers:
       - ./workspace
     working_directory: .
     tags: [local, diagrams, mermaid]
+    kind: tool
     auth:
       type: none
     tools:
@@ -115,6 +141,18 @@ servers:
       - ./workspace
     working_directory: .
     tags: [local, documents, docx, pdf, pptx, xlsx]
+    kind: source
+    capabilities:
+      source_families: [workspace]
+      source_types: [document, slide]
+      operations:
+        list: [list_supported_document_files]
+        fetch: [read_document, inspect_powerpoint_document]
+        read_binary: [read_document, inspect_powerpoint_document]
+      evidence_levels: [metadata_read, content_read]
+      reference: { handle: workspace_path, stability: stable }
+      pagination: none
+      freshness: mtime
     auth:
       type: none
     tools:
@@ -139,6 +177,7 @@ servers:
       - ./workspace
     working_directory: .
     tags: [local, documents, export, docx, pptx, templates]
+    kind: tool
     auth:
       type: none
     tools:
@@ -164,6 +203,7 @@ servers:
       - ./workspace
     working_directory: .
     tags: [local, images, vision]
+    kind: tool
     auth:
       type: none
     tools:
@@ -187,6 +227,20 @@ servers:
       - ./workspace
     working_directory: .
     tags: [sharepoint, documents, graph]
+    kind: source
+    capabilities:
+      source_families: [sharepoint, personal_onedrive]
+      source_types: [document, slide]
+      operations:
+        search: [search_sharepoint_site_documents, search_site_drive_documents, search_drive_documents, search_my_onedrive]
+        list: [list_sites, list_my_drives, list_site_drives, list_drive_items]
+        fetch: [read_sharepoint_document_by_handle]
+        read_binary: [read_sharepoint_document_by_handle, inspect_sharepoint_powerpoint_by_handle]
+      evidence_levels: [search_hit_only, metadata_read, content_read]
+      reference: { handle: read_handle, stability: session }
+      auth: { interactive_login_tool: login_sharepoint, status_tool: sharepoint_auth_status }
+      pagination: none
+      freshness: graph_last_modified
     auth:
       type: delegated_oauth
       provider: microsoft_graph
@@ -225,6 +279,19 @@ servers:
       - ./workspace
     working_directory: .
     tags: [intranet, pages, graph]
+    kind: source
+    capabilities:
+      source_families: [intranet]
+      source_types: [page]
+      operations:
+        search: [intranet_search_pages, intranet_search]
+        list: [intranet_list_pages, intranet_list_all_pages, intranet_list_page_links_by_id, intranet_list_page_links]
+        fetch: [intranet_fetch_page, intranet_fetch]
+      evidence_levels: [search_hit_only, metadata_read, content_read]
+      reference: { handle: content_id, stability: stable }
+      auth: { interactive_login_tool: intranet_login, status_tool: intranet_auth_status }
+      pagination: none
+      freshness: graph_last_modified
     auth:
       type: delegated_oauth
       provider: microsoft_graph

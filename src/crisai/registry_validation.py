@@ -197,6 +197,90 @@ def _validate_unique_ids(
         seen.add(item_id)
 
 
+def _validate_source_capability(
+    server: registry_module.ServerSpec,
+    allowed_tools: list[str],
+    errors: list[DoctorIssue],
+    warnings: list[DoctorIssue],
+) -> None:
+    """Validate the source capability contract (CRISAI-ADR-013) for one server."""
+    if server.kind not in {"source", "tool"}:
+        errors.append(DoctorIssue(
+            message=f"Server '{server.id}' has invalid kind '{server.kind}'.",
+            hint="Set `kind: source` or `kind: tool` in `registry/servers.yaml`.",
+        ))
+        return
+    if server.kind == "tool":
+        if server.capabilities is not None:
+            warnings.append(DoctorIssue(
+                message=f"Server '{server.id}' is kind 'tool' but declares a capabilities block.",
+                hint="Remove `capabilities` from a tool server, or set `kind: source`.",
+            ))
+        return
+
+    cap = server.capabilities
+    if cap is None:
+        errors.append(DoctorIssue(
+            message=f"Source server '{server.id}' is missing a capabilities block.",
+            hint="Add a `capabilities` block (see CRISAI-ADR-013) for source servers.",
+        ))
+        return
+
+    allow = set(allowed_tools)
+    sid = server.id
+    if not cap.source_families:
+        errors.append(DoctorIssue(
+            message=f"Source server '{sid}' declares no source_families.",
+            hint="List at least one source family this server serves.",
+        ))
+    for fam in cap.source_families:
+        if fam not in registry_module.KNOWN_SOURCE_FAMILIES:
+            errors.append(DoctorIssue(
+                message=f"Server '{sid}' capability source_family '{fam}' is not recognised.",
+                hint=f"Use one of: {', '.join(sorted(registry_module.KNOWN_SOURCE_FAMILIES))}.",
+            ))
+    for stype in cap.source_types:
+        if stype not in registry_module.KNOWN_SOURCE_TYPES:
+            errors.append(DoctorIssue(
+                message=f"Server '{sid}' capability source_type '{stype}' is not recognised.",
+                hint=f"Use one of: {', '.join(sorted(registry_module.KNOWN_SOURCE_TYPES))}.",
+            ))
+    for operation, tools in cap.operations.items():
+        if operation not in registry_module.KNOWN_OPERATIONS:
+            errors.append(DoctorIssue(
+                message=f"Server '{sid}' capability operation '{operation}' is not recognised.",
+                hint=f"Use one of: {', '.join(sorted(registry_module.KNOWN_OPERATIONS))}.",
+            ))
+        for tool in tools:
+            if tool not in allow:
+                errors.append(DoctorIssue(
+                    message=f"Server '{sid}' capability operation '{operation}' references tool '{tool}' not in tools.allow.",
+                    hint=f"Add `{tool}` to `tools.allow` for `{sid}`, or correct the capability.",
+                ))
+    for level in cap.evidence_levels:
+        if level not in registry_module.KNOWN_EVIDENCE_LEVELS:
+            errors.append(DoctorIssue(
+                message=f"Server '{sid}' capability evidence_level '{level}' is not recognised.",
+                hint=f"Use one of: {', '.join(sorted(registry_module.KNOWN_EVIDENCE_LEVELS))}.",
+            ))
+    if cap.reference_handle and cap.reference_handle not in registry_module.KNOWN_REFERENCE_HANDLES:
+        errors.append(DoctorIssue(
+            message=f"Server '{sid}' capability reference.handle '{cap.reference_handle}' is not recognised.",
+            hint=f"Use one of: {', '.join(sorted(registry_module.KNOWN_REFERENCE_HANDLES))}.",
+        ))
+    if cap.reference_stability and cap.reference_stability not in registry_module.KNOWN_REFERENCE_STABILITY:
+        errors.append(DoctorIssue(
+            message=f"Server '{sid}' capability reference.stability '{cap.reference_stability}' is not recognised.",
+            hint="Use `stable` or `session`.",
+        ))
+    for auth_tool in (cap.auth_login_tool, cap.auth_status_tool):
+        if auth_tool and auth_tool not in allow:
+            errors.append(DoctorIssue(
+                message=f"Server '{sid}' capability auth tool '{auth_tool}' is not in tools.allow.",
+                hint=f"Add `{auth_tool}` to `tools.allow` for `{sid}`.",
+            ))
+
+
 def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> tuple[list[DoctorIssue], list[DoctorIssue]]:
     errors: list[DoctorIssue] = []
     warnings: list[DoctorIssue] = []
@@ -284,6 +368,8 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                     ),
                     hint=f"Add `{tool_name}` to `tools.allow` for server `{server.id}` in `registry/servers.yaml`.",
                 ))
+        if server.enabled:
+            _validate_source_capability(server, allowed_tools, errors, warnings)
 
     for agent in agents:
         prompt_path = root_dir / agent.prompt_file
