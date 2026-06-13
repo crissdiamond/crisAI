@@ -285,7 +285,7 @@ def test_ask_uses_session_history_for_continuation_intent(monkeypatch):
     monkeypatch.setattr(main, "_run_with_routing", fake_run_with_routing)
 
     main.ask(
-        message="continua",
+        message="continue",
         agent_id="orchestrator",
         session="architecture",
         pipeline=False,

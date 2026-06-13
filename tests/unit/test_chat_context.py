@@ -131,22 +131,22 @@ def test_continuation_intent_message_uses_previous_exchange() -> None:
     assert "Current user instruction:" in message
 
 
-def test_continuation_intent_message_accepts_italian_continua() -> None:
+def test_continuation_intent_message_folds_previous_exchange() -> None:
     history = [
-        ("user", "Trova i documenti in OneDrive con integration strategy nel titolo."),
-        ("assistant", "Ho trovato 10 documenti."),
+        ("user", "Find documents in OneDrive with integration strategy in the title."),
+        ("assistant", "I found 10 documents."),
     ]
 
     message = chat_context.continuation_intent_message(
-        "continua",
+        "continue",
         history,
         registry_dir=Path(__file__).resolve().parents[2] / "registry",
     )
 
     assert "Previous user request:" in message
-    assert "Trova i documenti in OneDrive" in message
+    assert "Find documents in OneDrive" in message
     assert "Current user instruction:" in message
-    assert message.endswith("continua")
+    assert message.endswith("continue")
 
 
 def test_continuation_request_degrades_when_catalog_unavailable(monkeypatch) -> None:

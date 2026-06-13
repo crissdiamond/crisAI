@@ -30,18 +30,7 @@ router:
     - find me
     - look up
     - look for
-    - trova
-    - cerca
-    - individua
-    - elenca
-    - documenti
-    - documento
-    - sorgenti
-    - fonti
     - file
-    - leggi
-    - pagine
-    - pagina
 
   design_terms:
     - design
@@ -59,14 +48,6 @@ router:
     - solution
     - propose
     - plan
-    - progetta
-    - architettura
-    - proposta
-    - opzioni
-    - raccomandazione
-    - modello operativo
-    - soluzione
-    - piano
 
   review_terms:
     - review
@@ -81,14 +62,6 @@ router:
     - revision
     - evaluate
     - evaluation
-    - rivedi
-    - critica
-    - migliora
-    - lacune
-    - debolezze
-    - giudica
-    - valuta
-    - valutazione
 
   operations_terms:
     - debug
@@ -110,13 +83,6 @@ router:
     - stack trace
     - traceback
     - importerror
-    - correggi
-    - errore
-    - problema
-    - rotto
-    - non funziona
-    - eccezione
-    - traceback
 
   peer_terms:
     - peer mode
@@ -130,10 +96,6 @@ router:
     - use peer mode
     - show the peer conversation
     - challenge and refine
-    - autore
-    - sfidante
-    - giudice
-    - dibattito
 
   publication_terms:
     - template
@@ -178,19 +140,6 @@ router:
     - as a spreadsheet
     - template in workspace
     - using the template
-    - usa il template
-    - usa i template
-    - trasforma questo in
-    - crea un documento
-    - crea il documento
-    - crea delle slide
-    - crea una presentazione
-    - crea un powerpoint
-    - crea un foglio excel
-    - crea un file excel
-    - documenta questo
-    - documenta l'esito
-    - impacchetta questo
 
   explicit_discovery_patterns:
     - use discovery only
@@ -202,12 +151,6 @@ router:
     - return only the table
     - do not draft
     - do not summarise
-    - usa solo discovery
-    - solo discovery
-    - non usare il design agent
-    - restituisci solo una lista
-    - restituisci solo una tabella
-    - non fare la sintesi
 
   explicit_peer_patterns:
     - use peer mode
@@ -221,11 +164,6 @@ router:
     - challenger should
     - refiner should
     - judge should
-    - usa peer mode
-    - mostra la conversazione peer
-    - autore dovrebbe
-    - sfidante dovrebbe
-    - giudice dovrebbe
 
   criticality_terms:
     - high accuracy
@@ -249,11 +187,6 @@ router:
     - production signoff
     - decision-grade
     - very high quality
-    - alta accuratezza
-    - massima accuratezza
-    - decisione critica
-    - rischio alto
-    - rigoroso
 
   source_markers:
     - onedrive
@@ -262,26 +195,19 @@ router:
     - documents
     - document
     - docs
-    - documenti
     - files
     - file
     - sources
-    - fonti
-    - sorgenti
     - site
     - drive
     - path
     - read
     - pages
     - page
-    - pagine
-    - pagina
 
   architecture_location_markers:
     - architecture site
     - architecture sites
-    - sito architecture
-    - siti architecture
     - sharepoint architecture site
     - sharepoint architecture sites
 
@@ -379,10 +305,6 @@ lexicon:
       - the
       - a
       - an
-      - il
-      - la
-      - lo
-      - l
     prepositions:
       - of
       - for
@@ -392,14 +314,9 @@ lexicon:
       - "on"
       - from
       - to
-      - nel
-      - nella
-      - dei
-      - delle
       - per
     conjunctions:
       - and
-      - e
     demonstratives:
       - that
       - this
@@ -440,41 +357,15 @@ lexicon:
     - given
     - provided
     - list
-    - questo
-    - questa
-    - questi
-    - queste
-    - ultimo
-    - ultima
     - recent
-    - recente
-    - più
-    - piu
-    - puoi
-    - favore
-    - riassumi
-    - trova
-    - cerca
-    - leggi
-    - usa
-    - usando
-    - elenca
   title_relation_terms:
     - named
     - called
     - titled
-    - chiamato
-    - chiamata
-    - intitolato
-    - intitolata
   forward_title_relation_terms:
     - named
     - called
     - titled
-    - chiamato
-    - chiamata
-    - intitolato
-    - intitolata
   continuation_intent_template:
     preamble: "Continue the immediately preceding exchange using the prior result as context."
     previous_user_label: "Previous user request:"
@@ -541,13 +432,7 @@ retrieval_constraints:
     - pdf
     - page
     - pages
-    - documento
-    - documenti
     - file
-    - presentazione
-    - presentazioni
-    - pagina
-    - pagine
   source_scope_markers:
     personal_onedrive:
       - -my.sharepoint.com
@@ -559,7 +444,6 @@ retrieval_constraints:
       - my one drive
       - personal onedrive
       - personal one drive
-      - mio onedrive
     sharepoint:
       - sharepoint
       - share point
@@ -766,7 +650,6 @@ interaction:
     - '^\s*carry\s+on\s*$'
     - '^\s*go\s+on\s*$'
     - '^\s*resume\s*$'
-    - '^\s*continua\s*$'
   generative_peer_patterns:
     - '\bpropose\b'
     - '\bdesign\b'
