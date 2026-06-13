@@ -10,6 +10,10 @@ has today (`workspace/knowledge` ↔ `workspace/knowledge_staging`, artefact
 validation, peer mode, the Microsoft 365 / intranet adapters) and is explicit
 about what is planned but not yet built.
 
+For the ready-to-use, copy-paste authoring prompts (one per artefact type) that
+team members run against their source files, see
+`reference/knowledge-authoring-prompts.md`.
+
 ---
 
 ## 1. Operating principle: knowledge-as-code

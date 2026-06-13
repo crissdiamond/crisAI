@@ -939,7 +939,8 @@ promotes it. (See `registry/workspace_spaces.yaml`.)
    `workspace/knowledge_staging/<category>/` with `status: draft`, full front
    matter, the required H2 sections for its type, and a `source_url` provenance
    line. Use **peer mode** ("peer mode" / "challenge and refine") for durable,
-   high-stakes knowledge (principles, standards, strategies).
+   high-stakes knowledge (principles, standards, strategies). Copy-paste prompts
+   for every artefact type are in `reference/knowledge-authoring-prompts.md`.
 3. **Validate** — run `crisai validate-artefacts` to check front matter and
    required sections against the profiles in
    `registry/workspace_artifact_profiles.yaml` before a human looks.
