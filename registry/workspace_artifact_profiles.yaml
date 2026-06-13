@@ -235,6 +235,30 @@ profiles:
       required_h2_sections:
         - Overview
 
+  - id: strategy
+    match:
+      type_equals: strategy
+    rules:
+      required_h2_sections:
+        - Summary
+        - Goals and outcomes
+
+  - id: programme
+    match:
+      type_equals: programme
+    rules:
+      required_h2_sections:
+        - Summary
+        - Objectives
+
+  - id: organisation
+    match:
+      type_equals: organisation
+    rules:
+      required_h2_sections:
+        - Overview
+        - Roles and responsibilities
+
   - id: intake
     match:
       type_equals: intake

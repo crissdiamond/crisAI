@@ -224,7 +224,7 @@ Rules: preserve exact endpoints, formats, protocols, and frequencies; do not
 generalise an interface into a pattern; flag gaps; UCL system names.
 ```
 
-#### Strategy / goals  → `knowledge/strategies/`  (type: `strategy`, default profile)
+#### Strategy / goals  → `knowledge/strategies/`  (profile: `strategy`)
 
 ```
 Author a knowledge artefact of type "strategy" from the source below — an
@@ -238,14 +238,59 @@ Write one Markdown file to workspace/knowledge_staging/strategies/<kebab-slug>.m
 Front matter: id (STRAT-<short>), title, type: strategy, status: draft, owner,
 last_reviewed, applies_to, source_url: <SOURCE>.
 
-H2 sections (include all the source supports):
-## Summary, ## Goals and outcomes, ## Principles and drivers,
-## Target state, ## Roadmap and milestones, ## Scope and constraints,
-## Owners and governance, ## Source.
+Required H2 sections: ## Summary and ## Goals and outcomes. Also include all the
+source supports: ## Principles and drivers, ## Target state,
+## Roadmap and milestones, ## Scope and constraints, ## Owners and governance,
+## Source.
 
 Rules: capture every stated goal, target date, and measure exactly; keep the
 source's priority ordering; do not invent targets or dates; flag gaps; UCL terms.
 Use peer mode.
+```
+
+#### Programme / initiative  → `knowledge/programmes/`  (profile: `programme`)
+
+```
+Author a knowledge artefact of type "programme" from the source below — a
+programme of work or initiative.
+
+Source: <SOURCE>
+Subject: <TOPIC>
+
+Write one Markdown file to workspace/knowledge_staging/programmes/<kebab-slug>.md.
+
+Front matter: id (PROG-<short>), title, type: programme, status: draft, owner,
+last_reviewed, source_url: <SOURCE>.
+
+Required H2 sections: ## Summary and ## Objectives. Also include when supported:
+## Scope, ## Milestones and timeline, ## Workstreams, ## Dependencies,
+## Owners and governance, ## Source.
+
+Rules: capture objectives, milestones, and owners exactly; keep dates and scope as
+stated; flag gaps; UCL terminology.
+```
+
+#### Organisation (roles / structure)  → `knowledge/organisation/`  (profile: `organisation`)
+
+```
+Author a knowledge artefact of type "organisation" from the source below — how an
+architecture function, team, or governance body is structured.
+
+Source: <SOURCE>
+Subject: <TOPIC>
+
+Write one Markdown file to workspace/knowledge_staging/organisation/<kebab-slug>.md.
+
+Front matter: id (ORG-<short>), title, type: organisation, status: draft, owner,
+last_reviewed, source_url: <SOURCE>.
+
+Required H2 sections: ## Overview and ## Roles and responsibilities. Also include
+when supported: ## Structure, ## Decision rights and escalation,
+## Contact and channels, ## Source.
+Avoid recording personal contact data the source does not intend to be shared.
+
+Rules: capture roles, responsibilities, and decision rights precisely; flag gaps;
+UCL terminology.
 ```
 
 ### Solutions, patterns, and designs
@@ -525,7 +570,9 @@ matching prompt above; flag gaps and questions explicitly.
 | landscape | `reference/landscape/` | — | Summary |
 | domain | `reference/domains/` | — | Overview |
 | integration | `reference/integrations/` | — | Overview |
-| strategy | `strategies/` | — | (≥1 H2; use Summary · Goals …) |
+| strategy | `strategies/` | — | Summary · Goals and outcomes |
+| programme | `programmes/` | — | Summary · Objectives |
+| organisation | `organisation/` | — | Overview · Roles and responsibilities |
 | pattern (leaf) | `patterns/` | `owner` | Design overview · When to use · Implementation · NFRS · Anti-patterns or when not to use · Source · References |
 | pattern (index) | `patterns/*index*.md` | — | Design overview · When to use · Implementation · Source |
 | high_level_design | `designs/` | — | Context · Target architecture · Key decisions |
@@ -539,5 +586,5 @@ matching prompt above; flag gaps and questions explicitly.
 
 All artefacts also require `id`, `title`, `type`, `status` and should carry
 `owner`, `last_reviewed`, and `source_url`. Profiles are defined in
-`registry/workspace_artifact_profiles.yaml`; the `strategy`, `guideline` folder
-placement, and any new categories can be tuned there as a registry edit.
+`registry/workspace_artifact_profiles.yaml`; the `guideline` folder placement and
+any new categories can be tuned there as a registry edit.
