@@ -144,11 +144,6 @@ vertices:
       - tell me what this says
       - what does
       - what is in
-      - riassumi
-      - sintesi
-      - riassunto
-      - punti principali
-      - cosa dice
     emits:
       primary_intent: summarize_source
       required_evidence_level: content_read
@@ -182,9 +177,6 @@ vertices:
       - source inventory
       - document inventory
       - search results
-      - trova tutti
-      - elenca tutti
-      - migliori candidati
     emits:
       primary_intent: retrieve_source
       deliverable_type: source_inventory
@@ -207,7 +199,6 @@ vertices:
       - pptx
       - slides
       - slide
-      - presentazione
     emits:
       deliverable_type: deck_summary
   - id: deliverable.document_summary
@@ -222,9 +213,6 @@ vertices:
       - source file
       - source material
       - page
-      - documento
-      - documenti
-      - pagina
     emits:
       deliverable_type: document_summary
   - id: deliverable.executive_summary
@@ -233,7 +221,6 @@ vertices:
       - executive
       - leadership
       - executive summary
-      - sintesi executive
     emits:
       deliverable_type: executive_summary
   - id: source_resolution.latest_matching_source
@@ -246,10 +233,6 @@ vertices:
       - master
       - best candidate
       - likely master
-      - ultimo
-      - piu recente
-      - più recente
-      - corrente
     emits:
       source_resolution: latest_matching_source
   - id: source_resolution.matching_source
@@ -266,9 +249,6 @@ vertices:
       - source file
       - source material
       - page
-      - documento
-      - documenti
-      - presentazione
     emits:
       source_resolution: matching_source
 

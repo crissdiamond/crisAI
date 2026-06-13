@@ -14,8 +14,8 @@ def test_infer_summary_contract_for_latest_deck_request() -> None:
     assert contract.required_evidence_level == "content_read"
 
 
-def test_infer_summary_contract_for_italian_document_request() -> None:
-    contract = infer_task_contract("Riassumi questo documento.", registry_dir=REGISTRY_DIR)
+def test_infer_summary_contract_for_document_request() -> None:
+    contract = infer_task_contract("Summarise this document.", registry_dir=REGISTRY_DIR)
 
     assert contract.primary_intent == "summarize_source"
     assert contract.deliverable_type == "document_summary"

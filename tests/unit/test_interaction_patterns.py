@@ -43,7 +43,6 @@ def test_continuation_patterns_load_from_catalog():
     assert len(patterns) > 0
     assert all(isinstance(p, re.Pattern) for p in patterns)
     assert any(pattern.search("continue") for pattern in patterns)
-    assert any(pattern.search("continua") for pattern in patterns)
 
 
 def test_continuation_intent_template_loads_from_catalog():
