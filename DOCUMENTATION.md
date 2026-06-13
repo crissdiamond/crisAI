@@ -907,6 +907,68 @@ Adding a new structured type later is a one-line registry entry plus a CodeMirro
 
 ---
 
+## 12.1 Building the knowledge base
+
+The knowledge base (`workspace/knowledge/`) is the curated corpus the retrieval
+agents ground answers in: principles, standards, patterns, designs, decisions,
+landscape/domain reference, templates, and strategy material. This section is the
+operating how-to; the full programme (roles, cadence, phasing, trade-offs) lives
+in `reference/knowledge-base-programme.md`.
+
+### Knowledge-as-code
+
+Run the knowledge base like the codebase. It is diffable Markdown with required
+front matter and a validator, so the model is:
+
+> **crisAI drafts → a human reviews → a PR promotes → CI validates → everyone pulls.**
+
+The mandatory human gate is **structural, not just policy**: agents can write
+only to `workspace/knowledge_staging/` (read-write), never to
+`workspace/knowledge/` (read-only to agents), and staging is excluded from
+production retrieval. A draft cannot influence a grounded answer until a human
+promotes it. (See `registry/workspace_spaces.yaml`.)
+
+### The creation loop (one artefact at a time)
+
+1. **Harvest** — ask crisAI to read a source: intranet pages (`intranet_*` tools,
+   sites configured in `registry/intranet.yaml`), SharePoint docs, a deck in
+   OneDrive (`search_my_onedrive`), or a local file (`documents`). For
+   catalogue/index pages, the agent drills into leaf pages before writing.
+2. **Draft** — the run writes a machine-readable artefact under
+   `workspace/knowledge_staging/<category>/` with `status: draft`, full front
+   matter, the required H2 sections for its type, and a `source_url` provenance
+   line. Use **peer mode** ("peer mode" / "challenge and refine") for durable,
+   high-stakes knowledge (principles, standards, strategies).
+3. **Validate** — run `crisai validate-artefacts` to check front matter and
+   required sections against the profiles in
+   `registry/workspace_artifact_profiles.yaml` before a human looks.
+4. **Review (mandatory)** — open the staged file in the web Workspace editor,
+   check it against the cited source, edit, then set `status: approved`, `owner`,
+   and `last_reviewed`.
+5. **Promote** — move `knowledge_staging/… → knowledge/…` and open a PR against
+   the knowledge repository.
+
+### Where the knowledge base lives, and sharing it
+
+For a team, keep `workspace/knowledge/` in a **dedicated git repository** wired
+into crisAI as `workspace/knowledge` (see the programme doc for the rationale and
+the single-repo trade-off). Everyone contributes through the same PR flow,
+`crisai validate-artefacts` runs as a CI gate on that repo, and `owner` /
+`last_reviewed` front matter drives review routing and staleness reporting. Each
+member pulls the shared repo, so one person's curation becomes everyone's
+grounding.
+
+Point crisAI at the knowledge repository with `CRISAI_KNOWLEDGE_REPO` (a git URL)
+in `.env`, then sync it into `workspace/knowledge` with:
+
+```bash
+./start knowledge        # clone the repo on first run, fast-forward pull after
+```
+
+In short: **author locally, review as a diff, validate in CI, share by pull.**
+
+---
+
 ## 13. SharePoint / OneDrive usage
 
 crisAI supports delegated Microsoft Graph access for:
