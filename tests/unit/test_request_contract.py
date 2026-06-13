@@ -167,6 +167,25 @@ def test_produce_requests_still_classify_as_publication() -> None:
         assert "publish_artifact" in contract.actions, msg
 
 
+def test_produce_artefact_intents_draft_with_specific_deliverable() -> None:
+    # Asks to produce an architecture artefact that already has a workspace
+    # validation profile now classify to that deliverable type and draft it
+    # (primary_intent design/recommend -> "draft" action), rather than falling
+    # back to a generic deliverable or being mistaken for a publish request.
+    cases = [
+        ("Write the ADR for choosing Kafka over RabbitMQ.", "decision"),
+        ("Produce the logical data model for the customer domain.", "data_model"),
+        ("Create the integration design for the CRM-to-ERP interface.", "integration"),
+        ("Build the migration plan to move off the legacy ESB.", "migration_plan"),
+        ("Produce the source-to-target mapping document for the load.", "mapping"),
+    ]
+    for message, deliverable in cases:
+        contract = infer_request_contract(message, registry_dir=REGISTRY_DIR)
+        assert contract.deliverable_type == deliverable, message
+        assert "draft" in contract.actions, message
+        assert "publish_artifact" not in contract.actions, message
+
+
 def test_continuation_folding_prior_deck_summary_is_not_publication() -> None:
     # Long-session reproduction: a follow-up turn whose continuation message folds
     # in the prior assistant's deck summary (full of .pptx names) must not become
