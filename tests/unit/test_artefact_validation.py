@@ -70,6 +70,52 @@ def test_integration_pattern_slug_dedup(registry_dir: Path, tmp_path: Path):
     assert any("integration_pattern_slug_dedup" in v for v in result.violations)
 
 
+def test_strategy_profile_requires_summary_and_goals(registry_dir: Path, tmp_path: Path):
+    root = tmp_path
+    rel = "workspace/knowledge_staging/strategies/ucl-integration-strategy.md"
+    _write(
+        root / rel,
+        (
+            "---\nid: STRAT-1\ntitle: Integration Strategy\ntype: strategy\nstatus: draft\n---\n\n"
+            "## Summary\nx\n## Goals and outcomes\nx\n"
+        ),
+    )
+    result = validate_workspace_artefact_paths(root_dir=root, relative_paths=[rel], registry_dir=registry_dir)
+    assert result.ok
+
+
+def test_strategy_profile_flags_missing_goals(registry_dir: Path, tmp_path: Path):
+    root = tmp_path
+    rel = "workspace/knowledge_staging/strategies/incomplete.md"
+    _write(
+        root / rel,
+        "---\nid: STRAT-2\ntitle: T\ntype: strategy\nstatus: draft\n---\n\n## Summary\nx\n",
+    )
+    result = validate_workspace_artefact_paths(root_dir=root, relative_paths=[rel], registry_dir=registry_dir)
+    assert any("Goals and outcomes" in v for v in result.violations)
+
+
+def test_programme_and_organisation_profiles_apply(registry_dir: Path, tmp_path: Path):
+    root = tmp_path
+    prog = "workspace/knowledge_staging/programmes/digital-programme.md"
+    org = "workspace/knowledge_staging/organisation/architecture-team.md"
+    _write(
+        root / prog,
+        "---\nid: PROG-1\ntitle: P\ntype: programme\nstatus: draft\n---\n\n## Summary\nx\n## Objectives\nx\n",
+    )
+    _write(
+        root / org,
+        (
+            "---\nid: ORG-1\ntitle: O\ntype: organisation\nstatus: draft\n---\n\n"
+            "## Overview\nx\n## Roles and responsibilities\nx\n"
+        ),
+    )
+    result = validate_workspace_artefact_paths(
+        root_dir=root, relative_paths=[prog, org], registry_dir=registry_dir
+    )
+    assert result.ok
+
+
 def test_type_alias_maps_hld(registry_dir: Path, tmp_path: Path):
     root = tmp_path
     rel = "workspace/knowledge/designs/campus-network-hld.md"
