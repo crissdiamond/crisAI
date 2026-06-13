@@ -141,3 +141,45 @@ def test_request_contract_resolves_followup_source_from_session_candidates() -> 
     assert contract.resolved_sources[0].source.title == "UCL Integration Strategy_Full Presentation v2.pptx"
     assert "UCL Integration Strategy_Full Presentation v2.pptx" in contract.named_sources
     assert "read_handle" not in contract.to_dict()["resolved_sources"][0]["source"]
+
+
+def test_source_file_reference_is_not_publication() -> None:
+    # CRISAI-ADR-014 / TODO-048: a referenced source file (a .pptx/.docx the user
+    # wants to read/list/summarise) must not be classified as a publish request —
+    # the publish_artifact mis-classification that killed completed runs.
+    for msg in (
+        "Summarize the UCL Integration Strategy_Full Presentation v2.pptx deck.",
+        "List the decks: UCL Strategy v2.pptx and v3.pptx, ranked by authority.",
+        "Find files in my OneDrive ending in .docx and rank them.",
+    ):
+        contract = infer_request_contract(msg, registry_dir=REGISTRY_DIR)
+        assert "publish_artifact" not in contract.actions, msg
+
+
+def test_produce_requests_still_classify_as_publication() -> None:
+    for msg in (
+        "Convert this architecture summary into a .pptx slide deck.",
+        "Create a powerpoint of the integration strategy.",
+        "Turn this into a Word document using the template.",
+        "Export this design as a powerpoint.",
+    ):
+        contract = infer_request_contract(msg, registry_dir=REGISTRY_DIR)
+        assert "publish_artifact" in contract.actions, msg
+
+
+def test_continuation_folding_prior_deck_summary_is_not_publication() -> None:
+    # Long-session reproduction: a follow-up turn whose continuation message folds
+    # in the prior assistant's deck summary (full of .pptx names) must not become
+    # a publish request (CRISAI-ADR-014).
+    history = [
+        ("user", "Find the UCL integration strategy decks in my OneDrive."),
+        (
+            "assistant",
+            "I found four decks: UCL Integration Strategy_Full Presentation v2.pptx, "
+            "UCL Integration Strategy full deck v3_cd.pptx, and two v1 variants (.pptx).",
+        ),
+    ]
+    msg = continuation_intent_message("continue", history, registry_dir=REGISTRY_DIR)
+    assert ".pptx" in msg  # confirm the prior summary (with source names) was folded in
+    contract = infer_request_contract(msg, registry_dir=REGISTRY_DIR)
+    assert "publish_artifact" not in contract.actions
