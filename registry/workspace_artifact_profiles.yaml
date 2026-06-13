@@ -30,6 +30,7 @@ type_aliases:
   low_level_design: [lld, low-level-design, low_level_design]
   option_paper: [options_paper, options]
   enterprise_data_model: [edm, enterprise-data-model]
+  migration_plan: [migration-plan, migration_roadmap]
 
 profiles:
   - id: folder_readme
@@ -191,6 +192,13 @@ profiles:
     rules:
       required_h2_sections:
         - Source and target
+
+  - id: migration_plan
+    match:
+      type_equals: migration_plan
+    rules:
+      required_h2_sections:
+        - Phases and sequencing
 
   - id: standard
     match:

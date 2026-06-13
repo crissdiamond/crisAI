@@ -735,6 +735,14 @@ Task and retrieval semantics are configurable from `registry/semantic_graph.yaml
 
 - task intent facts such as `primary_intent`
 - deliverable facts such as `deck_summary` or `document_summary`
+- **produce-an-artefact deliverable facts** that line up with a workspace
+  validation profile in `registry/workspace_artifact_profiles.yaml`, so the ask,
+  the task contract, and the validator agree. Each reuses a wired `primary_intent`
+  (`design` or `recommend`) and emits the specific `deliverable_type`:
+  `intent.decision_record` → `decision` (ADR), `intent.data_model` → `data_model`,
+  `intent.integration_design` → `integration`, `intent.migration_plan` →
+  `migration_plan`, and `intent.data_mapping` → `mapping`. Their terms are
+  specific multi-word phrases so a bare noun cannot trigger them (CRISAI-ADR-014).
 - source-resolution facts such as `latest_matching_source`
 - source-family hints such as `intranet` or `sharepoint_docs`
 - retrieval topic expansion terms and graph edges

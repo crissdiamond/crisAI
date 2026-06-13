@@ -189,6 +189,125 @@ vertices:
       anti_goals:
         - Do not replace the requested source list with a generic answer.
         - Do not summarise source contents unless the user asks to read or summarise them.
+  # --- Produce-an-architecture-artefact intents ------------------------------
+  # These classify "produce X" asks whose output already has a workspace
+  # validation profile (registry/workspace_artifact_profiles.yaml) but had no
+  # intent classifier, so they previously fell back to a generic design/recommend
+  # deliverable. Each reuses a wired primary_intent (design / recommend) and emits
+  # the specific deliverable_type matching the artefact profile, so the ask, the
+  # task contract, and the validator line up. Terms are specific multi-word
+  # phrases so a bare noun cannot trigger them (CRISAI-ADR-014).
+  - id: intent.decision_record
+    priority: 85
+    terms:
+      - architecture decision record
+      - decision record
+      - decision log
+      - adr
+      - record the decision
+      - capture the decision
+      - document the decision
+      - write the adr
+      - write an adr
+    emits:
+      primary_intent: recommend
+      deliverable_type: decision
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - State the decision and its context as the main answer.
+        - Make the options considered, the chosen option, and the rationale explicit.
+        - Record consequences and any superseded decisions.
+      anti_goals:
+        - Do not leave the decision implicit or unstated.
+        - Do not omit the rationale or the rejected alternatives.
+  - id: intent.data_model
+    priority: 78
+    terms:
+      - data model
+      - conceptual data model
+      - logical data model
+      - physical data model
+      - canonical data model
+      - entity relationship model
+      - entity-relationship model
+      - subject area model
+      - information model
+    emits:
+      primary_intent: design
+      deliverable_type: data_model
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - Produce the data model as the main answer.
+        - Define entities, attributes, keys, and relationships explicitly.
+        - State the modelling level (conceptual, logical, or physical) where relevant.
+      anti_goals:
+        - Do not replace the model with a narrative description only.
+        - Do not leave entities or relationships undefined.
+  - id: intent.integration_design
+    priority: 78
+    terms:
+      - integration design
+      - interface design
+      - interface specification
+      - integration specification
+      - integration solution design
+      - api specification
+      - api contract design
+    emits:
+      primary_intent: design
+      deliverable_type: integration
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - Produce the integration design as the main answer.
+        - Define interfaces, data flows, contracts, and error handling.
+        - Ground the design in the source and target systems involved.
+      anti_goals:
+        - Do not omit the interface contracts or data flows.
+        - Do not replace the design with a generic integration overview.
+  - id: intent.migration_plan
+    priority: 78
+    terms:
+      - migration plan
+      - migration roadmap
+      - migration strategy
+      - transition plan
+      - implementation roadmap
+      - transformation roadmap
+      - cutover plan
+      - sequencing plan
+      - decommissioning plan
+    emits:
+      primary_intent: design
+      deliverable_type: migration_plan
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - Produce the migration plan as the main answer.
+        - Sequence the work into phases with dependencies and milestones.
+        - State risks, rollback, and the interim and target states.
+      anti_goals:
+        - Do not present an unsequenced list of changes.
+        - Do not omit dependencies, risks, or rollback.
+  - id: intent.data_mapping
+    priority: 76
+    terms:
+      - source to target mapping
+      - source-to-target mapping
+      - data mapping
+      - field mapping
+      - attribute mapping
+      - mapping document
+      - mapping specification
+    emits:
+      primary_intent: design
+      deliverable_type: mapping
+      required_evidence_level: supporting_sources
+      success_criteria:
+        - Produce the mapping as the main answer.
+        - Define source and target fields, transformations, and rules.
+        - Flag unmapped or ambiguous fields explicitly.
+      anti_goals:
+        - Do not omit the source or target side of the mapping.
+        - Do not hide unmapped or ambiguous fields.
   - id: deliverable.deck_summary
     priority: 60
     terms:
@@ -545,6 +664,14 @@ edges:
   - [intent.options_analysis, enterprise_architecture_core]
   - [intent.assessment, enterprise_architecture_core]
   - [intent.assessment, architecture_method_and_governance]
+  - [intent.decision_record, solution_architecture_delivery]
+  - [intent.decision_record, enterprise_architecture_core]
+  - [intent.data_model, data_architecture_core]
+  - [intent.data_mapping, data_architecture_core]
+  - [intent.data_mapping, integration_and_api_architecture]
+  - [intent.integration_design, integration_and_api_architecture]
+  - [intent.migration_plan, architecture_method_and_governance]
+  - [intent.migration_plan, solution_architecture_delivery]
   - [enterprise_architecture_core, application_portfolio_architecture]
   - [enterprise_architecture_core, technology_infrastructure_architecture]
   - [enterprise_architecture_core, data_architecture_core]

@@ -111,6 +111,26 @@ def test_graph_emit_priority_keeps_options_paper_as_main_deliverable(registry_di
     assert emits["deliverable_type"] == "options_paper"
 
 
+def test_graph_emits_produce_artefact_intents(registry_dir: Path):
+    """Produce-an-artefact asks classify to the deliverable type that matches a
+    workspace validation profile (registry/workspace_artifact_profiles.yaml),
+    reusing a wired primary_intent (design / recommend)."""
+    graph = load_retrieval_association_graph(registry_dir)
+    assert graph is not None
+    cases = [
+        ("Write the ADR for choosing Kafka over RabbitMQ.", "recommend", "decision"),
+        ("Produce the logical data model for the customer domain.", "design", "data_model"),
+        ("Create the integration design for the CRM-to-ERP interface.", "design", "integration"),
+        ("Build the migration plan to move off the legacy ESB.", "design", "migration_plan"),
+        ("Produce the source-to-target mapping document for the load.", "design", "mapping"),
+    ]
+    for message, intent, deliverable in cases:
+        seeds, _ = expand_retrieval_hints(message, graph)
+        emits = collect_graph_emits(graph, seeds)
+        assert emits["primary_intent"] == intent, message
+        assert emits["deliverable_type"] == deliverable, message
+
+
 def test_recommendation_request_expands_common_lean_ea_terms(registry_dir: Path):
     graph = load_retrieval_association_graph(registry_dir)
     assert graph is not None
