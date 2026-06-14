@@ -654,3 +654,19 @@ def test_check_runtime_environment_errors_when_async_backend_missing(
     messages = "\n".join(e.message for e in errors)
     assert "anyio asyncio backend failed to import" in messages
     assert warnings == []
+
+
+def test_validation_errors_when_tool_is_both_allow_and_internal(tmp_path: Path) -> None:
+    # An internal (deterministic-only) tool must not also be agent-exposed.
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    servers_path = registry_dir / "servers.yaml"
+    payload = yaml.safe_load(servers_path.read_text(encoding="utf-8"))
+    sharepoint = next(s for s in payload["servers"] if s["id"] == "sharepoint_docs")
+    sharepoint["tools"]["allow"].append("download_source_bytes_by_handle")
+    servers_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    errors, _warnings = _validate_registry_cross_references(root, registry_dir)
+
+    assert any("both tools.allow and tools.internal" in e.message for e in errors)

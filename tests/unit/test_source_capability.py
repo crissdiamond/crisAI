@@ -92,8 +92,11 @@ def test_live_registry_source_servers_validate_cleanly():
     for server in sources:
         errors: list = []
         warnings: list = []
-        allow = server.raw.get("tools", {}).get("allow", [])
-        _validate_source_capability(server, allow, errors, warnings)
+        tools = server.raw.get("tools", {}) or {}
+        # Capability operations may reference agent-facing (allow) or internal tools
+        # (e.g. the read_binary materialisation tool kept out of the agent surface).
+        capability_tools = tools.get("allow", []) + tools.get("internal", [])
+        _validate_source_capability(server, capability_tools, errors, warnings)
         assert errors == [], (server.id, [e.message for e in errors])
 
 

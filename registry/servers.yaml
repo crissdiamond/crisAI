@@ -235,7 +235,7 @@ servers:
         search: [search_sharepoint_site_documents, search_site_drive_documents, search_drive_documents, search_my_onedrive]
         list: [list_sites, list_my_drives, list_site_drives, list_drive_items]
         fetch: [read_sharepoint_document_by_handle]
-        read_binary: [read_sharepoint_document_by_handle, inspect_sharepoint_powerpoint_by_handle]
+        read_binary: [read_sharepoint_document_by_handle, inspect_sharepoint_powerpoint_by_handle, download_source_bytes_by_handle]
       evidence_levels: [search_hit_only, metadata_read, content_read]
       reference: { handle: read_handle, stability: session }
       auth: { interactive_login_tool: login_sharepoint, status_tool: sharepoint_auth_status }
@@ -260,6 +260,11 @@ servers:
         - get_sharepoint_document_metadata_by_handle
         - read_sharepoint_document_by_handle
         - inspect_sharepoint_powerpoint_by_handle
+      # Internal tools are part of the capability contract (e.g. read_binary) but
+      # are NOT exposed to agents: they are excluded from the agent tool filter so
+      # only the deterministic orchestration path (materialisation) can call them.
+      internal:
+        - download_source_bytes_by_handle
     approval:
       required_for: []
       mode: none

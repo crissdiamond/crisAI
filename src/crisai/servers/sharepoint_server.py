@@ -560,6 +560,42 @@ def read_sharepoint_document_by_handle(read_handle: str) -> str:
     return read_sharepoint_document(drive_id=drive_id, item_id=item_id)
 
 
+# Internal helper: download the raw bytes of a drive item for workspace evidence
+# materialisation (CRISAI-ADR-015 Phase 2b). Reached only via the by-handle tool.
+def fetch_sharepoint_document_bytes(drive_id: str, item_id: str) -> dict[str, Any]:
+    """Return a document's raw bytes (base64) plus its provider revision token."""
+    log_event(f"fetch_sharepoint_document_bytes drive_id={drive_id} item_id={item_id}")
+    item = _graph_get(f"/drives/{drive_id}/items/{item_id}")
+    name = str(item.get("name") or "")
+    suffix = Path(name).suffix.lower()
+    content_url = f"{ms_graph.GRAPH_BASE}/drives/{drive_id}/items/{item_id}/content"
+    data = _graph_get_bytes(content_url)
+    return {
+        "name": name,
+        "suffix": suffix,
+        # Provider revision token used to key and invalidate the materialised cache.
+        "revision": str(item.get("lastModifiedDateTime") or ""),
+        "size": int(item.get("size") or len(data)),
+        "content_base64": base64.b64encode(data).decode("ascii"),
+        "source": _normalise_item(item),
+    }
+
+
+@mcp.tool()
+def download_source_bytes_by_handle(read_handle: str) -> dict[str, Any]:
+    """Download a document's raw bytes (base64) and provider revision by read handle.
+
+    For deterministic **workspace evidence materialisation** (CRISAI-ADR-015), not
+    for agent reads: it returns the whole file base64-encoded, which must never be
+    pulled into an agent's context. It is declared under the ``read_binary``
+    capability and kept in ``tools.internal`` so it is excluded from every agent's
+    tool surface; only the orchestration materialisation path calls it.
+    """
+    log_event("download_source_bytes_by_handle")
+    drive_id, item_id = _decode_read_handle(read_handle)
+    return fetch_sharepoint_document_bytes(drive_id=drive_id, item_id=item_id)
+
+
 _configure_mcp_logging()
 
 if __name__ == "__main__":
