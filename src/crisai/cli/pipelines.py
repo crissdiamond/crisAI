@@ -501,6 +501,7 @@ class EvidenceValidationCapture:
     intent_message: str
     require_evidence_bundle: bool = False
     require_retrieval_structure: bool = False
+    output_path: str | None = None
     transport: ValidatedEvidenceTransport | None = None
     error: WorkflowPolicyViolation | None = None
 
@@ -512,6 +513,7 @@ class EvidenceValidationCapture:
                 raw_text,
                 require_evidence_bundle=self.require_evidence_bundle,
                 require_retrieval_structure=self.require_retrieval_structure,
+                output_path=self.output_path,
             )
         except WorkflowPolicyViolation as exc:
             self.error = exc
@@ -577,7 +579,7 @@ def _validate_retrieval_output_structure(retrieval_text: str) -> None:
     )
 
 
-def _validate_evidence_bundle(message: str, bundle: EvidenceBundle) -> None:
+def _validate_evidence_bundle(message: str, bundle: EvidenceBundle, *, output_path: str | None = None) -> None:
     """Apply workflow evidence policy gates to a parsed bundle."""
     must_read = request_requires_content_read(message)
     if must_read and not bundle.has_content_read():
@@ -592,7 +594,7 @@ def _validate_evidence_bundle(message: str, bundle: EvidenceBundle) -> None:
                 "Policy gate failed: required source read failed and was not recovered by "
                 "matching content-read evidence. Failed source(s): " + ", ".join(unresolved[:5]) + "."
             )
-    constraints = infer_source_fit_constraints(message)
+    constraints = infer_source_fit_constraints(message, output_path=output_path)
     if must_read and constraints.is_active:
         if any(item.evidence_level == "content_read" and item.evidence_role == "supplemental" for item in bundle.items):
             supplemental_violation = _supplemental_evidence_role_violation(bundle, constraints)
@@ -643,6 +645,7 @@ def _enforce_source_inventory_fit(
     deliverable_type: str,
     intent_message: str,
     registry_dir: str | Path | None,
+    output_path: str | None = None,
 ) -> None:
     """Raise when a source-inventory output lists items outside the user's
     inferred title/scope constraints.
@@ -658,6 +661,7 @@ def _enforce_source_inventory_fit(
     constraints = infer_source_fit_constraints(
         intent_message,
         registry_dir=Path(registry_dir) if registry_dir is not None else None,
+        output_path=output_path,
     )
     violation = source_inventory_failure_message(result, constraints)
     if violation:
@@ -726,6 +730,7 @@ def _validated_evidence_transport(
     *,
     require_evidence_bundle: bool = False,
     require_retrieval_structure: bool = False,
+    output_path: str | None = None,
 ) -> ValidatedEvidenceTransport:
     """Parse evidence once and keep machine transport separate from prose.
 
@@ -746,7 +751,7 @@ def _validated_evidence_transport(
                 f"but context retrieval did not return a valid evidence bundle. {exc}"
             ) from exc
         return ValidatedEvidenceTransport(prose=prose, bundle=None, evidence_brief="")
-    _validate_evidence_bundle(message, bundle)
+    _validate_evidence_bundle(message, bundle, output_path=output_path)
     return ValidatedEvidenceTransport(
         prose=prose,
         bundle=bundle,
@@ -986,6 +991,7 @@ async def run_single(
                 constraints = infer_source_fit_constraints(
                     intent_message,
                     registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                    output_path=request_contract.output_path,
                 )
                 inventory_violation = source_inventory_failure_message(result, constraints)
                 if inventory_violation:
@@ -1231,6 +1237,7 @@ async def run_pipeline(
                 retrieval_intent_message,
                 require_evidence_bundle=require_retrieval_evidence,
                 require_retrieval_structure=require_retrieval_evidence,
+                output_path=request_contract.output_path,
             )
 
             context_retrieval_text = await workflow.run_stage(
@@ -1262,6 +1269,7 @@ async def run_pipeline(
                     retrieval_intent_message,
                     require_evidence_bundle=require_retrieval_evidence,
                     require_retrieval_structure=require_retrieval_evidence,
+                    output_path=request_contract.output_path,
                 )
                 context_retrieval_text = await workflow.run_stage(
                     spec=specs["context_retrieval"],
@@ -1494,6 +1502,7 @@ async def run_pipeline(
                 deliverable_type=task_contract.deliverable_type,
                 intent_message=intent_message,
                 registry_dir=registry_dir,
+                output_path=request_contract.output_path,
             )
             changed = _enforce_workspace_write_and_validation(
                 policy,
@@ -1698,7 +1707,7 @@ async def run_peer_pipeline(
                     metadata={"fallback_reason": "empty_output"},
                 )
             if use_context_retrieval:
-                evidence_capture = EvidenceValidationCapture(intent_message)
+                evidence_capture = EvidenceValidationCapture(intent_message, output_path=request_contract.output_path)
 
                 context_retrieval_text = await workflow.run_stage(
                     spec=specs["context_retrieval"],
@@ -1723,7 +1732,7 @@ async def run_peer_pipeline(
                         event_type="policy_signal",
                         metadata={"validation_error": str(evidence_capture.error)},
                     )
-                    repair_capture = EvidenceValidationCapture(intent_message)
+                    repair_capture = EvidenceValidationCapture(intent_message, output_path=request_contract.output_path)
                     context_retrieval_text = await workflow.run_stage(
                         spec=specs["context_retrieval"],
                         ui_agent_id="context_retrieval",
