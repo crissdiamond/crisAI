@@ -2650,3 +2650,29 @@ def test_inventory_fit_gate_is_noop_for_non_inventory_deliverable():
         intent_message=_INVENTORY_MSG,
         registry_dir=REGISTRY_DIR,
     )
+
+
+def test_framing_only_planner_spec_removes_source_search_servers():
+    # B: in pipeline/peer mode the planner is framing-only; denying it the
+    # source-search servers stops it running a separate (often wrong) retrieval
+    # that Context Retrieval then ignores.
+    from crisai.registry import AgentSpec
+
+    spec = AgentSpec(
+        id="retrieval_planner",
+        name="Retrieval Planner",
+        prompt_file="prompts/retrieval_planner_agent.md",
+        allowed_servers=[
+            "session_memory", "workspace_read", "documents",
+            "sharepoint_docs", "intranet", "vision",
+        ],
+    )
+    framed = pipelines._framing_only_planner_spec(spec)
+
+    assert "sharepoint_docs" not in framed.allowed_servers
+    assert "documents" not in framed.allowed_servers
+    assert "intranet" not in framed.allowed_servers
+    assert "session_memory" in framed.allowed_servers
+    assert "workspace_read" in framed.allowed_servers
+    # the original spec (used by single-agent retrieval) is untouched
+    assert "sharepoint_docs" in spec.allowed_servers
