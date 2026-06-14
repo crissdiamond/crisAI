@@ -72,6 +72,34 @@ Typical examples:
 - SharePoint / OneDrive documents server
 - intranet **site pages** server (scoped to `registry/intranet.yaml`; **independent** Graph auth token cache from the SharePoint docs server)
 
+#### Source capability contract and tool exposure
+
+Each server in `registry/servers.yaml` declares which of its tools agents may call,
+and source servers additionally declare a capability contract (CRISAI-ADR-013).
+
+- **`kind`** is `source` (a retrieval adapter) or `tool` (a utility). Source
+  servers carry a **`capabilities`** block describing `source_families`,
+  `source_types`, `operations` (`search` / `list` / `fetch` / `read_binary`),
+  `evidence_levels`, the reference `handle`, and `auth`. Doctor (`crisai doctor`)
+  validates this contract — unknown families/types/operations, evidence levels
+  that exceed the contract, or capability operations that reference an undeclared
+  tool are reported.
+- **`tools.allow`** is the **only** set of tools an agent can see or call.
+  At runtime a static tool filter is built from this list, so a tool absent from
+  `tools.allow` is invisible to every agent that mounts the server. This is the
+  least-privilege surface — keep it to the tools agents genuinely need.
+- **`tools.internal`** lists tools that are part of the capability contract but
+  are **deliberately excluded from agents**. They are called only by deterministic
+  orchestration paths, never by a model. The first use is the `read_binary`
+  materialisation download (`download_source_bytes_by_handle`), which returns a
+  whole file base64-encoded — useful for the workspace evidence cache, but
+  catastrophic if a model pulled it into context. A tool must appear in **either**
+  `allow` **or** `internal`, never both; doctor flags an overlap.
+
+This separation lets the capability contract stay honest (a `read_binary`
+operation is declared) while the agent surface stays minimal (the heavy download
+tool is reachable only by the materialisation path, see CRISAI-ADR-015).
+
 ### 2.4 Router
 A lightweight heuristic layer that decides which agent or mode is most suitable when you have not explicitly chosen one.
 
