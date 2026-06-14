@@ -1770,6 +1770,21 @@ async def run_peer_pipeline(
                         event_type="policy_violation",
                     )
                     raise WorkflowValidationError(str(exc)) from exc
+
+                # Materialise the confirmed read sources (opt-in) so later turns
+                # read the cached copy rather than re-querying live OneDrive
+                # (CRISAI-ADR-015 2b). Peer authoring is the main knowledge path,
+                # so it needs the same wiring as the pipeline checkpoint.
+                await _materialise_confirmed_sources(
+                    getattr(evidence_capture.transport, "bundle", None)
+                    if getattr(evidence_capture, "transport", None) is not None
+                    else None,
+                    environment=environment,
+                    server_specs=server_specs,
+                    session_name=session_name,
+                    settings=settings,
+                    workflow=workflow,
+                )
             else:
                 workflow.skip_stage(
                     "CONTEXT RETRIEVAL OUTPUT",

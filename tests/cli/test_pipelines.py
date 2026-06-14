@@ -2796,3 +2796,50 @@ async def test_run_peer_pipeline_falls_back_when_retrieval_planner_is_empty(monk
     assert result == "Final recommendation\nKeep it simple."
     assert "retrieval_planner" in [name for name, _ in stage_calls]
     assert any(stage == "RETRIEVAL_PLANNER FALLBACK" for stage, _ in trace_calls)
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_materialises_confirmed_sources(monkeypatch, tmp_path):
+    # Peer authoring is the main knowledge path; it must materialise confirmed
+    # read sources just like the pipeline checkpoint (ADR-015 2b).
+    calls: list[str | None] = []
+
+    async def _fake_materialise(bundle, **kwargs):
+        calls.append(kwargs.get("session_name"))
+
+    monkeypatch.setattr(pipelines, "_materialise_confirmed_sources", _fake_materialise)
+
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FallbackWorkflowSession(trace_calls, stage_calls, "Final recommendation\nKeep it simple.")
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log", runtime=object()),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(pipelines, "build_author_prompt", lambda message, discovery_text: message)
+
+    await pipelines.run_peer_pipeline(
+        "Author a strategy knowledge artefact from the deck.",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={"context_retrieval": SimpleNamespace(id="context_retrieval")},
+        needs_retrieval=True,
+        session_name="Test007",
+    )
+
+    assert calls == ["Test007"]
