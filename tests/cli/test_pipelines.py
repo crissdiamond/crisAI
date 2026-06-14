@@ -2699,6 +2699,8 @@ async def test_materialise_confirmed_sources_only_handles_eligible_sources(monke
         )
 
     monkeypatch.setattr(pipelines.source_materialisation_module, "materialise_source", _fake_materialise)
+    # Don't touch real session memory in this wiring test.
+    monkeypatch.setattr(pipelines.chat_context_module, "record_materialised_source", lambda *a, **k: True)
 
     def _item(source_type, *, read_handle="", content_id="", evidence="content_read"):
         source = SimpleNamespace(source_type=source_type, read_handle=read_handle, content_id=content_id, open_url="")

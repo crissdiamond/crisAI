@@ -283,6 +283,14 @@ async def _materialise_confirmed_sources(
             continue
         record = outcome.record
         if record is not None:
+            # Stamp the session candidate with the cache pointer so a later turn
+            # can ground on the cached copy (ADR-015 2b read-through).
+            chat_context_module.record_materialised_source(
+                session_name,
+                source_id=source_id,
+                materialised_path=record.raw_path,
+                revision=record.revision,
+            )
             _trace_workflow_policy_event(
                 workflow,
                 "SOURCE_CACHE_HIT" if outcome.cache_hit else "SOURCE_MATERIALISED",
