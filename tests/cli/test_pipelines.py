@@ -2676,3 +2676,78 @@ def test_framing_only_planner_spec_removes_source_search_servers():
     assert "workspace_read" in framed.allowed_servers
     # the original spec (used by single-agent retrieval) is untouched
     assert "sharepoint_docs" in spec.allowed_servers
+
+
+@pytest.mark.anyio
+async def test_materialise_confirmed_sources_only_handles_eligible_sources(monkeypatch, tmp_path):
+    # ADR-015 2b slice 3b wiring: only confirmed, content-read, non-workspace
+    # sources with a read handle are materialised; the rest are skipped.
+    from crisai.orchestration.source_materialisation import MaterialisationOutcome
+    from crisai.workspace.source_cache import MaterialisedSource
+
+    calls: list[tuple[str, str]] = []
+
+    async def _fake_materialise(*, source_id, read_handle, server_spec, runtime, task_state_dir, workspace_root):
+        calls.append((source_id, read_handle))
+        return MaterialisationOutcome(
+            source_id=source_id,
+            cache_hit=False,
+            record=MaterialisedSource(
+                source_id=source_id, revision="rev-1", title="Deck",
+                raw_path=".crisai/sources/x/rev-1/raw.pptx", byte_size=10,
+            ),
+        )
+
+    monkeypatch.setattr(pipelines.source_materialisation_module, "materialise_source", _fake_materialise)
+
+    def _item(source_type, *, read_handle="", content_id="", evidence="content_read"):
+        source = SimpleNamespace(source_type=source_type, read_handle=read_handle, content_id=content_id, open_url="")
+        return SimpleNamespace(source=source, evidence_level=evidence)
+
+    bundle = SimpleNamespace(items=[
+        _item("sharepoint_document", read_handle="spdoc-1", content_id="{DD876D07}"),       # eligible
+        _item("workspace_file", read_handle="spdoc-2", content_id="w"),                     # workspace -> skip
+        _item("sharepoint_document", read_handle="", content_id="n"),                       # no handle -> skip
+        _item("sharepoint_document", read_handle="spdoc-3", content_id="m", evidence="metadata_read"),  # not read -> skip
+    ])
+    workflow = SimpleNamespace(trace_event=lambda *a, **k: None)
+    settings = SimpleNamespace(materialise_sources_enabled=True, workspace_dir=str(tmp_path))
+
+    await pipelines._materialise_confirmed_sources(
+        bundle,
+        environment=SimpleNamespace(runtime=object()),
+        server_specs={"sharepoint_docs": object()},
+        session_name="Test001",
+        settings=settings,
+        workflow=workflow,
+    )
+
+    assert calls == [("{dd876d07}", "spdoc-1")]
+
+
+@pytest.mark.anyio
+async def test_materialise_confirmed_sources_is_opt_in(monkeypatch, tmp_path):
+    called: list[int] = []
+
+    async def _fake_materialise(**kwargs):
+        called.append(1)
+
+    monkeypatch.setattr(pipelines.source_materialisation_module, "materialise_source", _fake_materialise)
+    monkeypatch.delenv("CRISAI_MATERIALISE_SOURCES", raising=False)
+
+    bundle = SimpleNamespace(items=[SimpleNamespace(
+        source=SimpleNamespace(source_type="sharepoint_document", read_handle="h", content_id="c", open_url=""),
+        evidence_level="content_read",
+    )])
+    settings = SimpleNamespace(materialise_sources_enabled=False, workspace_dir=str(tmp_path))
+
+    await pipelines._materialise_confirmed_sources(
+        bundle,
+        environment=SimpleNamespace(runtime=None),
+        server_specs={"sharepoint_docs": object()},
+        session_name="X",
+        settings=settings,
+        workflow=SimpleNamespace(trace_event=lambda *a, **k: None),
+    )
+
+    assert called == []

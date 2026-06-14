@@ -35,7 +35,9 @@ from crisai.orchestration import prompt_generation as prompt_generation_module
 from crisai.orchestration import request_contract as request_contract_module
 from crisai.orchestration import retrieval_association_graph as graph_module
 from crisai.orchestration import retrieval_checkpoint as checkpoint_module
+from crisai.orchestration import session_anchors as session_anchors_module
 from crisai.orchestration import source_constraints as constraints_module
+from crisai.orchestration import source_materialisation as source_materialisation_module
 from crisai.orchestration import source_resolution as resolution_module
 from crisai.orchestration import task_contract as task_contract_module
 
@@ -205,6 +207,100 @@ def _infer_runtime_request_contract(
 
 def _deterministic_advisory_enabled() -> bool:
     return os.getenv("CRISAI_DETERMINISTIC_MCP_ADVISORY", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _source_materialisation_enabled(settings: Any) -> bool:
+    """Opt-in gate for checkpoint-time source materialisation (CRISAI-ADR-015 2b).
+
+    Off by default: enable with ``CRISAI_MATERIALISE_SOURCES`` (or a settings
+    ``materialise_sources_enabled``) so the live fetch lands behind a switch.
+    """
+    explicit = getattr(settings, "materialise_sources_enabled", None)
+    if explicit is not None:
+        return bool(explicit)
+    return os.getenv("CRISAI_MATERIALISE_SOURCES", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _confirmed_source_identity(source: Any) -> str:
+    """Stable id for a confirmed source, consistent with anchor identity."""
+    content_id = (getattr(source, "content_id", "") or "").strip()
+    if content_id:
+        return content_id.lower()
+    guid = session_anchors_module._sourcedoc_identity(getattr(source, "open_url", "") or "")
+    if guid:
+        return guid
+    return (getattr(source, "open_url", "") or "").strip().lower()
+
+
+async def _materialise_confirmed_sources(
+    bundle: Any,
+    *,
+    environment: Any,
+    server_specs: Any,
+    session_name: str | None,
+    settings: Any,
+    workflow: Any,
+) -> None:
+    """Materialise confirmed content-read sources into the per-task evidence cache.
+
+    Best-effort and opt-in: a source read during this turn is fetched once and
+    cached, so later turns read a stable copy rather than re-querying live
+    OneDrive/SharePoint (CRISAI-ADR-015 Phase 2b). Workspace-local and handle-less
+    sources are skipped; failures are traced and never abort the run.
+    """
+    if not _source_materialisation_enabled(settings) or bundle is None or not session_name:
+        return
+    sharepoint_spec = server_specs.get("sharepoint_docs") if isinstance(server_specs, dict) else None
+    if sharepoint_spec is None:
+        return
+    task_state_dir = session_store_module.task_metadata_path(session_name)
+    workspace_root = Path(getattr(settings, "workspace_dir", "."))
+    for item in getattr(bundle, "items", ()) or ():
+        source = getattr(item, "source", None)
+        if source is None or getattr(item, "evidence_level", "") != "content_read":
+            continue
+        if (getattr(source, "source_type", "") or "").startswith("workspace"):
+            continue
+        read_handle = (getattr(source, "read_handle", "") or "").strip()
+        if not read_handle:
+            continue
+        source_id = _confirmed_source_identity(source)
+        if not source_id:
+            continue
+        try:
+            outcome = await source_materialisation_module.materialise_source(
+                source_id=source_id,
+                read_handle=read_handle,
+                server_spec=sharepoint_spec,
+                runtime=environment.runtime,
+                task_state_dir=task_state_dir,
+                workspace_root=workspace_root,
+            )
+        except Exception as exc:  # noqa: BLE001 - never break the run on materialisation
+            _trace_workflow_policy_event(
+                workflow, "SOURCE_MATERIALISE_ERROR", f"{source_id}: {exc}", event_type="source_signal",
+            )
+            continue
+        record = outcome.record
+        if record is not None:
+            _trace_workflow_policy_event(
+                workflow,
+                "SOURCE_CACHE_HIT" if outcome.cache_hit else "SOURCE_MATERIALISED",
+                f"{record.title or source_id} ({record.revision})",
+                event_type="source_signal",
+                metadata={
+                    "source_id": source_id,
+                    "revision": record.revision,
+                    "cache_hit": outcome.cache_hit,
+                    "bytes": record.byte_size,
+                    "workspace_path": record.raw_path,
+                },
+            )
+        elif outcome.error:
+            _trace_workflow_policy_event(
+                workflow, "SOURCE_MATERIALISE_SKIPPED", f"{source_id}: {outcome.error}",
+                event_type="source_signal",
+            )
 
 
 def _is_empty_stage_output_error(exc: Exception, *, agent_id: str) -> bool:
@@ -1252,6 +1348,19 @@ async def run_pipeline(
                 )
                 continue
             raise WorkflowValidationError(f"Unknown retrieval checkpoint decision: {decision.action}")
+
+        # Sources are confirmed (checkpoint continued): materialise them into the
+        # per-task evidence cache so later turns read a stable copy (ADR-015 2b).
+        await _materialise_confirmed_sources(
+            getattr(evidence_capture.transport, "bundle", None)
+            if getattr(evidence_capture, "transport", None) is not None
+            else None,
+            environment=environment,
+            server_specs=server_specs,
+            session_name=session_name,
+            settings=settings,
+            workflow=workflow,
+        )
 
         if task_contract.is_summary:
             workflow.skip_stage(
