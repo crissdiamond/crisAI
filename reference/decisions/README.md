@@ -37,3 +37,6 @@ Each decision file should be short and use this shape:
 | [CRISAI-ADR-010](CRISAI-ADR-010-document-formatting-agent.md) | Add a narrow document formatting agent | accepted |
 | [CRISAI-ADR-011](CRISAI-ADR-011-session-anchors.md) | Preserve user-visible session anchors across follow-up turns | accepted |
 | [CRISAI-ADR-012](CRISAI-ADR-012-gemini-style-cli.md) | Gemini-style persistent CLI experience | accepted |
+| [CRISAI-ADR-013](CRISAI-ADR-013-source-capability-contract.md) | Source connector capability contract | accepted |
+| [CRISAI-ADR-014](CRISAI-ADR-014-session-design-memory.md) | Session state as living, pulled, status-bearing design memory | accepted |
+| [CRISAI-ADR-015](CRISAI-ADR-015-source-grounding-backbone.md) | Durable source anchors and workspace evidence materialisation | accepted |
