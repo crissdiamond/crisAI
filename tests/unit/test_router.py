@@ -57,6 +57,20 @@ def test_explicit_pipeline_still_wins_for_source_inventory_contract():
     assert decision.needs_retrieval is True
 
 
+def test_source_inventory_that_also_writes_does_not_use_lightweight_path():
+    # The lightweight route is for a pure listing only. When the ask also writes
+    # the result (output path / publication), it must fall through to the
+    # publication route so the write is not dropped.
+    decision = decide_route(
+        "Find all files in my OneDrive with 'UCL integration strategy' in the title and "
+        "save the list as `workspace/knowledge/strategy-inventory.md`.",
+        review_enabled=False,
+    )
+
+    assert decision.intent != "discovery"
+    assert decision.mode != "single" or decision.agent != "retrieval_planner"
+
+
 def test_route_pipeline_for_source_based_design():
     decision = decide_route(
         "Find the docs about command handling and propose a simple design improvement.",

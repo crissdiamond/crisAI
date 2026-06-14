@@ -190,6 +190,11 @@ def _route_from_contract(contract: request_module.RequestContract, review_enable
         and contract.deliverable_type == "source_inventory"
         and contract.required_evidence_level == "metadata_read"
         and contract.source_required
+        # A pure listing only. If the ask also writes/publishes the result (output
+        # path or publication intent), fall through to the publication route so the
+        # write is not dropped on the lightweight discovery path.
+        and not contract.output_path
+        and not contract.has_hint("publication")
     ):
         return RoutingDecision(
             intent="discovery",
