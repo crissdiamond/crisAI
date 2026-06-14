@@ -77,8 +77,25 @@ class RuntimeManager:
     def __init__(self, root_dir: Path) -> None:
         self.root_dir = root_dir
 
-    def build_server(self, spec: registry.ServerSpec, env_overrides: dict[str, str] | None = None):
-        allowed_tools = spec.raw.get("tools", {}).get("allow", [])
+    def build_server(
+        self,
+        spec: registry.ServerSpec,
+        env_overrides: dict[str, str] | None = None,
+        *,
+        include_internal: bool = False,
+    ):
+        """Build an MCP server client.
+
+        ``include_internal`` adds the server's ``tools.internal`` tools to the
+        static filter. It is only used by deterministic orchestration paths (e.g.
+        source materialisation) and must stay ``False`` for agent-facing servers,
+        so internal tools (such as the ``read_binary`` download) remain invisible
+        to models (CRISAI-ADR-013 / ADR-015).
+        """
+        tools_block = spec.raw.get("tools", {}) or {}
+        allowed_tools = list(tools_block.get("allow", []) or [])
+        if include_internal:
+            allowed_tools = allowed_tools + list(tools_block.get("internal", []) or [])
         timeout = _resolve_client_session_timeout_seconds(spec.raw)
         tool_filter = create_static_tool_filter(allowed_tool_names=allowed_tools)
 
