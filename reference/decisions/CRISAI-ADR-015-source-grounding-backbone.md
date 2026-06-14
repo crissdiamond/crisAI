@@ -120,9 +120,14 @@ system of record, and never user-browsable as a file store.
   CRISAI-ADR-005 / ADR-011 / ADR-014). Interacts with TODO-023 (durable memory
   tuning) so anchors survive long sessions.
 - **New per-task evidence store**: a bounded cache (e.g.
-  `workspace/tasks/<id>/.crisai/sources/<source-id>/{raw,extracted}`) with
+  `workspace/tasks/<id>/sources/<source-id>/<revision>/{raw,extracted}`) with
   revision metadata. This is the concrete form of TODO-003 (cache validated
-  retrieval evidence) and the near-term #3 item.
+  retrieval evidence) and the near-term #3 item. The cache lives in a **visible,
+  readable** per-task `sources/` directory — not the sensitive `.crisai/` tree
+  (which holds session memory, history, and run snapshots agents must not read) —
+  so the agent can read the cached copy via the workspace tools and the user can
+  see and delete cached files. The candidate's `workspace_path` points at the
+  cached copy, so resolution surfaces it for read-through.
 - **Retrieval changes to resolve-against-anchors-first**; live search becomes the
   fallback for genuinely new references. The resolver gains robust
   identity/alias/version/ordinal matching.

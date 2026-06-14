@@ -253,7 +253,10 @@ async def _materialise_confirmed_sources(
     sharepoint_spec = server_specs.get("sharepoint_docs") if isinstance(server_specs, dict) else None
     if sharepoint_spec is None:
         return
-    task_state_dir = session_store_module.task_metadata_path(session_name)
+    # Cache under a visible, readable per-task `sources/` directory (the task root,
+    # not the sensitive `.crisai/` tree) so the agent can read the cached copy via
+    # the workspace tools and the user can see and delete it (ADR-015 2b).
+    task_state_dir = session_store_module.task_dir(session_name)
     workspace_root = Path(getattr(settings, "workspace_dir", "."))
     for item in getattr(bundle, "items", ()) or ():
         source = getattr(item, "source", None)
