@@ -12,7 +12,9 @@ The product direction and guiding principles are recorded in
 ## How To Maintain
 
 - `Status`: todo, planned, in-progress, blocked, done, or dropped.
-- `Priority`: P0 highest, then P1, P2, P3.
+- `Priority`: P0 blocks the supported local team-adoption target; P1 is the next
+  reliability, security, or core-product track; P2 is medium-term capability or
+  maintainability work; P3 is optional polish or a conditional future surface.
 - Keep one ownerless backlog here until the team adopts issue tracking.
 - Move completed items to `Done` with the commit or PR reference.
 - Split any item that cannot be completed and verified in one focused change.
@@ -139,42 +141,36 @@ run state, distributed quotas/rate limits, and production deployment controls.
 
 ## Recommended Sequencing
 
-1. Implement `TODO-026` before broader team onboarding, because renaming after
-   users clone and configure the tool will create avoidable churn.
-2. Implement `TODO-030` and `TODO-031` before adding more protected source
-   connectors or enabling remote/custom MCPs for other users.
-3. Implement `TODO-042` (rate limiting) alongside `TODO-030` and `TODO-031`.
-   Once auth is in place, rate-guarding the execution endpoints prevents token
-   exhaustion from misconfigured clients or loops.
-4. Implement `TODO-003` after checkpoint and streaming semantics are stable, so
-   cached evidence can participate in the same confirmation flow.
-5. Implement `TODO-017` (source connector capability contract) before `TODO-004`
-    and `TODO-012`. Both new source adapters should be built against the contract
-    from the start rather than retrofitted later.
-6. Implement `TODO-004` after the capability contract is in place. It creates
-    the secure generic pattern for OAuth-protected web sources before site-specific
-    adapters proliferate.
-7. Implement `TODO-025` with the web UX track, ideally before the full web
-    rebuild, because structured editing is a contained high-value feature for
-    non-technical architecture users.
-    **Note:** design `TODO-025` with the future web architecture
-    (`TODO-019`) in mind. If the scope cannot be carried forward with minimal rework
-    when the rebuild happens, consider advancing `TODO-019` to a design phase first
-    to avoid duplicating effort.
-8. Implement `TODO-006`, `TODO-012`, and `TODO-018` as the core data and
-    enterprise architecture quality track.
-9. Implement `TODO-033`, `TODO-034`, and `TODO-035` before building formal
-    assurance automation. The roles directory and assurance operating model
-    define who can review, who can approve, which artefacts require sign-off,
-    and how asynchronous document movement should be audited.
-10. Implement `TODO-013` and `TODO-038` as the model routing and resilience track.
-    Dynamic model selection and API fallback should be built together so model
-    choices and failure behaviour are governed by the same registry policy.
-11. Implement `TODO-040` before any deeper web/Gem UX work. The active surfaces
-    should consume the shared event contract instead of carrying removed UI
-    implementations.
-12. Treat `TODO-019` as the final alignment step for CLI workflow changes that
-    affect user-visible execution semantics.
+1. Complete `TODO-050`, `TODO-051`, and `TODO-030` as the local team-adoption
+   gate: ownership/release discipline, measurable product quality, and safe
+   handling of trace/log content.
+2. Finish `TODO-048` and `TODO-003` together. The source anchor must resolve to
+   reusable materialised evidence end to end; neither item is complete while a
+   confirmed follow-up can regress to mutable live retrieval.
+3. Complete `TODO-027`, `TODO-053`, and `TODO-032` to establish test, recovery,
+   and actual approval-policy confidence before widening the pilot.
+4. Implement `TODO-026` before broad rollout to avoid repository, package, CLI,
+   and documentation churn after many users have configured installations.
+5. Complete `TODO-038`, `TODO-022`, and `TODO-023` as the execution-resilience
+   track: provider failure, partial peer recovery, and long-session continuity.
+6. Finish `TODO-040`, then address `TODO-040A` and `TODO-045` according to pilot
+   feedback. The active clients already share the v1 contract; remaining work is
+   parity depth, accessibility, and usability rather than another rebuild.
+7. Build `TODO-006`, `TODO-018`, `TODO-021`, and `TODO-010` as the core
+   business-ready artefact quality track.
+8. Complete `TODO-047`, `TODO-007`, `TODO-008`, and `TODO-046` to govern the
+   knowledge and task lifecycle used by a team.
+9. Harden remote connector trust with `TODO-031` before enabling remote/custom
+   MCPs for other users; then implement `TODO-004`, followed by medium-term
+   provider expansion in `TODO-011` and `TODO-012`.
+10. Design `TODO-033` and `TODO-034` before `TODO-035`. Formal assurance tooling
+    must follow accountable human roles and sign-off rules.
+11. Start conditional `TODO-052` only if the product chooses a shared-machine or
+    centrally hosted topology. Static bearer auth and local process state must
+    not be treated as multi-user controls.
+12. Take `TODO-054` incrementally alongside feature work when a touched ownership
+    hotspot has a clear contract boundary; do not pause delivery for a broad
+    rewrite.
 
 ## Done
 
@@ -198,3 +194,4 @@ Completed items should move here with the merge commit or PR reference.
 | TODO-042 | Rate limiting on execution endpoints | `8badc2e feat(web): add per-minute rate limit on execution endpoints`, `47cdc97 fix(web): add /api/run/start to rate-limited paths` |
 | TODO-040B | Visible checkpoint indicator while streaming | `f57ce9b feat(web): focused run view that follows the active agent` — the retrieval checkpoint is now an above-the-fold modal overlay (Continue/Redirect/Stop), so it cannot be missed below the streaming card. The modal supersedes the original sticky-banner idea and intentionally overlays run output while a decision is pending. |
 | TODO-017 | Source connector capability contract | `CRISAI-ADR-013` + `feat(registry): source connector capability contract` (Phase 0–1: `kind` + `capabilities` block on every source server, `SourceCapability` loader, doctor validation) and `feat(retrieval): registry-derived source tool guidance` (Phase 2: `render_source_tool_guidance` generates the retrieval source-tool guidance from the contract; hardcoded intranet/SharePoint tool lists removed). Advisory `pagination`/`freshness` fields are declared for future consumers (TODO-003/004); deeper router scope→server mapping can build on the contract later. |
+| TODO-019 | Legacy web UI rebuild | Superseded by the shared React web/Ink Gem contract work under TODO-040. The active web surface already provides routing, streamed stages, retrieval checkpoints, workspace browsing/editing, and peer transcript rendering; remaining parity and polish stay in TODO-040/040A/045. |
