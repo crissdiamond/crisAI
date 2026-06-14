@@ -102,3 +102,32 @@ def test_is_office_lock_stub_recognises_temp_markers():
     assert sharepoint_server._is_office_lock_stub(".~lock.Report.docx#")
     assert not sharepoint_server._is_office_lock_stub("Strategy v2.pptx")
     assert not sharepoint_server._is_office_lock_stub("Integration-strategy.pdf")
+
+
+def test_download_source_bytes_by_handle_returns_base64_and_revision(monkeypatch):
+    # ADR-015 Phase 2b slice 1: the deterministic materialisation tool returns the
+    # raw file (base64) plus the provider revision token, by read handle.
+    import base64
+
+    raw = b"PK\x03\x04 fake-ooxml-bytes \x00\x01"
+
+    def fake_get(path, params=None, timeout=60):
+        return {
+            "name": "UCL Integration Strategy v2.pptx",
+            "lastModifiedDateTime": "2022-10-12T11:25:56Z",
+            "size": len(raw),
+            "id": "ITEM",
+            "parentReference": {"driveId": "DRV"},
+        }
+
+    monkeypatch.setattr(sharepoint_server, "_graph_get", fake_get)
+    monkeypatch.setattr(sharepoint_server, "_graph_get_bytes", lambda url: raw)
+
+    handle = sharepoint_server._encode_read_handle("DRV", "ITEM")
+    result = sharepoint_server.download_source_bytes_by_handle(handle)
+
+    assert result["suffix"] == ".pptx"
+    assert result["revision"] == "2022-10-12T11:25:56Z"
+    assert result["size"] == len(raw)
+    assert base64.b64decode(result["content_base64"]) == raw
+    assert result["source"]["name"] == "UCL Integration Strategy v2.pptx"

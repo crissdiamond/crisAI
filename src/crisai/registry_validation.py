@@ -352,13 +352,33 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                     message=f"Server '{server.id}' expects environment variable '{api_key_env}' to be set, but it is currently unset or a placeholder.",
                     hint=f"Add a real `{api_key_env}=<your-key>` value to your `.env` file.",
                 ))
-        allowed_tools = server.raw.get("tools", {}).get("allow", [])
+        tools_block = server.raw.get("tools", {}) or {}
+        allowed_tools = tools_block.get("allow", [])
         if not isinstance(allowed_tools, list):
             errors.append(DoctorIssue(
                 message=f"Server '{server.id}' tools.allow must be a list.",
                 hint=f"Change `tools.allow` for server `{server.id}` in `registry/servers.yaml` to a YAML list.",
             ))
             continue
+        # Internal tools are part of the capability contract but excluded from the
+        # agent tool surface (they are not in tools.allow, so the static tool
+        # filter hides them). Used by the deterministic materialisation path only.
+        internal_tools = tools_block.get("internal", [])
+        if not isinstance(internal_tools, list):
+            errors.append(DoctorIssue(
+                message=f"Server '{server.id}' tools.internal must be a list.",
+                hint=f"Change `tools.internal` for server `{server.id}` in `registry/servers.yaml` to a YAML list.",
+            ))
+            continue
+        overlap = sorted(set(allowed_tools) & set(internal_tools))
+        if overlap:
+            errors.append(DoctorIssue(
+                message=(
+                    f"Server '{server.id}' lists tool(s) in both tools.allow and tools.internal: "
+                    f"{', '.join(overlap)}. An internal tool must not be agent-exposed."
+                ),
+                hint=f"Remove the tool(s) from one of the lists for server `{server.id}`.",
+            ))
         for tool_name in sorted(prompt_contracts_module.PROMPT_CONTRACT_TOOL_REFERENCES.get(server.id, frozenset())):
             if tool_name not in allowed_tools:
                 warnings.append(DoctorIssue(
@@ -369,7 +389,8 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                     hint=f"Add `{tool_name}` to `tools.allow` for server `{server.id}` in `registry/servers.yaml`.",
                 ))
         if server.enabled:
-            _validate_source_capability(server, allowed_tools, errors, warnings)
+            # Capability operations may reference agent-facing (allow) or internal tools.
+            _validate_source_capability(server, allowed_tools + internal_tools, errors, warnings)
 
     for agent in agents:
         prompt_path = root_dir / agent.prompt_file
