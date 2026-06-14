@@ -156,6 +156,37 @@ class SessionSourceCandidate:
                 return cleaned
         return ""
 
+    @property
+    def logical_key(self) -> str:
+        """Return the identity of the underlying document for de-duplication.
+
+        The same document re-discovered in a later turn can carry a different
+        provider GUID (a different URL form or list context), so ``identity``
+        alone does not collapse re-discovered copies. The logical key groups by
+        normalised title plus source family and scope so one document maps to one
+        anchor (CRISAI-ADR-015), preventing duplicate copies of one file from
+        crowding out other distinct sources during resolution.
+        """
+        title = _normalise_match_text(self.title)
+        if not title:
+            return self.identity
+        return "|".join((title, self.source_family.lower().strip(), self.source_scope.lower().strip()))
+
+    @property
+    def strong_identity(self) -> str:
+        """Return the stable provider id (content_id or sourcedoc GUID) only.
+
+        Unlike ``identity``, this does not fall back to the open URL, workspace
+        path, or title — it is empty when no provider id is known. Two candidates
+        with the same strong identity are the same physical document even if their
+        display titles differ (CRISAI-ADR-015).
+        """
+        for value in (self.content_id, _sourcedoc_identity(self.open_url)):
+            cleaned = (value or "").strip().lower()
+            if cleaned:
+                return cleaned
+        return ""
+
 
 @dataclass(frozen=True, slots=True)
 class ResolvedSourceReference:
@@ -498,12 +529,74 @@ def _dedupe_resolved_sources(references: list[ResolvedSourceReference]) -> list[
     seen: set[str] = set()
     deduped: list[ResolvedSourceReference] = []
     for reference in references:
-        identity = reference.source.identity
-        if identity in seen:
+        key = reference.source.logical_key or reference.source.identity
+        if key in seen:
             continue
-        seen.add(identity)
+        seen.add(key)
         deduped.append(reference)
     return deduped
+
+
+# Evidence strength ordering for choosing which re-discovered copy of a document
+# to keep when merging duplicates (CRISAI-ADR-003 levels; read_failed is weakest).
+_EVIDENCE_STRENGTH = {
+    "content_read": 3,
+    "metadata_read": 2,
+    "search_hit_only": 1,
+    "read_failed": 0,
+    "": 0,
+}
+
+
+def _candidate_strength(candidate: SessionSourceCandidate) -> tuple[int, int, int]:
+    """Rank a candidate so the strongest copy of a document wins a merge."""
+    return (
+        _EVIDENCE_STRENGTH.get(candidate.evidence_level, 0),
+        candidate.source_turn if candidate.source_turn is not None else -1,
+        1 if (candidate.content_id or candidate.open_url or candidate.workspace_path) else 0,
+    )
+
+
+def dedupe_source_candidates_by_logical_document(
+    candidates: list[SessionSourceCandidate],
+) -> list[SessionSourceCandidate]:
+    """Collapse re-discovered copies of one document into a single anchor.
+
+    Two candidates are the same document when they share a stable provider id
+    (``strong_identity`` — same physical file, possibly different display titles)
+    OR a ``logical_key`` (same title/family/scope, re-discovered with a different
+    GUID across turns). Each group keeps the strongest copy (highest evidence
+    level, then most recent turn, then one carrying a durable handle), preserving
+    first-seen order for stable rendering. One document maps to one anchor so
+    duplicate copies cannot crowd out other distinct sources under the resolution
+    limit (CRISAI-ADR-015).
+    """
+    groups: list[dict[str, Any]] = []
+
+    def _find_group(candidate: SessionSourceCandidate) -> dict[str, Any] | None:
+        sid = candidate.strong_identity
+        lk = candidate.logical_key
+        for group in groups:
+            if sid and sid in group["identities"]:
+                return group
+            if lk and lk in group["logical_keys"]:
+                return group
+        return None
+
+    for candidate in candidates:
+        if not (candidate.strong_identity or candidate.logical_key):
+            continue
+        group = _find_group(candidate)
+        if group is None:
+            group = {"identities": set(), "logical_keys": set(), "best": candidate}
+            groups.append(group)
+        elif _candidate_strength(candidate) > _candidate_strength(group["best"]):
+            group["best"] = candidate
+        if candidate.strong_identity:
+            group["identities"].add(candidate.strong_identity)
+        if candidate.logical_key:
+            group["logical_keys"].add(candidate.logical_key)
+    return [group["best"] for group in groups]
 
 
 def _sourcedoc_identity(open_url: str) -> str:
