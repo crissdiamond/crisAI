@@ -1652,19 +1652,40 @@ async def run_peer_pipeline(
         context_retrieval_text = ""
         context_text = ""
         if needs_retrieval:
-            retrieval_plan_text = await workflow.run_stage(
-                spec=specs["retrieval_planner"],
-                ui_agent_id="retrieval_planner",
-                prompt=build_retrieval_planner_prompt(
+            try:
+                retrieval_plan_text = await workflow.run_stage(
+                    spec=specs["retrieval_planner"],
+                    ui_agent_id="retrieval_planner",
+                    prompt=build_retrieval_planner_prompt(
+                        message,
+                        deterministic_context=deterministic_context,
+                        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+                        task_contract=request_contract.task_contract,
+                        resolved_sources=request_contract.resolved_sources,
+                    ),
+                    trace_label="RETRIEVAL_PLANNER OUTPUT",
+                    verbose=verbose,
+                )
+            except RuntimeError as exc:
+                # The framing handoff is advisory — context retrieval does the real
+                # lookup. An empty planner output (e.g. a reasoning model that emits
+                # only reasoning) must not kill the peer run; fall back to a
+                # deterministic handoff and continue, mirroring the pipeline path.
+                if not _is_empty_stage_output_error(exc, agent_id="retrieval_planner"):
+                    raise
+                retrieval_plan_text = _build_retrieval_planner_fallback(
                     message,
                     deterministic_context=deterministic_context,
-                    registry_dir=Path(registry_dir) if registry_dir is not None else None,
                     task_contract=request_contract.task_contract,
-                    resolved_sources=request_contract.resolved_sources,
-                ),
-                trace_label="RETRIEVAL_PLANNER OUTPUT",
-                verbose=verbose,
-            )
+                    request_contract=request_contract,
+                )
+                workflow.trace_event(
+                    "RETRIEVAL_PLANNER FALLBACK",
+                    retrieval_plan_text,
+                    event_type="stage_output",
+                    agent_id="retrieval_planner",
+                    metadata={"fallback_reason": "empty_output"},
+                )
             if use_context_retrieval:
                 evidence_capture = EvidenceValidationCapture(intent_message)
 
