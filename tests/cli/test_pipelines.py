@@ -2751,3 +2751,46 @@ async def test_materialise_confirmed_sources_is_opt_in(monkeypatch, tmp_path):
     )
 
     assert called == []
+
+
+@pytest.mark.anyio
+async def test_run_peer_pipeline_falls_back_when_retrieval_planner_is_empty(monkeypatch, tmp_path):
+    # Test004 regression: a peer run whose framing planner emits empty output
+    # (e.g. a reasoning model returning only reasoning) must not die — it falls
+    # back to a deterministic handoff and continues, like the pipeline path.
+    trace_calls: list[tuple[str, str]] = []
+    stage_calls: list[tuple[str, str]] = []
+    session = FallbackWorkflowSession(trace_calls, stage_calls, "Final recommendation\nKeep it simple.")
+    engine = FakeWorkflowEngine(session)
+
+    monkeypatch.setattr(pipelines, "ensure_openai_api_key", lambda settings: None)
+    monkeypatch.setattr(
+        pipelines,
+        "create_workflow_environment",
+        lambda settings, **kwargs: SimpleNamespace(trace_file=tmp_path / "trace.log"),
+    )
+    monkeypatch.setattr(
+        pipelines,
+        "resolve_required_agents",
+        lambda agent_specs, required_ids, mode_name=None: {
+            agent_id: SimpleNamespace(id=agent_id, allowed_servers=[])
+            for agent_id in required_ids
+        },
+    )
+    monkeypatch.setattr(pipelines, "WorkflowEngine", lambda **kwargs: engine)
+    monkeypatch.setattr(pipelines, "build_author_prompt", lambda message, discovery_text: message)
+
+    result = await pipelines.run_peer_pipeline(
+        "Author a strategy knowledge artefact from the deck.",
+        verbose=False,
+        review=False,
+        settings=SimpleNamespace(openai_api_key="key", log_dir=tmp_path),
+        server_specs={},
+        agent_specs={},
+        needs_retrieval=True,
+    )
+
+    # The run completed rather than failing on the empty planner output.
+    assert result == "Final recommendation\nKeep it simple."
+    assert "retrieval_planner" in [name for name, _ in stage_calls]
+    assert any(stage == "RETRIEVAL_PLANNER FALLBACK" for stage, _ in trace_calls)
