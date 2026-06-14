@@ -2603,3 +2603,50 @@ async def test_run_peer_pipeline_repairs_final_output_for_repairable_verifier_mi
     assert result == "Final recommendation\nRepair complete."
     assert verify_calls == ["final-output-stale", "Final recommendation\nRepair complete."]
     assert [name for name, _ in stage_calls].count("orchestrator") == 2
+
+
+_INVENTORY_MSG = (
+    "Find all files in my OneDrive with 'UCL integration strategy' in the title, "
+    "list all of them in order of most likely authoritative version."
+)
+_INVENTORY_OFF_TITLE = (
+    "| Rank | Name |\n|---|---|\n"
+    "| 1 | [UCL Integration Strategy v1.pptx](https://x-my.sharepoint.com/personal/u/a.pptx) |\n"
+    "| 2 | [Integration-strategy.pdf](https://x-my.sharepoint.com/personal/u/b.pdf) |\n"
+    "| 3 | [Integration UCL.pptx](https://x-my.sharepoint.com/personal/u/c.pptx) |\n"
+)
+
+
+def test_inventory_fit_gate_rejects_off_title_rows():
+    # The Test003 gap: an inventory produced via the pipeline path listed files
+    # missing the required title phrase. The gate is now mode-independent.
+    with pytest.raises(pipelines.WorkflowPolicyViolation, match="source constraints"):
+        pipelines._enforce_source_inventory_fit(
+            _INVENTORY_OFF_TITLE,
+            deliverable_type="source_inventory",
+            intent_message=_INVENTORY_MSG,
+            registry_dir=REGISTRY_DIR,
+        )
+
+
+def test_inventory_fit_gate_passes_clean_inventory():
+    clean = (
+        "| Rank | Name |\n|---|---|\n"
+        "| 1 | [UCL Integration Strategy v2.pptx](https://x-my.sharepoint.com/personal/u/a.pptx) |\n"
+        "| 2 | [UCL Integration Strategy full deck v3.pptx](https://x-my.sharepoint.com/personal/u/b.pptx) |\n"
+    )
+    pipelines._enforce_source_inventory_fit(
+        clean,
+        deliverable_type="source_inventory",
+        intent_message=_INVENTORY_MSG,
+        registry_dir=REGISTRY_DIR,
+    )
+
+
+def test_inventory_fit_gate_is_noop_for_non_inventory_deliverable():
+    pipelines._enforce_source_inventory_fit(
+        _INVENTORY_OFF_TITLE,
+        deliverable_type="architecture_design",
+        intent_message=_INVENTORY_MSG,
+        registry_dir=REGISTRY_DIR,
+    )
