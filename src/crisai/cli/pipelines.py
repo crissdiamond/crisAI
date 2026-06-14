@@ -500,6 +500,33 @@ def _validate_evidence_bundle(message: str, bundle: EvidenceBundle) -> None:
         raise WorkflowPolicyViolation(conflict_message)
 
 
+def _enforce_source_inventory_fit(
+    result: str,
+    *,
+    deliverable_type: str,
+    intent_message: str,
+    registry_dir: str | Path | None,
+) -> None:
+    """Raise when a source-inventory output lists items outside the user's
+    inferred title/scope constraints.
+
+    The single-agent path enforces this inline (``run_single``), but an inventory
+    ask that routes through the pipeline produced its final list without this
+    check, so off-title files (e.g. a PDF missing the required title phrase) were
+    presented as matches. This makes the gate mode-independent. A non-inventory
+    deliverable is a no-op.
+    """
+    if deliverable_type != "source_inventory":
+        return
+    constraints = infer_source_fit_constraints(
+        intent_message,
+        registry_dir=Path(registry_dir) if registry_dir is not None else None,
+    )
+    violation = source_inventory_failure_message(result, constraints)
+    if violation:
+        raise WorkflowPolicyViolation(violation)
+
+
 def _unresolved_required_read_failures(bundle: EvidenceBundle) -> list[str]:
     """Return non-workspace read failures not matched by a successful read."""
     read_identities = {
@@ -1312,6 +1339,12 @@ async def run_pipeline(
             print_output=False,
         )
         try:
+            _enforce_source_inventory_fit(
+                final_text,
+                deliverable_type=task_contract.deliverable_type,
+                intent_message=intent_message,
+                registry_dir=registry_dir,
+            )
             changed = _enforce_workspace_write_and_validation(
                 policy,
                 authorization,
