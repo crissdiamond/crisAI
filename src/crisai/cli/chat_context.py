@@ -864,12 +864,11 @@ def _safe_source_candidate_metadata(metadata: dict[str, Any]) -> dict[str, str]:
 
 
 def _dedupe_source_candidates(candidates: list[SessionSourceCandidate]) -> list[SessionSourceCandidate]:
-    by_identity: dict[str, SessionSourceCandidate] = {}
-    for candidate in candidates:
-        identity = candidate.identity.strip().lower()
-        if identity not in by_identity:
-            by_identity[identity] = candidate
-    return list(by_identity.values())
+    # Collapse re-discovered copies of one document (same logical document, but a
+    # different provider GUID per turn) into a single anchor, keeping the
+    # strongest copy. Identity-only de-duplication let duplicates accumulate and
+    # crowd out distinct sources under the resolution limit (CRISAI-ADR-015).
+    return anchors_module.dedupe_source_candidates_by_logical_document(candidates)
 
 
 def _render_source_candidates(candidates: list[SessionSourceCandidate]) -> list[str]:
