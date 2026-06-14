@@ -224,3 +224,17 @@ def test_evidence_constraints_reject_matching_title_in_wrong_scope() -> None:
         ),
         constraints,
     )
+
+
+def test_quoted_title_phrase_suppresses_instruction_word_noise():
+    # TODO-055: when the user explicitly quotes the title phrase, instruction and
+    # formatting words ("authoritative version. Present …", "linkable name") must
+    # not be scraped into spurious title constraints.
+    message = (
+        "Find all files in my OneDrive with 'UCL integration strategy' in the title, "
+        "list all of them in order of most likely authoritative version. "
+        "Present the files in a table with linkable name, description, size, date."
+    )
+    constraints = infer_source_fit_constraints(message, registry_dir=REGISTRY_DIR)
+    assert constraints.required_title_phrases == ("UCL integration strategy",)
+    assert "personal_onedrive" in constraints.source_scopes
