@@ -253,6 +253,28 @@ def _normalise_item(item: dict[str, Any]) -> dict[str, Any]:
         "read_handle": read_handle,
     }
 
+
+def _is_office_lock_stub(name: str) -> bool:
+    """Return True for an Office owner-lock / temp stub filename (e.g. ``~$Deck.pptx``).
+
+    Microsoft Office creates a tiny hidden companion file prefixed ``~$`` while a
+    document is open; it is not a real document (not valid OOXML) and must never be
+    surfaced as a source. These stubs linger as orphans after crashes and, when the
+    real file drops out of search results, impersonate it under the same base name.
+    """
+    cleaned = (name or "").strip()
+    return cleaned.startswith("~$") or cleaned.startswith(".~lock.")
+
+
+def _without_lock_stubs(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop Office lock/temp stub files from a list of normalised items.
+
+    Applied before the per-call result cap so a genuine file ranked just below a
+    stub still surfaces instead of being pushed out by junk.
+    """
+    return [item for item in items if not _is_office_lock_stub(str(item.get("name") or ""))]
+
+
 @mcp.tool()
 def login_sharepoint() -> str:
     """Force interactive Microsoft login and cache tokens for later SharePoint calls."""
@@ -340,8 +362,8 @@ def list_drive_items(drive_id: str, item_id: str = "root", max_items: int = 50) 
     """List items under a drive folder. Use item_id='root' for the drive root."""
     log_event(f"list_drive_items drive_id={drive_id} item_id={item_id} max_items={max_items}")
     data = _graph_get(f"/drives/{drive_id}/items/{item_id}/children")
-    values = data.get("value", [])[:max_items]
-    return [_normalise_item(item) for item in values]
+    items = _without_lock_stubs([_normalise_item(item) for item in data.get("value", [])])
+    return items[:max_items]
 
 
 # Drive-id values that mean "the user's own OneDrive" rather than a real Graph
@@ -383,8 +405,8 @@ def search_my_onedrive(query: str, max_hits: int = 20) -> list[dict[str, Any]]:
     log_event(f"search_my_onedrive query={query!r} max_hits={max_hits}")
     encoded = quote(query, safe="")
     data = _graph_get(f"/me/drive/root/search(q='{encoded}')", timeout=90)
-    values = data.get("value", [])[:max_hits]
-    return [_normalise_item(item) for item in values]
+    items = _without_lock_stubs([_normalise_item(item) for item in data.get("value", [])])
+    return items[:max_hits]
 
 
 @mcp.tool()
@@ -395,16 +417,16 @@ def search_drive_documents(drive_id: str, query: str, max_hits: int = 20) -> lis
     resolved = _resolve_drive_id(drive_id)
     encoded = quote(query, safe="")
     data = _graph_get(f"/drives/{resolved}/root/search(q='{encoded}')", timeout=90)
-    values = data.get("value", [])[:max_hits]
-    return [_normalise_item(item) for item in values]
+    items = _without_lock_stubs([_normalise_item(item) for item in data.get("value", [])])
+    return items[:max_hits]
 
 @mcp.tool()
 def search_site_drive_documents(site_id: str, query: str, max_hits: int = 20) -> list[dict[str, Any]]:
     log_event(f"search_site_drive_documents site_id={site_id} query={query!r} max_hits={max_hits}")
     encoded = quote(query, safe="")
     data = _graph_get(f"/sites/{site_id}/drive/root/search(q='{encoded}')", timeout=90)
-    values = data.get("value", [])[:max_hits]
-    return [_normalise_item(item) for item in values]
+    items = _without_lock_stubs([_normalise_item(item) for item in data.get("value", [])])
+    return items[:max_hits]
 
 
 @mcp.tool()
