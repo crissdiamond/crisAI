@@ -258,12 +258,12 @@ def record_materialised_source(
 ) -> bool:
     """Record a confirmed source's materialised cache copy on its session candidate.
 
-    After a source is materialised (CRISAI-ADR-015 Phase 2b), stamp the matching
-    candidate with the cached path and provider revision (in metadata) so a later
-    turn knows a current cached copy exists and can ground on it instead of
-    re-querying live OneDrive/SharePoint. The cache lives under the sensitive
-    ``.crisai/`` tree, so the pointer is kept in metadata rather than
-    ``workspace_path`` (which the agent would try, and be denied, to read).
+    After a source is materialised (CRISAI-ADR-015 Phase 2b), point the matching
+    candidate's ``workspace_path`` at the cached copy and stamp the provider
+    revision (in metadata) so a later turn resolves to the stable local copy and
+    reads it via the workspace tools instead of re-querying live OneDrive/SharePoint.
+    The cache lives under a visible, readable per-task ``sources/`` directory (not
+    the sensitive ``.crisai/`` tree), so ``workspace_path`` is safe to surface.
     Returns whether a candidate matched.
     """
     if not session_name or not source_id.strip() or not materialised_path.strip():
@@ -280,9 +280,8 @@ def record_materialised_source(
         }
         if not matched and target in identities:
             metadata = dict(candidate.metadata)
-            metadata["materialised_path"] = materialised_path
             metadata["materialised_revision"] = revision
-            updated.append(replace(candidate, metadata=metadata))
+            updated.append(replace(candidate, workspace_path=materialised_path, metadata=metadata))
             matched = True
         else:
             updated.append(candidate)

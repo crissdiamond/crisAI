@@ -556,12 +556,13 @@ def test_record_materialised_source_stamps_matching_candidate(monkeypatch):
     monkeypatch.setattr(chat_context, "save_session_memory", lambda name, m: saved.update(memory=m))
 
     matched = chat_context.record_materialised_source(
-        "S", source_id="DD876D07", materialised_path=".crisai/sources/dd876d07/rev-1/raw.pptx", revision="rev-1",
+        "S", source_id="DD876D07", materialised_path="tasks/S/sources/dd876d07/rev-1/raw.pptx", revision="rev-1",
     )
 
     assert matched is True
     stamped = saved["memory"].source_candidates[0]
-    assert stamped.metadata["materialised_path"].endswith("raw.pptx")
+    # The readable cached path is set as workspace_path so resolution surfaces it.
+    assert stamped.workspace_path.endswith("raw.pptx")
     assert stamped.metadata["materialised_revision"] == "rev-1"
 
 

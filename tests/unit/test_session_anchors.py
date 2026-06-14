@@ -7,6 +7,7 @@ from crisai.orchestration.session_anchors import (
     SessionSourceCandidate,
     dedupe_source_candidates_by_logical_document,
     extract_session_anchors_from_history,
+    render_resolved_sources,
     resolve_anchor_references,
     resolve_session_sources,
 )
@@ -151,3 +152,29 @@ def test_duplicate_copies_do_not_starve_a_distinct_named_source() -> None:
     # so the follow-up reuses it instead of live-searching into a lock file.
     v2 = next(r for r in resolved if "v2.pptx" in r.source.title)
     assert "44444444" in v2.source.open_url
+
+
+def test_materialised_candidate_surfaces_cached_path_on_resolution() -> None:
+    # ADR-015 2b slice 4b read-through: a candidate pointing at its readable cached
+    # copy (workspace_path) resolves and surfaces that path in the handoff, so the
+    # follow-up reads the local cache instead of re-querying live OneDrive.
+    cached = SessionSourceCandidate(
+        title="UCL Integration Strategy v2.pptx",
+        source_family="sharepoint_docs",
+        source_type="sharepoint_document",
+        content_id="dd876d07",
+        workspace_path="tasks/Test004/sources/dd876d07/rev-1/raw.pptx",
+    )
+
+    resolved = resolve_session_sources(
+        "Summarise the UCL Integration Strategy v2 deck.",
+        (cached,),
+        registry_dir=REGISTRY_DIR,
+        limit=3,
+    )
+
+    assert resolved
+    assert resolved[0].source.workspace_path.endswith("raw.pptx")
+    rendered = render_resolved_sources(resolved)
+    assert "workspace_path:" in rendered
+    assert "raw.pptx" in rendered
