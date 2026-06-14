@@ -540,3 +540,38 @@ session_memory:
     assert config.max_runtime_chars == 7000
     assert config.max_memory_chars == 3500
     assert config.task_drift_nudge is False
+
+
+def test_record_materialised_source_stamps_matching_candidate(monkeypatch):
+    # ADR-015 2b slice 4a: after materialisation, the cache pointer is recorded on
+    # the matching session candidate (in metadata) so a later turn can ground on it.
+    from crisai.orchestration.session_anchors import SessionSourceCandidate
+
+    base = chat_context.compact_session_memory([])
+    candidate = SessionSourceCandidate(title="Deck v2.pptx", content_id="dd876d07", source_family="sharepoint_docs")
+    memory = chat_context._memory_with_source_candidates(base, [candidate])
+
+    saved: dict = {}
+    monkeypatch.setattr(chat_context, "load_session_memory", lambda name: memory)
+    monkeypatch.setattr(chat_context, "save_session_memory", lambda name, m: saved.update(memory=m))
+
+    matched = chat_context.record_materialised_source(
+        "S", source_id="DD876D07", materialised_path=".crisai/sources/dd876d07/rev-1/raw.pptx", revision="rev-1",
+    )
+
+    assert matched is True
+    stamped = saved["memory"].source_candidates[0]
+    assert stamped.metadata["materialised_path"].endswith("raw.pptx")
+    assert stamped.metadata["materialised_revision"] == "rev-1"
+
+
+def test_record_materialised_source_no_match_does_not_save(monkeypatch):
+    base = chat_context.compact_session_memory([])
+    monkeypatch.setattr(chat_context, "load_session_memory", lambda name: base)
+    saved: dict = {}
+    monkeypatch.setattr(chat_context, "save_session_memory", lambda name, m: saved.update(called=True))
+
+    assert chat_context.record_materialised_source(
+        "S", source_id="missing", materialised_path="p", revision="r",
+    ) is False
+    assert "called" not in saved

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -247,6 +247,48 @@ def persist_session_source_candidates_from_output(session_name: str, output: str
     merged = _dedupe_source_candidates([*discovered, *existing.source_candidates])
     save_session_memory(session_name, _memory_with_source_candidates(existing, merged))
     return merged
+
+
+def record_materialised_source(
+    session_name: str,
+    *,
+    source_id: str,
+    materialised_path: str,
+    revision: str,
+) -> bool:
+    """Record a confirmed source's materialised cache copy on its session candidate.
+
+    After a source is materialised (CRISAI-ADR-015 Phase 2b), stamp the matching
+    candidate with the cached path and provider revision (in metadata) so a later
+    turn knows a current cached copy exists and can ground on it instead of
+    re-querying live OneDrive/SharePoint. The cache lives under the sensitive
+    ``.crisai/`` tree, so the pointer is kept in metadata rather than
+    ``workspace_path`` (which the agent would try, and be denied, to read).
+    Returns whether a candidate matched.
+    """
+    if not session_name or not source_id.strip() or not materialised_path.strip():
+        return False
+    target = source_id.strip().lower()
+    existing = load_session_memory(session_name)
+    updated: list[SessionSourceCandidate] = []
+    matched = False
+    for candidate in existing.source_candidates:
+        identities = {
+            (candidate.identity or "").lower(),
+            (candidate.strong_identity or "").lower(),
+            (candidate.content_id or "").lower(),
+        }
+        if not matched and target in identities:
+            metadata = dict(candidate.metadata)
+            metadata["materialised_path"] = materialised_path
+            metadata["materialised_revision"] = revision
+            updated.append(replace(candidate, metadata=metadata))
+            matched = True
+        else:
+            updated.append(candidate)
+    if matched:
+        save_session_memory(session_name, _memory_with_source_candidates(existing, updated))
+    return matched
 
 
 def build_runtime_context_package(
