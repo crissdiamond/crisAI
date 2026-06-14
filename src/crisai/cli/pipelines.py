@@ -4,6 +4,7 @@ from crisai import openai_agents_trace_compat as compat_module
 
 compat_module.apply_openai_agents_trace_export_patch()
 
+import copy
 import os
 import time
 from contextlib import asynccontextmanager
@@ -498,6 +499,35 @@ def _validate_evidence_bundle(message: str, bundle: EvidenceBundle) -> None:
     conflict_message = latest_source_conflict_message(message, bundle, constraints)
     if must_read and conflict_message:
         raise WorkflowPolicyViolation(conflict_message)
+
+
+# Source-search servers a framing-only planner must not hold. In pipeline/peer
+# mode the retrieval planner produces a search *handoff*; the actual lookup is
+# Context Retrieval's job (see prompts/retrieval_planner_agent.md). Despite the
+# prompt saying "do not retrieve", the model would still search OneDrive/SharePoint
+# and return a separate (often wrong) file list that Context Retrieval then
+# ignored. Removing these servers from the planner stage enforces the contract
+# structurally. The single-agent planner keeps them (it retrieves directly).
+_PLANNER_FRAMING_DENIED_SERVERS = frozenset({"sharepoint_docs", "documents", "intranet"})
+
+
+def _framing_only_planner_spec(spec: Any) -> Any:
+    """Return a copy of the planner spec with source-search servers removed.
+
+    Falls back to the original spec if it cannot be copied/updated, so a malformed
+    spec never breaks the run.
+    """
+    allowed = [
+        server_id
+        for server_id in getattr(spec, "allowed_servers", []) or []
+        if server_id not in _PLANNER_FRAMING_DENIED_SERVERS
+    ]
+    try:
+        framed = copy.copy(spec)
+        framed.allowed_servers = allowed
+    except (AttributeError, TypeError):
+        return spec
+    return framed
 
 
 def _enforce_source_inventory_fit(
@@ -1061,7 +1091,7 @@ async def run_pipeline(
         while True:
             try:
                 retrieval_plan_text = await workflow.run_stage(
-                    spec=specs["retrieval_planner"],
+                    spec=_framing_only_planner_spec(specs["retrieval_planner"]),
                     ui_agent_id="retrieval_planner",
                     prompt=build_retrieval_planner_prompt(
                         retrieval_message,
