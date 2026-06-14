@@ -27,11 +27,16 @@ def infer_source_fit_constraints(
     message: str,
     *,
     registry_dir: Path | str | None = None,
+    output_path: str | None = None,
 ) -> SourceFitConstraints:
     """Infer title and source-scope constraints from a user request.
 
     The term lists live in ``registry/semantic_catalog.yaml``. Python only
     performs deterministic extraction and matching mechanics.
+
+    ``output_path`` is the structured write destination from the request contract.
+    Its scope is removed from the inferred source scopes: an artefact's output
+    destination must never become an input source requirement (and vice versa).
     """
     text = message or ""
     try:
@@ -56,10 +61,24 @@ def infer_source_fit_constraints(
             ]
         )
     scopes = _source_scopes(text, catalog.retrieval_constraints)
+    # Separation of concerns: the write destination is not a source requirement.
+    destination = _output_destination_scope(output_path)
+    if destination:
+        scopes = [scope for scope in scopes if scope != destination]
     return SourceFitConstraints(
         required_title_phrases=tuple(title_phrases),
         source_scopes=tuple(scopes),
     )
+
+
+def _output_destination_scope(output_path: str | None) -> str:
+    """Return the source scope an output destination occupies, to be excluded.
+
+    Workspace artefacts are written to the workspace, so a write target makes the
+    ``workspace`` scope a *destination*, never a source. Extend if non-workspace
+    export destinations are added.
+    """
+    return "workspace" if (output_path or "").strip() else ""
 
 
 def render_source_fit_constraints(constraints: SourceFitConstraints) -> str:

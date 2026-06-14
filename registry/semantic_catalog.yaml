@@ -472,7 +472,26 @@ retrieval_constraints:
       - site page
       - portal pages
     workspace:
-      - workspace
+      # Workspace as a RETRIEVAL source, not a write destination. Bare "workspace"
+      # is deliberately excluded: "put it in the workspace", "save it in the
+      # workspace", "save in workspace/..." are output/write phrasings (expected
+      # for knowledge authoring) and must not be read as a source-scope filter.
+      # Only read/fetch-context phrasing counts as a workspace source request.
+      - from the workspace
+      - from workspace
+      - check the workspace
+      - check workspace
+      - fetch from workspace
+      - fetch from the workspace
+      - use the workspace
+      - use workspace
+      - search the workspace
+      - search workspace
+      - look in the workspace
+      - read from workspace
+      - read from the workspace
+      - workspace file
+      - workspace files
       - local file
       - local files
   source_type_markers:

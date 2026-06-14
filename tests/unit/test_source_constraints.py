@@ -238,3 +238,31 @@ def test_quoted_title_phrase_suppresses_instruction_word_noise():
     constraints = infer_source_fit_constraints(message, registry_dir=REGISTRY_DIR)
     assert constraints.required_title_phrases == ("UCL integration strategy",)
     assert "personal_onedrive" in constraints.source_scopes
+
+
+def test_output_destination_scope_is_excluded_from_source_scopes():
+    # Separation of concerns: a write destination (output_path) must never become
+    # an input source requirement. "fetch from the workspace … save to
+    # workspace/…md" should not require the *source* to be in the workspace.
+    message = "Fetch from the workspace and use the deck; save to workspace/knowledge/out.md"
+    with_dest = infer_source_fit_constraints(
+        message, registry_dir=REGISTRY_DIR, output_path="workspace/knowledge/out.md"
+    )
+    assert "workspace" not in with_dest.source_scopes
+    without_dest = infer_source_fit_constraints(message, registry_dir=REGISTRY_DIR)
+    assert "workspace" in without_dest.source_scopes  # the read-context phrase still infers it
+
+
+def test_authoring_from_external_source_does_not_get_a_workspace_source_constraint():
+    # Test006 reproduction: "author from <OneDrive deck>, save under workspace/…"
+    # must not require the source to be in the workspace.
+    message = (
+        'Author a knowledge artefact of type "strategy" from the source below. '
+        'Source: "UCL Integration Strategy full deck v3_cd.pptx". '
+        "Save under workspace/knowledge_staging/strategies/ucl.md"
+    )
+    constraints = infer_source_fit_constraints(
+        message, registry_dir=REGISTRY_DIR,
+        output_path="workspace/knowledge_staging/strategies/ucl.md",
+    )
+    assert "workspace" not in constraints.source_scopes
