@@ -323,3 +323,23 @@ def test_render_source_tool_guidance_limits_to_scope():
 
 def test_render_source_tool_guidance_fails_open_without_registry(tmp_path):
     assert render_source_tool_guidance((), registry_dir=tmp_path / "missing") == ""
+
+
+def test_single_planner_instructs_verbatim_title_phrase_query():
+    # Test005 fix (#1): the single planner must search the required title phrase
+    # exactly as written, not a reordered variant ("Integration UCL").
+    text = build_single_retrieval_planner_prompt(
+        "Find all files in my OneDrive with 'UCL integration strategy' in the title.",
+    )
+    assert "verbatim" in text.lower()
+    assert "same order" in text.lower()
+    assert "UCL integration strategy" in text  # the required phrase is rendered for the model
+
+
+def test_context_retrieval_instructs_verbatim_title_phrase_query():
+    text = build_context_retrieval_prompt(
+        "Find all files in my OneDrive with 'UCL integration strategy' in the title.",
+        "handoff text",
+    )
+    assert "verbatim" in text.lower()
+    assert "UCL integration strategy" in text

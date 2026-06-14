@@ -39,13 +39,22 @@ def infer_source_fit_constraints(
     except Exception:  # noqa: BLE001 - fail open; retrieval still has prompt guidance.
         return SourceFitConstraints()
 
-    title_phrases = _unique_preserve_order(
-        [
-            *_quoted_phrases(text),
-            *_relation_title_phrases(text, catalog.retrieval_constraints, catalog.lexicon),
-            *_object_title_phrases(text, catalog.retrieval_constraints, catalog.lexicon),
-        ]
-    )
+    # An explicit quoted phrase (e.g. "with 'UCL integration strategy' in the
+    # title") is the unambiguous title constraint. Trust it alone and skip the
+    # relation/object heuristics, which otherwise scrape instruction and
+    # formatting words ("linkable name", "authoritative version. Present …") into
+    # spurious title phrases (TODO-055). Heuristic extraction is the fallback only
+    # when the user did not quote a phrase.
+    quoted = _quoted_phrases(text)
+    if quoted:
+        title_phrases = _unique_preserve_order(quoted)
+    else:
+        title_phrases = _unique_preserve_order(
+            [
+                *_relation_title_phrases(text, catalog.retrieval_constraints, catalog.lexicon),
+                *_object_title_phrases(text, catalog.retrieval_constraints, catalog.lexicon),
+            ]
+        )
     scopes = _source_scopes(text, catalog.retrieval_constraints)
     return SourceFitConstraints(
         required_title_phrases=tuple(title_phrases),
