@@ -28,6 +28,49 @@ def test_route_discovery_for_architecture_site_retrieval_query():
     assert decision.needs_review is False
 
 
+def test_route_source_inventory_contract_uses_lightweight_discovery():
+    decision = decide_route(
+        "Find all files in my OneDrive with 'UCL integration strategy' in the title, "
+        "list all of them in order of most likely authoritative version.\n"
+        "Present the files in a table with linkable name, description, size, date.",
+        review_enabled=True,
+    )
+
+    assert decision.intent == "discovery"
+    assert decision.mode == "single"
+    assert decision.agent == "retrieval_planner"
+    assert decision.needs_retrieval is True
+    assert decision.needs_review is False
+
+
+def test_explicit_pipeline_still_wins_for_source_inventory_contract():
+    decision = decide_route(
+        "Find all files in my OneDrive with 'UCL integration strategy' in the title, "
+        "list all of them in order of most likely authoritative version.",
+        review_enabled=False,
+        current_mode="pipeline",
+    )
+
+    assert decision.intent == "explicit"
+    assert decision.mode == "pipeline"
+    assert decision.agent == "retrieval_planner"
+    assert decision.needs_retrieval is True
+
+
+def test_source_inventory_that_also_writes_does_not_use_lightweight_path():
+    # The lightweight route is for a pure listing only. When the ask also writes
+    # the result (output path / publication), it must fall through to the
+    # publication route so the write is not dropped.
+    decision = decide_route(
+        "Find all files in my OneDrive with 'UCL integration strategy' in the title and "
+        "save the list as `workspace/knowledge/strategy-inventory.md`.",
+        review_enabled=False,
+    )
+
+    assert decision.intent != "discovery"
+    assert decision.mode != "single" or decision.agent != "retrieval_planner"
+
+
 def test_route_pipeline_for_source_based_design():
     decision = decide_route(
         "Find the docs about command handling and propose a simple design improvement.",

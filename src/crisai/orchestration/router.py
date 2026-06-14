@@ -185,6 +185,27 @@ def _route_from_contract(contract: request_module.RequestContract, review_enable
             reason="Mode explicitly set to single by user.",
         )
 
+    if (
+        contract.primary_intent == "retrieve_source"
+        and contract.deliverable_type == "source_inventory"
+        and contract.required_evidence_level == "metadata_read"
+        and contract.source_required
+        # A pure listing only. If the ask also writes/publishes the result (output
+        # path or publication intent), fall through to the publication route so the
+        # write is not dropped on the lightweight discovery path.
+        and not contract.output_path
+        and not contract.has_hint("publication")
+    ):
+        return RoutingDecision(
+            intent="discovery",
+            mode="single",
+            agent="retrieval_planner",
+            needs_retrieval=True,
+            needs_review=False,
+            confidence=0.96,
+            reason="The structured task contract identifies a metadata-only source inventory request.",
+        )
+
     if contract.has_hint("publication") and contract.source_required:
         return RoutingDecision(
             intent="source_backed_publication",
@@ -491,5 +512,4 @@ def decide_route(
 # Expose loaded functions at module level for compatibility with unit test monkeypatching
 load_semantic_catalog = catalog_module.load_semantic_catalog
 deterministic_context_from_registry = graph_module.deterministic_context_from_registry
-
 

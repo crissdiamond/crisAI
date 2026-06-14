@@ -31,6 +31,13 @@ GOLDEN_CASES: list[tuple[str, str, str]] = [
         "discovery",
         "single",
     ),
+    (
+        "Find all files in my OneDrive with 'UCL integration strategy' in the title, "
+        "list all of them in order of most likely authoritative version. "
+        "Present the files in a table with linkable name, description, size, date.",
+        "discovery",
+        "single",
+    ),
     # --- operations -----------------------------------------------------------
     (
         "Debug this error and fix the broken import in the CLI module.",

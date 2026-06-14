@@ -810,6 +810,12 @@ This keeps semantic/heuristic tuning maintainable outside code, similar to `regi
 | Broad mixed request | `pipeline` + `design` + review |
 | Ask for author/challenger/refiner/judge debate | `peer` |
 
+For automatic routing, a structured `source_inventory` request requiring only
+`metadata_read` stays on the single retrieval path even when incidental wording
+also matches broader legacy router terms. Explicit mode choices still take
+precedence, and requests that add summary, design, publication, or other
+synthesis continue to use the corresponding multi-stage route.
+
 ### Important rule
 
 A default startup state should **not** count as a user-explicit mode selection.
