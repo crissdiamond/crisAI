@@ -87,6 +87,7 @@ Run the FastAPI backend first, then attach a client:
 ./start web          # React/Vite web client at http://127.0.0.1:5173
 ./start knowledge    # sync workspace/knowledge from CRISAI_KNOWLEDGE_REPO
 ./start knowledge-pr "desc"   # submit your knowledge edits as a PR for review
+./stop               # stop the running api and web processes
 ```
 
 If bootstrap skipped UI dependencies because `npm` was unavailable, run this once before starting Gem or web:

@@ -215,6 +215,7 @@ From the project root (after uv dependencies are installed):
 # or
 ./start web          # React/Vite web client at http://127.0.0.1:5173
 ./start knowledge    # sync workspace/knowledge from CRISAI_KNOWLEDGE_REPO (see §12.1)
+./stop               # stop the running api and web processes (ports 8000 and 5173)
 ```
 
 Recommended startup behaviour:

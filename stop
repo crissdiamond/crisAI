@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Stop the crisAI API and React web dev processes started with ./start.
+#
+#   ./start api  -> uv run crisai-web        (uvicorn on 127.0.0.1:8000)
+#   ./start web  -> npm run dev:web -> vite  (vite on 127.0.0.1:5173)
+#
+# This terminates both the listeners (by port) and their wrapper process tree
+# (uv / npm / vite, matched by crisAI-specific command patterns). The Ink
+# terminal client (./start gem) is intentionally left running.
+set -uo pipefail
+
+cd "$(dirname "$0")"
+
+API_PORT="${CRISAI_API_PORT:-8000}"
+WEB_PORT="${CRISAI_WEB_PORT:-5173}"
+
+# crisAI-specific command-line patterns. Anchored enough not to match unrelated
+# node/python processes on the machine.
+PATTERNS=(
+  "crisai-web"                 # api entrypoint: uv run crisai-web -> uvicorn
+  "crisai.cli.main web-react"  # web launcher
+  "run dev:web"                # npm workspace web dev script
+  "@crisai/web run dev"        # vite workspace invocation
+)
+
+SELF=$$
+
+collect_port_pids() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnpH "sport = :$port" 2>/dev/null | grep -oP 'pid=\K[0-9]+'
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null
+  fi
+}
+
+# Gather the unique set of target PIDs (associative array doubles as a set).
+declare -A TARGETS=()
+
+for port in "$API_PORT" "$WEB_PORT"; do
+  while read -r pid; do
+    [ -n "$pid" ] && [ "$pid" != "$SELF" ] && TARGETS["$pid"]=1
+  done < <(collect_port_pids "$port")
+done
+
+for pat in "${PATTERNS[@]}"; do
+  while read -r pid; do
+    [ -n "$pid" ] && [ "$pid" != "$SELF" ] && TARGETS["$pid"]=1
+  done < <(pgrep -f -- "$pat" 2>/dev/null || true)
+done
+
+if [ "${#TARGETS[@]}" -eq 0 ]; then
+  echo "No crisAI api/web processes found (ports $API_PORT and $WEB_PORT are clear)."
+  exit 0
+fi
+
+pids=("${!TARGETS[@]}")
+echo "Stopping ${#pids[@]} crisAI api/web process(es): ${pids[*]}"
+
+# Graceful termination first.
+for pid in "${pids[@]}"; do
+  kill -TERM "$pid" 2>/dev/null || true
+done
+
+# Wait up to ~5s for them to exit.
+alive=("${pids[@]}")
+for _ in $(seq 1 10); do
+  remaining=()
+  for pid in "${alive[@]}"; do
+    kill -0 "$pid" 2>/dev/null && remaining+=("$pid")
+  done
+  alive=("${remaining[@]}")
+  [ "${#alive[@]}" -eq 0 ] && break
+  sleep 0.5
+done
+
+# Force-kill anything still alive.
+if [ "${#alive[@]}" -gt 0 ]; then
+  echo "Force-killing unresponsive process(es): ${alive[*]}"
+  for pid in "${alive[@]}"; do
+    kill -KILL "$pid" 2>/dev/null || true
+  done
+fi
+
+# Report final port state.
+for port in "$API_PORT" "$WEB_PORT"; do
+  if [ -n "$(collect_port_pids "$port")" ]; then
+    echo "Warning: port $port is still in use."
+  fi
+done
+
+echo "Done."
