@@ -53,6 +53,28 @@ def test_resolve_deepseek_model_ref(model_specs, monkeypatch):
     assert resolved.api_key == "x"
 
 
+def test_resolve_openai_with_base_url_defers_to_factory(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    resolver = ModelResolver(
+        [
+            ModelSpec(
+                id="openai_gateway",
+                provider="openai",
+                model_name="gpt-5.4-mini",
+                api_key_env="OPENAI_API_KEY",
+                base_url="https://gateway.example.com/v1",
+            )
+        ]
+    )
+    agent = AgentSpec(id="design", name="Design", prompt_file="p.md", allowed_servers=[], model_ref="openai_gateway")
+    resolved = resolver.resolve_for_agent(agent)
+    assert resolved.provider == "openai"
+    # runtime_model stays None so the factory builds a client-bound model.
+    assert resolved.runtime_model is None
+    assert resolved.base_url == "https://gateway.example.com/v1"
+    assert resolved.api_key == "k"
+
+
 def test_resolve_local_model_ref_without_api_key(monkeypatch):
     monkeypatch.delenv("QWEN_API_KEY", raising=False)
     resolver = ModelResolver(

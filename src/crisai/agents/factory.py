@@ -9,7 +9,7 @@ from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_p
 
 apply_openai_agents_trace_export_patch()
 
-from agents import Agent
+from agents import Agent, AsyncOpenAI, OpenAIResponsesModel
 from agents.model_settings import ModelSettings, Reasoning
 
 from crisai.model_resolver import ModelResolver, ResolvedModel
@@ -49,6 +49,13 @@ class AgentFactory:
         """Build the concrete runtime model object expected by the SDK."""
         if resolved_model.runtime_model is not None:
             return resolved_model.runtime_model
+
+        if resolved_model.provider == "openai":
+            # Only reached when the registry sets a custom base_url for an OpenAI
+            # model (Azure OpenAI, gateway, proxy); the default endpoint uses the
+            # SDK's default client via the runtime_model string path above.
+            client = AsyncOpenAI(api_key=resolved_model.api_key, base_url=resolved_model.base_url)
+            return OpenAIResponsesModel(model=resolved_model.model_name, openai_client=client)
 
         if resolved_model.provider in {"gemini", "anthropic", "deepseek", "local"}:
             try:

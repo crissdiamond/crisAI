@@ -1301,6 +1301,33 @@ The current design is built to support:
 
 OpenAI uses the native SDK path. Gemini, Anthropic, DeepSeek, and `local` are resolved through LiteLLM-backed integration when selected. LiteLLM is required for the default registry and is installed by `uv sync --extra litellm`; development installs use `uv sync --extra litellm --group dev`.
 
+### API endpoints (`base_url`)
+
+Every model entry accepts an optional `base_url`. Leave it unset to use each
+provider's managed default endpoint; set it to route through a corporate gateway,
+proxy, or Azure OpenAI deployment. `base_url` is honoured for **all** providers:
+
+- OpenAI: when `base_url` is set, the runtime builds a dedicated client for that
+  endpoint instead of the SDK default client (which otherwise targets
+  `https://api.openai.com/v1`).
+- Gemini, Anthropic, DeepSeek, `local`: the value is passed through to LiteLLM.
+
+`registry/models.yaml` ships each commercial model with its canonical default
+endpoint as a commented `base_url` line so the URL is visible and easy to
+override:
+
+| Provider | Default endpoint |
+| --- | --- |
+| OpenAI | `https://api.openai.com/v1` |
+| Gemini | `https://generativelanguage.googleapis.com` |
+| Anthropic | `https://api.anthropic.com` |
+| DeepSeek | `https://api.deepseek.com/beta` |
+
+> **Gemini/Anthropic caveat:** LiteLLM builds the request path from the base, so
+> only override these with an endpoint that mirrors the provider's API shape.
+> A malformed override breaks live calls even though `crisai doctor --models`
+> (which does not call the provider) still passes.
+
 ### Local and self-hosted models
 
 Provider `local` runs a model served behind an OpenAI-compatible HTTP endpoint —

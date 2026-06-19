@@ -87,11 +87,20 @@ class ModelResolver:
 
         provider = (spec.provider or "").strip().lower()
         api_key_env = getattr(spec, "api_key_env", None)
+        base_url = getattr(spec, "base_url", None)
         api_key: str | None = None
         runtime_model: Any | None = None
 
         if provider == "openai":
-            runtime_model = spec.model_name
+            if base_url:
+                # A custom endpoint (Azure OpenAI, gateway, proxy) needs an
+                # explicitly configured client, so defer construction to the
+                # factory and resolve the credential here.
+                api_key = self._get_api_key(provider, api_key_env)
+            else:
+                # Default OpenAI endpoint: hand the model name to the SDK's
+                # default client, which reads OPENAI_API_KEY lazily.
+                runtime_model = spec.model_name
         elif provider in {"gemini", "anthropic", "deepseek"}:
             api_key = self._get_api_key(provider, api_key_env)
         elif provider == "local":
