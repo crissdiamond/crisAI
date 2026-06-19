@@ -61,10 +61,23 @@ def test_doctor_model_dry_build_passes_current_registry(monkeypatch) -> None:
         def __init__(self, **kwargs):
             del kwargs
 
+    class FakeAsyncOpenAI:
+        def __init__(self, api_key=None, base_url=None):
+            del api_key, base_url
+
+    class FakeResponsesModel:
+        def __init__(self, model, openai_client):
+            del model, openai_client
+
+    # The default registry sets an explicit base_url on every model, so the
+    # OpenAI provider now resolves its key and builds a client at dry-build time.
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
     monkeypatch.setenv("GEMINI_API_KEY", "x")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
     monkeypatch.setattr("crisai.agents.factory.Agent", FakeAgent)
+    monkeypatch.setattr("crisai.agents.factory.AsyncOpenAI", FakeAsyncOpenAI)
+    monkeypatch.setattr("crisai.agents.factory.OpenAIResponsesModel", FakeResponsesModel)
     monkeypatch.setitem(
         __import__("sys").modules,
         "agents.extensions.models.litellm_model",

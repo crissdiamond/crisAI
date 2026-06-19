@@ -1303,30 +1303,34 @@ OpenAI uses the native SDK path. Gemini, Anthropic, DeepSeek, and `local` are re
 
 ### API endpoints (`base_url`)
 
-Every model entry accepts an optional `base_url`. Leave it unset to use each
-provider's managed default endpoint; set it to route through a corporate gateway,
-proxy, or Azure OpenAI deployment. `base_url` is honoured for **all** providers:
+Every model entry carries an explicit `base_url`. `registry/models.yaml` ships
+each commercial model set to its provider's canonical public endpoint; edit one
+to route that model through a corporate gateway, proxy, or Azure OpenAI
+deployment. `base_url` is honoured for **all** providers:
 
-- OpenAI: when `base_url` is set, the runtime builds a dedicated client for that
-  endpoint instead of the SDK default client (which otherwise targets
-  `https://api.openai.com/v1`).
+- OpenAI: the runtime builds a dedicated client for the configured endpoint
+  instead of the SDK default client.
 - Gemini, Anthropic, DeepSeek, `local`: the value is passed through to LiteLLM.
 
-`registry/models.yaml` ships each commercial model with its canonical default
-endpoint as a commented `base_url` line so the URL is visible and easy to
-override:
-
-| Provider | Default endpoint |
+| Provider | Shipped endpoint |
 | --- | --- |
 | OpenAI | `https://api.openai.com/v1` |
 | Gemini | `https://generativelanguage.googleapis.com` |
 | Anthropic | `https://api.anthropic.com` |
 | DeepSeek | `https://api.deepseek.com/beta` |
 
+> **OpenAI key at build time:** because the OpenAI models set a `base_url`, the
+> runtime resolves `OPENAI_API_KEY` and constructs the client when the agent is
+> built — including during `uv run crisai doctor --models`. Set the key before
+> dry-building or running the default registry. (`uv run crisai doctor` without
+> `--models` still only warns.) To restore the lazy, SDK-managed OpenAI client,
+> remove the `base_url` line from the OpenAI models.
+
 > **Gemini/Anthropic caveat:** LiteLLM builds the request path from the base, so
-> only override these with an endpoint that mirrors the provider's API shape.
-> A malformed override breaks live calls even though `crisai doctor --models`
-> (which does not call the provider) still passes.
+> only change these to an endpoint that mirrors the provider's API shape. A
+> malformed value breaks live calls even though `crisai doctor --models` (which
+> does not call the provider) still passes. Verify a changed Gemini/Anthropic
+> endpoint with a real request before relying on it.
 
 ### Local and self-hosted models
 
