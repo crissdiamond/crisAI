@@ -60,3 +60,17 @@ models:
     thinking:
       type: enabled
     reasoning_effort: max
+
+  # Local / self-hosted model served behind an OpenAI-compatible endpoint
+  # (Ollama, vLLM, LM Studio, llama.cpp). Assign it to any agent by setting that
+  # agent's `model_ref: qwen_local` in registry/agents.yaml. Provider `local`
+  # routes through LiteLLM; `model_name` keeps the `openai/` prefix so LiteLLM
+  # uses the OpenAI-compatible protocol against `base_url`. Replace `qwen3` with
+  # your exact served model tag, and `base_url` with your server URL.
+  - id: qwen_local
+    provider: local
+    model_name: openai/qwen3
+    base_url: http://localhost:11434/v1
+    # api_key_env is optional for local servers; set it only if your server
+    # enforces a key (e.g. vLLM started with --api-key).
+    # api_key_env: QWEN_API_KEY

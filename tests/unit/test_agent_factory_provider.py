@@ -92,6 +92,52 @@ def test_build_litellm_model_ignores_unsupported_registry_extras(tmp_path: Path,
     assert "Ignoring unsupported LiteLLM model registry option(s)" not in caplog.text
 
 
+def test_build_local_model_uses_litellm_with_base_url_and_placeholder_key(tmp_path: Path, monkeypatch):
+    prompt_path = tmp_path / 'prompts' / 'x.md'
+    prompt_path.parent.mkdir(parents=True, exist_ok=True)
+    prompt_path.write_text('hello', encoding='utf-8')
+
+    captured = {}
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    class FakeLitellmModel:
+        def __init__(self, model, api_key=None, base_url=None):
+            self.model = model
+            self.api_key = api_key
+            self.base_url = base_url
+
+    monkeypatch.setattr('crisai.agents.factory.Agent', FakeAgent)
+    monkeypatch.delenv('QWEN_API_KEY', raising=False)
+    monkeypatch.setitem(
+        __import__('sys').modules,
+        'agents.extensions.models.litellm_model',
+        SimpleNamespace(LitellmModel=FakeLitellmModel),
+    )
+
+    factory = AgentFactory(
+        tmp_path,
+        model_specs=[
+            ModelSpec(
+                id='qwen_local',
+                provider='local',
+                model_name='openai/qwen3',
+                base_url='http://localhost:11434/v1',
+            )
+        ],
+    )
+    spec = AgentSpec(id='operations', name='Operations', prompt_file='prompts/x.md', allowed_servers=[], model_ref='qwen_local')
+    factory.build_agent(spec, mcp_servers=[])
+
+    model = captured['model']
+    assert model.model == 'openai/qwen3'
+    assert model.base_url == 'http://localhost:11434/v1'
+    # Local servers need no real key, but the client still requires a value.
+    assert model.api_key == 'local'
+
+
 def test_deepseek_thinking_disabled_for_any_tool_enabled_agent_without_reasoning_replay(tmp_path: Path, monkeypatch):
     prompt_path = tmp_path / 'prompts' / 'x.md'
     prompt_path.parent.mkdir(parents=True, exist_ok=True)

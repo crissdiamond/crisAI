@@ -50,18 +50,24 @@ class AgentFactory:
         if resolved_model.runtime_model is not None:
             return resolved_model.runtime_model
 
-        if resolved_model.provider in {"gemini", "anthropic", "deepseek"}:
+        if resolved_model.provider in {"gemini", "anthropic", "deepseek", "local"}:
             try:
                 from agents.extensions.models.litellm_model import LitellmModel
             except ImportError as exc:
                 raise ImportError(
-                    "LiteLLM support is required for Gemini, Anthropic, or DeepSeek models. "
+                    "LiteLLM support is required for Gemini, Anthropic, DeepSeek, or local "
+                    "(OpenAI-compatible) models. "
                     "Install project dependencies with `uv sync --extra litellm`."
                 ) from exc
 
             kwargs: dict[str, Any] = {}
             if resolved_model.api_key:
                 kwargs["api_key"] = resolved_model.api_key
+            elif resolved_model.provider == "local":
+                # Self-hosted OpenAI-compatible servers (Ollama, vLLM, LM Studio,
+                # llama.cpp) typically need no credential, but the underlying client
+                # still requires a non-empty value, so send a harmless placeholder.
+                kwargs["api_key"] = "local"
             if resolved_model.base_url:
                 kwargs["base_url"] = resolved_model.base_url
             if (
