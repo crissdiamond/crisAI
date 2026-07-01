@@ -45,17 +45,12 @@ jobs:
 
       - name: Audit Python dependencies
         run: |
-          # LiteLLM fixes currently require openai>=2.20.0, while crisAI and
-          # openai-agents remain on the OpenAI 1.x SDK line. Keep the ignores
-          # narrow so any new vulnerability still fails the security gate.
+          # No suppressions: the locked dependency set audits clean. Any new
+          # vulnerability must fail the gate, not be added to an ignore list.
           uv run pip-audit \
             --requirement /tmp/crisai-requirements.txt \
             --strict \
-            --progress-spinner off \
-            --ignore-vuln CVE-2026-35029 \
-            --ignore-vuln CVE-2026-35030 \
-            --ignore-vuln GHSA-69x8-hrgq-fjj8 \
-            --ignore-vuln CVE-2026-42271
+            --progress-spinner off
 
       - name: Scan for secrets
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7

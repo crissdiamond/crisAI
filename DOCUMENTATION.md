@@ -382,9 +382,9 @@ uv run crisai validate-artefacts -p workspace/knowledge_staging/patterns/example
 The CI workflow also has a dedicated security scanning job. It runs Bandit
 against `src/crisai`, audits the locked uv dependency set with pip-audit, and
 blocks suspected secret leaks with Gitleaks using `.gitleaks.toml`. The
-pip-audit step narrowly ignores current LiteLLM advisories while crisAI remains
-on the OpenAI 1.x SDK line; remove those ignores when the dependency stack can
-move to OpenAI 2.x-compatible LiteLLM versions.
+pip-audit step runs with no advisory suppressions: the locked dependency set
+audits clean, so any newly disclosed vulnerability fails the gate rather than
+being added to an ignore list.
 
 The same validator runs automatically as part of the **peer post-run verifier** for Markdown files touched in that workflow (`src/crisai/orchestration/peer_verifier.py` calling `validate_workspace_artefact_paths`).
 
