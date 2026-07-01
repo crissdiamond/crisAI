@@ -9,46 +9,61 @@ version: 1
 #   cached_input: <provider cached-input rate>  # optional
 #   reasoning: <provider reasoning-token rate>  # optional
 # The runtime estimates cost only when provider usage and valid pricing are both present.
+# API endpoint (base_url): every model entry sets an explicit `base_url`. These
+# are the providers' canonical public endpoints. Edit one to route a model
+# through a corporate gateway, proxy, or Azure OpenAI deployment. base_url is
+# honoured for all providers, including OpenAI (which then builds a dedicated
+# client) and self-hosted `local` models.
+# NOTE for Gemini/Anthropic: LiteLLM builds the request path from this base, so
+# only change it to an endpoint that mirrors the provider's API shape.
 models:
   - id: openai_fast
     provider: openai
     model_name: gpt-5.4-mini
     api_key_env: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
 
   - id: openai_strong
     provider: openai
     model_name: gpt-5.4
     api_key_env: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
 
   - id: openai_nano
     provider: openai
     model_name: gpt-5.4-nano
     api_key_env: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
 
   - id: gemini_fast
     provider: gemini
     model_name: gemini/gemini-2.5-flash
     api_key_env: GEMINI_API_KEY
+    base_url: https://generativelanguage.googleapis.com
 
   - id: gemini_strong
     provider: gemini
     model_name: gemini/gemini-2.5-pro
     api_key_env: GEMINI_API_KEY
+    base_url: https://generativelanguage.googleapis.com
 
   - id: anthropic_fast
     provider: anthropic
     model_name: anthropic/claude-3-5-haiku-latest
     api_key_env: ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
 
   - id: anthropic_reasoning
     provider: anthropic
     model_name: anthropic/claude-sonnet-4-5
     api_key_env: ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
 
   - id: deepseek_fast
     provider: deepseek
     model_name: deepseek/deepseek-v4-flash
     api_key_env: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com/beta
     thinking:
       type: disabled
 
@@ -56,7 +71,22 @@ models:
     provider: deepseek
     model_name: deepseek/deepseek-v4-flash
     api_key_env: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com/beta
     should_replay_reasoning_content: always
     thinking:
       type: enabled
     reasoning_effort: max
+
+  # Local / self-hosted model served behind an OpenAI-compatible endpoint
+  # (Ollama, vLLM, LM Studio, llama.cpp). Assign it to any agent by setting that
+  # agent's `model_ref: qwen_local` in registry/agents.yaml. Provider `local`
+  # routes through LiteLLM; `model_name` keeps the `openai/` prefix so LiteLLM
+  # uses the OpenAI-compatible protocol against `base_url`. Replace `qwen3` with
+  # your exact served model tag, and `base_url` with your server URL.
+  - id: qwen_local
+    provider: local
+    model_name: openai/qwen3
+    base_url: http://localhost:11434/v1
+    # api_key_env is optional for local servers; set it only if your server
+    # enforces a key (e.g. vLLM started with --api-key).
+    # api_key_env: QWEN_API_KEY

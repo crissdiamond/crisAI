@@ -61,10 +61,23 @@ def test_doctor_model_dry_build_passes_current_registry(monkeypatch) -> None:
         def __init__(self, **kwargs):
             del kwargs
 
+    class FakeAsyncOpenAI:
+        def __init__(self, api_key=None, base_url=None):
+            del api_key, base_url
+
+    class FakeResponsesModel:
+        def __init__(self, model, openai_client):
+            del model, openai_client
+
+    # The default registry sets an explicit base_url on every model, so the
+    # OpenAI provider now resolves its key and builds a client at dry-build time.
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
     monkeypatch.setenv("GEMINI_API_KEY", "x")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
     monkeypatch.setattr("crisai.agents.factory.Agent", FakeAgent)
+    monkeypatch.setattr("crisai.agents.factory.AsyncOpenAI", FakeAsyncOpenAI)
+    monkeypatch.setattr("crisai.agents.factory.OpenAIResponsesModel", FakeResponsesModel)
     monkeypatch.setitem(
         __import__("sys").modules,
         "agents.extensions.models.litellm_model",
@@ -159,6 +172,46 @@ def test_validation_reports_invalid_model_pricing(tmp_path: Path) -> None:
     errors, _warnings = _validate_registry_cross_references(root, registry_dir)
 
     assert any("Model 'openai_fast' has invalid pricing metadata" in error.message for error in errors)
+
+
+def test_validation_accepts_local_provider_with_base_url(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    models_path = registry_dir / "models.yaml"
+    models_payload = yaml.safe_load(models_path.read_text(encoding="utf-8"))
+    models_payload["models"].append({
+        "id": "qwen_local_test",
+        "provider": "local",
+        "model_name": "openai/qwen3",
+        "base_url": "http://localhost:11434/v1",
+    })
+    models_path.write_text(yaml.safe_dump(models_payload), encoding="utf-8")
+
+    errors, _warnings = _validate_registry_cross_references(root, registry_dir)
+
+    assert not any("qwen_local_test" in error.message for error in errors)
+
+
+def test_validation_rejects_local_provider_without_base_url(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    registry_dir = tmp_path / "registry"
+    shutil.copytree(root / "registry", registry_dir)
+    models_path = registry_dir / "models.yaml"
+    models_payload = yaml.safe_load(models_path.read_text(encoding="utf-8"))
+    models_payload["models"].append({
+        "id": "qwen_local_test",
+        "provider": "local",
+        "model_name": "openai/qwen3",
+    })
+    models_path.write_text(yaml.safe_dump(models_payload), encoding="utf-8")
+
+    errors, _warnings = _validate_registry_cross_references(root, registry_dir)
+
+    assert any(
+        "qwen_local_test" in error.message and "base_url" in error.message
+        for error in errors
+    )
 
 
 def test_doctor_reports_unknown_model_ref(tmp_path: Path) -> None:

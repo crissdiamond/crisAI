@@ -9,7 +9,7 @@ from crisai.openai_agents_trace_compat import apply_openai_agents_trace_export_p
 
 apply_openai_agents_trace_export_patch()
 
-from agents import Agent
+from agents import Agent, AsyncOpenAI, OpenAIResponsesModel
 from agents.model_settings import ModelSettings, Reasoning
 
 from crisai.model_resolver import ModelResolver, ResolvedModel
@@ -50,18 +50,31 @@ class AgentFactory:
         if resolved_model.runtime_model is not None:
             return resolved_model.runtime_model
 
-        if resolved_model.provider in {"gemini", "anthropic", "deepseek"}:
+        if resolved_model.provider == "openai":
+            # Only reached when the registry sets a custom base_url for an OpenAI
+            # model (Azure OpenAI, gateway, proxy); the default endpoint uses the
+            # SDK's default client via the runtime_model string path above.
+            client = AsyncOpenAI(api_key=resolved_model.api_key, base_url=resolved_model.base_url)
+            return OpenAIResponsesModel(model=resolved_model.model_name, openai_client=client)
+
+        if resolved_model.provider in {"gemini", "anthropic", "deepseek", "local"}:
             try:
                 from agents.extensions.models.litellm_model import LitellmModel
             except ImportError as exc:
                 raise ImportError(
-                    "LiteLLM support is required for Gemini, Anthropic, or DeepSeek models. "
+                    "LiteLLM support is required for Gemini, Anthropic, DeepSeek, or local "
+                    "(OpenAI-compatible) models. "
                     "Install project dependencies with `uv sync --extra litellm`."
                 ) from exc
 
             kwargs: dict[str, Any] = {}
             if resolved_model.api_key:
                 kwargs["api_key"] = resolved_model.api_key
+            elif resolved_model.provider == "local":
+                # Self-hosted OpenAI-compatible servers (Ollama, vLLM, LM Studio,
+                # llama.cpp) typically need no credential, but the underlying client
+                # still requires a non-empty value, so send a harmless placeholder.
+                kwargs["api_key"] = "local"
             if resolved_model.base_url:
                 kwargs["base_url"] = resolved_model.base_url
             if (

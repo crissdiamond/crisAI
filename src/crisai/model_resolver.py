@@ -87,13 +87,24 @@ class ModelResolver:
 
         provider = (spec.provider or "").strip().lower()
         api_key_env = getattr(spec, "api_key_env", None)
+        base_url = getattr(spec, "base_url", None)
         api_key: str | None = None
         runtime_model: Any | None = None
 
         if provider == "openai":
-            runtime_model = spec.model_name
+            if base_url:
+                # A custom endpoint (Azure OpenAI, gateway, proxy) needs an
+                # explicitly configured client, so defer construction to the
+                # factory and resolve the credential here.
+                api_key = self._get_api_key(provider, api_key_env)
+            else:
+                # Default OpenAI endpoint: hand the model name to the SDK's
+                # default client, which reads OPENAI_API_KEY lazily.
+                runtime_model = spec.model_name
         elif provider in {"gemini", "anthropic", "deepseek"}:
             api_key = self._get_api_key(provider, api_key_env)
+        elif provider == "local":
+            api_key = self._get_optional_api_key(api_key_env)
         else:
             raise ValueError(f"Unsupported model provider: {spec.provider}")
 
@@ -107,6 +118,24 @@ class ModelResolver:
             base_url=getattr(spec, "base_url", None),
             extra=dict(getattr(spec, "extra", {}) or {}),
         )
+
+    def _get_optional_api_key(self, api_key_env: str | None) -> str | None:
+        """Returns a configured API key when present, without requiring one.
+
+        Self-hosted OpenAI-compatible servers (the ``local`` provider) usually
+        need no credential, so a missing key is not an error here.
+
+        Args:
+            api_key_env: An optional environment variable name to read.
+
+        Returns:
+            The API key string if configured, otherwise ``None``.
+        """
+        if api_key_env:
+            value = os.getenv(api_key_env, "")
+            if value:
+                return value
+        return None
 
     def _get_api_key(self, provider: str, api_key_env: str | None) -> str:
         """Returns the configured API key for the provider or raises clearly.

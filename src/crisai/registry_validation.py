@@ -417,10 +417,15 @@ def _validate_registry_cross_references(root_dir: Path, registry_dir: Path) -> t
                 ))
 
     for model in models:
-        if model.provider not in {"openai", "gemini", "anthropic", "deepseek"}:
+        if model.provider not in {"openai", "gemini", "anthropic", "deepseek", "local"}:
             errors.append(DoctorIssue(
                 message=f"Model '{model.id}' has unsupported provider: {model.provider}",
-                hint="Valid providers are `openai`, `gemini`, `anthropic`, and `deepseek`. Update `registry/models.yaml`.",
+                hint="Valid providers are `openai`, `gemini`, `anthropic`, `deepseek`, and `local`. Update `registry/models.yaml`.",
+            ))
+        if model.provider == "local" and not model.base_url:
+            errors.append(DoctorIssue(
+                message=f"Model '{model.id}' uses provider `local` but defines no `base_url`.",
+                hint="Add `base_url: http://localhost:11434/v1` (or your OpenAI-compatible server URL) to the model in `registry/models.yaml`.",
             ))
         if model.api_key_env:
             key_value = os.getenv(model.api_key_env, "")

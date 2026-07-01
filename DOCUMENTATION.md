@@ -1253,7 +1253,7 @@ crisAI now supports provider-aware model assignment.
 - `registry/agents.yaml` also assigns each agent to MCP server ids; workflow runtime passes each stage only its configured servers, not the union of all pipeline servers
 - `registry/models.yaml` defines the actual provider and model name
 - the runtime resolves the provider-specific model when building the agent
-- `registry/examples/agents.openai.yaml`, `agents.deepseek.yaml`, `agents.gemini.yaml`, and `agents.anthropic.yaml` provide complete mono-provider assignment examples
+- `registry/examples/agents.openai.yaml`, `agents.deepseek.yaml`, `agents.gemini.yaml`, `agents.anthropic.yaml`, and `agents.local.yaml` provide complete mono-provider assignment examples
 
 The default `registry/agents.yaml` is intentionally multi-provider: OpenAI for
 fast orchestration/design roles, DeepSeek for summary/context/refinement roles,
@@ -1297,8 +1297,90 @@ The current design is built to support:
 - Gemini
 - Anthropic
 - DeepSeek
+- `local` (self-hosted OpenAI-compatible endpoints)
 
-OpenAI uses the native SDK path. Gemini, Anthropic, and DeepSeek are resolved through LiteLLM-backed integration when selected. LiteLLM is required for the default registry and is installed by `uv sync --extra litellm`; development installs use `uv sync --extra litellm --group dev`.
+OpenAI uses the native SDK path. Gemini, Anthropic, DeepSeek, and `local` are resolved through LiteLLM-backed integration when selected. LiteLLM is required for the default registry and is installed by `uv sync --extra litellm`; development installs use `uv sync --extra litellm --group dev`.
+
+### API endpoints (`base_url`)
+
+Every model entry carries an explicit `base_url`. `registry/models.yaml` ships
+each commercial model set to its provider's canonical public endpoint; edit one
+to route that model through a corporate gateway, proxy, or Azure OpenAI
+deployment. `base_url` is honoured for **all** providers:
+
+- OpenAI: the runtime builds a dedicated client for the configured endpoint
+  instead of the SDK default client.
+- Gemini, Anthropic, DeepSeek, `local`: the value is passed through to LiteLLM.
+
+| Provider | Shipped endpoint |
+| --- | --- |
+| OpenAI | `https://api.openai.com/v1` |
+| Gemini | `https://generativelanguage.googleapis.com` |
+| Anthropic | `https://api.anthropic.com` |
+| DeepSeek | `https://api.deepseek.com/beta` |
+
+> **OpenAI key at build time:** because the OpenAI models set a `base_url`, the
+> runtime resolves `OPENAI_API_KEY` and constructs the client when the agent is
+> built — including during `uv run crisai doctor --models`. Set the key before
+> dry-building or running the default registry. (`uv run crisai doctor` without
+> `--models` still only warns.) To restore the lazy, SDK-managed OpenAI client,
+> remove the `base_url` line from the OpenAI models.
+
+> **Gemini/Anthropic caveat:** LiteLLM builds the request path from the base, so
+> only change these to an endpoint that mirrors the provider's API shape. A
+> malformed value breaks live calls even though `crisai doctor --models` (which
+> does not call the provider) still passes. Verify a changed Gemini/Anthropic
+> endpoint with a real request before relying on it.
+
+### Local and self-hosted models
+
+Provider `local` runs a model served behind an OpenAI-compatible HTTP endpoint —
+Ollama, vLLM, LM Studio, or llama.cpp — including fully offline models such as
+Qwen. It routes through LiteLLM like the other non-OpenAI providers, but differs
+in two ways:
+
+- `base_url` is **required** (`uv run crisai doctor` errors if it is missing) and
+  points at your server, e.g. `http://localhost:11434/v1` for Ollama.
+- An API key is **optional**. Local servers usually need none, so `api_key_env`
+  can be omitted; the runtime sends a harmless placeholder. Set `api_key_env`
+  only when your server enforces a key (e.g. vLLM started with `--api-key`).
+
+Keep the `openai/` prefix on `model_name` so LiteLLM speaks the OpenAI-compatible
+protocol to `base_url`. Example `registry/models.yaml` entry (shipped commented
+guidance included):
+
+```yaml
+models:
+  - id: qwen_local
+    provider: local
+    model_name: openai/qwen3          # use your exact served model tag
+    base_url: http://localhost:11434/v1
+    # api_key_env: QWEN_API_KEY        # only if your server enforces a key
+```
+
+Assign it per agent by setting `model_ref: qwen_local` in `registry/agents.yaml`,
+or copy `registry/examples/agents.local.yaml` over `registry/agents.yaml` to run
+every agent locally. Because local models can be weaker at tool-calling and the
+structured contracts crisAI relies on, start with low-risk agents
+(`operations`, `memory_summarizer`) before moving the orchestrator, review, or
+judge. Run `uv run crisai doctor --models` after assigning it.
+
+#### Serving a local model on WSL2 (Ollama)
+
+Run the model server **inside** WSL so `http://localhost:11434` resolves directly
+with no cross-boundary networking:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen3        # use the exact tag you want to serve
+ollama serve             # exposes the OpenAI-compatible API at :11434/v1
+```
+
+GPU acceleration works through WSL2 when the NVIDIA Windows driver and CUDA in
+WSL are present (Ollama auto-detects and otherwise falls back to CPU). For high
+concurrency across parallel agent stages, vLLM is an alternative OpenAI-compatible
+server. Avoid serving from the Windows host, which forces a WSL→Windows IP and
+firewall configuration.
 
 ### Available DeepSeek model refs
 

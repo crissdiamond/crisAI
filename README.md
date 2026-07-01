@@ -66,6 +66,13 @@ The default registry mixes providers. To run with one provider, copy one of the 
 cp registry/examples/agents.openai.yaml registry/agents.yaml
 ```
 
+To use a **local / self-hosted model** (Qwen, etc.) served behind an
+OpenAI-compatible endpoint such as Ollama, vLLM, or LM Studio, assign the
+`qwen_local` model in `registry/agents.yaml` (or copy
+`registry/examples/agents.local.yaml`). See the "Local and self-hosted models"
+section of [DOCUMENTATION.md](DOCUMENTATION.md) for setup, including running
+Ollama on WSL2.
+
 Check the installation after editing `.env` or registry files:
 
 ```bash

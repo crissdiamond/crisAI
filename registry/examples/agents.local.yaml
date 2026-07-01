@@ -1,0 +1,103 @@
+# Fully local agent assignment overlay.
+#
+# Points every agent at the `qwen_local` model defined in registry/models.yaml,
+# which is served behind an OpenAI-compatible endpoint (Ollama, vLLM, LM Studio,
+# llama.cpp). To run fully local, copy this file over registry/agents.yaml.
+#
+# You do NOT have to go all-local: leave registry/agents.yaml as-is and set
+# `model_ref: qwen_local` on just the agents you want served locally. Local
+# models can be weaker at tool-calling and structured contracts, so consider
+# starting with low-risk agents (operations, memory_summarizer) before moving
+# the orchestrator, review, or judge.
+version: 1
+
+agents:
+  - id: orchestrator
+    name: Orchestrator
+    model_ref: qwen_local
+    prompt_file: prompts/orchestrator.md
+    allowed_servers: [session_memory, workspace, diagrams, documents, intranet]
+
+  - id: retrieval_planner
+    name: Retrieval Planner
+    model_ref: qwen_local
+    prompt_file: prompts/retrieval_planner_agent.md
+    allowed_servers: [session_memory, workspace_read, documents, sharepoint_docs, intranet, vision]
+
+  - id: context_retrieval
+    name: Context Retrieval Agent
+    model_ref: qwen_local
+    prompt_file: prompts/context_retrieval_agent.md
+    allowed_servers: [session_memory, workspace_read, documents, sharepoint_docs, intranet, vision]
+
+  - id: context_synthesizer
+    name: Context Synthesizer Agent
+    model_ref: qwen_local
+    prompt_file: prompts/context_synthesizer_agent.md
+    allowed_servers: [session_memory, workspace_read, documents, intranet]
+
+  - id: design
+    name: Design Agent
+    model_ref: qwen_local
+    prompt_file: prompts/design_agent.md
+    allowed_servers: [session_memory, workspace, diagrams]
+
+  - id: summary
+    name: Summary Agent
+    model_ref: qwen_local
+    prompt_file: prompts/summary_agent.md
+    allowed_servers: [session_memory, workspace_read, documents, sharepoint_docs, intranet, vision]
+
+  - id: review
+    name: Review Agent
+    model_ref: qwen_local
+    prompt_file: prompts/review_agent.md
+    allowed_servers: [session_memory, workspace_read, documents, intranet]
+
+  - id: operations
+    name: Operations Agent
+    model_ref: qwen_local
+    prompt_file: prompts/operations_agent.md
+    allowed_servers: [workspace_read]
+
+  - id: memory_summarizer
+    name: Memory Summarizer
+    model_ref: qwen_local
+    prompt_file: prompts/memory_summarizer.md
+    allowed_servers: []
+
+  - id: publisher
+    name: Publisher
+    model_ref: qwen_local
+    prompt_file: prompts/publisher.md
+    allowed_servers: [session_memory, workspace, documents, diagrams, intranet]
+
+  - id: document_formatter
+    name: Document Formatter
+    model_ref: qwen_local
+    prompt_file: prompts/document_formatter.md
+    allowed_servers: [session_memory, workspace, documents, document_export]
+
+  - id: design_author
+    name: Design Author
+    model_ref: qwen_local
+    prompt_file: prompts/design_author.md
+    allowed_servers: [session_memory, workspace, diagrams]
+
+  - id: design_challenger
+    name: Design Challenger
+    model_ref: qwen_local
+    prompt_file: prompts/design_challenger.md
+    allowed_servers: [session_memory, workspace_read]
+
+  - id: design_refiner
+    name: Design Refiner
+    model_ref: qwen_local
+    prompt_file: prompts/design_refiner.md
+    allowed_servers: [session_memory, workspace, diagrams]
+
+  - id: judge
+    name: Judge
+    model_ref: qwen_local
+    prompt_file: prompts/judge.md
+    allowed_servers: [session_memory, workspace_read]
