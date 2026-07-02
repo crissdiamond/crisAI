@@ -27,7 +27,12 @@ tests/logs/
 # Editor/agent local state
 .agents/
 .antigravitycli/
-.claude/
+# .claude local state stays ignored (at any depth), but the shared skill
+# library at the repo root is tracked.
+**/.claude/
+!/.claude/
+/.claude/*
+!/.claude/skills/
 .codex/
 .continue/
 .cursor
