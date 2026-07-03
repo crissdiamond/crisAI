@@ -324,7 +324,8 @@ server modules). Any `pytest <flag> …` invocation with a flag before the test 
 (e.g. `pytest --collect-only -q`) therefore litters the repo root with directories
 literally named `--no-cov/`, `-q/`, `--collect-only/`, each containing only
 `.auth/`. Live and recurring as of 2026-07-02 (droppings dated May 18 – Jul 2);
-safe to delete; they recur until the import-time side effect is fixed.
+safe to delete; they recur until the import-time side effect is fixed (tracked as
+TODO-059 in `reference/TODO.md` since 2026-07-03).
 
 The script only removes top-level dirs that (a) are named like a flag (leading
 `-`), (b) are untracked by git, and (c) contain nothing but `.auth/`. Everything

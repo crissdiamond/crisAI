@@ -89,7 +89,7 @@ network-free except `tests/smoke/`.
 
 ## TRAP: any pytest argument becomes a directory (argv[1]/.auth bug)
 
-Live, unfixed as of 2026-07-02. All eight MCP server modules under
+Live, unfixed as of 2026-07-03; tracked as TODO-059 in `reference/TODO.md`. All eight MCP server modules under
 `src/crisai/servers/` compute, **at import time**:
 
 ```python

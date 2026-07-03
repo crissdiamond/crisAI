@@ -306,8 +306,8 @@ One line: every MCP server module resolves `ROOT = Path(sys.argv[1])` **at impor
 `sharepoint_server` then mkdirs `ROOT/.auth`, so importing the module under
 `pytest <flag> ...` creates `<flag>/.auth/` at the repo root.
 
-- Live, recurring, unfixed as of 2026-07-02. Existing droppings: `--no-cov/`, `-q/`,
-  `--collect-only/`. They are safe to delete (each contains only an empty `.auth/`).
+- Live, recurring, unfixed as of 2026-07-03; tracked as TODO-059 in `reference/TODO.md`.
+  They are safe to delete (each contains only an empty `.auth/`).
 - Discriminating test: `ls -a <weird-dir>` → contains only `.auth/` → dropping.
 - Avoidance: put the test path *before* flags, or better, avoid invoking pytest in ways
   that import server modules with a flag as `argv[1]`. Do not "fix" this ad hoc during an
