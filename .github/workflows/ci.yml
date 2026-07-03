@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+  schedule:
+    # Daily dependency-CVE sweep: without this, a vulnerability published
+    # during a quiet period is only caught on the next push. Only the
+    # security job runs on schedule; test and ui jobs skip it.
+    - cron: "17 5 * * *"
 
 jobs:
   security:
@@ -61,6 +66,7 @@ jobs:
 
   test:
     name: Test (Python ${{ matrix.python-version }})
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -106,6 +112,7 @@ jobs:
 
   ui:
     name: UI workspace
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

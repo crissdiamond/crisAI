@@ -384,7 +384,10 @@ against `src/crisai`, audits the locked uv dependency set with pip-audit, and
 blocks suspected secret leaks with Gitleaks using `.gitleaks.toml`. The
 pip-audit step runs with no advisory suppressions: the locked dependency set
 audits clean, so any newly disclosed vulnerability fails the gate rather than
-being added to an ignore list.
+being added to an ignore list. Besides running on every push and pull request,
+the security job also runs on a daily schedule so that a vulnerability
+disclosed between commits is surfaced without waiting for the next push; the
+test and UI jobs do not run on the scheduled sweep.
 
 The same validator runs automatically as part of the **peer post-run verifier** for Markdown files touched in that workflow (`src/crisai/orchestration/peer_verifier.py` calling `validate_workspace_artefact_paths`).
 
